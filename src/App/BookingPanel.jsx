@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   MapPin,
   Navigation,
@@ -43,13 +43,12 @@ async function fetchTripData(pickup, dropoff) {
   };
 }
 
-// ── FETCH PRICE DATA (TRUTH #2) ──────────────────────────
-async function fetchPriceData(tripData, rideType) {
+// ── FETCH ALL PRICES (TRUTH #2) ──────────────────────────
+async function fetchQuotesData(tripData) {
   const res = await fetch(PRICE_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      rideType,
       miles: tripData.miles,
       minutes: tripData.durationMin,
     }),
@@ -65,14 +64,11 @@ async function fetchPriceData(tripData, rideType) {
   /*
     Expected:
     {
-      total,
       surgeMultiplier,
-      breakdown: {
-        base,
-        distance,
-        time,
-        bookingFee,
-        surge
+      rides: {
+        standard: { total, breakdown },
+        premium: { total, breakdown },
+        xl: { total, breakdown }
       }
     }
   */
@@ -80,28 +76,25 @@ async function fetchPriceData(tripData, rideType) {
 
 // ── MAIN COMPONENT ───────────────────────────────────────
 export default function BookingPanel({ onBookNow }) {
-  // Input state
   const [pickup, setPickup] = useState('');
   const [dropoff, setDropoff] = useState('');
-
-  // Ride selection
   const [selectedRide, setSelectedRide] = useState('standard');
 
   // ONLY 2 TRUTHS
   const [tripData, setTripData] = useState(null);
-  const [priceData, setPriceData] = useState(null);
+  const [quotesData, setQuotesData] = useState(null);
 
   // UI state
   const [loadingTrip, setLoadingTrip] = useState(false);
-  const [loadingPrice, setLoadingPrice] = useState(false);
+  const [loadingQuotes, setLoadingQuotes] = useState(false);
   const [error, setError] = useState('');
   const [showBreakdown, setShowBreakdown] = useState(false);
 
-  // ── STEP 1: GET TRIP DATA WHEN LOCATIONS CHANGE ────────
+  // ── STEP 1: GET TRIP DATA ──────────────────────────────
   useEffect(() => {
     if (!pickup.trim() || !dropoff.trim()) {
       setTripData(null);
-      setPriceData(null);
+      setQuotesData(null);
       setError('');
       return;
     }
@@ -111,7 +104,7 @@ export default function BookingPanel({ onBookNow }) {
         setLoadingTrip(true);
         setError('');
         setTripData(null);
-        setPriceData(null);
+        setQuotesData(null);
 
         const trip = await fetchTripData(pickup, dropoff);
         setTripData(trip);
@@ -126,43 +119,48 @@ export default function BookingPanel({ onBookNow }) {
     return () => clearTimeout(timeout);
   }, [pickup, dropoff]);
 
-  // ── STEP 2: GET PRICE DATA WHEN TRIP/RIDE CHANGES ──────
+  // ── STEP 2: GET ALL RIDE PRICES ────────────────────────
   useEffect(() => {
     if (!tripData) return;
 
     let cancelled = false;
 
-    async function loadPrice() {
+    async function loadQuotes() {
       try {
-        setLoadingPrice(true);
+        setLoadingQuotes(true);
         setError('');
 
-        const price = await fetchPriceData(tripData, selectedRide);
+        const quotes = await fetchQuotesData(tripData);
 
         if (!cancelled) {
-          setPriceData(price);
+          setQuotesData(quotes);
         }
       } catch (err) {
-        console.error('Price fetch error:', err);
+        console.error('Quotes fetch error:', err);
         if (!cancelled) {
-          setError(err.message || 'Failed to calculate price');
-          setPriceData(null);
+          setError(err.message || 'Failed to calculate prices');
+          setQuotesData(null);
         }
       } finally {
-        if (!cancelled) setLoadingPrice(false);
+        if (!cancelled) setLoadingQuotes(false);
       }
     }
 
-    loadPrice();
+    loadQuotes();
 
     return () => {
       cancelled = true;
     };
-  }, [tripData, selectedRide]);
+  }, [tripData]);
+
+  // Selected ride quote
+  const selectedQuote = useMemo(() => {
+    return quotesData?.rides?.[selectedRide] || null;
+  }, [quotesData, selectedRide]);
 
   // ── BOOK NOW ────────────────────────────────────────────
   const handleBookNow = useCallback(() => {
-    if (!tripData || !priceData) return;
+    if (!tripData || !quotesData || !selectedQuote) return;
 
     const payload = {
       pickup: tripData.pickup,
@@ -170,9 +168,10 @@ export default function BookingPanel({ onBookNow }) {
       rideType: selectedRide,
       tripDistanceMiles: tripData.miles,
       tripDurationMin: tripData.durationMin,
-      fareEstimate: priceData.total,
-      surgeMultiplier: priceData.surgeMultiplier || 1,
-      breakdown: priceData.breakdown || {},
+      fareEstimate: selectedQuote.total,
+      surgeMultiplier: quotesData.surgeMultiplier || 1,
+      breakdown: selectedQuote.breakdown || {},
+      allQuotes: quotesData.rides || {},
       status: 'searching_driver',
       createdAt: new Date().toISOString(),
     };
@@ -182,10 +181,10 @@ export default function BookingPanel({ onBookNow }) {
     } else {
       console.log('Booking payload:', payload);
     }
-  }, [tripData, priceData, selectedRide, onBookNow]);
+  }, [tripData, quotesData, selectedQuote, selectedRide, onBookNow]);
 
-  const isLoading = loadingTrip || loadingPrice;
-  const hasQuote = !!tripData && !!priceData && !error && !isLoading;
+  const isLoading = loadingTrip || loadingQuotes;
+  const hasQuote = !!tripData && !!quotesData && !!selectedQuote && !error && !isLoading;
 
   return (
     <div className="glass" style={{ padding: '26px' }}>
@@ -201,7 +200,7 @@ export default function BookingPanel({ onBookNow }) {
         Book a Ride
       </h2>
 
-      {/* ── Location Inputs ─────────────────────────────── */}
+      {/* Inputs */}
       <div
         style={{
           display: 'flex',
@@ -210,7 +209,6 @@ export default function BookingPanel({ onBookNow }) {
           marginBottom: '20px',
         }}
       >
-        {/* Pickup */}
         <div>
           <div className="lbl">Pickup (A)</div>
           <div style={{ position: 'relative' }}>
@@ -236,7 +234,6 @@ export default function BookingPanel({ onBookNow }) {
           </div>
         </div>
 
-        {/* Dropoff */}
         <div>
           <div className="lbl">Drop-off (B)</div>
           <div style={{ position: 'relative' }}>
@@ -263,7 +260,7 @@ export default function BookingPanel({ onBookNow }) {
         </div>
       </div>
 
-      {/* ── Loading ─────────────────────────────────────── */}
+      {/* Loading */}
       {isLoading && (
         <div
           style={{
@@ -281,11 +278,11 @@ export default function BookingPanel({ onBookNow }) {
             color={T.accent}
             style={{ animation: 'spin 1s linear infinite' }}
           />
-          {loadingTrip ? 'Calculating route…' : 'Calculating price…'}
+          {loadingTrip ? 'Calculating route…' : 'Calculating prices…'}
         </div>
       )}
 
-      {/* ── Error ───────────────────────────────────────── */}
+      {/* Error */}
       {error && !isLoading && (
         <div
           style={{
@@ -316,8 +313,8 @@ export default function BookingPanel({ onBookNow }) {
         </div>
       )}
 
-      {/* ── Ride Selector ───────────────────────────────── */}
-      {tripData && (
+      {/* Ride Selector */}
+      {tripData && quotesData && (
         <div style={{ marginBottom: '18px' }}>
           <div className="lbl">Choose Ride</div>
           <div
@@ -329,6 +326,7 @@ export default function BookingPanel({ onBookNow }) {
           >
             {RIDE_TYPES.map(ride => {
               const active = selectedRide === ride.id;
+              const quote = quotesData?.rides?.[ride.id];
               const IconComp =
                 ride.id === 'premium' ? Zap : ride.id === 'xl' ? Users : Car;
 
@@ -337,9 +335,7 @@ export default function BookingPanel({ onBookNow }) {
                   key={ride.id}
                   className={`ride-card ${active ? 'active' : ''}`}
                   onClick={() => setSelectedRide(ride.id)}
-                  style={{
-                    cursor: 'pointer',
-                  }}
+                  style={{ cursor: 'pointer' }}
                 >
                   <div
                     style={{
@@ -378,7 +374,7 @@ export default function BookingPanel({ onBookNow }) {
                         color: active ? T.accent : T.text,
                       }}
                     >
-                      {active && priceData ? `$${priceData.total}` : 'Select'}
+                      {quote ? `$${quote.total}` : '--'}
                     </div>
                   </div>
 
@@ -439,7 +435,7 @@ export default function BookingPanel({ onBookNow }) {
         </div>
       )}
 
-      {/* ── Trip Details ────────────────────────────────── */}
+      {/* Quote */}
       {hasQuote && (
         <>
           <div
@@ -449,17 +445,9 @@ export default function BookingPanel({ onBookNow }) {
               borderRadius: '18px',
               padding: '18px',
               marginBottom: '14px',
-              animation: 'scaleIn .35s ease-out',
             }}
           >
-            <div
-              style={{
-                fontSize: '13px',
-                fontWeight: 800,
-                color: T.text,
-                marginBottom: '14px',
-              }}
-            >
+            <div style={{ fontSize: '13px', fontWeight: 800, color: T.text, marginBottom: '14px' }}>
               Trip Details
             </div>
 
@@ -489,16 +477,8 @@ export default function BookingPanel({ onBookNow }) {
                 >
                   {tripData.miles} mi
                 </div>
-                <div
-                  style={{
-                    fontSize: '11px',
-                    color: T.textMuted,
-                    fontWeight: 700,
-                    letterSpacing: '1px',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  Distance
+                <div style={{ fontSize: '11px', color: T.textMuted, fontWeight: 700 }}>
+                  DISTANCE
                 </div>
               </div>
 
@@ -521,22 +501,13 @@ export default function BookingPanel({ onBookNow }) {
                 >
                   {tripData.durationMin} min
                 </div>
-                <div
-                  style={{
-                    fontSize: '11px',
-                    color: T.textMuted,
-                    fontWeight: 700,
-                    letterSpacing: '1px',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  Duration
+                <div style={{ fontSize: '11px', color: T.textMuted, fontWeight: 700 }}>
+                  DURATION
                 </div>
               </div>
             </div>
           </div>
 
-          {/* ── Fare Summary ─────────────────────────────── */}
           <div
             style={{
               background: 'linear-gradient(135deg,#F0FDF4 0%,#DCFCE7 100%)',
@@ -544,7 +515,6 @@ export default function BookingPanel({ onBookNow }) {
               borderRadius: '18px',
               padding: '18px 22px',
               marginBottom: '16px',
-              animation: 'scaleIn .38s ease-out',
               boxShadow: '0 4px 18px rgba(22,163,74,.08)',
             }}
           >
@@ -567,17 +537,11 @@ export default function BookingPanel({ onBookNow }) {
                     flexWrap: 'wrap',
                   }}
                 >
-                  <span
-                    style={{
-                      fontSize: '12px',
-                      color: T.textMuted,
-                      fontWeight: 500,
-                    }}
-                  >
+                  <span style={{ fontSize: '12px', color: T.textMuted, fontWeight: 500 }}>
                     {tripData.miles} mi · ~{tripData.durationMin} min
                   </span>
 
-                  {priceData.surgeMultiplier > 1 && (
+                  {quotesData.surgeMultiplier > 1 && (
                     <span
                       style={{
                         background: 'rgba(22,163,74,.12)',
@@ -593,7 +557,7 @@ export default function BookingPanel({ onBookNow }) {
                       }}
                     >
                       <Zap size={10} />
-                      {priceData.surgeMultiplier}x surge
+                      {quotesData.surgeMultiplier}x surge
                     </span>
                   )}
                 </div>
@@ -610,7 +574,7 @@ export default function BookingPanel({ onBookNow }) {
                     lineHeight: 1,
                   }}
                 >
-                  ${priceData.total}
+                  ${selectedQuote.total}
                 </div>
 
                 <button
@@ -632,7 +596,7 @@ export default function BookingPanel({ onBookNow }) {
               </div>
             </div>
 
-            {showBreakdown && priceData.breakdown && (
+            {showBreakdown && selectedQuote?.breakdown && (
               <div
                 style={{
                   borderTop: `1px solid ${T.accentBorder}`,
@@ -643,12 +607,12 @@ export default function BookingPanel({ onBookNow }) {
                 }}
               >
                 {[
-                  { label: 'Base fee', val: priceData.breakdown.base },
-                  { label: 'Distance', val: priceData.breakdown.distance },
-                  { label: 'Time', val: priceData.breakdown.time },
-                  { label: 'Booking fee', val: priceData.breakdown.bookingFee },
-                  ...(priceData.breakdown.surge > 0
-                    ? [{ label: 'Surge', val: priceData.breakdown.surge, highlight: true }]
+                  { label: 'Base fee', val: selectedQuote.breakdown.base },
+                  { label: 'Distance', val: selectedQuote.breakdown.distance },
+                  { label: 'Time', val: selectedQuote.breakdown.time },
+                  { label: 'Booking fee', val: selectedQuote.breakdown.bookingFee },
+                  ...(selectedQuote.breakdown.surge > 0
+                    ? [{ label: 'Surge', val: selectedQuote.breakdown.surge, highlight: true }]
                     : []),
                 ].map((row, i) => (
                   <div
@@ -662,7 +626,7 @@ export default function BookingPanel({ onBookNow }) {
                     <span
                       style={{
                         fontSize: '12.5px',
-                        color: row.highlight ? T.accent : T.textMid,
+                        color: row.highlight ? T.accent : T.text,
                         fontWeight: 600,
                       }}
                     >
@@ -681,42 +645,12 @@ export default function BookingPanel({ onBookNow }) {
                     </span>
                   </div>
                 ))}
-
-                <div
-                  style={{
-                    borderTop: `1px dashed ${T.accentBorder}`,
-                    paddingTop: '10px',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: '13px',
-                      fontWeight: 800,
-                      color: T.text,
-                    }}
-                  >
-                    Total
-                  </span>
-                  <span
-                    style={{
-                      fontFamily: '"JetBrains Mono", monospace',
-                      fontSize: '15px',
-                      fontWeight: 700,
-                      color: T.accent,
-                    }}
-                  >
-                    ${priceData.total}
-                  </span>
-                </div>
               </div>
             )}
           </div>
 
-          {/* ── CTA ─────────────────────────────────────── */}
           <button className="cta-btn" onClick={handleBookNow}>
-            Book Now · ${priceData.total}
+            Book Now · ${selectedQuote.total}
             <ChevronRight
               size={17}
               style={{
@@ -729,8 +663,7 @@ export default function BookingPanel({ onBookNow }) {
         </>
       )}
 
-      {/* ── Empty Prompt ────────────────────────────────── */}
-      {!loadingTrip && !loadingPrice && !error && !tripData && !priceData && (
+      {!pickup && !dropoff && (
         <div
           style={{
             textAlign: 'center',
