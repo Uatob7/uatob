@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   MapPin,
   Navigation,
@@ -11,11 +11,36 @@ import {
   AlertCircle
 } from 'lucide-react';
 
-import { RIDE_TYPES, THEME as T } from '@/App/pricing.js';
+// ── THEME ONLY ───────────────────────────────────────────
+const T = {
+  accent: '#16A34A',
+  accentBorder: '#86EFAC',
+  text: '#111827',
+  textMuted: '#6B7280',
+  border: '#E5E7EB',
+  surfaceAlt: '#F9FAFB',
+  ink: '#111827',
+};
 
 // ── CLOUD FUNCTION URLS ──────────────────────────────────
 const ROUTE_URL = 'https://atob-j2jspuowha-uc.a.run.app';
-const PRICE_URL = 'https://YOUR_PRICE_FUNCTION_URL.a.run.app';
+const PRICE_URL = 'https://YOUR_REAL_PRICE_FUNCTION_URL.a.run.app';
+
+// ── HELPERS ───────────────────────────────────────────────
+function safeNum(val, fallback = 0) {
+  const n = Number(val);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function round2(val) {
+  return Number(safeNum(val).toFixed(2));
+}
+
+function getRideIcon(rideId) {
+  if (rideId === 'premium') return Zap;
+  if (rideId === 'xl') return Users;
+  return Car;
+}
 
 // ── FETCH ROUTE DATA (TRUTH #1) ──────────────────────────
 async function fetchTripData(pickup, dropoff) {
@@ -34,11 +59,14 @@ async function fetchTripData(pickup, dropoff) {
     throw new Error(data.error || `Route error ${res.status}`);
   }
 
+  const miles = round2(data.distance_miles);
+  const durationMin = Math.max(0, Math.round(safeNum(data.duration_minutes, 0)));
+
   return {
     pickup,
     dropoff,
-    miles: Number(data.distance_miles || 0),
-    durationMin: Number(data.duration_minutes || 0),
+    miles,
+    durationMin,
     durationText: data.duration_text || '',
   };
 }
@@ -56,22 +84,11 @@ async function fetchQuotesData(tripData) {
 
   const data = await res.json();
 
-  if (!res.ok) {
+  if (!res.ok || !data.ok) {
     throw new Error(data.error || `Pricing error ${res.status}`);
   }
 
   return data;
-  /*
-    Expected:
-    {
-      surgeMultiplier,
-      rides: {
-        standard: { total, breakdown },
-        premium: { total, breakdown },
-        xl: { total, breakdown }
-      }
-    }
-  */
 }
 
 // ── MAIN COMPONENT ───────────────────────────────────────
@@ -90,14 +107,26 @@ export default function BookingPanel({ onBookNow }) {
   const [error, setError] = useState('');
   const [showBreakdown, setShowBreakdown] = useState(false);
 
+  // Prevent stale async responses
+  const tripRequestRef = useRef(0);
+  const quoteRequestRef = useRef(0);
+
   // ── STEP 1: GET TRIP DATA ──────────────────────────────
   useEffect(() => {
-    if (!pickup.trim() || !dropoff.trim()) {
+    const cleanPickup = pickup.trim();
+    const cleanDropoff = dropoff.trim();
+
+    if (!cleanPickup || !cleanDropoff) {
       setTripData(null);
       setQuotesData(null);
       setError('');
+      setLoadingTrip(false);
+      setLoadingQuotes(false);
+      setShowBreakdown(false);
       return;
     }
+
+    const requestId = ++tripRequestRef.current;
 
     const timeout = setTimeout(async () => {
       try {
@@ -105,14 +134,23 @@ export default function BookingPanel({ onBookNow }) {
         setError('');
         setTripData(null);
         setQuotesData(null);
+        setShowBreakdown(false);
 
-        const trip = await fetchTripData(pickup, dropoff);
+        const trip = await fetchTripData(cleanPickup, cleanDropoff);
+
+        if (tripRequestRef.current !== requestId) return;
         setTripData(trip);
       } catch (err) {
+        if (tripRequestRef.current !== requestId) return;
+
         console.error('Trip fetch error:', err);
         setError(err.message || 'Failed to calculate route');
+        setTripData(null);
+        setQuotesData(null);
       } finally {
-        setLoadingTrip(false);
+        if (tripRequestRef.current === requestId) {
+          setLoadingTrip(false);
+        }
       }
     }, 700);
 
@@ -123,7 +161,7 @@ export default function BookingPanel({ onBookNow }) {
   useEffect(() => {
     if (!tripData) return;
 
-    let cancelled = false;
+    const requestId = ++quoteRequestRef.current;
 
     async function loadQuotes() {
       try {
@@ -132,26 +170,34 @@ export default function BookingPanel({ onBookNow }) {
 
         const quotes = await fetchQuotesData(tripData);
 
-        if (!cancelled) {
-          setQuotesData(quotes);
+        if (quoteRequestRef.current !== requestId) return;
+        setQuotesData(quotes);
+
+        // Ensure selected ride always exists
+        const rideKeys = Object.keys(quotes?.rides || {});
+        if (rideKeys.length && !quotes.rides[selectedRide]) {
+          setSelectedRide(rideKeys[0]);
         }
       } catch (err) {
+        if (quoteRequestRef.current !== requestId) return;
+
         console.error('Quotes fetch error:', err);
-        if (!cancelled) {
-          setError(err.message || 'Failed to calculate prices');
-          setQuotesData(null);
-        }
+        setError(err.message || 'Failed to calculate prices');
+        setQuotesData(null);
       } finally {
-        if (!cancelled) setLoadingQuotes(false);
+        if (quoteRequestRef.current === requestId) {
+          setLoadingQuotes(false);
+        }
       }
     }
 
     loadQuotes();
+  }, [tripData, selectedRide]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [tripData]);
+  // Build ride list from backend response
+  const rideOptions = useMemo(() => {
+    return Object.values(quotesData?.rides || {});
+  }, [quotesData]);
 
   // Selected ride quote
   const selectedQuote = useMemo(() => {
@@ -166,6 +212,7 @@ export default function BookingPanel({ onBookNow }) {
       pickup: tripData.pickup,
       dropoff: tripData.dropoff,
       rideType: selectedRide,
+      rideLabel: selectedQuote.label,
       tripDistanceMiles: tripData.miles,
       tripDurationMin: tripData.durationMin,
       fareEstimate: selectedQuote.total,
@@ -314,27 +361,28 @@ export default function BookingPanel({ onBookNow }) {
       )}
 
       {/* Ride Selector */}
-      {tripData && quotesData && (
+      {tripData && quotesData && rideOptions.length > 0 && (
         <div style={{ marginBottom: '18px' }}>
           <div className="lbl">Choose Ride</div>
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(2,1fr)',
+              gridTemplateColumns: 'repeat(3,1fr)',
               gap: '10px',
             }}
           >
-            {RIDE_TYPES.map(ride => {
+            {rideOptions.map(ride => {
               const active = selectedRide === ride.id;
-              const quote = quotesData?.rides?.[ride.id];
-              const IconComp =
-                ride.id === 'premium' ? Zap : ride.id === 'xl' ? Users : Car;
+              const IconComp = getRideIcon(ride.id);
 
               return (
                 <div
                   key={ride.id}
                   className={`ride-card ${active ? 'active' : ''}`}
-                  onClick={() => setSelectedRide(ride.id)}
+                  onClick={() => {
+                    setSelectedRide(ride.id);
+                    setShowBreakdown(false);
+                  }}
                   style={{ cursor: 'pointer' }}
                 >
                   <div
@@ -374,7 +422,7 @@ export default function BookingPanel({ onBookNow }) {
                         color: active ? T.accent : T.text,
                       }}
                     >
-                      {quote ? `$${quote.total}` : '--'}
+                      ${ride.total}
                     </div>
                   </div>
 
@@ -399,7 +447,7 @@ export default function BookingPanel({ onBookNow }) {
                     {ride.desc}
                   </div>
 
-                  <div style={{ display: 'flex', gap: '10px' }}>
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                     <span
                       style={{
                         display: 'flex',
@@ -447,7 +495,14 @@ export default function BookingPanel({ onBookNow }) {
               marginBottom: '14px',
             }}
           >
-            <div style={{ fontSize: '13px', fontWeight: 800, color: T.text, marginBottom: '14px' }}>
+            <div
+              style={{
+                fontSize: '13px',
+                fontWeight: 800,
+                color: T.text,
+                marginBottom: '14px',
+              }}
+            >
               Trip Details
             </div>
 
@@ -608,8 +663,14 @@ export default function BookingPanel({ onBookNow }) {
               >
                 {[
                   { label: 'Base fee', val: selectedQuote.breakdown.base },
-                  { label: 'Distance', val: selectedQuote.breakdown.distance },
-                  { label: 'Time', val: selectedQuote.breakdown.time },
+                  {
+                    label: `Distance (${tripData.miles} mi × $${selectedQuote.meta?.perMile || 0}/mi)`,
+                    val: selectedQuote.breakdown.distance,
+                  },
+                  {
+                    label: `Time (~${tripData.durationMin} min × $${selectedQuote.meta?.perMin || 0}/min)`,
+                    val: selectedQuote.breakdown.time,
+                  },
                   { label: 'Booking fee', val: selectedQuote.breakdown.bookingFee },
                   ...(selectedQuote.breakdown.surge > 0
                     ? [{ label: 'Surge', val: selectedQuote.breakdown.surge, highlight: true }]
@@ -645,6 +706,29 @@ export default function BookingPanel({ onBookNow }) {
                     </span>
                   </div>
                 ))}
+
+                <div
+                  style={{
+                    borderTop: `1px dashed ${T.accentBorder}`,
+                    paddingTop: '10px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <span style={{ fontSize: '13px', fontWeight: 800, color: T.text }}>
+                    Total
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: '"JetBrains Mono", monospace',
+                      fontSize: '15px',
+                      fontWeight: 700,
+                      color: T.accent,
+                    }}
+                  >
+                    ${selectedQuote.total}
+                  </span>
+                </div>
               </div>
             )}
           </div>
