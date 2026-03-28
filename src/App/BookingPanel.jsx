@@ -10,127 +10,163 @@ import {
   Loader2,
   AlertCircle
 } from 'lucide-react';
-import { PRICING, RIDE_TYPES, THEME as T } from '@/App/pricing.js';
-import { calcFare, getSurge, generateTripData } from '@/App/fare.js';
+import { RIDE_TYPES, THEME as T } from '@/App/pricing.js';
 
+// ── API URLs ─────────────────────────────────────────────
+const ROUTE_URL = 'https://atob-j2jspuowha-uc.a.run.app';
+const PRICE_URL = 'https://YOUR-PRICE-FUNCTION-URL.a.run.app';
 
-// ── CLOUD FUNCTION URL ────────────────────────────────────
-const ATOB_URL = 'https://atob-j2jspuowha-uc.a.run.app';
-
-// ── CALL CLOUD FUNCTION ──────────────────────────────────
-async function fetchATOB(pickup, dropoff) {
-  const res = await fetch(ATOB_URL, {
+// ── FUNCTION 1: GET ROUTE DATA ───────────────────────────
+async function fetchTripData(pickup, dropoff) {
+  const res = await fetch(ROUTE_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ origin: pickup, destination: dropoff }),
+    body: JSON.stringify({
+      origin: pickup,
+      destination: dropoff,
+    }),
   });
 
   const data = await res.json();
 
   if (!res.ok) {
-    throw new Error(data.error || `ATOB error ${res.status}`);
+    throw new Error(data.error || `Route error ${res.status}`);
+  }
+
+  return {
+    pickup,
+    dropoff,
+    miles: Number(data.distance_miles || 0),
+    durationMin: Number(data.duration_minutes || 0),
+    durationText: data.duration_text || '',
+  };
+}
+
+// ── FUNCTION 2: GET PRICE DATA ───────────────────────────
+async function fetchPriceData(tripData, rideType) {
+  const res = await fetch(PRICE_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      rideType,
+      miles: tripData.miles,
+      minutes: tripData.durationMin,
+    }),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.error || `Pricing error ${res.status}`);
   }
 
   return data;
-  // Expected:
-  // { distance_miles, duration_text, duration_minutes? }
-}
-
-// ── DURATION TEXT PARSER (fallback) ─────────────────────
-function parseDurationText(text = '') {
-  if (!text) return 0;
-  let minutes = 0;
-  const hours = text.match(/(\d+)\s*hour/i);
-  const mins = text.match(/(\d+)\s*min/i);
-
-  if (hours) minutes += parseInt(hours[1], 10) * 60;
-  if (mins) minutes += parseInt(mins[1], 10);
-
-  return minutes || 0;
+  /*
+    Expected:
+    {
+      total,
+      surgeMultiplier,
+      breakdown: {
+        base,
+        distance,
+        time,
+        bookingFee,
+        surge
+      }
+    }
+  */
 }
 
 // ── MAIN COMPONENT ───────────────────────────────────────
 export default function BookingPanel({ onBookNow }) {
-  // Location state
   const [pickup, setPickup] = useState('');
   const [dropoff, setDropoff] = useState('');
-
-  // Ride selection
   const [selectedRide, setSelectedRide] = useState('standard');
 
-  // Route / fare state
-  const [fareData, setFareData] = useState(null);
+  // ONLY 2 truths
   const [tripData, setTripData] = useState(null);
-  const [surgeMultiplier, setSurge] = useState(1);
-  const [loadingRoute, setLoadingRoute] = useState(false);
-  const [routeError, setRouteError] = useState('');
+  const [priceData, setPriceData] = useState(null);
+
+  const [loadingTrip, setLoadingTrip] = useState(false);
+  const [loadingPrice, setLoadingPrice] = useState(false);
+  const [error, setError] = useState('');
   const [showBreakdown, setShowBreakdown] = useState(false);
 
-  // ── Fetch route ONLY when pickup/dropoff changes ───────
+  // ── STEP 1: FETCH TRIP DATA WHEN LOCATIONS CHANGE ──────
   useEffect(() => {
     if (!pickup.trim() || !dropoff.trim()) {
-      setFareData(null);
       setTripData(null);
-      setRouteError('');
+      setPriceData(null);
+      setError('');
       return;
     }
 
-    const timeout = setTimeout(() => {
-      setLoadingRoute(true);
-      setRouteError('');
+    const timeout = setTimeout(async () => {
+      try {
+        setLoadingTrip(true);
+        setError('');
+        setTripData(null);
+        setPriceData(null);
 
-      fetchATOB(pickup, dropoff)
-        .then(data => {
-          const miles = data.distance_miles;
-
-          const durationMin =
-            data.duration_minutes != null
-              ? data.duration_minutes
-              : parseDurationText(data.duration_text);
-
-          const surge = getSurge();
-          setSurge(surge);
-
-          const trip = generateTripData(pickup, dropoff, miles, durationMin);
-          setTripData(trip);
-
-          setFareData(
-            calcFare(selectedRide, trip.actualMiles, surge, durationMin)
-          );
-        })
-        .catch(err => {
-          console.error('ATOB error:', err);
-          setRouteError(err.message || 'Failed to calculate route. Check your locations.');
-          setFareData(null);
-          setTripData(null);
-        })
-        .finally(() => setLoadingRoute(false));
-    }, 800);
+        const trip = await fetchTripData(pickup, dropoff);
+        setTripData(trip);
+      } catch (err) {
+        console.error('Trip fetch error:', err);
+        setError(err.message || 'Failed to get route');
+      } finally {
+        setLoadingTrip(false);
+      }
+    }, 700);
 
     return () => clearTimeout(timeout);
   }, [pickup, dropoff]);
 
-  // ── Recalculate fare when ride type changes ────────────
+  // ── STEP 2: FETCH PRICE DATA WHEN TRIP OR RIDE CHANGES ─
   useEffect(() => {
-    if (tripData) {
-      setFareData(
-        calcFare(selectedRide, tripData.actualMiles, surgeMultiplier, tripData.totalMin)
-      );
-    }
-  }, [selectedRide, tripData, surgeMultiplier]);
+    if (!tripData) return;
 
-  // ── Book Now handler ───────────────────────────────────
+    let cancelled = false;
+
+    async function loadPrice() {
+      try {
+        setLoadingPrice(true);
+        setError('');
+
+        const price = await fetchPriceData(tripData, selectedRide);
+
+        if (!cancelled) {
+          setPriceData(price);
+        }
+      } catch (err) {
+        console.error('Price fetch error:', err);
+        if (!cancelled) {
+          setError(err.message || 'Failed to calculate price');
+          setPriceData(null);
+        }
+      } finally {
+        if (!cancelled) setLoadingPrice(false);
+      }
+    }
+
+    loadPrice();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tripData, selectedRide]);
+
   const handleBookNow = useCallback(() => {
-    if (!fareData || !tripData) return;
+    if (!tripData || !priceData) return;
 
     const payload = {
-      pickup,
-      dropoff,
+      pickup: tripData.pickup,
+      dropoff: tripData.dropoff,
       rideType: selectedRide,
-      fareEstimate: fareData.total,
-      surgeMultiplier,
-      tripDistanceMiles: tripData.actualMiles,
-      tripDurationMin: tripData.totalMin,
+      tripDistanceMiles: tripData.miles,
+      tripDurationMin: tripData.durationMin,
+      fareEstimate: priceData.total,
+      surgeMultiplier: priceData.surgeMultiplier || 1,
+      breakdown: priceData.breakdown || {},
       status: 'searching_driver',
       createdAt: new Date().toISOString(),
     };
@@ -140,9 +176,10 @@ export default function BookingPanel({ onBookNow }) {
     } else {
       console.log('Booking payload:', payload);
     }
-  }, [pickup, dropoff, selectedRide, fareData, tripData, surgeMultiplier, onBookNow]);
+  }, [tripData, priceData, selectedRide, onBookNow]);
 
-  const hasRoute = !loadingRoute && !routeError && fareData && tripData;
+  const isLoading = loadingTrip || loadingPrice;
+  const hasQuote = !!tripData && !!priceData && !error && !isLoading;
 
   return (
     <div className="glass" style={{ padding: '26px' }}>
@@ -158,7 +195,7 @@ export default function BookingPanel({ onBookNow }) {
         Book a Ride
       </h2>
 
-      {/* ── Location inputs ──────────────────────────────── */}
+      {/* Inputs */}
       <div
         style={{
           display: 'flex',
@@ -167,7 +204,6 @@ export default function BookingPanel({ onBookNow }) {
           marginBottom: '20px',
         }}
       >
-        {/* Pickup */}
         <div>
           <div className="lbl">Pickup (A)</div>
           <div style={{ position: 'relative' }}>
@@ -193,7 +229,6 @@ export default function BookingPanel({ onBookNow }) {
           </div>
         </div>
 
-        {/* Dropoff */}
         <div>
           <div className="lbl">Drop-off (B)</div>
           <div style={{ position: 'relative' }}>
@@ -220,8 +255,8 @@ export default function BookingPanel({ onBookNow }) {
         </div>
       </div>
 
-      {/* ── Loading state ─────────────────────────────────── */}
-      {loadingRoute && (
+      {/* Loading */}
+      {isLoading && (
         <div
           style={{
             display: 'flex',
@@ -234,12 +269,12 @@ export default function BookingPanel({ onBookNow }) {
           }}
         >
           <Loader2 size={16} color={T.accent} style={{ animation: 'spin 1s linear infinite' }} />
-          Calculating route…
+          {loadingTrip ? 'Calculating route…' : 'Calculating price…'}
         </div>
       )}
 
-      {/* ── Error state ───────────────────────────────────── */}
-      {routeError && !loadingRoute && (
+      {/* Error */}
+      {error && !isLoading && (
         <div
           style={{
             display: 'flex',
@@ -254,137 +289,96 @@ export default function BookingPanel({ onBookNow }) {
         >
           <AlertCircle size={15} color="#DC2626" style={{ flexShrink: 0, marginTop: '1px' }} />
           <span style={{ fontSize: '13px', color: '#DC2626', fontWeight: 600 }}>
-            {routeError}
+            {error}
           </span>
         </div>
       )}
 
-      {/* ── Main booking UI ───────────────────────────────── */}
-      {hasRoute && (
-        <>
-          {/* Ride type selector */}
-          <div style={{ marginBottom: '18px' }}>
-            <div className="lbl">Choose Ride</div>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2,1fr)',
-                gap: '10px',
-              }}
-            >
-              {RIDE_TYPES.map(ride => {
-                const p = PRICING[ride.id];
-                const fd = calcFare(
-                  ride.id,
-                  tripData.actualMiles,
-                  surgeMultiplier,
-                  tripData.totalMin
-                );
-                const IconComp = ride.id === 'premium' ? Zap : ride.id === 'xl' ? Users : Car;
+      {/* Ride Type Cards */}
+      {tripData && (
+        <div style={{ marginBottom: '18px' }}>
+          <div className="lbl">Choose Ride</div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2,1fr)',
+              gap: '10px',
+            }}
+          >
+            {RIDE_TYPES.map(ride => {
+              const IconComp = ride.id === 'premium' ? Zap : ride.id === 'xl' ? Users : Car;
+              const active = selectedRide === ride.id;
 
-                return (
+              return (
+                <div
+                  key={ride.id}
+                  className={`ride-card ${active ? 'active' : ''}`}
+                  onClick={() => setSelectedRide(ride.id)}
+                >
                   <div
-                    key={ride.id}
-                    className={`ride-card ${selectedRide === ride.id ? 'active' : ''}`}
-                    style={{ '--rc': p.color }}
-                    onClick={() => setSelectedRide(ride.id)}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '10px',
+                    }}
                   >
                     <div
                       style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '9px',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'space-between',
-                        marginBottom: '10px',
+                        justifyContent: 'center',
+                        background: active ? '#ECFDF5' : '#F3F4F6',
                       }}
                     >
-                      <div
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          background: selectedRide === ride.id ? `${p.color}18` : '#F3F4F6',
-                          borderRadius: '9px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          border:
-                            selectedRide === ride.id
-                              ? `1px solid ${p.color}40`
-                              : '1px solid transparent',
-                          transition: 'all .3s',
-                        }}
-                      >
-                        <IconComp size={16} color={selectedRide === ride.id ? p.color : '#D1D5DB'} />
-                      </div>
-
-                      <div
-                        style={{
-                          fontFamily: '"JetBrains Mono",monospace',
-                          fontSize: '17px',
-                          fontWeight: 700,
-                          color: selectedRide === ride.id ? p.color : T.text,
-                        }}
-                      >
-                        ${fd.total}
-                      </div>
+                      <IconComp size={16} color={active ? T.accent : '#9CA3AF'} />
                     </div>
 
                     <div
                       style={{
-                        fontSize: '13.5px',
-                        fontWeight: 800,
-                        color: T.text,
-                        marginBottom: '2px',
+                        fontFamily: '"JetBrains Mono", monospace',
+                        fontSize: '16px',
+                        fontWeight: 700,
+                        color: active ? T.accent : T.text,
                       }}
                     >
-                      {ride.label}
-                    </div>
-
-                    <div
-                      style={{
-                        fontSize: '11px',
-                        color: T.textMuted,
-                        marginBottom: '8px',
-                      }}
-                    >
-                      {ride.desc}
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                      <span
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '3px',
-                          fontSize: '11px',
-                          color: T.textMuted,
-                          fontWeight: 600,
-                        }}
-                      >
-                        <Clock size={10} />
-                        {ride.eta}
-                      </span>
-
-                      <span
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '3px',
-                          fontSize: '11px',
-                          color: T.textMuted,
-                          fontWeight: 600,
-                        }}
-                      >
-                        <Users size={10} />
-                        {ride.capacity}
-                      </span>
+                      {active && priceData ? `$${priceData.total}` : 'Select'}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
 
-          {/* Trip details */}
+                  <div
+                    style={{
+                      fontSize: '13.5px',
+                      fontWeight: 800,
+                      color: T.text,
+                      marginBottom: '2px',
+                    }}
+                  >
+                    {ride.label}
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: '11px',
+                      color: T.textMuted,
+                    }}
+                  >
+                    {ride.desc}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Quote */}
+      {hasQuote && (
+        <>
+          {/* Trip Summary */}
           <div
             style={{
               background: T.surfaceAlt,
@@ -392,133 +386,70 @@ export default function BookingPanel({ onBookNow }) {
               borderRadius: '18px',
               padding: '18px',
               marginBottom: '14px',
-              animation: 'scaleIn .35s ease-out',
             }}
           >
+            <div style={{ fontSize: '13px', fontWeight: 800, color: T.text, marginBottom: '14px' }}>
+              Trip Details
+            </div>
+
             <div
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: '14px',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2,1fr)',
+                gap: '10px',
               }}
             >
-              <div style={{ fontSize: '13px', fontWeight: 800, color: T.text }}>
-                Trip Details
-              </div>
-
               <div
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  background: tripData.traffic.color + '12',
-                  border: `1px solid ${tripData.traffic.color}30`,
-                  borderRadius: '100px',
-                  padding: '3px 10px',
+                  background: '#fff',
+                  border: `1px solid ${T.border}`,
+                  borderRadius: '13px',
+                  padding: '12px',
+                  textAlign: 'center',
                 }}
               >
                 <div
                   style={{
-                    width: '6px',
-                    height: '6px',
-                    borderRadius: '50%',
-                    background: tripData.traffic.color,
-                  }}
-                />
-                <span
-                  style={{
-                    fontSize: '11px',
+                    fontFamily: '"JetBrains Mono", monospace',
+                    fontSize: '20px',
                     fontWeight: 700,
-                    color: tripData.traffic.color,
+                    color: T.accent,
                   }}
                 >
-                  {tripData.traffic.label} Traffic
-                </span>
-              </div>
-            </div>
-
-            {/* Stats row only */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(3,1fr)',
-                gap: '8px',
-              }}
-            >
-              {[
-                { label: 'Distance', val: tripData.actualMiles, unit: 'mi', sub: `${tripData.actualKm} km` },
-                {
-                  label: 'Duration',
-                  val: tripData.totalMin,
-                  unit: 'min',
-                  sub: tripData.trafficDelay > 0 ? `+${tripData.trafficDelay}m delay` : 'No delay',
-                },
-                { label: 'Arrival', val: tripData.arrivalTime, unit: '', sub: 'est. time' },
-              ].map((s, i) => (
-                <div
-                  key={i}
-                  style={{
-                    background: '#fff',
-                    border: `1px solid ${T.border}`,
-                    borderRadius: '13px',
-                    padding: '12px 10px',
-                    textAlign: 'center',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontFamily: '"JetBrains Mono",monospace',
-                      fontSize: i === 2 ? '14px' : '20px',
-                      fontWeight: 700,
-                      color: T.accent,
-                      lineHeight: 1,
-                      marginBottom: '2px',
-                    }}
-                  >
-                    {s.val}
-                    {s.unit && (
-                      <span
-                        style={{
-                          fontSize: '11px',
-                          color: T.textMuted,
-                          fontWeight: 500,
-                          marginLeft: '2px',
-                        }}
-                      >
-                        {s.unit}
-                      </span>
-                    )}
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: '10px',
-                      fontWeight: 700,
-                      color: T.textMuted,
-                      letterSpacing: '1px',
-                      textTransform: 'uppercase',
-                      marginBottom: '2px',
-                    }}
-                  >
-                    {s.label}
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: '10px',
-                      color: s.sub.includes('+') ? '#D97706' : T.textMuted,
-                      fontWeight: 600,
-                    }}
-                  >
-                    {s.sub}
-                  </div>
+                  {tripData.miles} mi
                 </div>
-              ))}
+                <div style={{ fontSize: '11px', color: T.textMuted, fontWeight: 700 }}>
+                  DISTANCE
+                </div>
+              </div>
+
+              <div
+                style={{
+                  background: '#fff',
+                  border: `1px solid ${T.border}`,
+                  borderRadius: '13px',
+                  padding: '12px',
+                  textAlign: 'center',
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: '"JetBrains Mono", monospace',
+                    fontSize: '20px',
+                    fontWeight: 700,
+                    color: T.accent,
+                  }}
+                >
+                  {tripData.durationMin} min
+                </div>
+                <div style={{ fontSize: '11px', color: T.textMuted, fontWeight: 700 }}>
+                  DURATION
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Fare summary */}
+          {/* Fare Box */}
           <div
             style={{
               background: 'linear-gradient(135deg,#F0FDF4 0%,#DCFCE7 100%)',
@@ -526,7 +457,6 @@ export default function BookingPanel({ onBookNow }) {
               borderRadius: '18px',
               padding: '18px 22px',
               marginBottom: '16px',
-              animation: 'scaleIn .38s ease-out',
               boxShadow: '0 4px 18px rgba(22,163,74,.08)',
             }}
           >
@@ -550,10 +480,10 @@ export default function BookingPanel({ onBookNow }) {
                   }}
                 >
                   <span style={{ fontSize: '12px', color: T.textMuted, fontWeight: 500 }}>
-                    {tripData.actualMiles} mi · ~{tripData.totalMin} min
+                    {tripData.miles} mi · ~{tripData.durationMin} min
                   </span>
 
-                  {surgeMultiplier > 1 && (
+                  {priceData.surgeMultiplier > 1 && (
                     <span
                       style={{
                         background: 'rgba(22,163,74,.12)',
@@ -569,7 +499,7 @@ export default function BookingPanel({ onBookNow }) {
                       }}
                     >
                       <Zap size={10} />
-                      {surgeMultiplier}x surge
+                      {priceData.surgeMultiplier}x surge
                     </span>
                   )}
                 </div>
@@ -578,7 +508,7 @@ export default function BookingPanel({ onBookNow }) {
               <div style={{ textAlign: 'right' }}>
                 <div
                   style={{
-                    fontFamily: '"JetBrains Mono",monospace',
+                    fontFamily: '"JetBrains Mono", monospace',
                     fontSize: '34px',
                     fontWeight: 700,
                     letterSpacing: '-1.5px',
@@ -586,7 +516,7 @@ export default function BookingPanel({ onBookNow }) {
                     lineHeight: 1,
                   }}
                 >
-                  ${fareData.total}
+                  ${priceData.total}
                 </div>
 
                 <button
@@ -608,7 +538,7 @@ export default function BookingPanel({ onBookNow }) {
               </div>
             </div>
 
-            {showBreakdown && (
+            {showBreakdown && priceData.breakdown && (
               <div
                 style={{
                   borderTop: `1px solid ${T.accentBorder}`,
@@ -619,18 +549,12 @@ export default function BookingPanel({ onBookNow }) {
                 }}
               >
                 {[
-                  { label: 'Base fee', val: fareData.breakdown.base },
-                  {
-                    label: `Distance (${fareData.miles} mi × $${PRICING[selectedRide].perMile}/mi)`,
-                    val: fareData.breakdown.distance,
-                  },
-                  {
-                    label: `Time (~${fareData.durationMin} min × $${PRICING[selectedRide].perMin}/min)`,
-                    val: fareData.breakdown.time,
-                  },
-                  { label: 'Booking fee', val: fareData.breakdown.bookingFee },
-                  ...(fareData.breakdown.surge > 0
-                    ? [{ label: `Surge (${surgeMultiplier}×)`, val: fareData.breakdown.surge, highlight: true }]
+                  { label: 'Base fee', val: priceData.breakdown.base },
+                  { label: 'Distance', val: priceData.breakdown.distance },
+                  { label: 'Time', val: priceData.breakdown.time },
+                  { label: 'Booking fee', val: priceData.breakdown.bookingFee },
+                  ...(priceData.breakdown.surge > 0
+                    ? [{ label: 'Surge', val: priceData.breakdown.surge, highlight: true }]
                     : []),
                 ].map((row, i) => (
                   <div
@@ -644,7 +568,7 @@ export default function BookingPanel({ onBookNow }) {
                     <span
                       style={{
                         fontSize: '12.5px',
-                        color: row.highlight ? T.accent : T.textMid,
+                        color: row.highlight ? T.accent : T.text,
                         fontWeight: 600,
                       }}
                     >
@@ -653,44 +577,23 @@ export default function BookingPanel({ onBookNow }) {
 
                     <span
                       style={{
-                        fontFamily: '"JetBrains Mono",monospace',
+                        fontFamily: '"JetBrains Mono", monospace',
                         fontSize: '13px',
                         fontWeight: 700,
                         color: row.highlight ? T.accent : T.text,
                       }}
                     >
-                      +${row.val.toFixed(2)}
+                      +${Number(row.val || 0).toFixed(2)}
                     </span>
                   </div>
                 ))}
-
-                <div
-                  style={{
-                    borderTop: `1px dashed ${T.accentBorder}`,
-                    paddingTop: '10px',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <span style={{ fontSize: '13px', fontWeight: 800, color: T.text }}>Total</span>
-                  <span
-                    style={{
-                      fontFamily: '"JetBrains Mono",monospace',
-                      fontSize: '15px',
-                      fontWeight: 700,
-                      color: T.accent,
-                    }}
-                  >
-                    ${fareData.total}
-                  </span>
-                </div>
               </div>
             )}
           </div>
 
-          {/* Book Now CTA */}
+          {/* CTA */}
           <button className="cta-btn" onClick={handleBookNow}>
-            Book Now · ${fareData.total}
+            Book Now · ${priceData.total}
             <ChevronRight
               size={17}
               style={{
@@ -704,7 +607,7 @@ export default function BookingPanel({ onBookNow }) {
       )}
 
       {/* Prompt */}
-      {!loadingRoute && !routeError && !hasRoute && (pickup || dropoff) && (
+      {!pickup && !dropoff && (
         <div
           style={{
             textAlign: 'center',
@@ -714,7 +617,7 @@ export default function BookingPanel({ onBookNow }) {
             fontWeight: 500,
           }}
         >
-          {pickup && dropoff ? 'Calculating route…' : 'Enter both locations to see pricing'}
+          Enter pickup and destination to get a quote
         </div>
       )}
     </div>
