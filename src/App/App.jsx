@@ -17,6 +17,7 @@ import AuthModal from '@/App/AuthModal.jsx';
 import PaymentModal from '@/App/PaymentModal.jsx';
 import ConfirmationModal from '@/App/ConfirmationModal.jsx';
 
+
 export default function UaTobApp(uid) {
   console.log(uid)
   // ── Trip / Booking state ───────────────────────────────
