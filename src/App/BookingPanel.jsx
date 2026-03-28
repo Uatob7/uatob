@@ -23,10 +23,13 @@ const T = {
 };
 
 // ── CLOUD FUNCTION URLS ──────────────────────────────────
+// Route function = returns distance + duration
 const ROUTE_URL = 'https://atob-j2jspuowha-uc.a.run.app';
+
+// Price function = returns ALL ride prices
 const PRICE_URL = 'https://YOUR_REAL_PRICE_FUNCTION_URL.a.run.app';
 
-// ── HELPERS ───────────────────────────────────────────────
+// ── HELPERS ──────────────────────────────────────────────
 function safeNum(val, fallback = 0) {
   const n = Number(val);
   return Number.isFinite(n) ? n : fallback;
@@ -97,7 +100,7 @@ export default function BookingPanel({ onBookNow }) {
   const [dropoff, setDropoff] = useState('');
   const [selectedRide, setSelectedRide] = useState('standard');
 
-  // ONLY 2 TRUTHS
+  // ONLY 2 truths
   const [tripData, setTripData] = useState(null);
   const [quotesData, setQuotesData] = useState(null);
 
@@ -131,6 +134,7 @@ export default function BookingPanel({ onBookNow }) {
     const timeout = setTimeout(async () => {
       try {
         setLoadingTrip(true);
+        setLoadingQuotes(false);
         setError('');
         setTripData(null);
         setQuotesData(null);
@@ -173,7 +177,6 @@ export default function BookingPanel({ onBookNow }) {
         if (quoteRequestRef.current !== requestId) return;
         setQuotesData(quotes);
 
-        // Ensure selected ride always exists
         const rideKeys = Object.keys(quotes?.rides || {});
         if (rideKeys.length && !quotes.rides[selectedRide]) {
           setSelectedRide(rideKeys[0]);
@@ -192,7 +195,7 @@ export default function BookingPanel({ onBookNow }) {
     }
 
     loadQuotes();
-  }, [tripData, selectedRide]);
+  }, [tripData]); // ✅ FIXED: removed selectedRide
 
   // Build ride list from backend response
   const rideOptions = useMemo(() => {
@@ -275,7 +278,7 @@ export default function BookingPanel({ onBookNow }) {
               className="field"
               placeholder="Enter pickup address…"
               value={pickup}
-              onChange={e => setPickup(e.target.value)}
+              onChange={(e) => setPickup(e.target.value)}
               autoComplete="off"
             />
           </div>
@@ -300,7 +303,7 @@ export default function BookingPanel({ onBookNow }) {
               className="field"
               placeholder="Enter destination…"
               value={dropoff}
-              onChange={e => setDropoff(e.target.value)}
+              onChange={(e) => setDropoff(e.target.value)}
               autoComplete="off"
             />
           </div>
@@ -371,7 +374,7 @@ export default function BookingPanel({ onBookNow }) {
               gap: '10px',
             }}
           >
-            {rideOptions.map(ride => {
+            {rideOptions.map((ride) => {
               const active = selectedRide === ride.id;
               const IconComp = getRideIcon(ride.id);
 
@@ -596,7 +599,7 @@ export default function BookingPanel({ onBookNow }) {
                     {tripData.miles} mi · ~{tripData.durationMin} min
                   </span>
 
-                  {quotesData.surgeMultiplier > 1 && (
+                  {safeNum(quotesData.surgeMultiplier, 1) > 1 && (
                     <span
                       style={{
                         background: 'rgba(22,163,74,.12)',
@@ -633,7 +636,8 @@ export default function BookingPanel({ onBookNow }) {
                 </div>
 
                 <button
-                  onClick={() => setShowBreakdown(s => !s)}
+                  type="button"
+                  onClick={() => setShowBreakdown((s) => !s)}
                   style={{
                     background: 'none',
                     border: 'none',
@@ -672,7 +676,7 @@ export default function BookingPanel({ onBookNow }) {
                     val: selectedQuote.breakdown.time,
                   },
                   { label: 'Booking fee', val: selectedQuote.breakdown.bookingFee },
-                  ...(selectedQuote.breakdown.surge > 0
+                  ...(safeNum(selectedQuote.breakdown.surge, 0) > 0
                     ? [{ label: 'Surge', val: selectedQuote.breakdown.surge, highlight: true }]
                     : []),
                 ].map((row, i) => (
@@ -747,7 +751,7 @@ export default function BookingPanel({ onBookNow }) {
         </>
       )}
 
-      {!pickup && !dropoff && (
+      {!pickup.trim() && !dropoff.trim() && (
         <div
           style={{
             textAlign: 'center',
