@@ -1,3 +1,4 @@
+// src/App/UaTobApp.jsx
 import React, { useState, useEffect } from 'react';
 import { Route } from 'lucide-react';
 
@@ -17,9 +18,7 @@ import AuthModal from '@/App/AuthModal.jsx';
 import PaymentModal from '@/App/PaymentModal.jsx';
 import ConfirmationModal from '@/App/ConfirmationModal.jsx';
 
-
-export default function UaTobApp(uid) {
-  console.log(uid)
+export default function UaTobApp({ uid }) {
   // ── Trip / Booking state ───────────────────────────────
   const [pickup, setPickup] = useState('');
   const [dropoff, setDropoff] = useState('');
@@ -33,7 +32,7 @@ export default function UaTobApp(uid) {
   const [showBreakdown, setShowBreakdown] = useState(false);
 
   // ── Auth ───────────────────────────────────────────────
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(!!uid);
   const [showAuth, setShowAuth] = useState(false);
   const [authMode, setAuthMode] = useState('login');
   const [email, setEmail] = useState('');
@@ -46,9 +45,7 @@ export default function UaTobApp(uid) {
 
   // ── Mount animation ────────────────────────────────────
   const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useEffect(() => setMounted(true), []);
 
   // ── Ride tracking ──────────────────────────────────────
   const tracking = useRideTracking({
@@ -68,7 +65,7 @@ export default function UaTobApp(uid) {
     },
   });
 
-  // ── Auth ───────────────────────────────────────────────
+  // ── Auth handler ───────────────────────────────────────
   const handleAuth = (e) => {
     e.preventDefault();
     const ok =
@@ -83,22 +80,38 @@ export default function UaTobApp(uid) {
     }
   };
 
-  // ── Book Now ───────────────────────────────────────────
+  // ── Mock geocoding ─────────────────────────────────────
+  const mockGeocode = (address) => {
+    // Replace with real geocoding API if desired
+    return { x: -81.37, y: 28.53 };
+  };
+
+  // ── Book Now handler ───────────────────────────────────
   const handleBookNow = (bookingPayload) => {
     if (!bookingPayload) return;
 
-    // Sync app-level state from BookingPanel
     setPickup(bookingPayload.pickup);
     setDropoff(bookingPayload.dropoff);
+
+    // Set coordinates (mock for now)
+    const pickupC = mockGeocode(bookingPayload.pickup);
+    const dropoffC = mockGeocode(bookingPayload.dropoff);
+    setPickupCoords(pickupC);
+    setDropoffCoords(dropoffC);
+
     setFareData({
       total: bookingPayload.fareEstimate,
+      breakdown: bookingPayload.breakdown || { base: bookingPayload.fareEstimate, bookingFee:0, distance:0, time:0, surge:0 },
     });
+
     setTripData({
       actualMiles: bookingPayload.tripDistanceMiles,
       totalMin: bookingPayload.tripDurationMin,
     });
+
     setSurgeMultiplier(bookingPayload.surgeMultiplier || 1);
 
+    // Show payment if logged in, otherwise show auth
     if (isLoggedIn) {
       setShowPayment(true);
     } else {
@@ -120,131 +133,36 @@ export default function UaTobApp(uid) {
       <style>{CSS}</style>
 
       {/* Ambient blobs */}
-      <div
-        style={{
-          position: 'fixed',
-          top: '-15%',
-          right: '-8%',
-          width: '550px',
-          height: '550px',
-          background: 'radial-gradient(circle,rgba(22,163,74,.05) 0%,transparent 65%)',
-          borderRadius: '50%',
-          animation: 'float 14s ease-in-out infinite',
-          pointerEvents: 'none',
-          zIndex: 0,
-        }}
-      />
-      <div
-        style={{
-          position: 'fixed',
-          bottom: '-20%',
-          left: '-12%',
-          width: '700px',
-          height: '700px',
-          background: 'radial-gradient(circle,rgba(17,24,39,.03) 0%,transparent 65%)',
-          borderRadius: '50%',
-          animation: 'float 18s ease-in-out infinite reverse',
-          pointerEvents: 'none',
-          zIndex: 0,
-        }}
-      />
+      <div style={{ position: 'fixed', top: '-15%', right: '-8%', width: '550px', height: '550px', background: 'radial-gradient(circle,rgba(22,163,74,.05) 0%,transparent 65%)', borderRadius: '50%', animation: 'float 14s ease-in-out infinite', pointerEvents: 'none', zIndex: 0 }} />
+      <div style={{ position: 'fixed', bottom: '-20%', left: '-12%', width: '700px', height: '700px', background: 'radial-gradient(circle,rgba(17,24,39,.03) 0%,transparent 65%)', borderRadius: '50%', animation: 'float 18s ease-in-out infinite reverse', pointerEvents: 'none', zIndex: 0 }} />
 
-      <div
-        style={{
-          maxWidth: '680px',
-          margin: '0 auto',
-          padding: '28px 20px 60px',
-          position: 'relative',
-          zIndex: 1,
-        }}
-      >
+      <div style={{ maxWidth: '680px', margin: '0 auto', padding: '28px 20px 60px', position: 'relative', zIndex: 1 }}>
         {/* Header */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: '40px',
-            animation: mounted ? 'slideUp .55s ease-out forwards' : 'none',
-            opacity: 0,
-          }}
-        >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '40px', animation: mounted ? 'slideUp .55s ease-out forwards' : 'none', opacity: 0 }}>
           <UaTobWordmark iconSize={42} />
           <div className="live-badge">
-            <div
-              style={{
-                width: '6px',
-                height: '6px',
-                background: '#16A34A',
-                borderRadius: '50%',
-              }}
-            />
+            <div style={{ width: '6px', height: '6px', background: '#16A34A', borderRadius: '50%' }} />
             Live
           </div>
         </div>
 
         {/* Hero */}
         {!tracking.isTracking && !pickup && (
-          <div
-            style={{
-              marginBottom: '32px',
-              animation: mounted ? 'slideUp .65s ease-out .08s forwards' : 'none',
-              opacity: 0,
-            }}
-          >
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                background: T.accentLight,
-                border: `1px solid ${T.accentBorder}`,
-                borderRadius: '100px',
-                padding: '5px 14px',
-                fontSize: '11px',
-                fontWeight: 700,
-                color: T.accent,
-                letterSpacing: '1px',
-                textTransform: 'uppercase',
-                marginBottom: '18px',
-              }}
-            >
+          <div style={{ marginBottom: '32px', animation: mounted ? 'slideUp .65s ease-out .08s forwards' : 'none', opacity: 0 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: T.accentLight, border: `1px solid ${T.accentBorder}`, borderRadius: '100px', padding: '5px 14px', fontSize: '11px', fontWeight: 700, color: T.accent, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '18px' }}>
               <Route size={12} />
               Distance-Based Pricing
             </div>
 
-            <h1
-              style={{
-                fontSize: 'clamp(30px,6vw,52px)',
-                fontWeight: 900,
-                lineHeight: 1.02,
-                letterSpacing: '-2px',
-                marginBottom: '14px',
-                color: T.text,
-              }}
-            >
+            <h1 style={{ fontSize: 'clamp(30px,6vw,52px)', fontWeight: 900, lineHeight: 1.02, letterSpacing: '-2px', marginBottom: '14px', color: T.text }}>
               Your destination,
               <br />
-              <span
-                style={{
-                  background: 'linear-gradient(135deg,#111827 0%,#16A34A 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                }}
-              >
+              <span style={{ background: 'linear-gradient(135deg,#111827 0%,#16A34A 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
                 always waiting.
               </span>
             </h1>
 
-            <p
-              style={{
-                fontSize: '15px',
-                color: T.textMuted,
-                fontWeight: 500,
-                lineHeight: 1.65,
-              }}
-            >
+            <p style={{ fontSize: '15px', color: T.textMuted, fontWeight: 500, lineHeight: 1.65 }}>
               Fare is calculated live based on the actual
               <br />
               distance from A to B — no surprises.
@@ -253,13 +171,7 @@ export default function UaTobApp(uid) {
         )}
 
         {/* Map */}
-        <div
-          style={{
-            marginBottom: '14px',
-            animation: mounted ? 'slideUp .65s ease-out .12s forwards' : 'none',
-            opacity: 0,
-          }}
-        >
+        <div style={{ marginBottom: '14px', animation: mounted ? 'slideUp .65s ease-out .12s forwards' : 'none', opacity: 0 }}>
           <MapView
             pickup={pickup}
             dropoff={dropoff}
@@ -278,12 +190,7 @@ export default function UaTobApp(uid) {
         </div>
 
         {/* Main panel */}
-        <div
-          style={{
-            animation: mounted ? 'slideUp .65s ease-out .18s forwards' : 'none',
-            opacity: 0,
-          }}
-        >
+        <div style={{ animation: mounted ? 'slideUp .65s ease-out .18s forwards' : 'none', opacity: 0 }}>
           {tracking.isTracking ? (
             <LiveTrackingPanel
               pickup={pickup}
@@ -297,15 +204,13 @@ export default function UaTobApp(uid) {
               getProgress={tracking.getProgress}
             />
           ) : (
-            <BookingPanel
-              onBookNow={handleBookNow}
-            />
+            <BookingPanel onBookNow={handleBookNow} />
           )}
         </div>
       </div>
 
       {/* Modals */}
-      {showAuth && (
+      {showAuth && !uid && (
         <AuthModal
           authMode={authMode}
           setAuthMode={setAuthMode}
@@ -327,7 +232,13 @@ export default function UaTobApp(uid) {
           selectedRide={selectedRide}
           selectedPayment={selectedPayment}
           setSelectedPayment={setSelectedPayment}
-          onConfirm={tracking.initiateRide}
+          onConfirm={() => {
+            if (!pickupCoords || !dropoffCoords) {
+              alert("Waiting for pickup/dropoff coordinates...");
+              return;
+            }
+            tracking.initiateRide();
+          }}
           onClose={() => setShowPayment(false)}
         />
       )}
