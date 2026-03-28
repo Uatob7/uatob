@@ -21,52 +21,55 @@ import ConfirmationModal from '@/App/ConfirmationModal.jsx';
 export default function UaTobApp({ uid }) {
   // ── Booking state ──────────────────────────────────────
   const [bookingPayload, setBookingPayload] = useState(null);
-  const [pickupCoords,   setPickupCoords]   = useState(null);
-  const [dropoffCoords,  setDropoffCoords]  = useState(null);
+  const [pickupCoords, setPickupCoords] = useState(null);
+  const [dropoffCoords, setDropoffCoords] = useState(null);
 
   // ── Auth ───────────────────────────────────────────────
-  const [isLoggedIn,      setIsLoggedIn]      = useState(!!uid);
-  const [showAuth,        setShowAuth]        = useState(false);
-  const [authMode,        setAuthMode]        = useState('login');
-  const [email,           setEmail]           = useState('');
-  const [password,        setPassword]        = useState('');
-  const [name,            setName]            = useState('');
+  const [isLoggedIn, setIsLoggedIn] = useState(!!uid);
+  const [showAuth, setShowAuth] = useState(false);
+  const [authMode, setAuthMode] = useState('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
 
   // ── Payment ────────────────────────────────────────────
-  const [showPayment,     setShowPayment]     = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState('card');
 
   // ── Confirmation ───────────────────────────────────────
-  const [showConfirm,     setShowConfirm]     = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [confirmedRideId, setConfirmedRideId] = useState(null);
 
   // ── Mount animation ────────────────────────────────────
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  // ── Derived values from bookingPayload ─────────────────
-  const fareData = bookingPayload
-    ? {
-        ...bookingPayload,
-        total:       bookingPayload.fareEstimate,
-        miles:       bookingPayload.tripDistanceMiles,
-        durationMin: bookingPayload.tripDurationMin,
-      }
-    : null;
-
-  const tripData = bookingPayload
-    ? {
-        actualMiles: bookingPayload.tripDistanceMiles,
-        totalMin:    bookingPayload.tripDurationMin,
-      }
-    : null;
-
   // ── Ride tracking ──────────────────────────────────────
   const tracking = useRideTracking({
     pickupCoords,
     dropoffCoords,
     selectedRide: bookingPayload?.rideType ?? 'standard',
-    fareData,
+
+    // Pass bookingPayload directly instead of rebuilding old pricing objects
+    fareData: bookingPayload
+      ? {
+          total: bookingPayload.fareEstimate,
+          breakdown: bookingPayload.breakdown || {},
+          surgeMultiplier: bookingPayload.surgeMultiplier || 1,
+          allQuotes: bookingPayload.allQuotes || {},
+          rideType: bookingPayload.rideType,
+        }
+      : null,
+
+    tripData: bookingPayload
+      ? {
+          miles: bookingPayload.tripDistanceMiles,
+          durationMin: bookingPayload.tripDurationMin,
+          pickup: bookingPayload.pickup,
+          dropoff: bookingPayload.dropoff,
+        }
+      : null,
+
     onComplete: () => {
       setBookingPayload(null);
       setPickupCoords(null);
@@ -80,6 +83,7 @@ export default function UaTobApp({ uid }) {
   // ── Auth submit ────────────────────────────────────────
   const handleAuth = (e) => {
     e.preventDefault();
+
     const ok =
       authMode === 'login'
         ? email && password
@@ -97,6 +101,8 @@ export default function UaTobApp({ uid }) {
     if (!payload) return;
 
     setBookingPayload(payload);
+
+    // TODO: replace with real coords returned from route function later
     setPickupCoords({ x: -81.37, y: 28.53 });
     setDropoffCoords({ x: -81.30, y: 28.45 });
 
@@ -108,7 +114,6 @@ export default function UaTobApp({ uid }) {
   };
 
   // ── Payment success → show ConfirmationModal ───────────
-  // result: { method, rideId, paymentIntent? }
   const handlePaymentSuccess = (result) => {
     console.log('[UaTobApp] Payment success:', result);
     setShowPayment(false);
@@ -140,37 +145,131 @@ export default function UaTobApp({ uid }) {
       <style>{CSS}</style>
 
       {/* Ambient blobs */}
-      <div style={{ position: 'fixed', top: '-15%', right: '-8%', width: '550px', height: '550px', background: 'radial-gradient(circle,rgba(22,163,74,.05) 0%,transparent 65%)', borderRadius: '50%', animation: 'float 14s ease-in-out infinite', pointerEvents: 'none', zIndex: 0 }} />
-      <div style={{ position: 'fixed', bottom: '-20%', left: '-12%', width: '700px', height: '700px', background: 'radial-gradient(circle,rgba(17,24,39,.03) 0%,transparent 65%)', borderRadius: '50%', animation: 'float 18s ease-in-out infinite reverse', pointerEvents: 'none', zIndex: 0 }} />
+      <div
+        style={{
+          position: 'fixed',
+          top: '-15%',
+          right: '-8%',
+          width: '550px',
+          height: '550px',
+          background: 'radial-gradient(circle,rgba(22,163,74,.05) 0%,transparent 65%)',
+          borderRadius: '50%',
+          animation: 'float 14s ease-in-out infinite',
+          pointerEvents: 'none',
+          zIndex: 0,
+        }}
+      />
+      <div
+        style={{
+          position: 'fixed',
+          bottom: '-20%',
+          left: '-12%',
+          width: '700px',
+          height: '700px',
+          background: 'radial-gradient(circle,rgba(17,24,39,.03) 0%,transparent 65%)',
+          borderRadius: '50%',
+          animation: 'float 18s ease-in-out infinite reverse',
+          pointerEvents: 'none',
+          zIndex: 0,
+        }}
+      />
 
-      <div style={{ maxWidth: '680px', margin: '0 auto', padding: '28px 20px 60px', position: 'relative', zIndex: 1 }}>
-
+      <div
+        style={{
+          maxWidth: '680px',
+          margin: '0 auto',
+          padding: '28px 20px 60px',
+          position: 'relative',
+          zIndex: 1,
+        }}
+      >
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '40px', animation: mounted ? 'slideUp .55s ease-out forwards' : 'none', opacity: 0 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '40px',
+            animation: mounted ? 'slideUp .55s ease-out forwards' : 'none',
+            opacity: 0,
+          }}
+        >
           <UaTobWordmark iconSize={42} />
           <div className="live-badge">
-            <div style={{ width: '6px', height: '6px', background: '#16A34A', borderRadius: '50%' }} />
+            <div
+              style={{
+                width: '6px',
+                height: '6px',
+                background: '#16A34A',
+                borderRadius: '50%',
+              }}
+            />
             Live
           </div>
         </div>
 
         {/* Hero — only shown before booking starts */}
         {!tracking.isTracking && !bookingPayload && (
-          <div style={{ marginBottom: '32px', animation: mounted ? 'slideUp .65s ease-out .08s forwards' : 'none', opacity: 0 }}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: T.accentLight, border: `1px solid ${T.accentBorder}`, borderRadius: '100px', padding: '5px 14px', fontSize: '11px', fontWeight: 700, color: T.accent, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '18px' }}>
+          <div
+            style={{
+              marginBottom: '32px',
+              animation: mounted ? 'slideUp .65s ease-out .08s forwards' : 'none',
+              opacity: 0,
+            }}
+          >
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: T.accentLight,
+                border: `1px solid ${T.accentBorder}`,
+                borderRadius: '100px',
+                padding: '5px 14px',
+                fontSize: '11px',
+                fontWeight: 700,
+                color: T.accent,
+                letterSpacing: '1px',
+                textTransform: 'uppercase',
+                marginBottom: '18px',
+              }}
+            >
               <Route size={12} />
               Distance-Based Pricing
             </div>
 
-            <h1 style={{ fontSize: 'clamp(30px,6vw,52px)', fontWeight: 900, lineHeight: 1.02, letterSpacing: '-2px', marginBottom: '14px', color: T.text }}>
+            <h1
+              style={{
+                fontSize: 'clamp(30px,6vw,52px)',
+                fontWeight: 900,
+                lineHeight: 1.02,
+                letterSpacing: '-2px',
+                marginBottom: '14px',
+                color: T.text,
+              }}
+            >
               Your destination,
               <br />
-              <span style={{ background: 'linear-gradient(135deg,#111827 0%,#16A34A 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+              <span
+                style={{
+                  background: 'linear-gradient(135deg,#111827 0%,#16A34A 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                }}
+              >
                 always waiting.
               </span>
             </h1>
 
-            <p style={{ fontSize: '15px', color: T.textMuted, fontWeight: 500, lineHeight: 1.65 }}>
+            <p
+              style={{
+                fontSize: '15px',
+                color: T.textMuted,
+                fontWeight: 500,
+                lineHeight: 1.65,
+              }}
+            >
               Fare is calculated live based on the actual
               <br />
               distance from A to B — no surprises.
@@ -179,14 +278,35 @@ export default function UaTobApp({ uid }) {
         )}
 
         {/* Map */}
-        <div style={{ marginBottom: '14px', animation: mounted ? 'slideUp .65s ease-out .12s forwards' : 'none', opacity: 0 }}>
+        <div
+          style={{
+            marginBottom: '14px',
+            animation: mounted ? 'slideUp .65s ease-out .12s forwards' : 'none',
+            opacity: 0,
+          }}
+        >
           <MapView
             pickup={bookingPayload?.pickup ?? ''}
             dropoff={bookingPayload?.dropoff ?? ''}
             pickupCoords={pickupCoords}
             dropoffCoords={dropoffCoords}
-            tripData={tripData}
-            fareData={fareData}
+            tripData={
+              bookingPayload
+                ? {
+                    miles: bookingPayload.tripDistanceMiles,
+                    durationMin: bookingPayload.tripDurationMin,
+                  }
+                : null
+            }
+            fareData={
+              bookingPayload
+                ? {
+                    total: bookingPayload.fareEstimate,
+                    breakdown: bookingPayload.breakdown || {},
+                    surgeMultiplier: bookingPayload.surgeMultiplier || 1,
+                  }
+                : null
+            }
             isTracking={tracking.isTracking}
             driverPos={tracking.driverPos}
             rideStatus={tracking.rideStatus}
@@ -198,13 +318,33 @@ export default function UaTobApp({ uid }) {
         </div>
 
         {/* Main panel */}
-        <div style={{ animation: mounted ? 'slideUp .65s ease-out .18s forwards' : 'none', opacity: 0 }}>
+        <div
+          style={{
+            animation: mounted ? 'slideUp .65s ease-out .18s forwards' : 'none',
+            opacity: 0,
+          }}
+        >
           {tracking.isTracking ? (
             <LiveTrackingPanel
               pickup={bookingPayload?.pickup ?? ''}
               dropoff={bookingPayload?.dropoff ?? ''}
-              fareData={fareData}
-              tripData={tripData}
+              fareData={
+                bookingPayload
+                  ? {
+                      total: bookingPayload.fareEstimate,
+                      breakdown: bookingPayload.breakdown || {},
+                      surgeMultiplier: bookingPayload.surgeMultiplier || 1,
+                    }
+                  : null
+              }
+              tripData={
+                bookingPayload
+                  ? {
+                      miles: bookingPayload.tripDistanceMiles,
+                      durationMin: bookingPayload.tripDurationMin,
+                    }
+                  : null
+              }
               assignedDriver={tracking.assignedDriver}
               rideStatus={tracking.rideStatus}
               etaMinutes={tracking.etaMinutes}
@@ -234,7 +374,7 @@ export default function UaTobApp({ uid }) {
       )}
 
       {/* ── Payment Modal ────────────────────────────────── */}
-      {showPayment && fareData && (
+      {showPayment && bookingPayload && (
         <PaymentModal
           bookingPayload={bookingPayload}
           selectedPayment={selectedPayment}
@@ -248,8 +388,23 @@ export default function UaTobApp({ uid }) {
       {showConfirm && (
         <ConfirmationModal
           rideId={confirmedRideId}
-          fareData={fareData}
-          tripData={tripData}
+          fareData={
+            bookingPayload
+              ? {
+                  total: bookingPayload.fareEstimate,
+                  breakdown: bookingPayload.breakdown || {},
+                  surgeMultiplier: bookingPayload.surgeMultiplier || 1,
+                }
+              : null
+          }
+          tripData={
+            bookingPayload
+              ? {
+                  miles: bookingPayload.tripDistanceMiles,
+                  durationMin: bookingPayload.tripDurationMin,
+                }
+              : null
+          }
           onClose={handleConfirmClose}
         />
       )}
