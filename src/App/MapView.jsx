@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { MapPin, Navigation, Car } from 'lucide-react';
 import { DRIVERS } from '@/App/locations.js';
 
-// ── DRIVER COLOR WITHOUT PRICING CONFIG ──────────────────
+// ── DRIVER COLOR ─────────────────────────────────────────
 function getDriverColor(type) {
   switch (type) {
     case 'premium':
@@ -15,9 +15,19 @@ function getDriverColor(type) {
   }
 }
 
+function safeCoord(coord, fallback = 50) {
+  const n = Number(coord);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function safeNum(val, fallback = 0) {
+  const n = Number(val);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 export default function MapView({
-  pickupCoords,
-  dropoffCoords,
+  pickupCoords = null,
+  dropoffCoords = null,
   tripData = null,
   fareData = null,
   isTracking = false,
@@ -28,9 +38,35 @@ export default function MapView({
   distToDropoff = 0,
   getStatusMsg = () => '',
 }) {
-  const miles = Number(tripData?.miles || 0);
-  const durationMin = Number(tripData?.durationMin || 0);
+  const miles = safeNum(tripData?.miles, 0);
+  const durationMin = safeNum(tripData?.durationMin, 0);
   const km = miles ? (miles * 1.60934).toFixed(1) : '0.0';
+
+  const safeDrivers = Array.isArray(DRIVERS) ? DRIVERS : [];
+  const driverType = assignedDriver?.type || 'standard';
+  const driverColor = getDriverColor(driverType);
+
+  const isHeadingToDropoff = ['picked_up', 'heading_to_dropoff', 'arrived_at_dropoff'].includes(rideStatus);
+  const isWaitingForPickup = ['waiting', 'arriving', 'arrived'].includes(rideStatus);
+  const isOnTrip = ['heading_to_dropoff', 'arrived_at_dropoff'].includes(rideStatus);
+
+  const routeTarget = useMemo(() => {
+    if (isHeadingToDropoff && dropoffCoords) {
+      return {
+        x: safeCoord(dropoffCoords.x),
+        y: safeCoord(dropoffCoords.y),
+      };
+    }
+
+    if (pickupCoords) {
+      return {
+        x: safeCoord(pickupCoords.x),
+        y: safeCoord(pickupCoords.y),
+      };
+    }
+
+    return { x: 50, y: 50 };
+  }, [isHeadingToDropoff, dropoffCoords, pickupCoords]);
 
   return (
     <div
@@ -74,10 +110,10 @@ export default function MapView({
           }}
         >
           <line
-            x1={`${pickupCoords.x}%`}
-            y1={`${pickupCoords.y}%`}
-            x2={`${dropoffCoords.x}%`}
-            y2={`${dropoffCoords.y}%`}
+            x1={`${safeCoord(pickupCoords.x)}%`}
+            y1={`${safeCoord(pickupCoords.y)}%`}
+            x2={`${safeCoord(dropoffCoords.x)}%`}
+            y2={`${safeCoord(dropoffCoords.y)}%`}
             stroke="#16A34A"
             strokeWidth="2.5"
             strokeDasharray="10 6"
@@ -99,19 +135,11 @@ export default function MapView({
             }}
           >
             <line
-              x1={`${driverPos.x}%`}
-              y1={`${driverPos.y}%`}
-              x2={`${
-                ['picked_up', 'heading_to_dropoff', 'arrived_at_dropoff'].includes(rideStatus)
-                  ? dropoffCoords?.x || 0
-                  : pickupCoords?.x || 0
-              }%`}
-              y2={`${
-                ['picked_up', 'heading_to_dropoff', 'arrived_at_dropoff'].includes(rideStatus)
-                  ? dropoffCoords?.y || 0
-                  : pickupCoords?.y || 0
-              }%`}
-              stroke={getDriverColor(assignedDriver.type)}
+              x1={`${safeCoord(driverPos.x)}%`}
+              y1={`${safeCoord(driverPos.y)}%`}
+              x2={`${routeTarget.x}%`}
+              y2={`${routeTarget.y}%`}
+              stroke={driverColor}
               strokeWidth="2.5"
               strokeDasharray="10 6"
               opacity=".5"
@@ -123,13 +151,13 @@ export default function MapView({
             <div
               style={{
                 position: 'absolute',
-                left: `${pickupCoords.x}%`,
-                top: `${pickupCoords.y}%`,
+                left: `${safeCoord(pickupCoords.x)}%`,
+                top: `${safeCoord(pickupCoords.y)}%`,
                 transform: 'translate(-50%,-50%)',
                 zIndex: 3,
               }}
             >
-              {['waiting', 'arriving', 'arrived'].includes(rideStatus) && (
+              {isWaitingForPickup && (
                 <div
                   style={{
                     position: 'absolute',
@@ -144,6 +172,7 @@ export default function MapView({
                   }}
                 />
               )}
+
               <div
                 style={{
                   width: '40px',
@@ -167,13 +196,13 @@ export default function MapView({
             <div
               style={{
                 position: 'absolute',
-                left: `${dropoffCoords.x}%`,
-                top: `${dropoffCoords.y}%`,
+                left: `${safeCoord(dropoffCoords.x)}%`,
+                top: `${safeCoord(dropoffCoords.y)}%`,
                 transform: 'translate(-50%,-50%)',
                 zIndex: 3,
               }}
             >
-              {['heading_to_dropoff', 'arrived_at_dropoff'].includes(rideStatus) && (
+              {isOnTrip && (
                 <div
                   style={{
                     position: 'absolute',
@@ -188,6 +217,7 @@ export default function MapView({
                   }}
                 />
               )}
+
               <div
                 style={{
                   width: '36px',
@@ -211,8 +241,8 @@ export default function MapView({
           <div
             style={{
               position: 'absolute',
-              left: `${driverPos.x}%`,
-              top: `${driverPos.y}%`,
+              left: `${safeCoord(driverPos.x)}%`,
+              top: `${safeCoord(driverPos.y)}%`,
               transform: 'translate(-50%,-50%)',
               transition: 'all 5s linear',
               zIndex: 4,
@@ -222,13 +252,13 @@ export default function MapView({
               style={{
                 width: '46px',
                 height: '46px',
-                background: getDriverColor(assignedDriver.type),
+                background: driverColor,
                 borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 border: '3px solid #fff',
-                boxShadow: `0 4px 16px ${getDriverColor(assignedDriver.type)}55`,
+                boxShadow: `0 4px 16px ${driverColor}55`,
                 animation: 'pulse 2s ease-in-out infinite',
               }}
             >
@@ -253,38 +283,51 @@ export default function MapView({
               gap: '11px',
               whiteSpace: 'nowrap',
               boxShadow: '0 4px 20px rgba(0,0,0,.08)',
+              maxWidth: '92%',
+              overflow: 'hidden',
             }}
           >
             <div
               style={{
                 width: '8px',
                 height: '8px',
-                background: getDriverColor(assignedDriver.type),
+                background: driverColor,
                 borderRadius: '50%',
                 animation: 'pulse 1.5s ease-in-out infinite',
+                flexShrink: 0,
               }}
             />
-            <span style={{ fontSize: '14px', fontWeight: 700, color: '#111827' }}>
+
+            <span
+              style={{
+                fontSize: '14px',
+                fontWeight: 700,
+                color: '#111827',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
               {getStatusMsg()}
             </span>
 
-            {['waiting', 'arriving'].includes(rideStatus) && (
+            {isWaitingForPickup && (
               <span
                 style={{
-                  background: getDriverColor(assignedDriver.type),
+                  background: driverColor,
                   color: '#fff',
                   borderRadius: '100px',
                   padding: '3px 12px',
                   fontSize: '13px',
                   fontWeight: 800,
                   fontFamily: '"JetBrains Mono",monospace',
+                  flexShrink: 0,
                 }}
               >
-                {etaMinutes === 0 ? 'Now' : `${etaMinutes}m`}
+                {safeNum(etaMinutes) === 0 ? 'Now' : `${safeNum(etaMinutes)}m`}
               </span>
             )}
 
-            {['heading_to_dropoff', 'arrived_at_dropoff'].includes(rideStatus) && (
+            {isOnTrip && (
               <span
                 style={{
                   background: '#16A34A',
@@ -294,9 +337,10 @@ export default function MapView({
                   fontSize: '13px',
                   fontWeight: 800,
                   fontFamily: '"JetBrains Mono",monospace',
+                  flexShrink: 0,
                 }}
               >
-                {distToDropoff} mi
+                {safeNum(distToDropoff).toFixed(1)} mi
               </span>
             )}
           </div>
@@ -308,8 +352,8 @@ export default function MapView({
         <div
           style={{
             position: 'absolute',
-            left: `${pickupCoords.x}%`,
-            top: `${pickupCoords.y}%`,
+            left: `${safeCoord(pickupCoords.x)}%`,
+            top: `${safeCoord(pickupCoords.y)}%`,
             transform: 'translate(-50%,-50%)',
             zIndex: 3,
           }}
@@ -337,8 +381,8 @@ export default function MapView({
         <div
           style={{
             position: 'absolute',
-            left: `${dropoffCoords.x}%`,
-            top: `${dropoffCoords.y}%`,
+            left: `${safeCoord(dropoffCoords.x)}%`,
+            top: `${safeCoord(dropoffCoords.y)}%`,
             transform: 'translate(-50%,-50%)',
             zIndex: 3,
           }}
@@ -364,16 +408,16 @@ export default function MapView({
 
       {/* Idle drivers */}
       {!isTracking &&
-        DRIVERS.map((d) => (
+        safeDrivers.map((d, index) => (
           <div
-            key={d.id}
+            key={d.id || index}
             style={{
               position: 'absolute',
-              left: `${d.x}%`,
-              top: `${d.y}%`,
+              left: `${safeCoord(d.x)}%`,
+              top: `${safeCoord(d.y)}%`,
               transform: 'translate(-50%,-50%)',
               animation: 'pulse 2s ease-in-out infinite',
-              animationDelay: `${d.id * 0.18}s`,
+              animationDelay: `${index * 0.18}s`,
             }}
           >
             <div
@@ -395,7 +439,7 @@ export default function MapView({
         ))}
 
       {/* Trip summary chip */}
-      {pickupCoords && dropoffCoords && !isTracking && fareData && tripData && (
+      {pickupCoords && dropoffCoords && !isTracking && tripData && (
         <div
           style={{
             position: 'absolute',
@@ -413,6 +457,8 @@ export default function MapView({
             whiteSpace: 'nowrap',
             boxShadow: '0 4px 16px rgba(0,0,0,.07)',
             animation: 'scaleIn .3s ease-out',
+            maxWidth: '92%',
+            overflow: 'hidden',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -424,7 +470,7 @@ export default function MapView({
                 fontFamily: '"JetBrains Mono",monospace',
               }}
             >
-              {miles} mi
+              {miles.toFixed(1)} mi
             </span>
             <span style={{ fontSize: '11px', color: '#9CA3AF' }}>({km} km)</span>
           </div>
@@ -435,18 +481,21 @@ export default function MapView({
             {durationMin} min
           </span>
 
-          <div style={{ width: '1px', height: '16px', background: '#E5E7EB' }} />
-
-          <span
-            style={{
-              fontSize: '12px',
-              fontWeight: 800,
-              color: '#16A34A',
-              fontFamily: '"JetBrains Mono",monospace',
-            }}
-          >
-            ${fareData?.total || 0}
-          </span>
+          {fareData?.total != null && (
+            <>
+              <div style={{ width: '1px', height: '16px', background: '#E5E7EB' }} />
+              <span
+                style={{
+                  fontSize: '12px',
+                  fontWeight: 800,
+                  color: '#16A34A',
+                  fontFamily: '"JetBrains Mono",monospace',
+                }}
+              >
+                ${safeNum(fareData.total).toFixed(2)}
+              </span>
+            </>
+          )}
         </div>
       )}
     </div>
