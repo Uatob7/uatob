@@ -19,59 +19,71 @@ import PaymentModal from '@/App/PaymentModal.jsx';
 import ConfirmationModal from '@/App/ConfirmationModal.jsx';
 
 export default function UaTobApp({ uid }) {
-  // ── Trip / Booking state ───────────────────────────────
-  const [pickup, setPickup] = useState('');
-  const [dropoff, setDropoff] = useState('');
-  const [pickupCoords, setPickupCoords] = useState(null);
-  const [dropoffCoords, setDropoffCoords] = useState(null);
-
-  const [selectedRide, setSelectedRide] = useState('standard');
-  const [fareData, setFareData] = useState(null);
-  const [tripData, setTripData] = useState(null);
-  const [surgeMultiplier, setSurgeMultiplier] = useState(1);
-  const [showBreakdown, setShowBreakdown] = useState(false);
+  // ── Booking state ──────────────────────────────────────
+  const [bookingPayload, setBookingPayload] = useState(null);
+  const [pickupCoords,   setPickupCoords]   = useState(null);
+  const [dropoffCoords,  setDropoffCoords]  = useState(null);
 
   // ── Auth ───────────────────────────────────────────────
-  const [isLoggedIn, setIsLoggedIn] = useState(!!uid);
-  const [showAuth, setShowAuth] = useState(false);
-  const [authMode, setAuthMode] = useState('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
+  const [isLoggedIn,      setIsLoggedIn]      = useState(!!uid);
+  const [showAuth,        setShowAuth]        = useState(false);
+  const [authMode,        setAuthMode]        = useState('login');
+  const [email,           setEmail]           = useState('');
+  const [password,        setPassword]        = useState('');
+  const [name,            setName]            = useState('');
 
   // ── Payment ────────────────────────────────────────────
-  const [showPayment, setShowPayment] = useState(false);
+  const [showPayment,     setShowPayment]     = useState(false);
   const [selectedPayment, setSelectedPayment] = useState('card');
+
+  // ── Confirmation ───────────────────────────────────────
+  const [showConfirm,     setShowConfirm]     = useState(false);
+  const [confirmedRideId, setConfirmedRideId] = useState(null);
 
   // ── Mount animation ────────────────────────────────────
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
+  // ── Derived values from bookingPayload ─────────────────
+  const fareData = bookingPayload
+    ? {
+        ...bookingPayload,
+        total:       bookingPayload.fareEstimate,
+        miles:       bookingPayload.tripDistanceMiles,
+        durationMin: bookingPayload.tripDurationMin,
+      }
+    : null;
+
+  const tripData = bookingPayload
+    ? {
+        actualMiles: bookingPayload.tripDistanceMiles,
+        totalMin:    bookingPayload.tripDurationMin,
+      }
+    : null;
+
   // ── Ride tracking ──────────────────────────────────────
   const tracking = useRideTracking({
     pickupCoords,
     dropoffCoords,
-    selectedRide,
+    selectedRide: bookingPayload?.rideType ?? 'standard',
     fareData,
     onComplete: () => {
-      setPickup('');
-      setDropoff('');
+      setBookingPayload(null);
       setPickupCoords(null);
       setDropoffCoords(null);
-      setFareData(null);
-      setTripData(null);
       setShowPayment(false);
-      setShowBreakdown(false);
+      setShowConfirm(false);
+      setConfirmedRideId(null);
     },
   });
 
-  // ── Auth handler ───────────────────────────────────────
+  // ── Auth submit ────────────────────────────────────────
   const handleAuth = (e) => {
     e.preventDefault();
     const ok =
       authMode === 'login'
-        ? (email && password)
-        : (name && email && password);
+        ? email && password
+        : name && email && password;
 
     if (ok) {
       setIsLoggedIn(true);
@@ -80,42 +92,37 @@ export default function UaTobApp({ uid }) {
     }
   };
 
-  // ── Mock geocoding ─────────────────────────────────────
-  const mockGeocode = (address) => {
-    // Replace with real geocoding API if desired
-    return { x: -81.37, y: 28.53 };
-  };
+  // ── BookingPanel → "Book Now" ──────────────────────────
+  const handleBookNow = (payload) => {
+    if (!payload) return;
 
-  // ── Book Now handler ───────────────────────────────────
-  const handleBookNow = (bookingPayload) => {
-    if (!bookingPayload) return;
+    setBookingPayload(payload);
+    setPickupCoords({ x: -81.37, y: 28.53 });
+    setDropoffCoords({ x: -81.30, y: 28.45 });
 
-    setPickup(bookingPayload.pickup);
-    setDropoff(bookingPayload.dropoff);
-
-    // Set coordinates (mock for now)
-    const pickupC = mockGeocode(bookingPayload.pickup);
-    const dropoffC = mockGeocode(bookingPayload.dropoff);
-    setPickupCoords(pickupC);
-    setDropoffCoords(dropoffC);
-
-    setFareData({
-      total: bookingPayload.fareEstimate,
-      breakdown: bookingPayload.breakdown || { base: bookingPayload.fareEstimate, bookingFee:0, distance:0, time:0, surge:0 },
-    });
-
-    setTripData({
-      actualMiles: bookingPayload.tripDistanceMiles,
-      totalMin: bookingPayload.tripDurationMin,
-    });
-
-    setSurgeMultiplier(bookingPayload.surgeMultiplier || 1);
-
-    // Show payment if logged in, otherwise show auth
     if (isLoggedIn) {
       setShowPayment(true);
     } else {
       setShowAuth(true);
+    }
+  };
+
+  // ── Payment success → show ConfirmationModal ───────────
+  // result: { method, rideId, paymentIntent? }
+  const handlePaymentSuccess = (result) => {
+    console.log('[UaTobApp] Payment success:', result);
+    setShowPayment(false);
+    setConfirmedRideId(result.rideId);
+    setShowConfirm(true);
+  };
+
+  // ── Confirmation closed → start live tracking ──────────
+  const handleConfirmClose = () => {
+    setShowConfirm(false);
+    setConfirmedRideId(null);
+
+    if (pickupCoords && dropoffCoords) {
+      tracking.initiateRide();
     }
   };
 
@@ -137,6 +144,7 @@ export default function UaTobApp({ uid }) {
       <div style={{ position: 'fixed', bottom: '-20%', left: '-12%', width: '700px', height: '700px', background: 'radial-gradient(circle,rgba(17,24,39,.03) 0%,transparent 65%)', borderRadius: '50%', animation: 'float 18s ease-in-out infinite reverse', pointerEvents: 'none', zIndex: 0 }} />
 
       <div style={{ maxWidth: '680px', margin: '0 auto', padding: '28px 20px 60px', position: 'relative', zIndex: 1 }}>
+
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '40px', animation: mounted ? 'slideUp .55s ease-out forwards' : 'none', opacity: 0 }}>
           <UaTobWordmark iconSize={42} />
@@ -146,8 +154,8 @@ export default function UaTobApp({ uid }) {
           </div>
         </div>
 
-        {/* Hero */}
-        {!tracking.isTracking && !pickup && (
+        {/* Hero — only shown before booking starts */}
+        {!tracking.isTracking && !bookingPayload && (
           <div style={{ marginBottom: '32px', animation: mounted ? 'slideUp .65s ease-out .08s forwards' : 'none', opacity: 0 }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: T.accentLight, border: `1px solid ${T.accentBorder}`, borderRadius: '100px', padding: '5px 14px', fontSize: '11px', fontWeight: 700, color: T.accent, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '18px' }}>
               <Route size={12} />
@@ -173,8 +181,8 @@ export default function UaTobApp({ uid }) {
         {/* Map */}
         <div style={{ marginBottom: '14px', animation: mounted ? 'slideUp .65s ease-out .12s forwards' : 'none', opacity: 0 }}>
           <MapView
-            pickup={pickup}
-            dropoff={dropoff}
+            pickup={bookingPayload?.pickup ?? ''}
+            dropoff={bookingPayload?.dropoff ?? ''}
             pickupCoords={pickupCoords}
             dropoffCoords={dropoffCoords}
             tripData={tripData}
@@ -193,8 +201,8 @@ export default function UaTobApp({ uid }) {
         <div style={{ animation: mounted ? 'slideUp .65s ease-out .18s forwards' : 'none', opacity: 0 }}>
           {tracking.isTracking ? (
             <LiveTrackingPanel
-              pickup={pickup}
-              dropoff={dropoff}
+              pickup={bookingPayload?.pickup ?? ''}
+              dropoff={bookingPayload?.dropoff ?? ''}
               fareData={fareData}
               tripData={tripData}
               assignedDriver={tracking.assignedDriver}
@@ -209,7 +217,7 @@ export default function UaTobApp({ uid }) {
         </div>
       </div>
 
-      {/* Modals */}
+      {/* ── Auth Modal ───────────────────────────────────── */}
       {showAuth && !uid && (
         <AuthModal
           authMode={authMode}
@@ -225,30 +233,24 @@ export default function UaTobApp({ uid }) {
         />
       )}
 
-      {showPayment && (
+      {/* ── Payment Modal ────────────────────────────────── */}
+      {showPayment && fareData && (
         <PaymentModal
-          fareData={fareData}
-          tripData={tripData}
-          selectedRide={selectedRide}
+          bookingPayload={bookingPayload}
           selectedPayment={selectedPayment}
           setSelectedPayment={setSelectedPayment}
-          onConfirm={() => {
-            if (!pickupCoords || !dropoffCoords) {
-              alert("Waiting for pickup/dropoff coordinates...");
-              return;
-            }
-            tracking.initiateRide();
-          }}
+          onSuccess={handlePaymentSuccess}
           onClose={() => setShowPayment(false)}
         />
       )}
 
-      {tracking.showConfirm && (
+      {/* ── Confirmation Modal ───────────────────────────── */}
+      {showConfirm && (
         <ConfirmationModal
-          assignedDriver={tracking.assignedDriver}
-          etaMinutes={tracking.etaMinutes}
+          rideId={confirmedRideId}
           fareData={fareData}
           tripData={tripData}
+          onClose={handleConfirmClose}
         />
       )}
     </div>
