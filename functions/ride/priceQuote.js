@@ -4,6 +4,11 @@ const cors = require("cors")({ origin: true });
 // ── PRICING TABLE ────────────────────────────────────────
 const PRICING = {
   standard: {
+    id: "standard",
+    label: "Standard",
+    desc: "Affordable everyday rides",
+    eta: "2–4 min",
+    capacity: "4 seats",
     base: 5.0,
     perMile: 1.15,
     perMin: 0.32,
@@ -11,6 +16,11 @@ const PRICING = {
     minimumFare: 10.0,
   },
   premium: {
+    id: "premium",
+    label: "Premium",
+    desc: "Luxury ride experience",
+    eta: "3–5 min",
+    capacity: "4 seats",
     base: 9.5,
     perMile: 1.95,
     perMin: 0.55,
@@ -18,6 +28,11 @@ const PRICING = {
     minimumFare: 17.0,
   },
   xl: {
+    id: "xl",
+    label: "XL",
+    desc: "More room for groups",
+    eta: "4–6 min",
+    capacity: "6 seats",
     base: 7.75,
     perMile: 1.6,
     perMin: 0.44,
@@ -36,8 +51,6 @@ function clamp(num, min, max) {
 }
 
 // ── SURGE LOGIC ──────────────────────────────────────────
-// Keep this simple for launch. You can later replace this
-// with demand-based logic, event logic, airport logic, etc.
 function getSurge() {
   const now = new Date();
   const hour = now.getHours();
@@ -49,19 +62,13 @@ function getSurge() {
   }
 
   // Morning rush
-  if (hour >= 7 && hour <= 9) {
-    return 1.2;
-  }
+  if (hour >= 7 && hour <= 9) return 1.2;
 
   // Evening rush
-  if (hour >= 17 && hour <= 19) {
-    return 1.25;
-  }
+  if (hour >= 17 && hour <= 19) return 1.25;
 
   // Late night weekdays
-  if (hour >= 22 || hour <= 2) {
-    return 1.2;
-  }
+  if (hour >= 22 || hour <= 2) return 1.2;
 
   return 1;
 }
@@ -76,12 +83,14 @@ function calculateRidePrice(pricing, miles, minutes, surgeMultiplier) {
   const rawSubtotal = base + distance + time + bookingFee;
   const surgedTotal = rawSubtotal * surgeMultiplier;
   const total = Math.max(surgedTotal, pricing.minimumFare || 0);
-
-  // "Surge" shown in breakdown should reflect ONLY uplift
-  // beyond the raw subtotal (including minimum fare effect if applicable)
   const surge = total - rawSubtotal;
 
   return {
+    id: pricing.id,
+    label: pricing.label,
+    desc: pricing.desc,
+    eta: pricing.eta,
+    capacity: pricing.capacity,
     total: round2(total),
     breakdown: {
       base: round2(base),
@@ -120,7 +129,6 @@ function validateTripInput(miles, minutes) {
     return "Miles and minutes cannot be negative";
   }
 
-  // Basic abuse protection / sanity caps
   if (cleanMiles > 300) {
     return "Miles value is too large";
   }
@@ -136,7 +144,6 @@ function validateTripInput(miles, minutes) {
 exports.priceQuote = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     try {
-      // Handle preflight
       if (req.method === "OPTIONS") {
         return res.status(204).send("");
       }
@@ -158,10 +165,8 @@ exports.priceQuote = functions.https.onRequest((req, res) => {
         });
       }
 
-      // Clean values
       const cleanMiles = clamp(round2(Number(miles)), 0, 300);
       const cleanMinutes = clamp(round2(Number(minutes)), 0, 600);
-
       const surgeMultiplier = getSurge();
 
       const rides = {
@@ -198,7 +203,6 @@ exports.priceQuote = functions.https.onRequest((req, res) => {
       });
     } catch (error) {
       console.error("Pricing error:", error);
-
       return res.status(500).json({
         ok: false,
         error: "Failed to calculate prices",
