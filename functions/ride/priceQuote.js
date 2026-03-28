@@ -1,7 +1,7 @@
 const functions = require("firebase-functions");
 const cors = require("cors")({ origin: true });
 
-// ── PRICING TABLE ────────────────────────────────────────
+// ── LAUNCH PRICING TABLE ─────────────────────────────────
 const PRICING = {
   standard: {
     id: "standard",
@@ -9,11 +9,11 @@ const PRICING = {
     desc: "Affordable everyday rides",
     eta: "2–4 min",
     capacity: "4 seats",
-    base: 5.0,
-    perMile: 1.15,
-    perMin: 0.32,
-    bookingFee: 2.25,
-    minimumFare: 10.0,
+    base: 2.25,
+    perMile: 0.95,
+    perMin: 0.16,
+    bookingFee: 0.99,
+    minimumFare: 6.99,
   },
   premium: {
     id: "premium",
@@ -21,11 +21,11 @@ const PRICING = {
     desc: "Luxury ride experience",
     eta: "3–5 min",
     capacity: "4 seats",
-    base: 9.5,
-    perMile: 1.95,
-    perMin: 0.55,
-    bookingFee: 3.25,
-    minimumFare: 17.0,
+    base: 4.75,
+    perMile: 1.45,
+    perMin: 0.26,
+    bookingFee: 1.99,
+    minimumFare: 11.99,
   },
   xl: {
     id: "xl",
@@ -33,11 +33,11 @@ const PRICING = {
     desc: "More room for groups",
     eta: "4–6 min",
     capacity: "6 seats",
-    base: 7.75,
-    perMile: 1.6,
-    perMin: 0.44,
-    bookingFee: 2.75,
-    minimumFare: 13.5,
+    base: 3.75,
+    perMile: 1.22,
+    perMin: 0.22,
+    bookingFee: 1.49,
+    minimumFare: 9.99,
   },
 };
 
@@ -50,27 +50,9 @@ function clamp(num, min, max) {
   return Math.min(Math.max(num, min), max);
 }
 
-// ── SURGE LOGIC ──────────────────────────────────────────
+// ── SURGE (DISABLED) ─────────────────────────────────────
 function getSurge() {
-  const now = new Date();
-  const hour = now.getHours();
-  const day = now.getDay(); // 0 = Sun, 6 = Sat
-
-  // Weekend late night
-  if ((day === 5 || day === 6 || day === 0) && (hour >= 22 || hour <= 2)) {
-    return 1.35;
-  }
-
-  // Morning rush
-  if (hour >= 7 && hour <= 9) return 1.2;
-
-  // Evening rush
-  if (hour >= 17 && hour <= 19) return 1.25;
-
-  // Late night weekdays
-  if (hour >= 22 || hour <= 2) return 1.2;
-
-  return 1;
+  return 1; // Always no surge
 }
 
 // ── CORE PRICE CALCULATOR ────────────────────────────────
@@ -80,10 +62,13 @@ function calculateRidePrice(pricing, miles, minutes, surgeMultiplier) {
   const time = minutes * pricing.perMin;
   const bookingFee = pricing.bookingFee;
 
-  const rawSubtotal = base + distance + time + bookingFee;
-  const surgedTotal = rawSubtotal * surgeMultiplier;
-  const total = Math.max(surgedTotal, pricing.minimumFare || 0);
-  const surge = total - rawSubtotal;
+  const subtotalBeforeMinimum = base + distance + time + bookingFee;
+  const surgedSubtotal = subtotalBeforeMinimum * surgeMultiplier;
+  const total = Math.max(surgedSubtotal, pricing.minimumFare || 0);
+
+  const surge = surgedSubtotal - subtotalBeforeMinimum;
+  const minimumAdjustment =
+    total > surgedSubtotal ? total - surgedSubtotal : 0;
 
   return {
     id: pricing.id,
@@ -98,8 +83,11 @@ function calculateRidePrice(pricing, miles, minutes, surgeMultiplier) {
       time: round2(time),
       bookingFee: round2(bookingFee),
       surge: round2(surge > 0 ? surge : 0),
+      minimumFareAdjustment: round2(
+        minimumAdjustment > 0 ? minimumAdjustment : 0
+      ),
       minimumFare: round2(pricing.minimumFare || 0),
-      subtotalBeforeSurge: round2(rawSubtotal),
+      subtotalBeforeMinimum: round2(subtotalBeforeMinimum),
     },
     meta: {
       perMile: pricing.perMile,
@@ -144,10 +132,12 @@ function validateTripInput(miles, minutes) {
 exports.priceQuote = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     try {
+      // CORS preflight
       if (req.method === "OPTIONS") {
         return res.status(204).send("");
       }
 
+      // Only POST allowed
       if (req.method !== "POST") {
         return res.status(405).json({
           ok: false,
