@@ -10,13 +10,14 @@ import {
   Loader2,
   AlertCircle
 } from 'lucide-react';
+
 import { RIDE_TYPES, THEME as T } from '@/App/pricing.js';
 
-// ── API URLs ─────────────────────────────────────────────
+// ── CLOUD FUNCTION URLS ──────────────────────────────────
 const ROUTE_URL = 'https://atob-j2jspuowha-uc.a.run.app';
-const PRICE_URL = 'https://YOUR-PRICE-FUNCTION-URL.a.run.app';
+const PRICE_URL = 'https://YOUR_PRICE_FUNCTION_URL.a.run.app';
 
-// ── FUNCTION 1: GET ROUTE DATA ───────────────────────────
+// ── FETCH ROUTE DATA (TRUTH #1) ──────────────────────────
 async function fetchTripData(pickup, dropoff) {
   const res = await fetch(ROUTE_URL, {
     method: 'POST',
@@ -42,7 +43,7 @@ async function fetchTripData(pickup, dropoff) {
   };
 }
 
-// ── FUNCTION 2: GET PRICE DATA ───────────────────────────
+// ── FETCH PRICE DATA (TRUTH #2) ──────────────────────────
 async function fetchPriceData(tripData, rideType) {
   const res = await fetch(PRICE_URL, {
     method: 'POST',
@@ -79,20 +80,24 @@ async function fetchPriceData(tripData, rideType) {
 
 // ── MAIN COMPONENT ───────────────────────────────────────
 export default function BookingPanel({ onBookNow }) {
+  // Input state
   const [pickup, setPickup] = useState('');
   const [dropoff, setDropoff] = useState('');
+
+  // Ride selection
   const [selectedRide, setSelectedRide] = useState('standard');
 
-  // ONLY 2 truths
+  // ONLY 2 TRUTHS
   const [tripData, setTripData] = useState(null);
   const [priceData, setPriceData] = useState(null);
 
+  // UI state
   const [loadingTrip, setLoadingTrip] = useState(false);
   const [loadingPrice, setLoadingPrice] = useState(false);
   const [error, setError] = useState('');
   const [showBreakdown, setShowBreakdown] = useState(false);
 
-  // ── STEP 1: FETCH TRIP DATA WHEN LOCATIONS CHANGE ──────
+  // ── STEP 1: GET TRIP DATA WHEN LOCATIONS CHANGE ────────
   useEffect(() => {
     if (!pickup.trim() || !dropoff.trim()) {
       setTripData(null);
@@ -112,7 +117,7 @@ export default function BookingPanel({ onBookNow }) {
         setTripData(trip);
       } catch (err) {
         console.error('Trip fetch error:', err);
-        setError(err.message || 'Failed to get route');
+        setError(err.message || 'Failed to calculate route');
       } finally {
         setLoadingTrip(false);
       }
@@ -121,7 +126,7 @@ export default function BookingPanel({ onBookNow }) {
     return () => clearTimeout(timeout);
   }, [pickup, dropoff]);
 
-  // ── STEP 2: FETCH PRICE DATA WHEN TRIP OR RIDE CHANGES ─
+  // ── STEP 2: GET PRICE DATA WHEN TRIP/RIDE CHANGES ──────
   useEffect(() => {
     if (!tripData) return;
 
@@ -155,6 +160,7 @@ export default function BookingPanel({ onBookNow }) {
     };
   }, [tripData, selectedRide]);
 
+  // ── BOOK NOW ────────────────────────────────────────────
   const handleBookNow = useCallback(() => {
     if (!tripData || !priceData) return;
 
@@ -195,7 +201,7 @@ export default function BookingPanel({ onBookNow }) {
         Book a Ride
       </h2>
 
-      {/* Inputs */}
+      {/* ── Location Inputs ─────────────────────────────── */}
       <div
         style={{
           display: 'flex',
@@ -204,6 +210,7 @@ export default function BookingPanel({ onBookNow }) {
           marginBottom: '20px',
         }}
       >
+        {/* Pickup */}
         <div>
           <div className="lbl">Pickup (A)</div>
           <div style={{ position: 'relative' }}>
@@ -229,6 +236,7 @@ export default function BookingPanel({ onBookNow }) {
           </div>
         </div>
 
+        {/* Dropoff */}
         <div>
           <div className="lbl">Drop-off (B)</div>
           <div style={{ position: 'relative' }}>
@@ -255,7 +263,7 @@ export default function BookingPanel({ onBookNow }) {
         </div>
       </div>
 
-      {/* Loading */}
+      {/* ── Loading ─────────────────────────────────────── */}
       {isLoading && (
         <div
           style={{
@@ -268,12 +276,16 @@ export default function BookingPanel({ onBookNow }) {
             fontWeight: 500,
           }}
         >
-          <Loader2 size={16} color={T.accent} style={{ animation: 'spin 1s linear infinite' }} />
+          <Loader2
+            size={16}
+            color={T.accent}
+            style={{ animation: 'spin 1s linear infinite' }}
+          />
           {loadingTrip ? 'Calculating route…' : 'Calculating price…'}
         </div>
       )}
 
-      {/* Error */}
+      {/* ── Error ───────────────────────────────────────── */}
       {error && !isLoading && (
         <div
           style={{
@@ -287,14 +299,24 @@ export default function BookingPanel({ onBookNow }) {
             marginBottom: '16px',
           }}
         >
-          <AlertCircle size={15} color="#DC2626" style={{ flexShrink: 0, marginTop: '1px' }} />
-          <span style={{ fontSize: '13px', color: '#DC2626', fontWeight: 600 }}>
+          <AlertCircle
+            size={15}
+            color="#DC2626"
+            style={{ flexShrink: 0, marginTop: '1px' }}
+          />
+          <span
+            style={{
+              fontSize: '13px',
+              color: '#DC2626',
+              fontWeight: 600,
+            }}
+          >
             {error}
           </span>
         </div>
       )}
 
-      {/* Ride Type Cards */}
+      {/* ── Ride Selector ───────────────────────────────── */}
       {tripData && (
         <div style={{ marginBottom: '18px' }}>
           <div className="lbl">Choose Ride</div>
@@ -306,20 +328,24 @@ export default function BookingPanel({ onBookNow }) {
             }}
           >
             {RIDE_TYPES.map(ride => {
-              const IconComp = ride.id === 'premium' ? Zap : ride.id === 'xl' ? Users : Car;
               const active = selectedRide === ride.id;
+              const IconComp =
+                ride.id === 'premium' ? Zap : ride.id === 'xl' ? Users : Car;
 
               return (
                 <div
                   key={ride.id}
                   className={`ride-card ${active ? 'active' : ''}`}
                   onClick={() => setSelectedRide(ride.id)}
+                  style={{
+                    cursor: 'pointer',
+                  }}
                 >
                   <div
                     style={{
                       display: 'flex',
-                      justifyContent: 'space-between',
                       alignItems: 'center',
+                      justifyContent: 'space-between',
                       marginBottom: '10px',
                     }}
                   >
@@ -327,14 +353,21 @@ export default function BookingPanel({ onBookNow }) {
                       style={{
                         width: '32px',
                         height: '32px',
+                        background: active ? '#ECFDF5' : '#F3F4F6',
                         borderRadius: '9px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        background: active ? '#ECFDF5' : '#F3F4F6',
+                        border: active
+                          ? `1px solid ${T.accent}40`
+                          : '1px solid transparent',
+                        transition: 'all .3s',
                       }}
                     >
-                      <IconComp size={16} color={active ? T.accent : '#9CA3AF'} />
+                      <IconComp
+                        size={16}
+                        color={active ? T.accent : '#D1D5DB'}
+                      />
                     </div>
 
                     <div
@@ -364,9 +397,40 @@ export default function BookingPanel({ onBookNow }) {
                     style={{
                       fontSize: '11px',
                       color: T.textMuted,
+                      marginBottom: '8px',
                     }}
                   >
                     {ride.desc}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <span
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        fontSize: '11px',
+                        color: T.textMuted,
+                        fontWeight: 600,
+                      }}
+                    >
+                      <Clock size={10} />
+                      {ride.eta}
+                    </span>
+
+                    <span
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        fontSize: '11px',
+                        color: T.textMuted,
+                        fontWeight: 600,
+                      }}
+                    >
+                      <Users size={10} />
+                      {ride.capacity}
+                    </span>
                   </div>
                 </div>
               );
@@ -375,10 +439,9 @@ export default function BookingPanel({ onBookNow }) {
         </div>
       )}
 
-      {/* Quote */}
+      {/* ── Trip Details ────────────────────────────────── */}
       {hasQuote && (
         <>
-          {/* Trip Summary */}
           <div
             style={{
               background: T.surfaceAlt,
@@ -386,9 +449,17 @@ export default function BookingPanel({ onBookNow }) {
               borderRadius: '18px',
               padding: '18px',
               marginBottom: '14px',
+              animation: 'scaleIn .35s ease-out',
             }}
           >
-            <div style={{ fontSize: '13px', fontWeight: 800, color: T.text, marginBottom: '14px' }}>
+            <div
+              style={{
+                fontSize: '13px',
+                fontWeight: 800,
+                color: T.text,
+                marginBottom: '14px',
+              }}
+            >
               Trip Details
             </div>
 
@@ -418,8 +489,16 @@ export default function BookingPanel({ onBookNow }) {
                 >
                   {tripData.miles} mi
                 </div>
-                <div style={{ fontSize: '11px', color: T.textMuted, fontWeight: 700 }}>
-                  DISTANCE
+                <div
+                  style={{
+                    fontSize: '11px',
+                    color: T.textMuted,
+                    fontWeight: 700,
+                    letterSpacing: '1px',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Distance
                 </div>
               </div>
 
@@ -442,14 +521,22 @@ export default function BookingPanel({ onBookNow }) {
                 >
                   {tripData.durationMin} min
                 </div>
-                <div style={{ fontSize: '11px', color: T.textMuted, fontWeight: 700 }}>
-                  DURATION
+                <div
+                  style={{
+                    fontSize: '11px',
+                    color: T.textMuted,
+                    fontWeight: 700,
+                    letterSpacing: '1px',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Duration
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Fare Box */}
+          {/* ── Fare Summary ─────────────────────────────── */}
           <div
             style={{
               background: 'linear-gradient(135deg,#F0FDF4 0%,#DCFCE7 100%)',
@@ -457,6 +544,7 @@ export default function BookingPanel({ onBookNow }) {
               borderRadius: '18px',
               padding: '18px 22px',
               marginBottom: '16px',
+              animation: 'scaleIn .38s ease-out',
               boxShadow: '0 4px 18px rgba(22,163,74,.08)',
             }}
           >
@@ -479,7 +567,13 @@ export default function BookingPanel({ onBookNow }) {
                     flexWrap: 'wrap',
                   }}
                 >
-                  <span style={{ fontSize: '12px', color: T.textMuted, fontWeight: 500 }}>
+                  <span
+                    style={{
+                      fontSize: '12px',
+                      color: T.textMuted,
+                      fontWeight: 500,
+                    }}
+                  >
                     {tripData.miles} mi · ~{tripData.durationMin} min
                   </span>
 
@@ -568,7 +662,7 @@ export default function BookingPanel({ onBookNow }) {
                     <span
                       style={{
                         fontSize: '12.5px',
-                        color: row.highlight ? T.accent : T.text,
+                        color: row.highlight ? T.accent : T.textMid,
                         fontWeight: 600,
                       }}
                     >
@@ -587,11 +681,40 @@ export default function BookingPanel({ onBookNow }) {
                     </span>
                   </div>
                 ))}
+
+                <div
+                  style={{
+                    borderTop: `1px dashed ${T.accentBorder}`,
+                    paddingTop: '10px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: '13px',
+                      fontWeight: 800,
+                      color: T.text,
+                    }}
+                  >
+                    Total
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: '"JetBrains Mono", monospace',
+                      fontSize: '15px',
+                      fontWeight: 700,
+                      color: T.accent,
+                    }}
+                  >
+                    ${priceData.total}
+                  </span>
+                </div>
               </div>
             )}
           </div>
 
-          {/* CTA */}
+          {/* ── CTA ─────────────────────────────────────── */}
           <button className="cta-btn" onClick={handleBookNow}>
             Book Now · ${priceData.total}
             <ChevronRight
@@ -606,8 +729,8 @@ export default function BookingPanel({ onBookNow }) {
         </>
       )}
 
-      {/* Prompt */}
-      {!pickup && !dropoff && (
+      {/* ── Empty Prompt ────────────────────────────────── */}
+      {!loadingTrip && !loadingPrice && !error && !tripData && !priceData && (
         <div
           style={{
             textAlign: 'center',
