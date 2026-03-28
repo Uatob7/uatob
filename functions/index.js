@@ -3,7 +3,7 @@ admin.initializeApp();
 
 // Ride function
 const { ATOB } = require("./ride/ATOB");
-const { priceQuote } = require("./ridepriceQuote"); 
+const { priceQuote } = require("./ride/priceQuote"); 
 // Payment functions
 const { cardPayment } = require("./payments/cardPayment");
 const { cashAppPayment } = require("./payments/cashAppPayment");
