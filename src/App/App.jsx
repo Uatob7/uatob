@@ -12,20 +12,26 @@ import LiveTrackingPanel from '@/App/LiveTrackingPanel.jsx';
 import AuthModal from '@/App/AuthModal.jsx';
 import PaymentModal from '@/App/PaymentModal.jsx';
 import ConfirmationModal from '@/App/ConfirmationModal.jsx';
+import { useAuthContext } from '@/context/AuthContext';
+import signIn from '@/firebase/auth/signin';
+import signUp from '@/firebase/auth/signup';
 
 export default function UaTobApp({ uid }) {
+  console.log(uid)
   // ── Booking ────────────────────────────────────────────
   const [bookingPayload,  setBookingPayload]  = useState(null);
   const [pickupCoords,    setPickupCoords]    = useState(null);
   const [dropoffCoords,   setDropoffCoords]   = useState(null);
+  const { uid: authUid } = useAuthContext();
 
   // ── Auth ───────────────────────────────────────────────
-  const [isLoggedIn,      setIsLoggedIn]      = useState(!!uid);
   const [showAuth,        setShowAuth]        = useState(false);
   const [authMode,        setAuthMode]        = useState('login');
   const [email,           setEmail]           = useState('');
   const [password,        setPassword]        = useState('');
   const [name,            setName]            = useState('');
+  const [authLoading,     setAuthLoading]     = useState(false);
+  const [authError,       setAuthError]       = useState('');
 
   // ── Payment ────────────────────────────────────────────
   const [showPayment,     setShowPayment]     = useState(false);
@@ -72,16 +78,31 @@ export default function UaTobApp({ uid }) {
   });
 
   // ── Auth submit ────────────────────────────────────────
-  const handleAuth = (e) => {
+  const handleAuth = async (e) => {
     e.preventDefault();
-    const ok = authMode === 'login'
-      ? email && password
-      : name && email && password;
+    setAuthLoading(true);
+    setAuthError('');
 
-    if (ok) {
-      setIsLoggedIn(true);
+    try {
+      let authResult;
+      
+      if (authMode === 'login') {
+        authResult = await signIn(email, password);
+      } else {
+        authResult = await signUp(email, password);
+      }
+
+      if (authResult.error) {
+        throw new Error(authResult.error.message || 'Authentication failed');
+      }
+
+      // Auth successful, close modal and proceed to booking
       setShowAuth(false);
       setShowPayment(true);
+    } catch (err) {
+      setAuthError(err.message || 'Authentication failed');
+    } finally {
+      setAuthLoading(false);
     }
   };
 
@@ -92,10 +113,18 @@ export default function UaTobApp({ uid }) {
     setPickupCoords({ x: -81.37, y: 28.53 });
     setDropoffCoords({ x: -81.30, y: 28.45 });
 
-    if (isLoggedIn) {
+    // Check if user is authenticated
+    if (authUid) {
+      // User logged in, go directly to payment
       setShowPayment(true);
     } else {
+      // User not logged in, show auth modal first
       setShowAuth(true);
+      setAuthMode('login');
+      setEmail('');
+      setPassword('');
+      setName('');
+      setAuthError('');
     }
   };
 
@@ -205,7 +234,7 @@ export default function UaTobApp({ uid }) {
       </div>
 
       {/* ── Auth Modal ───────────────────────────────────── */}
-      {showAuth && !uid && (
+      {showAuth && !authUid && (
         <AuthModal
           authMode={authMode}
           setAuthMode={setAuthMode}
@@ -217,6 +246,8 @@ export default function UaTobApp({ uid }) {
           setName={setName}
           onSubmit={handleAuth}
           onClose={() => setShowAuth(false)}
+          loading={authLoading}
+          error={authError}
         />
       )}
 

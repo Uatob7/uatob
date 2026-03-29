@@ -19,10 +19,11 @@ export default function ConfirmationModal({
   onClose,
   onRetry,
 }) {
-  const [status, setStatus] = useState('searching'); // 'searching' | 'assigned' | 'timeout'
+  const [status, setStatus] = useState('searching'); // 'searching' | 'assigned' | 'timeout' | 'error'
   const [secondsLeft, setSecondsLeft] = useState(SEARCH_LIMIT_SEC);
   const [driver, setDriver] = useState(null);
   const [visible, setVisible] = useState(false);
+  const [permissionError, setPermissionError] = useState(false);
 
   const unsubRef = useRef(null);
   const timerRef = useRef(null);
@@ -53,50 +54,78 @@ export default function ConfirmationModal({
     setStatus('searching');
     setSecondsLeft(SEARCH_LIMIT_SEC);
     setDriver(null);
+    setPermissionError(false);
     didTimeoutRef.current = false;
   }, [rideId]);
 
-  // Realtime ride listener
+  // Realtime ride listener with automatic retry
   useEffect(() => {
     if (!rideId || status !== 'searching') return;
 
-    try {
-      const rideRef = doc(db, 'Rides', rideId);
+    let retryTimeoutRef = null;
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
 
-      unsubRef.current?.();
+    const setupListener = () => {
+      try {
+        const rideRef = doc(db, 'Rides', rideId);
 
-      unsubRef.current = onSnapshot(
-        rideRef,
-        (snap) => {
-          if (!snap.exists()) return;
+        unsubRef.current?.();
 
-          const data = snap.data();
+        unsubRef.current = onSnapshot(
+          rideRef,
+          (snap) => {
+            if (!snap.exists()) return;
 
-          // If driver got assigned, stop everything immediately
-          if (data.status === 'driver_assigned') {
-            clearInterval(timerRef.current);
-            timerRef.current = null;
+            const data = snap.data();
 
-            if (data.driver) setDriver(data.driver);
-            setStatus('assigned');
+            // If driver got assigned, stop everything immediately
+            if (data.status === 'driver_assigned') {
+              clearInterval(timerRef.current);
+              timerRef.current = null;
+
+              if (data.driver) setDriver(data.driver);
+              setStatus('assigned');
+            }
+
+            // If backend already timed out / cancelled
+            if (data.status === 'timeout' || data.status === 'cancelled') {
+              clearInterval(timerRef.current);
+              timerRef.current = null;
+              setStatus('timeout');
+            }
+          },
+          (err) => {
+            // Handle permissions error gracefully
+            if (err.code === 'permission-denied') {
+              console.warn('[ConfirmationModal] Permission denied - will retry...');
+              if (mountedRef.current && retryCount < MAX_RETRIES) {
+                retryCount++;
+                setPermissionError(true);
+                // Retry after 5 seconds
+                retryTimeoutRef = setTimeout(() => {
+                  if (mountedRef.current) {
+                    setupListener();
+                  }
+                }, 5000);
+              } else if (mountedRef.current) {
+                // Give up after max retries, but continue timer
+                setPermissionError(true);
+              }
+            } else {
+              console.warn('[ConfirmationModal] Firestore listener error:', err);
+            }
           }
+        );
+      } catch (err) {
+        console.warn('[ConfirmationModal] onSnapshot setup error:', err);
+      }
+    };
 
-          // If backend already timed out / cancelled
-          if (data.status === 'timeout' || data.status === 'cancelled') {
-            clearInterval(timerRef.current);
-            timerRef.current = null;
-            setStatus('timeout');
-          }
-        },
-        (err) => {
-          console.warn('[ConfirmationModal] Firestore listener error:', err);
-        }
-      );
-    } catch (err) {
-      console.warn('[ConfirmationModal] onSnapshot setup error:', err);
-    }
+    setupListener();
 
     return () => {
+      clearTimeout(retryTimeoutRef);
       unsubRef.current?.();
       unsubRef.current = null;
     };
@@ -163,6 +192,20 @@ export default function ConfirmationModal({
 
     markTimeout();
   }, [status, rideId]);
+
+  // Auto-close when driver assigned - transition to LiveTrackingPanel
+  useEffect(() => {
+    if (status !== 'assigned') return;
+
+    // Show confirmation for 1.5 seconds then auto-close
+    const autoCloseTimer = setTimeout(() => {
+      if (mountedRef.current) {
+        handleClose();
+      }
+    }, 1500);
+
+    return () => clearTimeout(autoCloseTimer);
+  }, [status]);
 
   // Derived values
   const minutes = Math.floor(secondsLeft / 60);

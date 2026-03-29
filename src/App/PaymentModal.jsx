@@ -57,7 +57,7 @@ function CardForm({ bookingPayload, onSuccess, onError }) {
 
       if (createError) throw new Error(createError.message || 'Could not create payment method.');
 
-      const res = await fetch('https://cardpayment-j2jspuowha-uc.a.run.app', {
+      const res = await fetch('https://cardpayment-ady2s2xhhq-uc.a.run.app', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -10,11 +10,7 @@ import {
   Loader2,
   AlertCircle
 } from 'lucide-react';
-import PaymentModal from '@/App/PaymentModal';
-import AuthModal from '@/App/AuthModal';
 import { useAuthContext } from '@/context/AuthContext';
-import signIn from '@/firebase/auth/signin';
-import signUp from '@/firebase/auth/signup';
 
 // ── THEME ────────────────────────────────────────────────
 const T = {
@@ -334,20 +330,6 @@ export default function BookingPanel({ onBookNow }) {
   const [error, setError]                 = useState('');
   const [showBreakdown, setShowBreakdown] = useState(false);
 
-  // ── AUTHENTICATION MODAL STATES ────────────────────────
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState('login');
-  const [authEmail, setAuthEmail] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
-  const [authName, setAuthName] = useState('');
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState('');
-
-  // ── PAYMENT MODAL STATES ───────────────────────────────
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [selectedPayment, setSelectedPayment] = useState('card');
-  const [bookingInProgress, setBookingInProgress] = useState(false);
-
   const tripRequestRef  = useRef(0);
   const quoteRequestRef = useRef(0);
 
@@ -433,57 +415,8 @@ export default function BookingPanel({ onBookNow }) {
     [quotesData, selectedRide]
   );
 
-  // ── BOOK NOW (CHECK AUTH FIRST) ──────────────────────────
+  // ── BOOK NOW (PASS TO PARENT) ──────────────────────────
   const handleBookNow = useCallback(() => {
-    if (!tripData || !quotesData || !selectedQuote) return;
-    
-    if (!uid) {
-      // User not authenticated, show auth modal
-      setShowAuthModal(true);
-      setAuthMode('login');
-      setAuthEmail('');
-      setAuthPassword('');
-      setAuthName('');
-      setAuthError('');
-    } else {
-      // User authenticated, proceed to payment
-      setShowPaymentModal(true);
-      setSelectedPayment('card');
-    }
-  }, [tripData, quotesData, selectedQuote, uid]);
-
-  // ── HANDLE AUTH SUBMISSION ───────────────────────────────
-  const handleAuthSubmit = useCallback(async (e) => {
-    e.preventDefault();
-    setAuthLoading(true);
-    setAuthError('');
-
-    try {
-      let authResult;
-      
-      if (authMode === 'login') {
-        authResult = await signIn(authEmail, authPassword);
-      } else {
-        authResult = await signUp(authEmail, authPassword);
-      }
-
-      if (authResult.error) {
-        throw new Error(authResult.error.message || 'Authentication failed');
-      }
-
-      // Close auth modal and open payment modal
-      setShowAuthModal(false);
-      setShowPaymentModal(true);
-      setSelectedPayment('card');
-    } catch (err) {
-      setAuthError(err.message || 'Authentication failed');
-    } finally {
-      setAuthLoading(false);
-    }
-  }, [authMode, authEmail, authPassword]);
-
-  // ── HANDLE PAYMENT SUCCESS ───────────────────────────────
-  const handlePaymentSuccess = useCallback(async (paymentResult) => {
     if (!tripData || !quotesData || !selectedQuote) return;
 
     const payload = {
@@ -500,24 +433,13 @@ export default function BookingPanel({ onBookNow }) {
       surgeMultiplier: quotesData.surgeMultiplier || 1,
       breakdown: selectedQuote.breakdown || {},
       allQuotes: quotesData.rides || {},
-      paymentMethod: paymentResult.method,
-      rideId: paymentResult.rideId,
       status: 'searching_driver',
       createdAt: new Date().toISOString(),
     };
 
-    try {
-      setBookingInProgress(true);
-      // Payment is already processed, just notify parent
-      if (typeof onBookNow === 'function') {
-        onBookNow(payload);
-      }
-      console.log('Booking confirmed with payment:', payload);
-      setShowPaymentModal(false);
-    } catch (err) {
-      console.error('Booking finalization failed:', err.message);
-    } finally {
-      setBookingInProgress(false);
+    // Pass complete booking data to parent
+    if (typeof onBookNow === 'function') {
+      onBookNow(payload);
     }
   }, [tripData, quotesData, selectedQuote, selectedRide, onBookNow]);
 
@@ -526,8 +448,7 @@ export default function BookingPanel({ onBookNow }) {
 
   // ── RENDER ───────────────────────────────────────────────
   return (
-    <>
-      <div className="glass" style={{ padding: '26px' }}>
+    <div className="glass" style={{ padding: '26px' }}>
       <h2
         style={{
           fontSize: '18px',
@@ -949,45 +870,6 @@ export default function BookingPanel({ onBookNow }) {
           Enter pickup and destination
         </div>
       )}
-      </div>
-
-      {/* AUTHENTICATION MODAL */}
-      {showAuthModal && (
-        <AuthModal
-          authMode={authMode}
-          setAuthMode={setAuthMode}
-          email={authEmail}
-          setEmail={setAuthEmail}
-          password={authPassword}
-          setPassword={setAuthPassword}
-          name={authName}
-          setName={setAuthName}
-          onSubmit={handleAuthSubmit}
-          onClose={() => setShowAuthModal(false)}
-          loading={authLoading}
-          error={authError}
-        />
-      )}
-
-      {/* PAYMENT MODAL */}
-      {showPaymentModal && (
-        <PaymentModal
-          bookingPayload={{
-            pickup: tripData?.pickup,
-            dropoff: tripData?.dropoff,
-            rideType: selectedRide,
-            fareEstimate: selectedQuote?.total,
-            tripDistanceMiles: tripData?.miles,
-            tripDurationMin: tripData?.durationMin,
-            breakdown: selectedQuote?.breakdown || {},
-            surgeMultiplier: quotesData?.surgeMultiplier || 1,
-          }}
-          selectedPayment={selectedPayment}
-          setSelectedPayment={setSelectedPayment}
-          onClose={() => setShowPaymentModal(false)}
-          onSuccess={handlePaymentSuccess}
-        />
-      )}
-    </>
+    </div>
   );
 }
