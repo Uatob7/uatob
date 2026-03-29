@@ -7,13 +7,13 @@ const PRICING = {
     id: "economy",
     label: "Economy",
     desc: "Affordable everyday rides",
-    eta: "3–6 min",
+    eta: "4–8 min",
     capacity: 4,
-    base: 1.0,
-    perMile: 0.55,
-    perMin: 0.1,
-    bookingFee: 0.99,
-    minimumFare: 5.0,
+    base: 2.0,
+    perMile: 0.85,
+    perMin: 0.15,
+    bookingFee: 1.49,
+    minimumFare: 5.5,
     color: "#16A34A",
   },
 
@@ -23,25 +23,25 @@ const PRICING = {
     desc: "Comfortable daily rides",
     eta: "2–5 min",
     capacity: 4,
-    base: 1.5,
-    perMile: 0.75,
-    perMin: 0.14,
-    bookingFee: 1.25,
-    minimumFare: 6.5,
+    base: 2.5,
+    perMile: 1.15,
+    perMin: 0.20,
+    bookingFee: 1.99,
+    minimumFare: 7.5,
     color: "#2563EB",
   },
 
   premium: {
     id: "premium",
     label: "Premium",
-    desc: "Luxury vehicles",
-    eta: "4–8 min",
+    desc: "Luxury vehicles & premium service",
+    eta: "5–10 min",
     capacity: 4,
-    base: 2.5,
-    perMile: 1.2,
-    perMin: 0.22,
-    bookingFee: 1.75,
-    minimumFare: 9.0,
+    base: 5.0,
+    perMile: 2.75,
+    perMin: 0.45,
+    bookingFee: 2.99,
+    minimumFare: 15.0,
     color: "#7C3AED",
   },
 
@@ -51,11 +51,11 @@ const PRICING = {
     desc: "Larger vehicles for groups",
     eta: "5–9 min",
     capacity: 6,
-    base: 2.0,
-    perMile: 0.95,
-    perMin: 0.18,
-    bookingFee: 1.5,
-    minimumFare: 8.0,
+    base: 3.0,
+    perMile: 1.45,
+    perMin: 0.25,
+    bookingFee: 1.99,
+    minimumFare: 9.5,
     color: "#D97706",
   },
 };
@@ -157,9 +157,15 @@ const Price = functions.https.onRequest((req, res) => {
         });
       }
 
-      const { miles, minutes } = req.body || {};
+      const tripData = req.body || {};
 
-      const validationError = validateTripInput(miles, minutes);
+      const miles = tripData.miles;
+      const durationMin = tripData.durationMin;
+
+      console.log("Miles:", miles);
+      console.log("Duration (min):", durationMin);
+
+      const validationError = validateTripInput(miles, durationMin);
       if (validationError) {
         return res.status(400).json({
           ok: false,
@@ -168,7 +174,7 @@ const Price = functions.https.onRequest((req, res) => {
       }
 
       const cleanMiles = clamp(round2(miles), 0, 300);
-      const cleanMinutes = clamp(round2(minutes), 0, 600);
+      const cleanMinutes = clamp(round2(durationMin), 0, 600);
 
       const surge = getSurge();
 
