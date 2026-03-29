@@ -1,27 +1,10 @@
 const functions = require("firebase-functions");
 const cors = require("cors")({ origin: true });
 
-// ── PRICING STRATEGY ─────────────────────────────────────
-//
-// 2026 market benchmarks (per RideWise / industry data):
-//   UberX:      base $3.50 | $1.50/mi | $0.40/min | booking ~$2.50
-//   Lyft Std:   base $3.00 | $1.20/mi | $0.35/min | booking ~$2.00
-//   UberXL:     base $4.50 | $2.10/mi | $0.50/min
-//   Uber Black: base $8.00 | $3.50/mi | $0.65/min
-//
-// Our positioning: 20–30% cheaper than Uber, 10–15% cheaper than Lyft.
-// Drivers still earn fairly — we take a smaller platform cut.
-//
-// Benchmark: 5 miles / 20 min trip
-//   UberX:    $3.50 + (5×$1.50) + (20×$0.40) + $2.50 = $21.50
-//   Lyft Std: $3.00 + (5×$1.20) + (20×$0.35) + $2.00 = $18.00
-//   OURS Std: $2.00 + (5×$0.85) + (20×$0.18) + $1.25 = $12.10  ✓ ~33% below Uber
-//
-// ─────────────────────────────────────────────────────────
-
+// ── PRICING TABLE ────────────────────────────────────────
+// Rates are set to be fair to riders and drivers.
+// Minimum fares ensure short trips are worth the driver's time.
 const PRICING = {
-  // ── STANDARD ─────────────────────────────────────────
-  // Everyday rides. Target: ~30% below UberX.
   standard: {
     id: "standard",
     label: "Standard",
@@ -33,11 +16,7 @@ const PRICING = {
     perMin: 0.18,
     bookingFee: 1.25,
     minimumFare: 5.99,
-    // Uber equiv at 5mi/20min: ~$21.50 → ours: ~$12.35
   },
-
-  // ── PREMIUM ───────────────────────────────────────────
-  // Upscale vehicles. Target: ~25% below Uber Comfort ($24–28 range).
   premium: {
     id: "premium",
     label: "Premium",
@@ -49,11 +28,7 @@ const PRICING = {
     perMin: 0.26,
     bookingFee: 1.75,
     minimumFare: 9.99,
-    // Uber Comfort at 5mi/20min: ~$27.00 → ours: ~$18.00
   },
-
-  // ── XL ────────────────────────────────────────────────
-  // Groups up to 6. Target: ~25% below UberXL ($28–34 range).
   xl: {
     id: "xl",
     label: "XL",
@@ -65,7 +40,6 @@ const PRICING = {
     perMin: 0.22,
     bookingFee: 1.49,
     minimumFare: 8.99,
-    // UberXL at 5mi/20min: ~$36.50 → ours: ~$22.75 (~38% cheaper)
   },
 };
 
@@ -79,9 +53,8 @@ function clamp(num, min, max) {
 }
 
 // ── SURGE ────────────────────────────────────────────────
-// Currently disabled (always 1x).
+// Disabled — always 1x.
 // To enable: replace with time-based or demand-based logic.
-// Example: return hour >= 17 && hour <= 19 ? 1.3 : 1.0;
 function getSurge() {
   return 1;
 }
@@ -93,22 +66,12 @@ function calculateRidePrice(pricing, miles, minutes, surgeMultiplier) {
   const time       = round2(minutes * pricing.perMin);
   const bookingFee = pricing.bookingFee;
 
-  const subtotal        = base + distance + time + bookingFee;
-  const surgedSubtotal  = round2(subtotal * surgeMultiplier);
-  const total           = round2(Math.max(surgedSubtotal, pricing.minimumFare));
+  const subtotal       = base + distance + time + bookingFee;
+  const surgedSubtotal = round2(subtotal * surgeMultiplier);
+  const total          = round2(Math.max(surgedSubtotal, pricing.minimumFare));
 
-  const surgeAmount     = round2(surgeMultiplier > 1 ? surgedSubtotal - subtotal : 0);
-  const minimumAdj      = round2(total > surgedSubtotal ? total - surgedSubtotal : 0);
-
-  // Savings vs Uber benchmarks (informational only, shown in UI)
-  const uberBenchmarks = {
-    standard: round2(3.50 + miles * 1.50 + minutes * 0.40 + 2.50),
-    premium:  round2(5.00 + miles * 1.85 + minutes * 0.45 + 2.50),
-    xl:       round2(4.50 + miles * 2.10 + minutes * 0.50 + 2.50),
-  };
-  const uberPrice   = uberBenchmarks[pricing.id] ?? null;
-  const savingsAmt  = uberPrice ? round2(uberPrice - total) : null;
-  const savingsPct  = uberPrice ? Math.round(((uberPrice - total) / uberPrice) * 100) : null;
+  const surgeAmount = round2(surgeMultiplier > 1 ? surgedSubtotal - subtotal : 0);
+  const minimumAdj  = round2(total > surgedSubtotal ? total - surgedSubtotal : 0);
 
   return {
     id:       pricing.id,
@@ -116,30 +79,22 @@ function calculateRidePrice(pricing, miles, minutes, surgeMultiplier) {
     desc:     pricing.desc,
     eta:      pricing.eta,
     capacity: pricing.capacity,
-    total:    total,
+    total,
 
     breakdown: {
-      base:                    round2(base),
-      distance:                round2(distance),
-      time:                    round2(time),
-      bookingFee:              round2(bookingFee),
-      surge:                   surgeAmount,
-      minimumFareAdjustment:   minimumAdj,
-      minimumFare:             round2(pricing.minimumFare),
-      subtotalBeforeMinimum:   round2(subtotal),
+      base:                  round2(base),
+      distance:              round2(distance),
+      time:                  round2(time),
+      bookingFee:            round2(bookingFee),
+      surge:                 surgeAmount,
+      minimumFareAdjustment: minimumAdj,
+      minimumFare:           round2(pricing.minimumFare),
+      subtotalBeforeMinimum: round2(subtotal),
     },
 
-    // Rate card (used in UI fare breakdown labels)
     meta: {
       perMile: pricing.perMile,
       perMin:  pricing.perMin,
-    },
-
-    // Savings vs Uber (optional — use in UI to show "Save $X vs Uber")
-    savings: {
-      vsUber:    savingsAmt,
-      vsUberPct: savingsPct,
-      uberPrice: uberPrice,
     },
   };
 }
@@ -191,7 +146,6 @@ exports.priceQuote = functions.https.onRequest((req, res) => {
         xl:       calculateRidePrice(PRICING.xl,        cleanMiles, cleanMinutes, surge),
       };
 
-      // Log for monitoring
       console.log(
         `[priceQuote] ${cleanMiles}mi / ${cleanMinutes}min → ` +
         `std $${rides.standard.total} | prem $${rides.premium.total} | xl $${rides.xl.total}`
