@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { Route } from 'lucide-react';
 
-
 import { THEME as T } from '@/App/pricing.js';
 import CSS from '@/App/styles.js';
 import { useRideTracking } from '@/App/useRideTracking.js';
@@ -17,12 +16,40 @@ import { useAuthContext } from '@/context/AuthContext';
 import signIn from '@/firebase/auth/signin';
 import signUp from '@/firebase/auth/signup';
 
+// ── localStorage helpers ───────────────────────────────
+const LS_KEY = 'uatob_session';
+
+function saveSession(data) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(data));
+  } catch (_) {}
+}
+
+function loadSession() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function clearSession() {
+  try {
+    localStorage.removeItem(LS_KEY);
+  } catch (_) {}
+}
+
 export default function UaTobApp({ uid }) {
-  console.log(uid)
+  console.log(uid);
+
+  // ── Restore session from localStorage ─────────────────
+  const saved = loadSession();
+
   // ── Booking ────────────────────────────────────────────
-  const [bookingPayload,  setBookingPayload]  = useState(null);
-  const [pickupCoords,    setPickupCoords]    = useState(null);
-  const [dropoffCoords,   setDropoffCoords]   = useState(null);
+  const [bookingPayload,  setBookingPayload]  = useState(saved?.bookingPayload  ?? null);
+  const [pickupCoords,    setPickupCoords]    = useState(saved?.pickupCoords    ?? null);
+  const [dropoffCoords,   setDropoffCoords]   = useState(saved?.dropoffCoords   ?? null);
   const { uid: authUid } = useAuthContext();
 
   // ── Auth ───────────────────────────────────────────────
@@ -35,16 +62,42 @@ export default function UaTobApp({ uid }) {
   const [authError,       setAuthError]       = useState('');
 
   // ── Payment ────────────────────────────────────────────
-  const [showPayment,     setShowPayment]     = useState(false);
-  const [selectedPayment, setSelectedPayment] = useState('card');
+  const [showPayment,     setShowPayment]     = useState(saved?.showPayment     ?? false);
+  const [selectedPayment, setSelectedPayment] = useState(saved?.selectedPayment ?? 'card');
 
   // ── Confirmation ───────────────────────────────────────
-  const [showConfirm,     setShowConfirm]     = useState(false);
-  const [confirmedRideId, setConfirmedRideId] = useState(null);
+  const [showConfirm,     setShowConfirm]     = useState(saved?.showConfirm     ?? false);
+  const [confirmedRideId, setConfirmedRideId] = useState(saved?.confirmedRideId ?? null);
 
   // ── Mount animation ────────────────────────────────────
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+
+  // ── Persist session whenever key state changes ─────────
+  useEffect(() => {
+    if (bookingPayload) {
+      saveSession({
+        bookingPayload,
+        pickupCoords,
+        dropoffCoords,
+        showPayment,
+        selectedPayment,
+        showConfirm,
+        confirmedRideId,
+      });
+    } else {
+      // Nothing to save — wipe it
+      clearSession();
+    }
+  }, [
+    bookingPayload,
+    pickupCoords,
+    dropoffCoords,
+    showPayment,
+    selectedPayment,
+    showConfirm,
+    confirmedRideId,
+  ]);
 
   // ── Ride tracking ──────────────────────────────────────
   const tracking = useRideTracking({
@@ -75,6 +128,7 @@ export default function UaTobApp({ uid }) {
       setShowPayment(false);
       setShowConfirm(false);
       setConfirmedRideId(null);
+      clearSession();
     },
   });
 
@@ -86,7 +140,7 @@ export default function UaTobApp({ uid }) {
 
     try {
       let authResult;
-      
+
       if (authMode === 'login') {
         authResult = await signIn(email, password);
       } else {
@@ -97,7 +151,6 @@ export default function UaTobApp({ uid }) {
         throw new Error(authResult.error.message || 'Authentication failed');
       }
 
-      // Auth successful, close modal and proceed to booking
       setShowAuth(false);
       setShowPayment(true);
     } catch (err) {
@@ -114,12 +167,9 @@ export default function UaTobApp({ uid }) {
     setPickupCoords({ x: -81.37, y: 28.53 });
     setDropoffCoords({ x: -81.30, y: 28.45 });
 
-    // Check if user is authenticated
     if (authUid) {
-      // User logged in, go directly to payment
       setShowPayment(true);
     } else {
-      // User not logged in, show auth modal first
       setShowAuth(true);
       setAuthMode('login');
       setEmail('');
@@ -153,6 +203,7 @@ export default function UaTobApp({ uid }) {
     setBookingPayload(null);
     setPickupCoords(null);
     setDropoffCoords(null);
+    clearSession();
   };
 
   return (
