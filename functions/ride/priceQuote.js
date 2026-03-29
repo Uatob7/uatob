@@ -2,8 +2,6 @@ const functions = require("firebase-functions");
 const cors = require("cors")({ origin: true });
 
 // ── PRICING TABLE ────────────────────────────────────────
-// Rates are set to be fair to riders and drivers.
-// Minimum fares ensure short trips are worth the driver's time.
 const PRICING = {
   standard: {
     id: "standard",
@@ -11,11 +9,11 @@ const PRICING = {
     desc: "Affordable everyday rides",
     eta: "2–4 min",
     capacity: "4 seats",
-    base: 2.00,
-    perMile: 0.85,
-    perMin: 0.18,
-    bookingFee: 1.25,
-    minimumFare: 5.99,
+    base: 1.50,
+    perMile: 0.65,
+    perMin: 0.12,
+    bookingFee: 0.99,
+    minimumFare: 4.99,
   },
   premium: {
     id: "premium",
@@ -23,11 +21,11 @@ const PRICING = {
     desc: "Luxury vehicles, top-rated drivers",
     eta: "3–6 min",
     capacity: "4 seats",
-    base: 3.50,
-    perMile: 1.15,
-    perMin: 0.26,
-    bookingFee: 1.75,
-    minimumFare: 9.99,
+    base: 2.75,
+    perMile: 0.95,
+    perMin: 0.20,
+    bookingFee: 1.49,
+    minimumFare: 7.99,
   },
   xl: {
     id: "xl",
@@ -35,11 +33,11 @@ const PRICING = {
     desc: "Spacious rides for groups",
     eta: "4–7 min",
     capacity: "6 seats",
-    base: 3.00,
-    perMile: 1.05,
-    perMin: 0.22,
-    bookingFee: 1.49,
-    minimumFare: 8.99,
+    base: 2.25,
+    perMile: 0.80,
+    perMin: 0.16,
+    bookingFee: 1.25,
+    minimumFare: 6.99,
   },
 };
 
@@ -53,8 +51,6 @@ function clamp(num, min, max) {
 }
 
 // ── SURGE ────────────────────────────────────────────────
-// Disabled — always 1x.
-// To enable: replace with time-based or demand-based logic.
 function getSurge() {
   return 1;
 }
@@ -104,23 +100,18 @@ function validateTripInput(miles, minutes) {
   if (miles == null || minutes == null) {
     return "Missing required fields: miles, minutes";
   }
-
   const m  = Number(miles);
   const mn = Number(minutes);
-
   if (Number.isNaN(m)  || !Number.isFinite(m))  return "miles must be a valid finite number";
   if (Number.isNaN(mn) || !Number.isFinite(mn)) return "minutes must be a valid finite number";
   if (m  < 0) return "miles cannot be negative";
   if (mn < 0) return "minutes cannot be negative";
   if (m  > 300) return "miles value is too large (max 300)";
   if (mn > 600) return "minutes value is too large (max 600)";
-
   return null;
 }
 
 // ── PRICE QUOTE ENDPOINT ─────────────────────────────────
-// POST { miles, minutes }
-// Returns { ok, trip, surgeMultiplier, rides, currency, generatedAt }
 exports.priceQuote = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     try {
