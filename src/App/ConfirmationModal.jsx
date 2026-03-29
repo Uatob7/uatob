@@ -79,6 +79,8 @@ export default function ConfirmationModal({
 
             const data = snap.data();
 
+           
+
             // If driver got assigned, stop everything immediately
             if (data.status === 'driver_assigned') {
               clearInterval(timerRef.current);
