@@ -1,3 +1,4 @@
+// src/App/Brand.jsx
 import React from 'react';
 
 export function UaTobIcon({ size = 46 }) {
@@ -38,22 +39,61 @@ export function UaTobIcon({ size = 46 }) {
 }
 
 export function UaTobWordmark({ iconSize = 46 }) {
+  const fontSize  = iconSize * 0.62;
+  const arrowSize = fontSize * 0.72;
+
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: iconSize * 0.25 + 'px' }}>
       <UaTobIcon size={iconSize} />
-      <svg width={iconSize * 2.6} height={iconSize * 0.72} viewBox="0 0 120 34" fill="none">
-        <defs>
-          <linearGradient id="riwa" x1="0" y1="0" x2="120" y2="0" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#111827"/><stop offset="100%" stopColor="#374151"/>
-          </linearGradient>
-          <linearGradient id="riwb" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#16A34A"/><stop offset="100%" stopColor="#22C55E"/>
-          </linearGradient>
-        </defs>
-        <text x="0" y="26" fontFamily="'Outfit',system-ui,sans-serif" fontWeight="300" fontSize="28" fill="url(#riwa)" letterSpacing="-0.5">Ua</text>
-        <text x="44" y="26" fontFamily="'Outfit',system-ui,sans-serif" fontWeight="800" fontSize="28" fill="url(#riwb)" letterSpacing="-0.8">Tob</text>
-        <circle cx="114" cy="23" r="2.5" fill="#16A34A" opacity="0.6"/>
-      </svg>
+
+      {/* Ua → Tob text */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+
+        {/* "Ua" — light weight, dark */}
+        <span style={{
+          fontFamily:  '"Outfit", system-ui, sans-serif',
+          fontWeight:  300,
+          fontSize:    fontSize + 'px',
+          color:       '#111827',
+          letterSpacing: '-0.5px',
+          lineHeight:  1,
+        }}>
+          Ua
+        </span>
+
+        {/* Arrow */}
+        <svg
+          width={arrowSize}
+          height={arrowSize}
+          viewBox="0 0 24 24"
+          fill="none"
+          style={{ margin: '0 2px', flexShrink: 0 }}
+        >
+          <path
+            d="M5 12h14M13 6l6 6-6 6"
+            stroke="#16A34A"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+
+        {/* "Tob" — bold, green */}
+        <span style={{
+          fontFamily:  '"Outfit", system-ui, sans-serif',
+          fontWeight:  800,
+          fontSize:    fontSize + 'px',
+          background:  'linear-gradient(135deg, #16A34A, #22C55E)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor:  'transparent',
+          backgroundClip:       'text',
+          letterSpacing: '-0.5px',
+          lineHeight:  1,
+        }}>
+          Tob
+        </span>
+
+      </div>
     </div>
   );
 }
