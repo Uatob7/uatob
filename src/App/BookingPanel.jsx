@@ -761,7 +761,7 @@ export default function BookingPanel({ onBookNow }) {
             fontWeight: 500,
           }}
         >
-          Enter pickup and destination to get a quote
+          Enter pickup and destination
         </div>
       )}
     </div>
