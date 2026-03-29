@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import {
   MapPin,
   Navigation,
@@ -11,23 +12,21 @@ import {
   AlertCircle
 } from 'lucide-react';
 
-// ── THEME ONLY ───────────────────────────────────────────
+// ── THEME ────────────────────────────────────────────────
 const T = {
-  accent: '#16A34A',
+  accent:       '#16A34A',
   accentBorder: '#86EFAC',
-  text: '#111827',
-  textMuted: '#6B7280',
-  border: '#E5E7EB',
-  surfaceAlt: '#F9FAFB',
-  ink: '#111827',
+  text:         '#111827',
+  textMuted:    '#6B7280',
+  border:       '#E5E7EB',
+  surfaceAlt:   '#F9FAFB',
+  ink:          '#111827',
 };
 
 // ── CLOUD FUNCTION URLS ──────────────────────────────────
-// Route function = returns distance + duration
-const ROUTE_URL = 'https://atob-j2jspuowha-uc.a.run.app';
-
-// Price function = returns ALL ride prices
-const PRICE_URL = 'https://YOUR_REAL_PRICE_FUNCTION_URL.a.run.app';
+const ROUTE_URL        = 'https://atob-ady2s2xhhq-uc.a.run.app';
+const PRICE_URL        = 'https://price-ady2s2xhhq-uc.a.run.app';
+const AUTOCOMPLETE_URL = 'https://autocomplete-ady2s2xhhq-uc.a.run.app';
 
 // ── HELPERS ──────────────────────────────────────────────
 function safeNum(val, fallback = 0) {
@@ -41,82 +40,287 @@ function round2(val) {
 
 function getRideIcon(rideId) {
   if (rideId === 'premium') return Zap;
-  if (rideId === 'xl') return Users;
+  if (rideId === 'xl')      return Users;
   return Car;
 }
 
-// ── FETCH ROUTE DATA (TRUTH #1) ──────────────────────────
+// ── FETCH ROUTE DATA ─────────────────────────────────────
+// Your atob function returns:
+//   { distance: { text: '0.9 mi', value: 1498 }, duration: { text: '4 mins', value: 255 }, status: 'OK' }
+// distance.value = meters, duration.value = seconds
 async function fetchTripData(pickup, dropoff) {
   const res = await fetch(ROUTE_URL, {
-    method: 'POST',
+    method:  'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      origin: pickup,
-      destination: dropoff,
-    }),
+    body:    JSON.stringify({ origin: pickup, destination: dropoff }),
   });
-
   const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `Route error ${res.status}`);
 
-  if (!res.ok) {
-    throw new Error(data.error || `Route error ${res.status}`);
-  }
-
-  const miles = round2(data.distance_miles);
-  const durationMin = Math.max(0, Math.round(safeNum(data.duration_minutes, 0)));
+  // Convert meters → miles, seconds → minutes
+  const meters  = safeNum(data.distance?.value, 0);
+  const seconds = safeNum(data.duration?.value, 0);
+  const miles   = round2(meters / 1609.344);
+  const durationMin = Math.max(1, Math.round(seconds / 60));
 
   return {
     pickup,
     dropoff,
     miles,
     durationMin,
-    durationText: data.duration_text || '',
+    durationText: data.duration?.text  || `${durationMin} min`,
+    distanceText: data.distance?.text  || `${miles} mi`,
   };
 }
 
-// ── FETCH ALL PRICES (TRUTH #2) ──────────────────────────
+// ── FETCH ALL PRICES ─────────────────────────────────────
 async function fetchQuotesData(tripData) {
   const res = await fetch(PRICE_URL, {
-    method: 'POST',
+    method:  'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      miles: tripData.miles,
-      minutes: tripData.durationMin,
-    }),
+    body:    JSON.stringify({ miles: tripData.miles, minutes: tripData.durationMin }),
   });
-
   const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || `Pricing error ${res.status}`);
+  return data;
+}
 
-  if (!res.ok || !data.ok) {
-    throw new Error(data.error || `Pricing error ${res.status}`);
+// ── PLACE INPUT ──────────────────────────────────────────
+function PlaceInput({ label, icon: Icon, iconColor, placeholder, value, onChange }) {
+  const [suggestions, setSuggestions] = useState([]);
+  const [ghostText,   setGhostText]   = useState('');
+  const [focused,     setFocused]     = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
+
+  const wrapRef     = useRef(null);
+  const debounceRef = useRef(null);
+
+  function updatePos() {
+    if (!wrapRef.current) return;
+    const rect = wrapRef.current.getBoundingClientRect();
+    setDropdownPos({
+      top:   rect.bottom + window.scrollY + 6,
+      left:  rect.left   + window.scrollX,
+      width: rect.width,
+    });
   }
 
-  return data;
+  useEffect(() => {
+    if (focused) updatePos();
+  }, [focused, suggestions]);
+
+  useEffect(() => {
+    window.addEventListener('resize', updatePos);
+    window.addEventListener('scroll', updatePos, true);
+    return () => {
+      window.removeEventListener('resize', updatePos);
+      window.removeEventListener('scroll', updatePos, true);
+    };
+  }, []);
+
+  useEffect(() => {
+    function handler(e) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
+        setFocused(false);
+        setSuggestions([]);
+        setGhostText('');
+      }
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  async function fetchSuggestions(query) {
+    if (!query || query.length < 2) {
+      setSuggestions([]);
+      setGhostText('');
+      return;
+    }
+    try {
+      const res   = await fetch(AUTOCOMPLETE_URL, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ input: query }),
+      });
+      const data  = await res.json();
+      const preds = data.predictions || [];
+      setSuggestions(preds);
+      const first = preds[0]?.description || '';
+      if (first.toLowerCase().startsWith(query.toLowerCase())) {
+        setGhostText(first.slice(query.length));
+      } else {
+        setGhostText('');
+      }
+    } catch {
+      setSuggestions([]);
+      setGhostText('');
+    }
+  }
+
+  function handleChange(e) {
+    const val = e.target.value;
+    onChange(val);
+    setActiveIndex(-1);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchSuggestions(val), 250);
+  }
+
+  function handleSelect(description) {
+    onChange(description);
+    setSuggestions([]);
+    setGhostText('');
+    setFocused(false);
+    setActiveIndex(-1);
+  }
+
+  function handleKeyDown(e) {
+    if ((e.key === 'Tab' || e.key === 'ArrowRight') && ghostText && activeIndex === -1) {
+      e.preventDefault();
+      handleSelect(value + ghostText);
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex(i => Math.min(i + 1, suggestions.length - 1));
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex(i => Math.max(i - 1, -1));
+    }
+    if (e.key === 'Enter' && activeIndex >= 0) {
+      e.preventDefault();
+      handleSelect(suggestions[activeIndex].description);
+    }
+    if (e.key === 'Escape') {
+      setSuggestions([]);
+      setGhostText('');
+    }
+  }
+
+  const dropdown = focused && suggestions.length > 0
+    ? ReactDOM.createPortal(
+        <div
+          style={{
+            position:     'absolute',
+            top:          dropdownPos.top,
+            left:         dropdownPos.left,
+            width:        dropdownPos.width,
+            background:   '#fff',
+            border:       `1px solid ${T.border}`,
+            borderRadius: 14,
+            boxShadow:    '0 8px 28px rgba(0,0,0,.12)',
+            zIndex:       99999,
+            overflow:     'hidden',
+          }}
+        >
+          {suggestions.map((s, i) => {
+            const main      = s.structured_formatting?.main_text      || s.description;
+            const secondary = s.structured_formatting?.secondary_text || '';
+            const isActive  = i === activeIndex;
+            return (
+              <div
+                key={s.place_id}
+                onMouseDown={() => handleSelect(s.description)}
+                onMouseEnter={() => setActiveIndex(i)}
+                style={{
+                  padding:      '11px 16px',
+                  cursor:       'pointer',
+                  background:   isActive ? T.surfaceAlt : '#fff',
+                  borderBottom: i < suggestions.length - 1 ? `1px solid ${T.border}` : 'none',
+                  display:      'flex',
+                  alignItems:   'flex-start',
+                  gap:          10,
+                  transition:   'background .12s',
+                }}
+              >
+                <MapPin size={13} color={T.textMuted} style={{ marginTop: 3, flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: T.text }}>{main}</div>
+                  {secondary && (
+                    <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 2 }}>{secondary}</div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>,
+        document.body
+      )
+    : null;
+
+  return (
+    <div ref={wrapRef}>
+      <div className="lbl">{label}</div>
+      <div style={{ position: 'relative' }}>
+        <Icon
+          size={17}
+          color={iconColor}
+          style={{
+            position:      'absolute',
+            left:          17,
+            top:           '50%',
+            transform:     'translateY(-50%)',
+            zIndex:        3,
+            pointerEvents: 'none',
+          }}
+        />
+        {ghostText && focused && (
+          <div
+            style={{
+              position:      'absolute',
+              inset:         0,
+              padding:       '0 16px 0 46px',
+              display:       'flex',
+              alignItems:    'center',
+              fontSize:      14,
+              pointerEvents: 'none',
+              zIndex:        1,
+              whiteSpace:    'nowrap',
+              overflow:      'hidden',
+            }}
+          >
+            <span style={{ color: 'transparent' }}>{value}</span>
+            <span style={{ color: T.textMuted, opacity: 0.45 }}>{ghostText}</span>
+          </div>
+        )}
+        <input
+          type="text"
+          className="field"
+          placeholder={placeholder}
+          value={value}
+          onChange={handleChange}
+          onFocus={() => { setFocused(true); updatePos(); }}
+          onKeyDown={handleKeyDown}
+          autoComplete="off"
+          style={{ position: 'relative', zIndex: 2, background: 'transparent' }}
+        />
+      </div>
+      {dropdown}
+    </div>
+  );
 }
 
 // ── MAIN COMPONENT ───────────────────────────────────────
 export default function BookingPanel({ onBookNow }) {
-  const [pickup, setPickup] = useState('');
-  const [dropoff, setDropoff] = useState('');
-  const [selectedRide, setSelectedRide] = useState('standard');
+  const [pickup,        setPickup]       = useState('');
+  const [dropoff,       setDropoff]      = useState('');
+  const [selectedRide,  setSelectedRide] = useState('standard');
 
-  // ONLY 2 truths
-  const [tripData, setTripData] = useState(null);
-  const [quotesData, setQuotesData] = useState(null);
+  const [tripData,      setTripData]     = useState(null);
+  const [quotesData,    setQuotesData]   = useState(null);
 
-  // UI state
-  const [loadingTrip, setLoadingTrip] = useState(false);
+  const [loadingTrip,   setLoadingTrip]   = useState(false);
   const [loadingQuotes, setLoadingQuotes] = useState(false);
-  const [error, setError] = useState('');
+  const [error,         setError]         = useState('');
   const [showBreakdown, setShowBreakdown] = useState(false);
 
-  // Prevent stale async responses
-  const tripRequestRef = useRef(0);
+  const tripRequestRef  = useRef(0);
   const quoteRequestRef = useRef(0);
 
   // ── STEP 1: GET TRIP DATA ──────────────────────────────
   useEffect(() => {
-    const cleanPickup = pickup.trim();
+    const cleanPickup  = pickup.trim();
     const cleanDropoff = dropoff.trim();
 
     if (!cleanPickup || !cleanDropoff) {
@@ -141,20 +345,15 @@ export default function BookingPanel({ onBookNow }) {
         setShowBreakdown(false);
 
         const trip = await fetchTripData(cleanPickup, cleanDropoff);
-
         if (tripRequestRef.current !== requestId) return;
         setTripData(trip);
       } catch (err) {
         if (tripRequestRef.current !== requestId) return;
-
-        console.error('Trip fetch error:', err);
         setError(err.message || 'Failed to calculate route');
         setTripData(null);
         setQuotesData(null);
       } finally {
-        if (tripRequestRef.current === requestId) {
-          setLoadingTrip(false);
-        }
+        if (tripRequestRef.current === requestId) setLoadingTrip(false);
       }
     }, 700);
 
@@ -173,7 +372,6 @@ export default function BookingPanel({ onBookNow }) {
         setError('');
 
         const quotes = await fetchQuotesData(tripData);
-
         if (quoteRequestRef.current !== requestId) return;
         setQuotesData(quotes);
 
@@ -183,47 +381,43 @@ export default function BookingPanel({ onBookNow }) {
         }
       } catch (err) {
         if (quoteRequestRef.current !== requestId) return;
-
-        console.error('Quotes fetch error:', err);
         setError(err.message || 'Failed to calculate prices');
         setQuotesData(null);
       } finally {
-        if (quoteRequestRef.current === requestId) {
-          setLoadingQuotes(false);
-        }
+        if (quoteRequestRef.current === requestId) setLoadingQuotes(false);
       }
     }
 
     loadQuotes();
-  }, [tripData]); // ✅ FIXED: removed selectedRide
+  }, [tripData]);
 
-  // Build ride list from backend response
-  const rideOptions = useMemo(() => {
-    return Object.values(quotesData?.rides || {});
-  }, [quotesData]);
+  const rideOptions = useMemo(
+    () => Object.values(quotesData?.rides || {}),
+    [quotesData]
+  );
 
-  // Selected ride quote
-  const selectedQuote = useMemo(() => {
-    return quotesData?.rides?.[selectedRide] || null;
-  }, [quotesData, selectedRide]);
+  const selectedQuote = useMemo(
+    () => quotesData?.rides?.[selectedRide] || null,
+    [quotesData, selectedRide]
+  );
 
   // ── BOOK NOW ────────────────────────────────────────────
   const handleBookNow = useCallback(() => {
     if (!tripData || !quotesData || !selectedQuote) return;
 
     const payload = {
-      pickup: tripData.pickup,
-      dropoff: tripData.dropoff,
-      rideType: selectedRide,
-      rideLabel: selectedQuote.label,
+      pickup:            tripData.pickup,
+      dropoff:           tripData.dropoff,
+      rideType:          selectedRide,
+      rideLabel:         selectedQuote.label,
       tripDistanceMiles: tripData.miles,
-      tripDurationMin: tripData.durationMin,
-      fareEstimate: selectedQuote.total,
-      surgeMultiplier: quotesData.surgeMultiplier || 1,
-      breakdown: selectedQuote.breakdown || {},
-      allQuotes: quotesData.rides || {},
-      status: 'searching_driver',
-      createdAt: new Date().toISOString(),
+      tripDurationMin:   tripData.durationMin,
+      fareEstimate:      selectedQuote.total,
+      surgeMultiplier:   quotesData.surgeMultiplier || 1,
+      breakdown:         selectedQuote.breakdown || {},
+      allQuotes:         quotesData.rides || {},
+      status:            'searching_driver',
+      createdAt:         new Date().toISOString(),
     };
 
     if (typeof onBookNow === 'function') {
@@ -234,100 +428,56 @@ export default function BookingPanel({ onBookNow }) {
   }, [tripData, quotesData, selectedQuote, selectedRide, onBookNow]);
 
   const isLoading = loadingTrip || loadingQuotes;
-  const hasQuote = !!tripData && !!quotesData && !!selectedQuote && !error && !isLoading;
+  const hasQuote  = !!tripData && !!quotesData && !!selectedQuote && !error && !isLoading;
 
   return (
     <div className="glass" style={{ padding: '26px' }}>
       <h2
         style={{
-          fontSize: '18px',
-          fontWeight: 800,
+          fontSize:      '18px',
+          fontWeight:    800,
           letterSpacing: '-0.3px',
-          color: T.text,
-          marginBottom: '20px',
+          color:         T.text,
+          marginBottom:  '20px',
         }}
       >
         Book a Ride
       </h2>
 
       {/* Inputs */}
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '12px',
-          marginBottom: '20px',
-        }}
-      >
-        <div>
-          <div className="lbl">Pickup (A)</div>
-          <div style={{ position: 'relative' }}>
-            <MapPin
-              size={17}
-              color={T.accent}
-              style={{
-                position: 'absolute',
-                left: '17px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                zIndex: 2,
-              }}
-            />
-            <input
-              type="text"
-              className="field"
-              placeholder="Enter pickup address…"
-              value={pickup}
-              onChange={(e) => setPickup(e.target.value)}
-              autoComplete="off"
-            />
-          </div>
-        </div>
-
-        <div>
-          <div className="lbl">Drop-off (B)</div>
-          <div style={{ position: 'relative' }}>
-            <Navigation
-              size={17}
-              color={T.ink}
-              style={{
-                position: 'absolute',
-                left: '17px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                zIndex: 2,
-              }}
-            />
-            <input
-              type="text"
-              className="field"
-              placeholder="Enter destination…"
-              value={dropoff}
-              onChange={(e) => setDropoff(e.target.value)}
-              autoComplete="off"
-            />
-          </div>
-        </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
+        <PlaceInput
+          label="Pickup (A)"
+          icon={MapPin}
+          iconColor={T.accent}
+          placeholder="Enter pickup address…"
+          value={pickup}
+          onChange={setPickup}
+        />
+        <PlaceInput
+          label="Drop-off (B)"
+          icon={Navigation}
+          iconColor={T.ink}
+          placeholder="Enter destination…"
+          value={dropoff}
+          onChange={setDropoff}
+        />
       </div>
 
       {/* Loading */}
       {isLoading && (
         <div
           style={{
-            display: 'flex',
+            display:    'flex',
             alignItems: 'center',
-            gap: '10px',
-            padding: '14px 0',
-            color: T.textMuted,
-            fontSize: '13.5px',
+            gap:        '10px',
+            padding:    '14px 0',
+            color:      T.textMuted,
+            fontSize:   '13.5px',
             fontWeight: 500,
           }}
         >
-          <Loader2
-            size={16}
-            color={T.accent}
-            style={{ animation: 'spin 1s linear infinite' }}
-          />
+          <Loader2 size={16} color={T.accent} style={{ animation: 'spin 1s linear infinite' }} />
           {loadingTrip ? 'Calculating route…' : 'Calculating prices…'}
         </div>
       )}
@@ -336,147 +486,88 @@ export default function BookingPanel({ onBookNow }) {
       {error && !isLoading && (
         <div
           style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: '10px',
-            background: '#FEF2F2',
-            border: '1px solid #FECACA',
+            display:      'flex',
+            alignItems:   'flex-start',
+            gap:          '10px',
+            background:   '#FEF2F2',
+            border:       '1px solid #FECACA',
             borderRadius: '14px',
-            padding: '14px 16px',
+            padding:      '14px 16px',
             marginBottom: '16px',
           }}
         >
-          <AlertCircle
-            size={15}
-            color="#DC2626"
-            style={{ flexShrink: 0, marginTop: '1px' }}
-          />
-          <span
-            style={{
-              fontSize: '13px',
-              color: '#DC2626',
-              fontWeight: 600,
-            }}
-          >
-            {error}
-          </span>
+          <AlertCircle size={15} color="#DC2626" style={{ flexShrink: 0, marginTop: '1px' }} />
+          <span style={{ fontSize: '13px', color: '#DC2626', fontWeight: 600 }}>{error}</span>
         </div>
       )}
 
-      {/* Ride Selector */}
+      {/* Ride Selector — 2×2 grid */}
       {tripData && quotesData && rideOptions.length > 0 && (
         <div style={{ marginBottom: '18px' }}>
           <div className="lbl">Choose Ride</div>
           <div
             style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3,1fr)',
-              gap: '10px',
+              display:             'grid',
+              gridTemplateColumns: 'repeat(2, 1fr)',
+              gap:                 '10px',
             }}
           >
             {rideOptions.map((ride) => {
-              const active = selectedRide === ride.id;
+              const active   = selectedRide === ride.id;
               const IconComp = getRideIcon(ride.id);
-
               return (
                 <div
                   key={ride.id}
                   className={`ride-card ${active ? 'active' : ''}`}
-                  onClick={() => {
-                    setSelectedRide(ride.id);
-                    setShowBreakdown(false);
-                  }}
+                  onClick={() => { setSelectedRide(ride.id); setShowBreakdown(false); }}
                   style={{ cursor: 'pointer' }}
                 >
                   <div
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
+                      display:        'flex',
+                      alignItems:     'center',
                       justifyContent: 'space-between',
-                      marginBottom: '10px',
+                      marginBottom:   '10px',
                     }}
                   >
                     <div
                       style={{
-                        width: '32px',
-                        height: '32px',
-                        background: active ? '#ECFDF5' : '#F3F4F6',
-                        borderRadius: '9px',
-                        display: 'flex',
-                        alignItems: 'center',
+                        width:          '32px',
+                        height:         '32px',
+                        background:     active ? '#ECFDF5' : '#F3F4F6',
+                        borderRadius:   '9px',
+                        display:        'flex',
+                        alignItems:     'center',
                         justifyContent: 'center',
-                        border: active
-                          ? `1px solid ${T.accent}40`
-                          : '1px solid transparent',
-                        transition: 'all .3s',
+                        border:         active ? `1px solid ${T.accent}40` : '1px solid transparent',
+                        transition:     'all .3s',
                       }}
                     >
-                      <IconComp
-                        size={16}
-                        color={active ? T.accent : '#D1D5DB'}
-                      />
+                      <IconComp size={16} color={active ? T.accent : '#D1D5DB'} />
                     </div>
-
                     <div
                       style={{
                         fontFamily: '"JetBrains Mono", monospace',
-                        fontSize: '16px',
+                        fontSize:   '16px',
                         fontWeight: 700,
-                        color: active ? T.accent : T.text,
+                        color:      active ? T.accent : T.text,
                       }}
                     >
                       ${ride.total}
                     </div>
                   </div>
-
-                  <div
-                    style={{
-                      fontSize: '13.5px',
-                      fontWeight: 800,
-                      color: T.text,
-                      marginBottom: '2px',
-                    }}
-                  >
+                  <div style={{ fontSize: '13.5px', fontWeight: 800, color: T.text, marginBottom: '2px' }}>
                     {ride.label}
                   </div>
-
-                  <div
-                    style={{
-                      fontSize: '11px',
-                      color: T.textMuted,
-                      marginBottom: '8px',
-                    }}
-                  >
+                  <div style={{ fontSize: '11px', color: T.textMuted, marginBottom: '8px' }}>
                     {ride.desc}
                   </div>
-
                   <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                    <span
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '3px',
-                        fontSize: '11px',
-                        color: T.textMuted,
-                        fontWeight: 600,
-                      }}
-                    >
-                      <Clock size={10} />
-                      {ride.eta}
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', color: T.textMuted, fontWeight: 600 }}>
+                      <Clock size={10} />{ride.eta}
                     </span>
-
-                    <span
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '3px',
-                        fontSize: '11px',
-                        color: T.textMuted,
-                        fontWeight: 600,
-                      }}
-                    >
-                      <Users size={10} />
-                      {ride.capacity}
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', color: T.textMuted, fontWeight: 600 }}>
+                      <Users size={10} />{ride.capacity}
                     </span>
                   </div>
                 </div>
@@ -491,131 +582,73 @@ export default function BookingPanel({ onBookNow }) {
         <>
           <div
             style={{
-              background: T.surfaceAlt,
-              border: `1px solid ${T.border}`,
+              background:   T.surfaceAlt,
+              border:       `1px solid ${T.border}`,
               borderRadius: '18px',
-              padding: '18px',
+              padding:      '18px',
               marginBottom: '14px',
             }}
           >
-            <div
-              style={{
-                fontSize: '13px',
-                fontWeight: 800,
-                color: T.text,
-                marginBottom: '14px',
-              }}
-            >
+            <div style={{ fontSize: '13px', fontWeight: 800, color: T.text, marginBottom: '14px' }}>
               Trip Details
             </div>
-
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2,1fr)',
-                gap: '10px',
-              }}
-            >
-              <div
-                style={{
-                  background: '#fff',
-                  border: `1px solid ${T.border}`,
-                  borderRadius: '13px',
-                  padding: '12px',
-                  textAlign: 'center',
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: '"JetBrains Mono", monospace',
-                    fontSize: '20px',
-                    fontWeight: 700,
-                    color: T.accent,
-                  }}
-                >
-                  {tripData.miles} mi
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '10px' }}>
+              <div style={{ background: '#fff', border: `1px solid ${T.border}`, borderRadius: '13px', padding: '12px', textAlign: 'center' }}>
+                <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '20px', fontWeight: 700, color: T.accent }}>
+                  {tripData.distanceText}
                 </div>
-                <div style={{ fontSize: '11px', color: T.textMuted, fontWeight: 700 }}>
-                  DISTANCE
-                </div>
+                <div style={{ fontSize: '11px', color: T.textMuted, fontWeight: 700 }}>DISTANCE</div>
               </div>
-
-              <div
-                style={{
-                  background: '#fff',
-                  border: `1px solid ${T.border}`,
-                  borderRadius: '13px',
-                  padding: '12px',
-                  textAlign: 'center',
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: '"JetBrains Mono", monospace',
-                    fontSize: '20px',
-                    fontWeight: 700,
-                    color: T.accent,
-                  }}
-                >
-                  {tripData.durationMin} min
+              <div style={{ background: '#fff', border: `1px solid ${T.border}`, borderRadius: '13px', padding: '12px', textAlign: 'center' }}>
+                <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '20px', fontWeight: 700, color: T.accent }}>
+                  {tripData.durationText}
                 </div>
-                <div style={{ fontSize: '11px', color: T.textMuted, fontWeight: 700 }}>
-                  DURATION
-                </div>
+                <div style={{ fontSize: '11px', color: T.textMuted, fontWeight: 700 }}>DURATION</div>
               </div>
             </div>
           </div>
 
+          {/* Fare estimate */}
           <div
             style={{
-              background: 'linear-gradient(135deg,#F0FDF4 0%,#DCFCE7 100%)',
-              border: `1.5px solid ${T.accentBorder}`,
+              background:   'linear-gradient(135deg,#F0FDF4 0%,#DCFCE7 100%)',
+              border:       `1.5px solid ${T.accentBorder}`,
               borderRadius: '18px',
-              padding: '18px 22px',
+              padding:      '18px 22px',
               marginBottom: '16px',
-              boxShadow: '0 4px 18px rgba(22,163,74,.08)',
+              boxShadow:    '0 4px 18px rgba(22,163,74,.08)',
             }}
           >
             <div
               style={{
-                display: 'flex',
-                alignItems: 'center',
+                display:        'flex',
+                alignItems:     'center',
                 justifyContent: 'space-between',
-                marginBottom: showBreakdown ? '16px' : '0',
+                marginBottom:   showBreakdown ? '16px' : '0',
               }}
             >
               <div>
                 <div className="lbl">Estimated Fare</div>
-                <div
-                  style={{
-                    display: 'flex',
-                    gap: '10px',
-                    alignItems: 'center',
-                    marginTop: '4px',
-                    flexWrap: 'wrap',
-                  }}
-                >
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '4px', flexWrap: 'wrap' }}>
                   <span style={{ fontSize: '12px', color: T.textMuted, fontWeight: 500 }}>
-                    {tripData.miles} mi · ~{tripData.durationMin} min
+                    {tripData.distanceText} · ~{tripData.durationText}
                   </span>
-
                   {safeNum(quotesData.surgeMultiplier, 1) > 1 && (
                     <span
                       style={{
-                        background: 'rgba(22,163,74,.12)',
-                        border: '1px solid rgba(22,163,74,.25)',
+                        background:   'rgba(22,163,74,.12)',
+                        border:       '1px solid rgba(22,163,74,.25)',
                         borderRadius: '100px',
-                        padding: '2px 9px',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        color: T.accent,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
+                        padding:      '2px 9px',
+                        fontSize:     '11px',
+                        fontWeight:   700,
+                        color:        T.accent,
+                        display:      'flex',
+                        alignItems:   'center',
+                        gap:          '4px',
                       }}
                     >
-                      <Zap size={10} />
-                      {quotesData.surgeMultiplier}x surge
+                      <Zap size={10} />{quotesData.surgeMultiplier}x surge
                     </span>
                   )}
                 </div>
@@ -624,30 +657,29 @@ export default function BookingPanel({ onBookNow }) {
               <div style={{ textAlign: 'right' }}>
                 <div
                   style={{
-                    fontFamily: '"JetBrains Mono", monospace',
-                    fontSize: '34px',
-                    fontWeight: 700,
+                    fontFamily:    '"JetBrains Mono", monospace',
+                    fontSize:      '34px',
+                    fontWeight:    700,
                     letterSpacing: '-1.5px',
-                    color: T.accent,
-                    lineHeight: 1,
+                    color:         T.accent,
+                    lineHeight:    1,
                   }}
                 >
                   ${selectedQuote.total}
                 </div>
-
                 <button
                   type="button"
-                  onClick={() => setShowBreakdown((s) => !s)}
+                  onClick={() => setShowBreakdown(s => !s)}
                   style={{
                     background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    color: T.accent,
+                    border:     'none',
+                    cursor:     'pointer',
+                    fontSize:   '11px',
+                    color:      T.accent,
                     fontWeight: 700,
-                    marginTop: '4px',
+                    marginTop:  '4px',
                     fontFamily: 'Outfit,sans-serif',
-                    padding: 0,
+                    padding:    0,
                   }}
                 >
                   {showBreakdown ? '▲ Hide' : '▼ How is this calculated?'}
@@ -658,78 +690,35 @@ export default function BookingPanel({ onBookNow }) {
             {showBreakdown && selectedQuote?.breakdown && (
               <div
                 style={{
-                  borderTop: `1px solid ${T.accentBorder}`,
-                  paddingTop: '14px',
-                  display: 'flex',
+                  borderTop:     `1px solid ${T.accentBorder}`,
+                  paddingTop:    '14px',
+                  display:       'flex',
                   flexDirection: 'column',
-                  gap: '9px',
+                  gap:           '9px',
                 }}
               >
                 {[
                   { label: 'Base fee', val: selectedQuote.breakdown.base },
-                  {
-                    label: `Distance (${tripData.miles} mi × $${selectedQuote.meta?.perMile || 0}/mi)`,
-                    val: selectedQuote.breakdown.distance,
-                  },
-                  {
-                    label: `Time (~${tripData.durationMin} min × $${selectedQuote.meta?.perMin || 0}/min)`,
-                    val: selectedQuote.breakdown.time,
-                  },
+                  { label: `Distance (${tripData.miles} mi × $${selectedQuote.meta?.perMile || 0}/mi)`, val: selectedQuote.breakdown.distance },
+                  { label: `Time (~${tripData.durationMin} min × $${selectedQuote.meta?.perMin || 0}/min)`, val: selectedQuote.breakdown.time },
                   { label: 'Booking fee', val: selectedQuote.breakdown.bookingFee },
                   ...(safeNum(selectedQuote.breakdown.surge, 0) > 0
                     ? [{ label: 'Surge', val: selectedQuote.breakdown.surge, highlight: true }]
                     : []),
                 ].map((row, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: '12.5px',
-                        color: row.highlight ? T.accent : T.text,
-                        fontWeight: 600,
-                      }}
-                    >
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '12.5px', color: row.highlight ? T.accent : T.text, fontWeight: 600 }}>
                       {row.label}
                     </span>
-
-                    <span
-                      style={{
-                        fontFamily: '"JetBrains Mono", monospace',
-                        fontSize: '13px',
-                        fontWeight: 700,
-                        color: row.highlight ? T.accent : T.text,
-                      }}
-                    >
+                    <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '13px', fontWeight: 700, color: row.highlight ? T.accent : T.text }}>
                       +${Number(row.val || 0).toFixed(2)}
                     </span>
                   </div>
                 ))}
 
-                <div
-                  style={{
-                    borderTop: `1px dashed ${T.accentBorder}`,
-                    paddingTop: '10px',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <span style={{ fontSize: '13px', fontWeight: 800, color: T.text }}>
-                    Total
-                  </span>
-                  <span
-                    style={{
-                      fontFamily: '"JetBrains Mono", monospace',
-                      fontSize: '15px',
-                      fontWeight: 700,
-                      color: T.accent,
-                    }}
-                  >
+                <div style={{ borderTop: `1px dashed ${T.accentBorder}`, paddingTop: '10px', display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 800, color: T.text }}>Total</span>
+                  <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '15px', fontWeight: 700, color: T.accent }}>
                     ${selectedQuote.total}
                   </span>
                 </div>
@@ -739,28 +728,13 @@ export default function BookingPanel({ onBookNow }) {
 
           <button className="cta-btn" onClick={handleBookNow}>
             Book Now · ${selectedQuote.total}
-            <ChevronRight
-              size={17}
-              style={{
-                display: 'inline',
-                verticalAlign: 'middle',
-                marginLeft: '4px',
-              }}
-            />
+            <ChevronRight size={17} style={{ display: 'inline', verticalAlign: 'middle', marginLeft: '4px' }} />
           </button>
         </>
       )}
 
       {!pickup.trim() && !dropoff.trim() && (
-        <div
-          style={{
-            textAlign: 'center',
-            padding: '14px 0',
-            color: T.textMuted,
-            fontSize: '13.5px',
-            fontWeight: 500,
-          }}
-        >
+        <div style={{ textAlign: 'center', padding: '14px 0', color: T.textMuted, fontSize: '13.5px', fontWeight: 500 }}>
           Enter pickup and destination
         </div>
       )}

@@ -45,6 +45,8 @@ exports.ATOB = onRequest(
 
         const data = googleMapsResponse.data;
 
+        
+
         if (data.status !== "OK") {
           return res.status(500).json({
             error: "Google Maps API error",
@@ -53,6 +55,8 @@ exports.ATOB = onRequest(
         }
 
         const element = data?.rows?.[0]?.elements?.[0];
+
+        console.log(element)
 
         if (!element) {
           return res.status(500).json({
