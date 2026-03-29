@@ -10,6 +10,7 @@ import {
   Loader2,
   AlertCircle
 } from 'lucide-react';
+import PaymentModal from '@/App/PaymentModal';
 
 // ── THEME ────────────────────────────────────────────────
 const T = {
@@ -327,6 +328,11 @@ export default function BookingPanel({ onBookNow }) {
   const [error, setError]                 = useState('');
   const [showBreakdown, setShowBreakdown] = useState(false);
 
+  // ── PAYMENT MODAL STATES ───────────────────────────────
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState('card');
+  const [bookingInProgress, setBookingInProgress] = useState(false);
+
   const tripRequestRef  = useRef(0);
   const quoteRequestRef = useRef(0);
 
@@ -412,8 +418,15 @@ export default function BookingPanel({ onBookNow }) {
     [quotesData, selectedRide]
   );
 
-  // ── BOOK NOW ────────────────────────────────────────────
-  const handleBookNow = useCallback(async () => {
+  // ── BOOK NOW (OPENS PAYMENT MODAL) ──────────────────────
+  const handleBookNow = useCallback(() => {
+    if (!tripData || !quotesData || !selectedQuote) return;
+    setShowPaymentModal(true);
+    setSelectedPayment('card');
+  }, [tripData, quotesData, selectedQuote]);
+
+  // ── HANDLE PAYMENT SUCCESS ───────────────────────────────
+  const handlePaymentSuccess = useCallback(async (paymentResult) => {
     if (!tripData || !quotesData || !selectedQuote) return;
 
     const payload = {
@@ -422,25 +435,32 @@ export default function BookingPanel({ onBookNow }) {
       miles: tripData.miles,
       durationMin: tripData.durationMin,
       durationText: tripData.durationText,
+      tripDistanceMiles: tripData.miles,
+      tripDurationMin: tripData.durationMin,
       rideType: selectedRide,
       rideLabel: selectedQuote.label,
       fareEstimate: selectedQuote.total,
       surgeMultiplier: quotesData.surgeMultiplier || 1,
       breakdown: selectedQuote.breakdown || {},
       allQuotes: quotesData.rides || {},
+      paymentMethod: paymentResult.method,
+      rideId: paymentResult.rideId,
       status: 'searching_driver',
       createdAt: new Date().toISOString(),
     };
 
     try {
-      const response = await submitBooking(payload);
+      setBookingInProgress(true);
+      // Payment is already processed, just notify parent
       if (typeof onBookNow === 'function') {
         onBookNow(payload);
-      } else {
-        console.log('Booking confirmed:', response);
       }
+      console.log('Booking confirmed with payment:', payload);
+      setShowPaymentModal(false);
     } catch (err) {
-      console.error('Booking failed:', err.message);
+      console.error('Booking finalization failed:', err.message);
+    } finally {
+      setBookingInProgress(false);
     }
   }, [tripData, quotesData, selectedQuote, selectedRide, onBookNow]);
 
@@ -449,7 +469,8 @@ export default function BookingPanel({ onBookNow }) {
 
   // ── RENDER ───────────────────────────────────────────────
   return (
-    <div className="glass" style={{ padding: '26px' }}>
+    <>
+      <div className="glass" style={{ padding: '26px' }}>
       <h2
         style={{
           fontSize: '18px',
@@ -871,6 +892,27 @@ export default function BookingPanel({ onBookNow }) {
           Enter pickup and destination
         </div>
       )}
-    </div>
+      </div>
+
+      {/* PAYMENT MODAL */}
+      {showPaymentModal && (
+        <PaymentModal
+          bookingPayload={{
+            pickup: tripData?.pickup,
+            dropoff: tripData?.dropoff,
+            rideType: selectedRide,
+            fareEstimate: selectedQuote?.total,
+            tripDistanceMiles: tripData?.miles,
+            tripDurationMin: tripData?.durationMin,
+            breakdown: selectedQuote?.breakdown || {},
+            surgeMultiplier: quotesData?.surgeMultiplier || 1,
+          }}
+          selectedPayment={selectedPayment}
+          setSelectedPayment={setSelectedPayment}
+          onClose={() => setShowPaymentModal(false)}
+          onSuccess={handlePaymentSuccess}
+        />
+      )}
+    </>
   );
 }
