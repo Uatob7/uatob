@@ -11,6 +11,10 @@ import {
   AlertCircle
 } from 'lucide-react';
 import PaymentModal from '@/App/PaymentModal';
+import AuthModal from '@/App/AuthModal';
+import { useAuthContext } from '@/context/AuthContext';
+import signIn from '@/firebase/auth/signin';
+import signUp from '@/firebase/auth/signup';
 
 // ── THEME ────────────────────────────────────────────────
 const T = {
@@ -316,6 +320,8 @@ function PlaceInput({ label, icon: Icon, iconColor, placeholder, value, onChange
 
 // ── MAIN COMPONENT ───────────────────────────────────────
 export default function BookingPanel({ onBookNow }) {
+  const { uid } = useAuthContext();
+
   const [pickup, setPickup]           = useState('');
   const [dropoff, setDropoff]         = useState('');
   const [selectedRide, setSelectedRide] = useState('standard');
@@ -327,6 +333,15 @@ export default function BookingPanel({ onBookNow }) {
   const [loadingQuotes, setLoadingQuotes] = useState(false);
   const [error, setError]                 = useState('');
   const [showBreakdown, setShowBreakdown] = useState(false);
+
+  // ── AUTHENTICATION MODAL STATES ────────────────────────
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState('login');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authName, setAuthName] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState('');
 
   // ── PAYMENT MODAL STATES ───────────────────────────────
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -418,12 +433,54 @@ export default function BookingPanel({ onBookNow }) {
     [quotesData, selectedRide]
   );
 
-  // ── BOOK NOW (OPENS PAYMENT MODAL) ──────────────────────
+  // ── BOOK NOW (CHECK AUTH FIRST) ──────────────────────────
   const handleBookNow = useCallback(() => {
     if (!tripData || !quotesData || !selectedQuote) return;
-    setShowPaymentModal(true);
-    setSelectedPayment('card');
-  }, [tripData, quotesData, selectedQuote]);
+    
+    if (!uid) {
+      // User not authenticated, show auth modal
+      setShowAuthModal(true);
+      setAuthMode('login');
+      setAuthEmail('');
+      setAuthPassword('');
+      setAuthName('');
+      setAuthError('');
+    } else {
+      // User authenticated, proceed to payment
+      setShowPaymentModal(true);
+      setSelectedPayment('card');
+    }
+  }, [tripData, quotesData, selectedQuote, uid]);
+
+  // ── HANDLE AUTH SUBMISSION ───────────────────────────────
+  const handleAuthSubmit = useCallback(async (e) => {
+    e.preventDefault();
+    setAuthLoading(true);
+    setAuthError('');
+
+    try {
+      let authResult;
+      
+      if (authMode === 'login') {
+        authResult = await signIn(authEmail, authPassword);
+      } else {
+        authResult = await signUp(authEmail, authPassword);
+      }
+
+      if (authResult.error) {
+        throw new Error(authResult.error.message || 'Authentication failed');
+      }
+
+      // Close auth modal and open payment modal
+      setShowAuthModal(false);
+      setShowPaymentModal(true);
+      setSelectedPayment('card');
+    } catch (err) {
+      setAuthError(err.message || 'Authentication failed');
+    } finally {
+      setAuthLoading(false);
+    }
+  }, [authMode, authEmail, authPassword]);
 
   // ── HANDLE PAYMENT SUCCESS ───────────────────────────────
   const handlePaymentSuccess = useCallback(async (paymentResult) => {
@@ -893,6 +950,24 @@ export default function BookingPanel({ onBookNow }) {
         </div>
       )}
       </div>
+
+      {/* AUTHENTICATION MODAL */}
+      {showAuthModal && (
+        <AuthModal
+          authMode={authMode}
+          setAuthMode={setAuthMode}
+          email={authEmail}
+          setEmail={setAuthEmail}
+          password={authPassword}
+          setPassword={setAuthPassword}
+          name={authName}
+          setName={setAuthName}
+          onSubmit={handleAuthSubmit}
+          onClose={() => setShowAuthModal(false)}
+          loading={authLoading}
+          error={authError}
+        />
+      )}
 
       {/* PAYMENT MODAL */}
       {showPaymentModal && (

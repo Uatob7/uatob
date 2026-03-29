@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Mail, Lock, User } from 'lucide-react';
+import { X, Mail, Lock, User, Loader2, AlertCircle } from 'lucide-react';
 import { UaTobWordmark } from '@/App/Brand.jsx';
 import { THEME as T } from '@/App/pricing.js';
 
@@ -9,6 +9,8 @@ export default function AuthModal({
   password, setPassword,
   name, setName,
   onSubmit, onClose,
+  loading = false,
+  error = '',
 }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -31,6 +33,13 @@ export default function AuthModal({
           {authMode === 'login' ? 'Sign in to book your ride' : 'Join UaTob today'}
         </p>
 
+        {error && (
+          <div style={{ marginBottom: '16px', padding: '12px 14px', borderRadius: '12px', background: '#FEF2F2', border: '1px solid #FECACA', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+            <AlertCircle size={15} color="#DC2626" style={{ flexShrink: 0, marginTop: '2px' }} />
+            <span style={{ fontSize: '13px', color: '#DC2626', fontWeight: 600 }}>{error}</span>
+          </div>
+        )}
+
         <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '11px' }}>
           {authMode === 'signup' && (
             <div style={{ position: 'relative' }}>
@@ -46,11 +55,19 @@ export default function AuthModal({
             <Lock size={16} color="#D1D5DB" style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', zIndex: 2 }}/>
             <input type="password" className="auth-field" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required/>
           </div>
-          <button type="submit" className="cta-btn">
-            {authMode === 'login' ? 'Login & Continue' : 'Sign Up & Continue'}
+          <button type="submit" className="cta-btn" disabled={loading} style={{ opacity: loading ? 0.7 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}>
+            {loading ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <Loader2 size={17} style={{ animation: 'spin 1s linear infinite' }} />
+                Processing...
+              </span>
+            ) : (
+              authMode === 'login' ? 'Login & Continue' : 'Sign Up & Continue'
+            )}
           </button>
         </form>
       </div>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
