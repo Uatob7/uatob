@@ -304,14 +304,12 @@ export default function UaTobApp({ uid }) {
       {/* ── Confirmation Modal ───────────────────────────── */}
       {showConfirm && (
         <ConfirmationModal
-        rideId={confirmedRideId}
-        fareData={bookingPayload}
         onClose={handleConfirmClose}
         onPaymentCancelled={handlePaymentCancelled}
         onRetry={handleRetry}
         rides={rides}
         ridesLoading={ridesLoading}
-     />
+      />
       )}
     </div>
   );

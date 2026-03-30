@@ -9,8 +9,6 @@ const db = getFirestore(firebase_app);
 const SEARCH_LIMIT_SEC = 7 * 60;
 
 export default function ConfirmationModal({
-  rideId,
-  fareData,
   onClose,
   onPaymentCancelled,
   onRetry,
@@ -22,11 +20,24 @@ export default function ConfirmationModal({
   const [driver,      setDriver]      = useState(null);
   const [visible,     setVisible]     = useState(false);
 
-  const timerRef          = useRef(null);
-  const closeTimeoutRef   = useRef(null);
-  const mountedRef        = useRef(true);
-  const didTimeoutRef     = useRef(false);
-  const hasInitializedRef = useRef(false);
+  const timerRef        = useRef(null);
+  const closeTimeoutRef = useRef(null);
+  const mountedRef      = useRef(true);
+  const didTimeoutRef   = useRef(false);
+  const lastRideIdRef   = useRef(null);
+
+  // ── Derive the active ride directly from rides ─────────
+  const currentRide = useMemo(() => {
+    if (!rides?.length) return null;
+    // Priority: any non-completed, non-cancelled ride with succeeded payment
+    return rides.find(
+      (r) => r.paymentStatus === 'succeeded' &&
+             r.status !== 'completed' &&
+             r.status !== 'cancelled'
+    ) ?? null;
+  }, [rides]);
+
+  const rideId = currentRide?.id ?? null;
 
   // ── Mount / unmount ────────────────────────────────────
   useEffect(() => {
@@ -40,50 +51,44 @@ export default function ConfirmationModal({
     };
   }, []);
 
-  // ── Reset only when rideId changes ────────────────────
+  // ── Reset when a new rideId appears ───────────────────
   useEffect(() => {
-    if (!rideId) return;
-    hasInitializedRef.current = false;
+    if (!rideId || rideId === lastRideIdRef.current) return;
+    lastRideIdRef.current = rideId;
     setStatus('searching');
     setSecondsLeft(SEARCH_LIMIT_SEC);
     setDriver(null);
     didTimeoutRef.current = false;
   }, [rideId]);
 
-  // ── Drive status from live rides prop ──────────────────
+  // ── Drive status from live ride ────────────────────────
   useEffect(() => {
-    if (ridesLoading || !rideId || !rides?.length) return;
+    if (ridesLoading || !currentRide) return;
 
-    const ride = rides.find((r) => r.id === rideId);
-    if (!ride) return;
-
-    hasInitializedRef.current = true;
-
-    if (ride.status === 'pending_payment') {
+    if (currentRide.status === 'pending_payment') {
       setStatus('checking_payment');
       return;
     }
 
-    if (ride.status === 'searching_driver' || ride.status === 'searching') {
-      // No-op if already searching — prevents countdown from resetting
+    if (currentRide.status === 'searching_driver' || currentRide.status === 'searching') {
       setStatus((prev) => (prev === 'searching' ? prev : 'searching'));
       return;
     }
 
-    if (ride.status === 'driver_assigned') {
+    if (currentRide.status === 'driver_assigned') {
       clearInterval(timerRef.current);
       timerRef.current = null;
-      if (ride.driver) setDriver(ride.driver);
+      if (currentRide.driver) setDriver(currentRide.driver);
       setStatus('assigned');
       return;
     }
 
-    if (ride.status === 'timeout' || ride.status === 'cancelled') {
+    if (currentRide.status === 'timeout' || currentRide.status === 'cancelled') {
       clearInterval(timerRef.current);
       timerRef.current = null;
       setStatus('timeout');
     }
-  }, [rides, ridesLoading, rideId]);
+  }, [currentRide, ridesLoading]);
 
   // ── Countdown timer ────────────────────────────────────
   useEffect(() => {
@@ -126,27 +131,25 @@ export default function ConfirmationModal({
     return () => clearTimeout(t);
   }, [status]);
 
-  // ── Derived values ─────────────────────────────────────
+  // ── Derived display values (all from currentRide) ──────
   const minutes  = Math.floor(secondsLeft / 60);
   const seconds  = secondsLeft % 60;
   const progress = ((SEARCH_LIMIT_SEC - secondsLeft) / SEARCH_LIMIT_SEC) * 100;
   const isUrgent = secondsLeft < 60;
 
-  const currentRide = rides?.find((r) => r.id === rideId) ?? null;
-
   const total = useMemo(() => {
-    const value = Number(currentRide?.fareTotal ?? fareData?.fareEstimate ?? fareData?.total ?? 0);
+    const value = Number(currentRide?.fareTotal ?? 0);
     return Number.isFinite(value) ? value.toFixed(2) : '0.00';
-  }, [currentRide, fareData]);
+  }, [currentRide]);
 
   const miles = useMemo(() => {
-    const value = Number(currentRide?.tripDistanceMiles ?? fareData?.tripDistanceMiles ?? 0);
+    const value = Number(currentRide?.tripDistanceMiles ?? 0);
     return Number.isFinite(value) ? value.toFixed(1) : '0.0';
-  }, [currentRide, fareData]);
+  }, [currentRide]);
 
-  const pickup    = currentRide?.pickup   ?? fareData?.pickup   ?? '—';
-  const dropoff   = currentRide?.dropoff  ?? fareData?.dropoff  ?? '—';
-  const rideLabel = currentRide?.rideLabel ?? fareData?.rideLabel ?? fareData?.rideType ?? 'Ride';
+  const pickup    = currentRide?.pickup    ?? '—';
+  const dropoff   = currentRide?.dropoff   ?? '—';
+  const rideLabel = currentRide?.rideLabel ?? currentRide?.rideType ?? 'Ride';
 
   // ── Handlers ───────────────────────────────────────────
   const handleClose = () => {
@@ -214,7 +217,6 @@ export default function ConfirmationModal({
             </div>
 
             <div style={{ padding: '28px 24px 24px', textAlign: 'center' }}>
-              {/* Radar */}
               <div style={{ position: 'relative', width: '96px', height: '96px', margin: '0 auto 20px' }}>
                 {[0, 1, 2].map((i) => (
                   <div key={i} style={{
@@ -241,7 +243,6 @@ export default function ConfirmationModal({
                 {isUrgent ? 'Searching nearby areas. Hang tight.' : 'Matching you with the nearest available driver.'}
               </p>
 
-              {/* Timer */}
               <div style={{
                 background: isUrgent ? '#FFF7ED' : '#F9FAFB',
                 border: `1.5px solid ${isUrgent ? '#FED7AA' : T.border}`,
@@ -264,7 +265,6 @@ export default function ConfirmationModal({
                 </div>
               </div>
 
-              {/* Route */}
               <div style={{ background: '#FAFAFA', border: `1px solid ${T.border}`, borderRadius: '14px', padding: '12px 14px', marginBottom: '10px', textAlign: 'left' }}>
                 <div style={{ display: 'flex', gap: '11px', alignItems: 'stretch' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: '3px' }}>
@@ -279,7 +279,6 @@ export default function ConfirmationModal({
                 </div>
               </div>
 
-              {/* Fare */}
               <div style={{ background: '#F0FDF4', border: `1px solid ${T.accentBorder}`, borderRadius: '12px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '12px', fontWeight: 600, color: T.textMuted }}>{rideLabel} · {miles} mi</span>
                 <span style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: '15px', fontWeight: 700, color: T.accent }}>${total}</span>
