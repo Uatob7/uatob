@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   MapPin, Navigation, Clock, Car, Users, Zap,
-  ChevronRight, Loader2, AlertCircle, LocateFixed,
+  ChevronRight, Loader2, AlertCircle, LocateFixed, X,
 } from 'lucide-react';
 import { useAuthContext } from '@/context/AuthContext';
 
@@ -68,62 +68,88 @@ async function reverseGeocode(lat, lng) {
   return data.address;
 }
 
-// ── LOCATION MODAL ───────────────────────────────────────
-function LocationModal({ onAllow, onDeny, loading, error }) {
+// ── LOCATION ALERT (inline banner) ───────────────────────
+function LocationAlert({ onAllow, onDeny, loading, error }) {
   return (
-    <div onClick={onDeny} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.5)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+    <div style={{
+      borderRadius: '14px',
+      border: `1.5px solid ${error ? '#FECACA' : '#BBF7D0'}`,
+      background: error ? '#FEF2F2' : 'linear-gradient(135deg,#F0FDF4,#DCFCE7)',
+      padding: '14px 16px',
+      marginBottom: '16px',
+      animation: 'alertIn .2s ease',
+    }}>
       <style>{`
-        @keyframes locIn  { from { opacity:0; transform:scale(.88) translateY(16px); } to { opacity:1; transform:scale(1) translateY(0); } }
-        @keyframes locPulse { 0%,100%{transform:scale(1);opacity:1;} 50%{transform:scale(1.12);opacity:.8;} }
-        @keyframes spin { from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
+        @keyframes alertIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes spin     { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
       `}</style>
 
-      <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: '28px', padding: '32px 28px', maxWidth: '360px', width: '100%', boxShadow: '0 24px 80px rgba(0,0,0,.18)', border: '1px solid #E5E7EB', animation: 'locIn .3s cubic-bezier(.34,1.56,.64,1) forwards' }}>
-
-        {/* Icon */}
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
-          <div style={{ width: '72px', height: '72px', background: 'linear-gradient(135deg,#ECFDF5,#D1FAE5)', border: '2px solid #BBF7D0', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: loading ? 'locPulse 1.4s ease-in-out infinite' : 'none' }}>
-            <LocateFixed size={32} color="#16A34A" />
+      {error ? (
+        /* ── Error state ── */
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+          <AlertCircle size={15} color="#DC2626" style={{ flexShrink: 0, marginTop: '1px' }} />
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: '13px', color: '#DC2626', fontWeight: 600, margin: '0 0 10px' }}>{error}</p>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={onAllow}
+                style={{ flex: 1, padding: '8px 12px', borderRadius: '10px', border: 'none', background: '#DC2626', color: '#fff', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Outfit,sans-serif' }}
+              >
+                Try again
+              </button>
+              <button
+                onClick={onDeny}
+                style={{ flex: 1, padding: '8px 12px', borderRadius: '10px', border: '1.5px solid #FECACA', background: '#fff', color: '#DC2626', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Outfit,sans-serif' }}
+              >
+                Dismiss
+              </button>
+            </div>
           </div>
         </div>
+      ) : (
+        /* ── Prompt / loading state ── */
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
 
-        {/* Text */}
-        <h3 style={{ fontSize: '22px', fontWeight: 900, color: T.text, textAlign: 'center', letterSpacing: '-0.5px', marginBottom: '10px' }}>
-          UaTob needs your location
-        </h3>
-        <p style={{ fontSize: '14px', color: T.textMuted, textAlign: 'center', lineHeight: 1.65, marginBottom: '24px' }}>
-          We'll use your current location to automatically fill in your pickup address — no typing needed.
-        </p>
-
-        {/* Error */}
-        {error && (
-          <div style={{ marginBottom: '16px', padding: '12px 14px', borderRadius: '12px', background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', fontSize: '13px', fontWeight: 600, textAlign: 'center' }}>
-            {error}
+          {/* Icon */}
+          <div style={{ width: '38px', height: '38px', flexShrink: 0, background: '#fff', border: '1.5px solid #BBF7D0', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {loading
+              ? <Loader2 size={16} color={T.accent} style={{ animation: 'spin 1s linear infinite' }} />
+              : <LocateFixed size={16} color={T.accent} />
+            }
           </div>
-        )}
 
-        {/* Allow button */}
-        <button
-          onClick={onAllow}
-          disabled={loading}
-          style={{ width: '100%', padding: '15px', borderRadius: '16px', border: 'none', marginBottom: '10px', background: 'linear-gradient(135deg,#16A34A,#15803D)', color: '#fff', fontSize: '16px', fontWeight: 800, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.85 : 1, boxShadow: '0 8px 24px rgba(22,163,74,.35)', fontFamily: '"Outfit",system-ui,sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', transition: 'all .2s' }}
-        >
-          {loading ? (
-            <><Loader2 size={18} color="#fff" style={{ animation: 'spin 1s linear infinite' }} /> Getting your location...</>
-          ) : (
-            <><LocateFixed size={18} color="#fff" /> Allow Location Access</>
+          {/* Text */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: '13px', fontWeight: 700, color: T.text, margin: '0 0 1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {loading ? 'Getting your location…' : 'Use your current location?'}
+            </p>
+            {!loading && (
+              <p style={{ fontSize: '11.5px', color: T.textMuted, fontWeight: 500, margin: 0 }}>
+                Auto-fill your pickup address
+              </p>
+            )}
+          </div>
+
+          {/* Actions */}
+          {!loading && (
+            <div style={{ display: 'flex', gap: '7px', flexShrink: 0 }}>
+              <button
+                onClick={onAllow}
+                style={{ padding: '7px 13px', borderRadius: '10px', border: 'none', background: T.accent, color: '#fff', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Outfit,sans-serif', boxShadow: '0 3px 10px rgba(22,163,74,.3)' }}
+              >
+                Allow
+              </button>
+              <button
+                onClick={onDeny}
+                title="Dismiss"
+                style={{ width: '32px', height: '32px', borderRadius: '10px', border: `1.5px solid ${T.border}`, background: '#fff', color: T.textMuted, fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+              >
+                <X size={14} />
+              </button>
+            </div>
           )}
-        </button>
-
-        {/* Deny button */}
-        <button
-          onClick={onDeny}
-          disabled={loading}
-          style={{ width: '100%', padding: '14px', borderRadius: '16px', border: '1.5px solid #E5E7EB', background: '#F9FAFB', color: T.textMuted, fontSize: '15px', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: '"Outfit",system-ui,sans-serif' }}
-        >
-          Not now
-        </button>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -179,7 +205,6 @@ function PlaceInput({ label, icon: Icon, iconColor, placeholder, value, onChange
       <div className="lbl">{label}</div>
       <div style={{ position: 'relative' }}>
 
-        {/* Clickable pin for pickup, static for dropoff */}
         {isPickup && onLocationRequest ? (
           <button
             type="button"
@@ -195,7 +220,6 @@ function PlaceInput({ label, icon: Icon, iconColor, placeholder, value, onChange
           <Icon size={17} color={iconColor} style={{ position: 'absolute', left: 17, top: '50%', transform: 'translateY(-50%)', zIndex: 3, pointerEvents: 'none' }} />
         )}
 
-        {/* Ghost text */}
         {ghostText && focused && (
           <div style={{ position: 'absolute', inset: 0, padding: '0 16px 0 46px', display: 'flex', alignItems: 'center', fontSize: 14, pointerEvents: 'none', zIndex: 1, whiteSpace: 'nowrap', overflow: 'hidden' }}>
             <span style={{ color: 'transparent' }}>{value}</span>
@@ -209,7 +233,6 @@ function PlaceInput({ label, icon: Icon, iconColor, placeholder, value, onChange
           autoComplete="off" style={{ position: 'relative', zIndex: 2, background: 'transparent' }}
         />
 
-        {/* Dropdown */}
         {focused && suggestions.length > 0 && (
           <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, background: '#fff', border: `1px solid ${T.border}`, borderRadius: 14, boxShadow: '0 8px 28px rgba(0,0,0,.1)', zIndex: 100, overflow: 'hidden' }}>
             {suggestions.map((s, i) => {
@@ -251,8 +274,8 @@ export default function BookingPanel({ onBookNow }) {
   const [error,         setError]         = useState('');
   const [showBreakdown, setShowBreakdown] = useState(false);
 
-  // ── Location modal ─────────────────────────────────────
-  const [showLocationModal, setShowLocationModal] = useState(false);
+  // ── Location alert state ───────────────────────────────
+  const [showLocationAlert, setShowLocationAlert] = useState(false);
   const [locationLoading,   setLocationLoading]   = useState(false);
   const [locationError,     setLocationError]     = useState('');
 
@@ -277,7 +300,8 @@ export default function BookingPanel({ onBookNow }) {
       );
       const address = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
       setPickup(address);
-      setShowLocationModal(false);
+      setShowLocationAlert(false);
+      setLocationError('');
     } catch (err) {
       if (err.code === 1) setLocationError('Location access was denied. Please allow it in your browser settings.');
       else if (err.code === 2) setLocationError('Could not detect your location. Try again or enter manually.');
@@ -289,10 +313,9 @@ export default function BookingPanel({ onBookNow }) {
   }, [dropoff, selectedRide, tripData, quotesData]);
 
   const handleLocationDeny = useCallback(() => {
-    if (locationLoading) return;
-    setShowLocationModal(false);
+    setShowLocationAlert(false);
     setLocationError('');
-  }, [locationLoading]);
+  }, []);
 
   // ── STEP 1: TRIP DATA ──────────────────────────────────
   useEffect(() => {
@@ -315,7 +338,7 @@ export default function BookingPanel({ onBookNow }) {
     return () => clearTimeout(timeout);
   }, [pickup, dropoff]);
 
-  // ── STEP 2: PRICES ────────────────────────────────────
+  // ── STEP 2: PRICES ─────────────────────────────────────
   useEffect(() => {
     if (!tripData) return;
     if (saved?.quotesData && saved?.tripData?.miles === tripData.miles) return;
@@ -356,8 +379,29 @@ export default function BookingPanel({ onBookNow }) {
       <div className="glass" style={{ padding: '26px' }}>
         <h2 style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '-0.3px', color: T.text, marginBottom: '20px' }}>Book a Ride</h2>
 
+        {/* ── Location alert banner (replaces modal) ── */}
+        {(showLocationAlert || locationLoading || locationError) && (
+          <LocationAlert
+            onAllow={handleLocationAllow}
+            onDeny={handleLocationDeny}
+            loading={locationLoading}
+            error={locationError}
+          />
+        )}
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
-          <PlaceInput label="Pickup (A)" icon={MapPin} iconColor={T.accent} placeholder="Enter pickup address…" value={pickup} onChange={setPickup} onLocationRequest={() => { setLocationError(''); setShowLocationModal(true); }} />
+          <PlaceInput
+            label="Pickup (A)"
+            icon={MapPin}
+            iconColor={T.accent}
+            placeholder="Enter pickup address…"
+            value={pickup}
+            onChange={setPickup}
+            onLocationRequest={() => {
+              setLocationError('');
+              setShowLocationAlert(true);
+            }}
+          />
           <PlaceInput label="Drop-off (B)" icon={Navigation} iconColor={T.ink} placeholder="Enter destination…" value={dropoff} onChange={setDropoff} />
         </div>
 
@@ -475,16 +519,6 @@ export default function BookingPanel({ onBookNow }) {
           </div>
         )}
       </div>
-
-      {/* Location Modal */}
-      {showLocationModal && (
-        <LocationModal
-          onAllow={handleLocationAllow}
-          onDeny={handleLocationDeny}
-          loading={locationLoading}
-          error={locationError}
-        />
-      )}
     </>
   );
 }
