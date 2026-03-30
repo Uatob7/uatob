@@ -256,7 +256,7 @@ export default function UaTobApp({ uid }) {
         <div style={{ animation: mounted ? 'slideUp .65s ease-out .18s forwards' : 'none', opacity: 0 }}>
           {tracking.isTracking ? (
             <LiveTrackingPanel
-              rides={rides}
+             rides={rides}
              ridesLoading={ridesLoading}
             />
           ) : (
