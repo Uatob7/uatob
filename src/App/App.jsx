@@ -198,6 +198,16 @@ export default function UaTobApp({ uid }) {
     }
   };
 
+  // ── Payment cancelled during confirmation ──────────────
+  const handlePaymentCancelled = () => {
+    setShowConfirm(false);
+    setConfirmedRideId(null);
+    setBookingPayload(null);
+    setPickupCoords(null);
+    setDropoffCoords(null);
+    clearSession();
+  };
+
   // ── Retry → reset back to BookingPanel ────────────────
   const handleRetry = () => {
     setShowConfirm(false);
@@ -322,6 +332,7 @@ export default function UaTobApp({ uid }) {
           rideId={confirmedRideId}
           fareData={bookingPayload}
           onClose={handleConfirmClose}
+          onPaymentCancelled={handlePaymentCancelled}
           onRetry={handleRetry}
         />
       )}

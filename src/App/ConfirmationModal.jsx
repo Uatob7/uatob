@@ -1,13 +1,13 @@
-
 // src/App/ConfirmationModal.jsx
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Clock, Car, CheckCircle, RotateCcw } from 'lucide-react';
+import { Clock, Car, CheckCircle, RotateCcw, Loader2 } from 'lucide-react';
 import { THEME as T } from '@/App/pricing.js';
 import {
   doc,
   onSnapshot,
   getFirestore,
   updateDoc,
+  deleteDoc,
 } from 'firebase/firestore';
 import { firebase_app } from '@/firebase/config';
 
@@ -18,9 +18,10 @@ export default function ConfirmationModal({
   rideId,
   fareData,
   onClose,
+  onPaymentCancelled,
   onRetry,
 }) {
-  const [status, setStatus] = useState('searching'); // 'searching' | 'assigned' | 'timeout' | 'error'
+  const [status, setStatus] = useState('searching'); // 'checking_payment' | 'searching' | 'assigned' | 'timeout' | 'error'
   const [secondsLeft, setSecondsLeft] = useState(SEARCH_LIMIT_SEC);
   const [driver, setDriver] = useState(null);
   const [visible, setVisible] = useState(false);
@@ -80,9 +81,18 @@ export default function ConfirmationModal({
 
             const data = snap.data();
 
-           
+            // 🟡 NEW: Payment phase
+            if (data.status === 'pending_payment') {
+              setStatus('checking_payment');
+              return; // ⛔ stop here, do NOT continue
+            }
 
-            // If driver got assigned, stop everything immediately
+            // 🟢 Payment completed → start searching
+            if (data.status === 'searching') {
+              setStatus('searching');
+            }
+
+            // ✅ EXISTING (unchanged)
             if (data.status === 'driver_assigned') {
               clearInterval(timerRef.current);
               timerRef.current = null;
@@ -91,7 +101,6 @@ export default function ConfirmationModal({
               setStatus('assigned');
             }
 
-            // If backend already timed out / cancelled
             if (data.status === 'timeout' || data.status === 'cancelled') {
               clearInterval(timerRef.current);
               timerRef.current = null;
@@ -230,9 +239,22 @@ export default function ConfirmationModal({
   const dropoff = fareData?.dropoff ?? '—';
 
   const handleClose = () => {
+    // If user cancels during payment, delete the pending ride from Firestore
+    if (status === 'checking_payment' && rideId) {
+      const rideRef = doc(db, 'Rides', rideId);
+      deleteDoc(rideRef).catch((err) => {
+        console.warn('[ConfirmationModal] Failed to delete pending ride:', err);
+      });
+    }
+
     setVisible(false);
     closeTimeoutRef.current = setTimeout(() => {
-      onClose?.();
+      // If cancelling payment, use the payment-cancelled callback; otherwise normal close
+      if (status === 'checking_payment') {
+        onPaymentCancelled?.();
+      } else {
+        onClose?.();
+      }
     }, 260);
   };
 
@@ -275,6 +297,63 @@ export default function ConfirmationModal({
             : 'scale(.94) translateY(16px)',
         }}
       >
+        {/* CHECKING PAYMENT */}
+        {status === 'checking_payment' && (
+          <div style={{ padding: '40px', textAlign: 'center' }}>
+            <div className="spin" style={{ marginBottom: '20px' }}>
+              <Loader2 size={40} style={{ animation: 'spin 1s linear infinite' }} />
+            </div>
+
+            <h3
+              style={{
+                fontSize: '22px',
+                fontWeight: 900,
+                color: T.text,
+                marginBottom: '8px',
+              }}
+            >
+              Waiting for payment...
+            </h3>
+
+            <p
+              style={{
+                fontSize: '13px',
+                color: T.textMuted,
+                lineHeight: 1.6,
+                marginBottom: '24px',
+              }}
+            >
+              Complete the payment in Cash App to continue
+            </p>
+
+            <button
+              onClick={handleClose}
+              style={{
+                width: '100%',
+                padding: '13px',
+                borderRadius: '14px',
+                border: `1.5px solid ${T.border}`,
+                background: '#fff',
+                fontSize: '14px',
+                fontWeight: 700,
+                color: T.textMuted,
+                cursor: 'pointer',
+                transition: 'all .2s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.background = '#F9FAFB';
+                e.target.style.borderColor = T.accent;
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.background = '#fff';
+                e.target.style.borderColor = T.border;
+              }}
+            >
+              Cancel Payment
+            </button>
+          </div>
+        )}
+
         {/* SEARCHING */}
         {status === 'searching' && (
           <>
@@ -841,6 +920,10 @@ export default function ConfirmationModal({
           @keyframes popIn {
             0%   { transform: scale(0.4); opacity: 0; }
             100% { transform: scale(1);   opacity: 1; }
+          }
+          @keyframes spin {
+            0%   { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
           }
         `}</style>
       </div>
