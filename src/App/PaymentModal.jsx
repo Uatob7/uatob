@@ -4,6 +4,7 @@ import { X, CreditCard, Check, Loader2, ShieldCheck, Wallet, Smartphone } from '
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
+
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
 
 /* ── Theme ───────────────────────────────────────────── */
