@@ -144,8 +144,7 @@ function PlaceInput({ label, icon: Icon, iconColor, placeholder, value, onChange
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ input: query }),
       });
-      const data  = await res.json();
-      console.log('Autocomplete suggestions:', data);
+      const data  = await res.json();363
       const preds = data.predictions || [];
       setSuggestions(preds);
 

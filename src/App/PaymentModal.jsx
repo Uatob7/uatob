@@ -1,14 +1,28 @@
 // src/App/PaymentModal.jsx
 import React, { useMemo, useState } from 'react';
 import { X, CreditCard, Check, Loader2, ShieldCheck, Wallet, Smartphone } from 'lucide-react';
-import { CashAppIcon } from '@/App/Brand.jsx';
-import { PAYMENT_METHODS, PRICING, THEME as T } from '@/App/pricing.js';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
 
-/* ── Stripe Card Input Style ─────────────────────────── */
+/* ── Theme ───────────────────────────────────────────── */
+const T = {
+  text:        '#111827',
+  textMuted:   '#6B7280',
+  accent:      '#16A34A',
+  accentLight: '#ECFDF5',
+  accentBorder:'#BBF7D0',
+  bg:          '#FFFFFF',
+};
+
+/* ── Payment Methods ─────────────────────────────────── */
+const PAYMENT_METHODS = [
+  { id: 'card',    label: 'Credit / Debit Card', color: '#16A34A' },
+  { id: 'cashapp', label: 'Cash App',            color: '#00D632' },
+];
+
+/* ── Card Element Options ────────────────────────────── */
 const CARD_ELEMENT_OPTIONS = {
   style: {
     base: {
@@ -56,18 +70,19 @@ function CardForm({ bookingPayload, onSuccess, onError }) {
       const res = await fetch('https://cardpayment-ady2s2xhhq-uc.a.run.app', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          paymentMethodId: paymentMethod.id,
-          fareData: {
-            ...bookingPayload,
-            total:       bookingPayload.fareEstimate,
-            miles:       bookingPayload.tripDistanceMiles,
-            durationMin: bookingPayload.tripDurationMin,
-          },
-        }),
+        body: JSON.stringify({ paymentMethodId: paymentMethod.id, bookingPayload }),
       });
 
       const data = await res.json();
+
+      // ── Handle 3D Secure ──────────────────────────────────
+      if (data.requiresAction && data.clientSecret) {
+        const { error: actionError, paymentIntent } = await stripe.handleCardAction(data.clientSecret);
+        if (actionError) throw new Error(actionError.message || '3D Secure authentication failed.');
+        if (paymentIntent?.status !== 'succeeded') throw new Error('Payment not completed after authentication.');
+        return onSuccess?.({ method: 'card', rideId: data.rideId, paymentIntent: paymentIntent.id });
+      }
+
       if (!res.ok || !data.success) throw new Error(data.message || 'Card payment failed.');
       onSuccess?.({ method: 'card', rideId: data.rideId, paymentIntent: data.paymentIntent || null });
 
@@ -110,8 +125,14 @@ function CardForm({ bookingPayload, onSuccess, onError }) {
       <button
         type="submit"
         disabled={!stripe || !cardComplete || loading}
-        className="cta-btn"
-        style={{ width: '100%', marginTop: '16px', opacity: !stripe || !cardComplete || loading ? 0.7 : 1, cursor: !stripe || !cardComplete || loading ? 'not-allowed' : 'pointer' }}
+        style={{
+          width: '100%', marginTop: '16px', padding: '16px', borderRadius: '16px',
+          border: 'none', background: 'linear-gradient(135deg,#16A34A,#15803D)',
+          color: '#fff', fontSize: '16px', fontWeight: 800, cursor: !stripe || !cardComplete || loading ? 'not-allowed' : 'pointer',
+          opacity: !stripe || !cardComplete || loading ? 0.7 : 1,
+          boxShadow: '0 8px 24px rgba(22,163,74,.3)', transition: 'all .2s ease',
+          fontFamily: '"Outfit",system-ui,sans-serif',
+        }}
       >
         {loading ? (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
@@ -123,105 +144,16 @@ function CardForm({ bookingPayload, onSuccess, onError }) {
   );
 }
 
-/* ── Cash App Section ────────────────────────────────── */
-function CashAppSection({ total, loading, onClick }) {
-  return (
-    <div style={{ marginTop: '16px' }}>
-
-      {/* Amount pill */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        gap: '10px', marginBottom: '20px',
-      }}>
-        <div style={{ height: '1px', flex: 1, background: '#E5E7EB' }} />
-        <span style={{ fontSize: '13px', color: T.textMuted, fontWeight: 600 }}>
-          You'll pay{' '}
-          <span style={{ color: '#00D632', fontWeight: 900, fontFamily: '"JetBrains Mono",monospace' }}>
-            ${total}
-          </span>
-        </span>
-        <div style={{ height: '1px', flex: 1, background: '#E5E7EB' }} />
-      </div>
-
-      {/* Open Cash App & Pay button */}
-      <button
-        onClick={onClick}
-        disabled={loading}
-        style={{
-          width: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '14px',
-          padding: '19px 24px',
-          borderRadius: '20px',
-          border: 'none',
-          background: loading
-            ? 'linear-gradient(135deg,#00b82b,#009e25)'
-            : 'linear-gradient(135deg,#00D632,#00b82b)',
-          cursor: loading ? 'not-allowed' : 'pointer',
-          boxShadow: loading ? 'none' : '0 10px 32px rgba(0,214,50,.40)',
-          transition: 'all 0.22s ease',
-          transform: loading ? 'scale(0.98)' : 'scale(1)',
-        }}
-      >
-        {loading ? (
-          <>
-            <Loader2 size={22} color="#fff" className="spin" />
-            <span style={{ fontSize: '17px', fontWeight: 800, color: '#fff', fontFamily: '"Outfit",system-ui,sans-serif' }}>
-              Opening Cash App...
-            </span>
-          </>
-        ) : (
-          <>
-            {/* $ badge */}
-            <div style={{
-              width: '36px', height: '36px',
-              background: '#fff',
-              borderRadius: '11px',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0,
-              boxShadow: '0 2px 10px rgba(0,0,0,.14)',
-            }}>
-              <span style={{ fontSize: '22px', fontWeight: 900, color: '#00D632', fontFamily: 'system-ui', lineHeight: 1 }}>$</span>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-              <span style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(255,255,255,.75)', letterSpacing: '1px', textTransform: 'uppercase', lineHeight: 1, marginBottom: '3px' }}>
-                Tap to pay
-              </span>
-              <span style={{ fontSize: '18px', fontWeight: 900, color: '#fff', fontFamily: '"Outfit",system-ui,sans-serif', letterSpacing: '-0.3px', lineHeight: 1 }}>
-                Open Cash App &amp; Pay
-              </span>
-            </div>
-
-            {/* Phone icon on the right */}
-            <div style={{ marginLeft: 'auto', background: 'rgba(255,255,255,.2)', borderRadius: '10px', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Smartphone size={18} color="#fff" />
-            </div>
-          </>
-        )}
-      </button>
-
-      {/* Security note */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginTop: '14px' }}>
-        <ShieldCheck size={13} color={T.textMuted} />
-        <span style={{ fontSize: '11.5px', color: T.textMuted, fontWeight: 500 }}>
-          Opens Cash App on your device to confirm payment
-        </span>
-      </div>
-    </div>
-  );
-}
-
-/* ── Main Payment Modal ──────────────────────────────── */
-export default function PaymentModal({
+/* ── Inner Modal ─────────────────────────────────────── */
+function PaymentModalInner({
   bookingPayload,
   selectedPayment,
   setSelectedPayment,
   onClose,
   onSuccess,
 }) {
+  const stripe = useStripe();
+
   const [cashLoading, setCashLoading] = useState(false);
   const [topError,    setTopError]    = useState('');
 
@@ -239,22 +171,22 @@ export default function PaymentModal({
     setTopError('');
     setCashLoading(true);
     try {
-      const res = await fetch('https://cashapppayment-j2jspuowha-uc.a.run.app', {
+      const res = await fetch('https://cashapppayment-ady2s2xhhq-uc.a.run.app', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fareData: {
-            ...bookingPayload,
-            total:       bookingPayload.fareEstimate,
-            miles:       bookingPayload.tripDistanceMiles,
-            durationMin: bookingPayload.tripDurationMin,
-          },
-        }),
+        body: JSON.stringify({ bookingPayload }),
       });
 
       const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.message || 'Cash App payment failed.');
-      onSuccess?.({ method: 'cash', rideId: data.rideId });
+      if (!res.ok || !data.clientSecret) throw new Error(data.message || 'Failed to initiate Cash App payment.');
+
+      const { error: stripeError } = await stripe.confirmCashappPayment(data.clientSecret, {
+        payment_method: { cashapp: {} },
+        return_url: `${window.location.origin}/payment/success?rideId=${data.rideId}`,
+      });
+
+      if (stripeError) throw new Error(stripeError.message || 'Cash App payment failed.');
+      onSuccess?.({ method: 'cashapp', rideId: data.rideId });
 
     } catch (err) {
       setTopError(err.message || 'Cash App payment failed.');
@@ -283,9 +215,8 @@ export default function PaymentModal({
 
           <div className="sheet-handle" />
 
-          <div className="sheet-scroll" style={{ flex: 1 }}>
+          <div className="sheet-scroll" style={{ flex: 1, paddingBottom: '24px' }}>
 
-            {/* Close */}
             <button onClick={onClose} style={{ position: 'absolute', top: '18px', right: '18px', width: '38px', height: '38px', borderRadius: '12px', border: 'none', background: '#F3F4F6', color: T.textMuted, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
               <X size={18} />
             </button>
@@ -312,10 +243,13 @@ export default function PaymentModal({
                 const isActive = selectedPayment === opt.id;
                 return (
                   <button key={opt.id} type="button" onClick={() => handleSelectPayment(opt.id)}
-                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '14px', padding: '14px', borderRadius: '18px', background: isActive ? `${opt.color}12` : '#FFFFFF', cursor: 'pointer', border: isActive ? `1.8px solid ${opt.color}` : `1.5px solid ${T.accentBorder}`, transition: 'all 0.2s ease', boxShadow: isActive ? `0 8px 24px ${opt.color}14` : '0 2px 8px rgba(0,0,0,.03)' }}
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '14px', padding: '14px', borderRadius: '18px', background: isActive ? `${opt.color}12` : '#FFFFFF', cursor: 'pointer', border: isActive ? `1.8px solid ${opt.color}` : '1.5px solid #E5E7EB', transition: 'all 0.2s ease', boxShadow: isActive ? `0 8px 24px ${opt.color}14` : '0 2px 8px rgba(0,0,0,.03)' }}
                   >
                     <div style={{ width: '50px', height: '50px', borderRadius: '15px', background: isActive ? `${opt.color}18` : '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      {opt.id === 'card' ? <CreditCard size={22} color={isActive ? opt.color : '#9CA3AF'} /> : <CashAppIcon size={22} color={isActive ? opt.color : '#9CA3AF'} />}
+                      {opt.id === 'card'
+                        ? <CreditCard size={22} color={isActive ? opt.color : '#9CA3AF'} />
+                        : <span style={{ fontSize: '22px', fontWeight: 900, color: isActive ? opt.color : '#9CA3AF', fontFamily: 'system-ui' }}>$</span>
+                      }
                     </div>
                     <div style={{ flex: 1, textAlign: 'left' }}>
                       <div style={{ fontSize: '15px', fontWeight: 800, color: T.text, marginBottom: '2px' }}>{opt.label}</div>
@@ -333,12 +267,12 @@ export default function PaymentModal({
             </div>
 
             {/* Fare summary */}
-            <div style={{ background: 'linear-gradient(135deg,#F0FDF4,#DCFCE7)', border: `1.5px solid ${T.accentBorder}`, borderRadius: '20px', padding: '18px 20px', marginBottom: '18px', boxShadow: '0 8px 24px rgba(22,163,74,.08)' }}>
+            <div style={{ background: 'linear-gradient(135deg,#F0FDF4,#DCFCE7)', border: '1.5px solid #BBF7D0', borderRadius: '20px', padding: '18px 20px', marginBottom: '18px', boxShadow: '0 8px 24px rgba(22,163,74,.08)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                 <div>
                   <div style={{ fontSize: '11px', color: T.textMuted, fontWeight: 800, letterSpacing: '.8px', textTransform: 'uppercase' }}>Trip Total</div>
                   <div style={{ fontSize: '13px', color: T.textMuted, marginTop: '6px', lineHeight: 1.5 }}>
-                    {PRICING[rideType]?.label || 'Ride'} · {miles} mi · ~{durationMin} min
+                    {rideType.charAt(0).toUpperCase() + rideType.slice(1)} · {miles} mi · ~{durationMin} min
                   </div>
                 </div>
                 <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: '34px', fontWeight: 800, color: T.accent, letterSpacing: '-1px' }}>
@@ -350,29 +284,90 @@ export default function PaymentModal({
               </div>
             </div>
 
-            {/* Card form */}
+            {/* ── Card UI ───────────────────────────────────── */}
             {selectedPayment === 'card' && (
-              <Elements stripe={stripePromise}>
-                <CardForm
-                  bookingPayload={bookingPayload}
-                  onSuccess={(result) => { onSuccess?.(result); onClose?.(); }}
-                  onError={(msg) => setTopError(msg)}
-                />
-              </Elements>
+              <CardForm
+                bookingPayload={bookingPayload}
+                onSuccess={(result) => { onSuccess?.(result); onClose?.(); }}
+                onError={(msg) => setTopError(msg)}
+              />
             )}
 
-            {/* Cash App section */}
-            {selectedPayment === 'cash' && (
-              <CashAppSection
-                total={total}
-                loading={cashLoading}
-                onClick={handleConfirmCash}
-              />
+            {/* ── Cash App UI ───────────────────────────────── */}
+            {selectedPayment === 'cashapp' && (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '20px' }}>
+                  <div style={{ height: '1px', flex: 1, background: '#E5E7EB' }} />
+                  <span style={{ fontSize: '13px', color: T.textMuted, fontWeight: 600 }}>
+                    You'll pay{' '}
+                    <span style={{ color: '#00D632', fontWeight: 900, fontFamily: '"JetBrains Mono",monospace' }}>
+                      ${total}
+                    </span>
+                  </span>
+                  <div style={{ height: '1px', flex: 1, background: '#E5E7EB' }} />
+                </div>
+
+                <button
+                  onClick={handleConfirmCash}
+                  disabled={cashLoading}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    gap: '14px', padding: '19px 24px', borderRadius: '20px', border: 'none',
+                    background: cashLoading ? 'linear-gradient(135deg,#00b82b,#009e25)' : 'linear-gradient(135deg,#00D632,#00b82b)',
+                    cursor: cashLoading ? 'not-allowed' : 'pointer',
+                    boxShadow: cashLoading ? 'none' : '0 10px 32px rgba(0,214,50,.40)',
+                    transition: 'all 0.22s ease',
+                    transform: cashLoading ? 'scale(0.98)' : 'scale(1)',
+                  }}
+                >
+                  {cashLoading ? (
+                    <>
+                      <Loader2 size={22} color="#fff" className="spin" />
+                      <span style={{ fontSize: '17px', fontWeight: 800, color: '#fff', fontFamily: '"Outfit",system-ui,sans-serif' }}>
+                        Opening Cash App...
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ width: '36px', height: '36px', background: '#fff', borderRadius: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 2px 10px rgba(0,0,0,.14)' }}>
+                        <span style={{ fontSize: '22px', fontWeight: 900, color: '#00D632', fontFamily: 'system-ui', lineHeight: 1 }}>$</span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                        <span style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(255,255,255,.75)', letterSpacing: '1px', textTransform: 'uppercase', lineHeight: 1, marginBottom: '3px' }}>
+                          Tap to pay
+                        </span>
+                        <span style={{ fontSize: '18px', fontWeight: 900, color: '#fff', fontFamily: '"Outfit",system-ui,sans-serif', letterSpacing: '-0.3px', lineHeight: 1 }}>
+                          Open Cash App &amp; Pay
+                        </span>
+                      </div>
+                      <div style={{ marginLeft: 'auto', background: 'rgba(255,255,255,.2)', borderRadius: '10px', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Smartphone size={18} color="#fff" />
+                      </div>
+                    </>
+                  )}
+                </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginTop: '14px' }}>
+                  <ShieldCheck size={13} color={T.textMuted} />
+                  <span style={{ fontSize: '11.5px', color: T.textMuted, fontWeight: 500 }}>
+                    Opens Cash App on your device to confirm payment
+                  </span>
+                </div>
+              </>
             )}
 
           </div>
         </div>
       </div>
     </>
+  );
+}
+
+/* ── Default export ──────────────────────────────────── */
+export default function PaymentModal(props) {
+  return (
+    <Elements stripe={stripePromise}>
+      <PaymentModalInner {...props} />
+    </Elements>
   );
 }
