@@ -21,7 +21,7 @@ const T = {
 const ROUTE_URL        = 'https://atob-ady2s2xhhq-uc.a.run.app';
 const PRICE_URL        = 'https://price-ady2s2xhhq-uc.a.run.app';
 const AUTOCOMPLETE_URL = 'https://autocomplete-ady2s2xhhq-uc.a.run.app';
-const REVERSE_GEO_URL  = 'https://reversegeo-ady2s2xhhq-uc.a.run.app';
+const REVERSE_GEO_URL  = 'https://geo-ady2s2xhhq-uc.a.run.app';
 
 // ── localStorage ─────────────────────────────────────────
 const LS_BOOKING_KEY = 'uatob_booking_form';
