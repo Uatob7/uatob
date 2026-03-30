@@ -1,6 +1,6 @@
 // src/App/PaymentModal.jsx
 import React, { useMemo, useState } from 'react';
-import { X, CreditCard, Check, Loader2, ShieldCheck, Wallet } from 'lucide-react';
+import { X, CreditCard, Check, Loader2, ShieldCheck, Wallet, ExternalLink } from 'lucide-react';
 import { CashAppIcon } from '@/App/Brand.jsx';
 import { PAYMENT_METHODS, PRICING, THEME as T } from '@/App/pricing.js';
 import { loadStripe } from '@stripe/stripe-js';
@@ -43,7 +43,6 @@ function CardForm({ bookingPayload, onSuccess, onError }) {
     e.preventDefault();
     setError('');
     if (!stripe || !elements) return;
-
     setLoading(true);
 
     try {
@@ -72,7 +71,6 @@ function CardForm({ bookingPayload, onSuccess, onError }) {
       });
 
       const data = await res.json();
-
       if (!res.ok || !data.success) throw new Error(data.message || 'Card payment failed.');
 
       onSuccess?.({ method: 'card', rideId: data.rideId, paymentIntent: data.paymentIntent || null });
@@ -88,16 +86,12 @@ function CardForm({ bookingPayload, onSuccess, onError }) {
 
   return (
     <form onSubmit={handleSubmit} style={{ marginTop: '16px' }}>
-      <div
-        style={{
-          border: `1.5px solid ${error ? '#FCA5A5' : cardReady ? '#BBF7D0' : T.accentBorder}`,
-          borderRadius: '16px',
-          background: '#fff',
-          padding: '16px 14px',
-          boxShadow: cardReady ? '0 6px 18px rgba(22,163,74,.06)' : 'none',
-          transition: 'all .2s ease',
-        }}
-      >
+      <div style={{
+        border: `1.5px solid ${error ? '#FCA5A5' : cardReady ? '#BBF7D0' : T.accentBorder}`,
+        borderRadius: '16px', background: '#fff', padding: '16px 14px',
+        boxShadow: cardReady ? '0 6px 18px rgba(22,163,74,.06)' : 'none',
+        transition: 'all .2s ease',
+      }}>
         <div style={{ fontSize: '12px', fontWeight: 700, color: T.textMuted, marginBottom: '10px', letterSpacing: '.5px', textTransform: 'uppercase' }}>
           Card Details
         </div>
@@ -121,23 +115,88 @@ function CardForm({ bookingPayload, onSuccess, onError }) {
         type="submit"
         disabled={!stripe || !cardComplete || loading}
         className="cta-btn"
-        style={{
-          width: '100%',
-          marginTop: '16px',
-          opacity: !stripe || !cardComplete || loading ? 0.7 : 1,
-          cursor: !stripe || !cardComplete || loading ? 'not-allowed' : 'pointer',
-        }}
+        style={{ width: '100%', marginTop: '16px', opacity: !stripe || !cardComplete || loading ? 0.7 : 1, cursor: !stripe || !cardComplete || loading ? 'not-allowed' : 'pointer' }}
       >
         {loading ? (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-            <Loader2 size={18} className="spin" />
-            Processing Payment...
+            <Loader2 size={18} className="spin" /> Processing Payment...
           </span>
-        ) : (
-          `Confirm & Pay · $${total}`
-        )}
+        ) : `Confirm & Pay · $${total}`}
       </button>
     </form>
+  );
+}
+
+/* ── Cash App Pay Button ─────────────────────────────── */
+function CashAppPayButton({ total, loading, onClick }) {
+  return (
+    <div style={{ marginTop: '16px' }}>
+
+      {/* Info text */}
+      <p style={{ fontSize: '13px', color: T.textMuted, textAlign: 'center', marginBottom: '16px', lineHeight: 1.6 }}>
+        Complete your payment of{' '}
+        <span style={{ fontWeight: 800, color: T.text, fontFamily: '"JetBrains Mono",monospace' }}>${total}</span>{' '}
+        securely through Cash App.
+      </p>
+
+      {/* Branded green button */}
+      <button
+        onClick={onClick}
+        disabled={loading}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '12px',
+          padding: '18px 24px',
+          borderRadius: '18px',
+          border: 'none',
+          background: loading ? '#00b82b' : '#00D632',
+          cursor: loading ? 'not-allowed' : 'pointer',
+          boxShadow: loading ? 'none' : '0 8px 28px rgba(0,214,50,.38)',
+          transition: 'all 0.2s ease',
+          transform: loading ? 'scale(0.98)' : 'scale(1)',
+        }}
+      >
+        {loading ? (
+          <>
+            <Loader2 size={20} color="#fff" className="spin" />
+            <span style={{ fontSize: '16px', fontWeight: 800, color: '#fff', fontFamily: '"Outfit",system-ui,sans-serif' }}>
+              Processing...
+            </span>
+          </>
+        ) : (
+          <>
+            {/* White $ badge */}
+            <div style={{
+              width: '34px', height: '34px',
+              background: '#fff',
+              borderRadius: '10px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+              boxShadow: '0 2px 8px rgba(0,0,0,.12)',
+            }}>
+              <span style={{ fontSize: '20px', fontWeight: 900, color: '#00D632', fontFamily: 'system-ui', lineHeight: 1 }}>$</span>
+            </div>
+
+            <span style={{ fontSize: '17px', fontWeight: 800, color: '#fff', fontFamily: '"Outfit",system-ui,sans-serif', letterSpacing: '-0.2px' }}>
+              Pay with Cash App
+            </span>
+
+            <ExternalLink size={16} color="rgba(255,255,255,.65)" style={{ marginLeft: 'auto' }} />
+          </>
+        )}
+      </button>
+
+      {/* Security note */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginTop: '12px', marginBottom: '4px' }}>
+        <ShieldCheck size={13} color={T.textMuted} />
+        <span style={{ fontSize: '11.5px', color: T.textMuted, fontWeight: 500 }}>
+          Secured by Cash App · Redirects to confirm payment
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -165,7 +224,6 @@ export default function PaymentModal({
   const handleConfirmCash = async () => {
     setTopError('');
     setCashLoading(true);
-
     try {
       const res = await fetch('https://cashapppayment-j2jspuowha-uc.a.run.app', {
         method: 'POST',
@@ -182,7 +240,6 @@ export default function PaymentModal({
 
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.message || 'Cash App payment failed.');
-
       onSuccess?.({ method: 'cash', rideId: data.rideId });
 
     } catch (err) {
@@ -197,111 +254,35 @@ export default function PaymentModal({
       <style>{`
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-
         @keyframes sheetUp {
           from { transform: translateY(100%); opacity: 0; }
           to   { transform: translateY(0);    opacity: 1; }
         }
-        .payment-sheet {
-          animation: sheetUp 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards;
-        }
-
-        /* Drag handle */
-        .sheet-handle {
-          width: 40px; height: 4px;
-          background: #D1D5DB;
-          border-radius: 99px;
-          margin: 0 auto 20px;
-        }
-
-        /* Scrollable inner */
-        .sheet-scroll {
-          overflow-y: auto;
-          -webkit-overflow-scrolling: touch;
-          overscroll-behavior: contain;
-        }
+        .payment-sheet { animation: sheetUp 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards; }
+        .sheet-handle { width: 40px; height: 4px; background: #D1D5DB; border-radius: 99px; margin: 0 auto 20px; }
+        .sheet-scroll { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
         .sheet-scroll::-webkit-scrollbar { display: none; }
       `}</style>
 
-      {/* Overlay */}
-      <div
-        onClick={onClose}
-        style={{
-          position: 'fixed',
-          inset: 0,
-          minHeight: '100dvh',
-          background: 'rgba(0,0,0,.5)',
-          backdropFilter: 'blur(6px)',
-          WebkitBackdropFilter: 'blur(6px)',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'flex-end',
-          alignItems: 'center',
-          zIndex: 999,
-        }}
-      >
-        {/* Sheet */}
-        <div
-          className="payment-sheet"
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            width: '100%',
-            maxWidth: '560px',
-            maxHeight: '92dvh',
-            background: 'linear-gradient(180deg, #FFFFFF 0%, #FAFAFA 100%)',
-            borderRadius: '26px 26px 0 0',
-            paddingTop: '14px',
-            paddingLeft: '24px',
-            paddingRight: '24px',
-            paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 24px)',
-            boxShadow: '0 -12px 60px rgba(0,0,0,0.18)',
-            border: '1px solid rgba(229,231,235,.9)',
-            borderBottom: 'none',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
-          {/* Drag handle */}
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, minHeight: '100dvh', background: 'rgba(0,0,0,.5)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', zIndex: 999 }}>
+        <div className="payment-sheet" onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: '560px', maxHeight: '92dvh', background: 'linear-gradient(180deg,#FFFFFF 0%,#FAFAFA 100%)', borderRadius: '26px 26px 0 0', paddingTop: '14px', paddingLeft: '24px', paddingRight: '24px', paddingBottom: 'max(env(safe-area-inset-bottom,0px),24px)', boxShadow: '0 -12px 60px rgba(0,0,0,0.18)', border: '1px solid rgba(229,231,235,.9)', borderBottom: 'none', display: 'flex', flexDirection: 'column' }}>
+
           <div className="sheet-handle" />
 
-          {/* Scrollable content */}
           <div className="sheet-scroll" style={{ flex: 1 }}>
 
-            {/* Close button */}
-            <button
-              onClick={onClose}
-              style={{
-                position: 'absolute',
-                top: '18px',
-                right: '18px',
-                width: '38px',
-                height: '38px',
-                borderRadius: '12px',
-                border: 'none',
-                background: '#F3F4F6',
-                color: T.textMuted,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                flexShrink: 0,
-              }}
-            >
+            {/* Close */}
+            <button onClick={onClose} style={{ position: 'absolute', top: '18px', right: '18px', width: '38px', height: '38px', borderRadius: '12px', border: 'none', background: '#F3F4F6', color: T.textMuted, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
               <X size={18} />
             </button>
 
             {/* Header */}
             <div style={{ marginBottom: '22px' }}>
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#ECFDF5', border: '1px solid #BBF7D0', color: '#166534', borderRadius: '999px', padding: '6px 12px', fontSize: '11px', fontWeight: 800, letterSpacing: '.7px', textTransform: 'uppercase', marginBottom: '14px' }}>
-                <ShieldCheck size={14} />
-                Secure Checkout
+                <ShieldCheck size={14} /> Secure Checkout
               </div>
-              <h3 style={{ fontSize: '28px', fontWeight: 900, color: T.text, marginBottom: '6px', letterSpacing: '-0.8px' }}>
-                Payment
-              </h3>
-              <p style={{ fontSize: '14px', color: T.textMuted, lineHeight: 1.6 }}>
-                Choose how you want to pay before we assign your driver.
-              </p>
+              <h3 style={{ fontSize: '28px', fontWeight: 900, color: T.text, marginBottom: '6px', letterSpacing: '-0.8px' }}>Payment</h3>
+              <p style={{ fontSize: '14px', color: T.textMuted, lineHeight: 1.6 }}>Choose how you want to pay before we assign your driver.</p>
             </div>
 
             {/* Top error */}
@@ -316,35 +297,22 @@ export default function PaymentModal({
               {PAYMENT_METHODS.map((opt) => {
                 const isActive = selectedPayment === opt.id;
                 return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => handleSelectPayment(opt.id)}
-                    style={{
-                      width: '100%', display: 'flex', alignItems: 'center', gap: '14px', padding: '14px',
-                      borderRadius: '18px', background: isActive ? `${opt.color}12` : '#FFFFFF', cursor: 'pointer',
-                      border: isActive ? `1.8px solid ${opt.color}` : `1.5px solid ${T.accentBorder}`,
-                      transition: 'all 0.2s ease', boxShadow: isActive ? `0 8px 24px ${opt.color}14` : '0 2px 8px rgba(0,0,0,.03)',
-                    }}
+                  <button key={opt.id} type="button" onClick={() => handleSelectPayment(opt.id)}
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '14px', padding: '14px', borderRadius: '18px', background: isActive ? `${opt.color}12` : '#FFFFFF', cursor: 'pointer', border: isActive ? `1.8px solid ${opt.color}` : `1.5px solid ${T.accentBorder}`, transition: 'all 0.2s ease', boxShadow: isActive ? `0 8px 24px ${opt.color}14` : '0 2px 8px rgba(0,0,0,.03)' }}
                   >
                     <div style={{ width: '50px', height: '50px', borderRadius: '15px', background: isActive ? `${opt.color}18` : '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      {opt.id === 'card'
-                        ? <CreditCard size={22} color={isActive ? opt.color : '#9CA3AF'} />
-                        : <CashAppIcon size={22} color={isActive ? opt.color : '#9CA3AF'} />}
+                      {opt.id === 'card' ? <CreditCard size={22} color={isActive ? opt.color : '#9CA3AF'} /> : <CashAppIcon size={22} color={isActive ? opt.color : '#9CA3AF'} />}
                     </div>
                     <div style={{ flex: 1, textAlign: 'left' }}>
                       <div style={{ fontSize: '15px', fontWeight: 800, color: T.text, marginBottom: '2px' }}>{opt.label}</div>
                       <div style={{ fontSize: '12px', color: T.textMuted, lineHeight: 1.4 }}>
-                        {opt.id === 'card' ? 'Enter your card securely and pay instantly' : 'Tap confirm to continue with Cash App'}
+                        {opt.id === 'card' ? 'Enter your card securely and pay instantly' : 'Pay instantly through the Cash App'}
                       </div>
                     </div>
-                    {isActive ? (
-                      <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: opt.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: `0 6px 16px ${opt.color}40` }}>
-                        <Check size={13} color="#fff" strokeWidth={3} />
-                      </div>
-                    ) : (
-                      <div style={{ width: '24px', height: '24px', borderRadius: '50%', border: '2px solid #D1D5DB', flexShrink: 0 }} />
-                    )}
+                    {isActive
+                      ? <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: opt.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: `0 6px 16px ${opt.color}40` }}><Check size={13} color="#fff" strokeWidth={3} /></div>
+                      : <div style={{ width: '24px', height: '24px', borderRadius: '50%', border: '2px solid #D1D5DB', flexShrink: 0 }} />
+                    }
                   </button>
                 );
               })}
@@ -364,8 +332,7 @@ export default function PaymentModal({
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#166534', fontSize: '12px', fontWeight: 700 }}>
-                <Wallet size={14} />
-                Payment is processed before driver assignment
+                <Wallet size={14} /> Payment is processed before driver assignment
               </div>
             </div>
 
@@ -380,27 +347,18 @@ export default function PaymentModal({
               </Elements>
             )}
 
-            {/* Cash App button */}
+            {/* Cash App branded button */}
             {selectedPayment === 'cash' && (
-              <button
-                className="cta-btn"
+              <CashAppPayButton
+                total={total}
+                loading={cashLoading}
                 onClick={handleConfirmCash}
-                disabled={cashLoading}
-                style={{ width: '100%', padding: '15px 18px', borderRadius: '16px', fontWeight: 800, marginTop: '6px', opacity: cashLoading ? 0.8 : 1, cursor: cashLoading ? 'not-allowed' : 'pointer' }}
-              >
-                {cashLoading ? (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                    <Loader2 size={18} className="spin" /> Processing Cash App...
-                  </span>
-                ) : (
-                  `Confirm & Pay · $${total} via Cash App`
-                )}
-              </button>
+              />
             )}
 
-          </div>{/* end sheet-scroll */}
-        </div>{/* end sheet */}
-      </div>{/* end overlay */}
+          </div>
+        </div>
+      </div>
     </>
   );
 }
