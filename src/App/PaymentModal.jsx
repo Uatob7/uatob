@@ -183,7 +183,7 @@ function PaymentModalInner({
 
       const { error: stripeError } = await stripe.confirmCashappPayment(data.clientSecret, {
         payment_method: { cashapp: {} },
-        return_url: `${window.location.origin}`,
+        return_url: 'https://www.uatob.com',
       });
 
       if (stripeError) throw new Error(stripeError.message || 'Cash App payment failed.');
