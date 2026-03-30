@@ -2,57 +2,39 @@
 import React, { useState, useEffect } from 'react';
 import { Route } from 'lucide-react';
 
-import { THEME as T } from '@/App/pricing.js';
-import CSS from '@/App/styles.js';
-import { useRideTracking } from '@/App/useRideTracking.js';
-import { UaTobWordmark } from '@/App/Brand.jsx';
-import MapView from '@/App/MapView.jsx';
-import BookingPanel from '@/App/BookingPanel.jsx';
-import LiveTrackingPanel from '@/App/LiveTrackingPanel.jsx';
-import AuthModal from '@/App/AuthModal.jsx';
-import PaymentModal from '@/App/PaymentModal.jsx';
-import ConfirmationModal from '@/App/ConfirmationModal.jsx';
+import { THEME as T } from '@/App/UaTob/pricing.js';
+import CSS from '@/App/UaTob/styles.js';
+import { useRideTracking } from '@/App/UaTob/useRideTracking.js';
+import { UaTobWordmark } from '@/App/UaTob/Brand.jsx';
+import MapView from '@/App/UaTob/MapView.jsx';
+import BookingPanel from '@/App/UaTob/BookingPanel.jsx';
+import LiveTrackingPanel from '@/App/UaTob/LiveTrackingPanel.jsx';
+import AuthModal from '@/App/UaTob/AuthModal.jsx';
+import PaymentModal from '@/App/UaTob/PaymentModal.jsx';
+import ConfirmationModal from '@/App/UaTob/ConfirmationModal.jsx';
 import { useAuthContext } from '@/context/AuthContext';
 import signIn from '@/firebase/auth/signin';
 import signUp from '@/firebase/auth/signup';
+import { useUserRides } from '@/App/UaTob/useUserRides';
 
 // ── localStorage helpers ───────────────────────────────
 const LS_KEY = 'uatob_session';
 
-function saveSession(data) {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify(data));
-  } catch (_) {}
-}
-
-function loadSession() {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch (_) {
-    return null;
-  }
-}
-
-function clearSession() {
-  try {
-    localStorage.removeItem(LS_KEY);
-  } catch (_) {}
-}
+function saveSession(data)  { try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch (_) {} }
+function loadSession()      { try { const raw = localStorage.getItem(LS_KEY); return raw ? JSON.parse(raw) : null; } catch (_) { return null; } }
+function clearSession()     { try { localStorage.removeItem(LS_KEY); } catch (_) {} }
 
 export default function UaTobApp({ uid }) {
-  console.log(uid);
+  const { uid: authUid } = useAuthContext();
+  const { rides, loading: ridesLoading } = useUserRides(authUid ?? uid);
 
   // ── Restore session from localStorage ─────────────────
   const saved = loadSession();
 
   // ── Booking ────────────────────────────────────────────
   const [bookingPayload,  setBookingPayload]  = useState(saved?.bookingPayload  ?? null);
-
-
   const [pickupCoords,    setPickupCoords]    = useState(saved?.pickupCoords    ?? null);
   const [dropoffCoords,   setDropoffCoords]   = useState(saved?.dropoffCoords   ?? null);
-  const { uid: authUid } = useAuthContext();
 
   // ── Auth ───────────────────────────────────────────────
   const [showAuth,        setShowAuth]        = useState(false);
@@ -78,28 +60,11 @@ export default function UaTobApp({ uid }) {
   // ── Persist session whenever key state changes ─────────
   useEffect(() => {
     if (bookingPayload) {
-      saveSession({
-        bookingPayload,
-        pickupCoords,
-        dropoffCoords,
-        showPayment,
-        selectedPayment,
-        showConfirm,
-        confirmedRideId,
-      });
+      saveSession({ bookingPayload, pickupCoords, dropoffCoords, showPayment, selectedPayment, showConfirm, confirmedRideId });
     } else {
-      // Nothing to save — wipe it
       clearSession();
     }
-  }, [
-    bookingPayload,
-    pickupCoords,
-    dropoffCoords,
-    showPayment,
-    selectedPayment,
-    showConfirm,
-    confirmedRideId,
-  ]);
+  }, [bookingPayload, pickupCoords, dropoffCoords, showPayment, selectedPayment, showConfirm, confirmedRideId]);
 
   // ── Ride tracking ──────────────────────────────────────
   const tracking = useRideTracking({
@@ -107,21 +72,10 @@ export default function UaTobApp({ uid }) {
     dropoffCoords,
     selectedRide: bookingPayload?.rideType ?? 'standard',
     fareData: bookingPayload
-      ? {
-          total:           bookingPayload.fareEstimate,
-          breakdown:       bookingPayload.breakdown       || {},
-          surgeMultiplier: bookingPayload.surgeMultiplier || 1,
-          allQuotes:       bookingPayload.allQuotes       || {},
-          rideType:        bookingPayload.rideType,
-        }
+      ? { total: bookingPayload.fareEstimate, breakdown: bookingPayload.breakdown || {}, surgeMultiplier: bookingPayload.surgeMultiplier || 1, allQuotes: bookingPayload.allQuotes || {}, rideType: bookingPayload.rideType }
       : null,
     tripData: bookingPayload
-      ? {
-          miles:       bookingPayload.tripDistanceMiles,
-          durationMin: bookingPayload.tripDurationMin,
-          pickup:      bookingPayload.pickup,
-          dropoff:     bookingPayload.dropoff,
-        }
+      ? { miles: bookingPayload.tripDistanceMiles, durationMin: bookingPayload.tripDurationMin, pickup: bookingPayload.pickup, dropoff: bookingPayload.dropoff }
       : null,
     onComplete: () => {
       setBookingPayload(null);
@@ -134,25 +88,47 @@ export default function UaTobApp({ uid }) {
     },
   });
 
+  // ── Reopen ConfirmationModal for unfinished rides ──────
+  useEffect(() => {
+    if (ridesLoading || rides.length === 0) return;
+    if (showConfirm || showPayment || tracking.isTracking) return;
+
+    const pending = rides.find(
+      (r) => r.paymentStatus === 'succeeded' && r.status !== 'completed' && r.status !== 'cancelled'
+    );
+
+    if (pending) {
+      setConfirmedRideId(pending.id);
+      setShowConfirm(true);
+
+      if (!bookingPayload) {
+        setBookingPayload({
+          pickup:            pending.pickup,
+          dropoff:           pending.dropoff,
+          fareEstimate:      pending.fareTotal,
+          breakdown:         pending.fareBreakdown   || {},
+          surgeMultiplier:   pending.surgeMultiplier || 1,
+          rideType:          pending.rideType,
+          rideLabel:         pending.rideLabel,
+          tripDistanceMiles: pending.tripDistanceMiles,
+          tripDurationMin:   pending.tripDurationMin,
+          allQuotes:         {},
+        });
+      }
+    }
+  }, [ridesLoading, rides]);
+
   // ── Auth submit ────────────────────────────────────────
   const handleAuth = async (e) => {
     e.preventDefault();
     setAuthLoading(true);
     setAuthError('');
-
     try {
-      let authResult;
+      const authResult = authMode === 'login'
+        ? await signIn(email, password)
+        : await signUp(email, password);
 
-      if (authMode === 'login') {
-        authResult = await signIn(email, password);
-      } else {
-        authResult = await signUp(email, password);
-      }
-
-      if (authResult.error) {
-        throw new Error(authResult.error.message || 'Authentication failed');
-      }
-
+      if (authResult.error) throw new Error(authResult.error.message || 'Authentication failed');
       setShowAuth(false);
       setShowPayment(true);
     } catch (err) {
@@ -183,7 +159,6 @@ export default function UaTobApp({ uid }) {
 
   // ── Payment success ────────────────────────────────────
   const handlePaymentSuccess = (result) => {
-    console.log('[UaTobApp] Payment success:', result);
     setShowPayment(false);
     setConfirmedRideId(result.rideId);
     setShowConfirm(true);
@@ -198,7 +173,7 @@ export default function UaTobApp({ uid }) {
     }
   };
 
-  // ── Payment cancelled during confirmation ──────────────
+  // ── Payment cancelled ──────────────────────────────────
   const handlePaymentCancelled = () => {
     setShowConfirm(false);
     setConfirmedRideId(null);
@@ -208,7 +183,7 @@ export default function UaTobApp({ uid }) {
     clearSession();
   };
 
-  // ── Retry → reset back to BookingPanel ────────────────
+  // ── Retry ──────────────────────────────────────────────
   const handleRetry = () => {
     setShowConfirm(false);
     setConfirmedRideId(null);
@@ -329,12 +304,14 @@ export default function UaTobApp({ uid }) {
       {/* ── Confirmation Modal ───────────────────────────── */}
       {showConfirm && (
         <ConfirmationModal
-          rideId={confirmedRideId}
-          fareData={bookingPayload}
-          onClose={handleConfirmClose}
-          onPaymentCancelled={handlePaymentCancelled}
-          onRetry={handleRetry}
-        />
+        rideId={confirmedRideId}
+        fareData={bookingPayload}
+        onClose={handleConfirmClose}
+        onPaymentCancelled={handlePaymentCancelled}
+        onRetry={handleRetry}
+        rides={rides}
+        ridesLoading={ridesLoading}
+     />
       )}
     </div>
   );

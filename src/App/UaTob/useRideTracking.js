@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { DRIVERS } from '@/App/locations.js';
-import { AVG_SPEED_MPH } from '@/App/pricing.js';
-import { calcMiles } from '@/App/fare.js';
+import { DRIVERS } from '@/App/UaTob/locations.js';
+import { AVG_SPEED_MPH } from '@/App/UaTob/pricing.js';
+import { calcMiles } from '@/App/UaTob/fare.js';
 
 export function useRideTracking({ pickupCoords, dropoffCoords, selectedRide, fareData }) {
   const [isTracking, setIsTracking]         = useState(false);

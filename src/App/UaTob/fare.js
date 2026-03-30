@@ -6,7 +6,7 @@ import {
   MAP_MILES_HEIGHT,
   TRAFFIC_CONDITIONS,
   ROAD_TYPES,
-} from '@/App/pricing.js';
+} from '@/App/UaTob/pricing.js';
 
 // ─────────────────────────────────────────────────────────────
 // Distance helper (only if you still use your fake map somewhere)

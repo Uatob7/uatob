@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { MapPin, Navigation, Car } from 'lucide-react';
-import { DRIVERS } from '@/App/locations.js';
+import { DRIVERS } from '@/App/UaTob/locations.js';
 
 // ── DRIVER COLOR ─────────────────────────────────────────
 function getDriverColor(type) {

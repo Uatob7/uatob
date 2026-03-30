@@ -1,6 +1,6 @@
 import React from 'react';
 import { Car, Star, Check } from 'lucide-react';
-import { THEME as T } from '@/App/pricing.js';
+import { THEME as T } from '@/App/UaTob/pricing.js';
 
 // ── DRIVER / RIDE COLORS (UI ONLY) ───────────────────────
 const RIDE_COLORS = {
