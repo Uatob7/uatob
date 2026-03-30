@@ -85,71 +85,100 @@ function LocationAlert({ onAllow, onDeny, loading, error }) {
       `}</style>
 
       {error ? (
-        /* ── Error state ── */
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
           <AlertCircle size={15} color="#DC2626" style={{ flexShrink: 0, marginTop: '1px' }} />
           <div style={{ flex: 1 }}>
             <p style={{ fontSize: '13px', color: '#DC2626', fontWeight: 600, margin: '0 0 10px' }}>{error}</p>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                onClick={onAllow}
-                style={{ flex: 1, padding: '8px 12px', borderRadius: '10px', border: 'none', background: '#DC2626', color: '#fff', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Outfit,sans-serif' }}
-              >
-                Try again
-              </button>
-              <button
-                onClick={onDeny}
-                style={{ flex: 1, padding: '8px 12px', borderRadius: '10px', border: '1.5px solid #FECACA', background: '#fff', color: '#DC2626', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Outfit,sans-serif' }}
-              >
-                Dismiss
-              </button>
+              <button onClick={onAllow} style={{ flex: 1, padding: '8px 12px', borderRadius: '10px', border: 'none', background: '#DC2626', color: '#fff', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Outfit,sans-serif' }}>Try again</button>
+              <button onClick={onDeny}  style={{ flex: 1, padding: '8px 12px', borderRadius: '10px', border: '1.5px solid #FECACA', background: '#fff', color: '#DC2626', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Outfit,sans-serif' }}>Dismiss</button>
             </div>
           </div>
         </div>
       ) : (
-        /* ── Prompt / loading state ── */
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-
-          {/* Icon */}
           <div style={{ width: '38px', height: '38px', flexShrink: 0, background: '#fff', border: '1.5px solid #BBF7D0', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {loading
-              ? <Loader2 size={16} color={T.accent} style={{ animation: 'spin 1s linear infinite' }} />
-              : <LocateFixed size={16} color={T.accent} />
-            }
+            {loading ? <Loader2 size={16} color={T.accent} style={{ animation: 'spin 1s linear infinite' }} /> : <LocateFixed size={16} color={T.accent} />}
           </div>
-
-          {/* Text */}
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ fontSize: '13px', fontWeight: 700, color: T.text, margin: '0 0 1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {loading ? 'Getting your location…' : 'Use your current location?'}
             </p>
-            {!loading && (
-              <p style={{ fontSize: '11.5px', color: T.textMuted, fontWeight: 500, margin: 0 }}>
-                Auto-fill your pickup address
-              </p>
-            )}
+            {!loading && <p style={{ fontSize: '11.5px', color: T.textMuted, fontWeight: 500, margin: 0 }}>Auto-fill your pickup address</p>}
           </div>
-
-          {/* Actions */}
           {!loading && (
             <div style={{ display: 'flex', gap: '7px', flexShrink: 0 }}>
-              <button
-                onClick={onAllow}
-                style={{ padding: '7px 13px', borderRadius: '10px', border: 'none', background: T.accent, color: '#fff', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Outfit,sans-serif', boxShadow: '0 3px 10px rgba(22,163,74,.3)' }}
-              >
-                Allow
-              </button>
-              <button
-                onClick={onDeny}
-                title="Dismiss"
-                style={{ width: '32px', height: '32px', borderRadius: '10px', border: `1.5px solid ${T.border}`, background: '#fff', color: T.textMuted, fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
-              >
+              <button onClick={onAllow} style={{ padding: '7px 13px', borderRadius: '10px', border: 'none', background: T.accent, color: '#fff', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Outfit,sans-serif', boxShadow: '0 3px 10px rgba(22,163,74,.3)' }}>Allow</button>
+              <button onClick={onDeny} title="Dismiss" style={{ width: '32px', height: '32px', borderRadius: '10px', border: `1.5px solid ${T.border}`, background: '#fff', color: T.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
                 <X size={14} />
               </button>
             </div>
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── GHOST TEXT OVERLAY ───────────────────────────────────
+// Sits behind the <input> (z-index 1 vs input's z-index 2).
+// An invisible spacer span shifts the suggestion to the correct horizontal position.
+function GhostOverlay({ value, ghostText }) {
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        position: 'absolute', inset: 0,
+        // Must match .field padding exactly: left accounts for icon button (46px), right leaves room for Tab badge
+        padding: '0 50px 0 46px',
+        display: 'flex', alignItems: 'center',
+        fontSize: 14, lineHeight: 1,
+        pointerEvents: 'none', zIndex: 1,
+        whiteSpace: 'nowrap', overflow: 'hidden',
+        fontFamily: 'inherit',
+        letterSpacing: 'inherit',
+      }}
+    >
+      {/* Invisible mirror of the already-typed text — pushes ghost to the right position */}
+      <span style={{ color: 'transparent', flexShrink: 0 }}>{value}</span>
+
+      {/* The suggestion suffix */}
+      <span style={{
+        color: '#B0B8C4',
+        borderBottom: '1.5px dashed #D1D5DB',
+        lineHeight: 1.15,
+        animation: 'ghostFadeIn .12s ease',
+        flexShrink: 1,
+        overflow: 'hidden',
+        textOverflow: 'clip',
+      }}>
+        {ghostText}
+      </span>
+    </div>
+  );
+}
+
+// ── TAB BADGE ────────────────────────────────────────────
+function TabBadge() {
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+        zIndex: 4, pointerEvents: 'none',
+        display: 'inline-flex', alignItems: 'center', gap: '3px',
+        background: '#F3F4F6',
+        border: '1px solid #E5E7EB',
+        borderRadius: '6px',
+        padding: '2px 7px 2px 6px',
+        animation: 'ghostFadeIn .12s ease',
+      }}
+    >
+      {/* Up-arrow (Tab glyph) */}
+      <svg width="9" height="10" viewBox="0 0 9 10" fill="none">
+        <path d="M1 9h7M5 7V1M3 3l2-2 2 2" stroke="#9CA3AF" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+      <span style={{ fontSize: '10px', fontWeight: 700, color: '#9CA3AF', letterSpacing: '0.2px', fontFamily: 'ui-monospace, monospace' }}>Tab</span>
     </div>
   );
 }
@@ -164,8 +193,15 @@ function PlaceInput({ label, icon: Icon, iconColor, placeholder, value, onChange
   const debounceRef = useRef(null);
   const isPickup    = label === 'Pickup (A)';
 
+  // Ghost only shows when focused, there's a suggestion, and no dropdown item is highlighted
+  const showGhost = !!ghostText && focused && activeIndex === -1;
+
   useEffect(() => {
-    function handler(e) { if (wrapRef.current && !wrapRef.current.contains(e.target)) { setFocused(false); setSuggestions([]); setGhostText(''); } }
+    function handler(e) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
+        setFocused(false); setSuggestions([]); setGhostText('');
+      }
+    }
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
@@ -190,10 +226,14 @@ function PlaceInput({ label, icon: Icon, iconColor, placeholder, value, onChange
     debounceRef.current = setTimeout(() => fetchSuggestions(val), 250);
   }
 
-  function handleSelect(desc) { onChange(desc); setSuggestions([]); setGhostText(''); setFocused(false); setActiveIndex(-1); }
+  function handleSelect(desc) {
+    onChange(desc); setSuggestions([]); setGhostText(''); setFocused(false); setActiveIndex(-1);
+  }
 
   function handleKeyDown(e) {
-    if ((e.key === 'Tab' || e.key === 'ArrowRight') && ghostText && activeIndex === -1) { e.preventDefault(); handleSelect(value + ghostText); return; }
+    if ((e.key === 'Tab' || e.key === 'ArrowRight') && ghostText && activeIndex === -1) {
+      e.preventDefault(); handleSelect(value + ghostText); return;
+    }
     if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIndex(i => Math.min(i + 1, suggestions.length - 1)); }
     if (e.key === 'ArrowUp')   { e.preventDefault(); setActiveIndex(i => Math.max(i - 1, -1)); }
     if (e.key === 'Enter' && activeIndex >= 0) { e.preventDefault(); handleSelect(suggestions[activeIndex].description); }
@@ -202,14 +242,17 @@ function PlaceInput({ label, icon: Icon, iconColor, placeholder, value, onChange
 
   return (
     <div ref={wrapRef}>
+      <style>{`
+        @keyframes ghostFadeIn { from { opacity: 0; } to { opacity: 1; } }
+      `}</style>
+
       <div className="lbl">{label}</div>
       <div style={{ position: 'relative' }}>
 
+        {/* Pin button (pickup) or static icon (dropoff) */}
         {isPickup && onLocationRequest ? (
           <button
-            type="button"
-            onClick={onLocationRequest}
-            title="Use my current location"
+            type="button" onClick={onLocationRequest} title="Use my current location"
             style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', zIndex: 3, background: 'none', border: 'none', padding: '4px', cursor: 'pointer', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background .15s' }}
             onMouseEnter={e => e.currentTarget.style.background = '#ECFDF5'}
             onMouseLeave={e => e.currentTarget.style.background = 'none'}
@@ -220,32 +263,47 @@ function PlaceInput({ label, icon: Icon, iconColor, placeholder, value, onChange
           <Icon size={17} color={iconColor} style={{ position: 'absolute', left: 17, top: '50%', transform: 'translateY(-50%)', zIndex: 3, pointerEvents: 'none' }} />
         )}
 
-        {ghostText && focused && (
-          <div style={{ position: 'absolute', inset: 0, padding: '0 16px 0 46px', display: 'flex', alignItems: 'center', fontSize: 14, pointerEvents: 'none', zIndex: 1, whiteSpace: 'nowrap', overflow: 'hidden' }}>
-            <span style={{ color: 'transparent' }}>{value}</span>
-            <span style={{ color: T.textMuted, opacity: 0.45 }}>{ghostText}</span>
-          </div>
-        )}
+        {/* Ghost text behind the input */}
+        {showGhost && <GhostOverlay value={value} ghostText={ghostText} />}
+
+        {/* Tab badge on the right edge */}
+        {showGhost && <TabBadge />}
 
         <input
           type="text" className="field" placeholder={placeholder} value={value}
           onChange={handleChange} onFocus={() => setFocused(true)} onKeyDown={handleKeyDown}
-          autoComplete="off" style={{ position: 'relative', zIndex: 2, background: 'transparent' }}
+          autoComplete="off"
+          style={{
+            position: 'relative', zIndex: 2, background: 'transparent',
+            // Extend right padding to prevent typed text sliding under the Tab badge
+            paddingRight: showGhost ? '54px' : undefined,
+          }}
         />
 
+        {/* Autocomplete dropdown */}
         {focused && suggestions.length > 0 && (
           <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, background: '#fff', border: `1px solid ${T.border}`, borderRadius: 14, boxShadow: '0 8px 28px rgba(0,0,0,.1)', zIndex: 100, overflow: 'hidden' }}>
             {suggestions.map((s, i) => {
               const main      = s.structured_formatting?.main_text || s.description;
               const secondary = s.structured_formatting?.secondary_text || '';
               const isActive  = i === activeIndex;
+              // Bold the portion that matches what the user typed
+              const matchEnd  = Math.min(value.length, main.length);
+              const mainBold  = main.slice(0, matchEnd);
+              const mainRest  = main.slice(matchEnd);
               return (
-                <div key={s.place_id} onMouseDown={() => handleSelect(s.description)} onMouseEnter={() => setActiveIndex(i)}
+                <div
+                  key={s.place_id}
+                  onMouseDown={() => handleSelect(s.description)}
+                  onMouseEnter={() => setActiveIndex(i)}
                   style={{ padding: '10px 16px', cursor: 'pointer', background: isActive ? T.surfaceAlt : 'transparent', borderBottom: i < suggestions.length - 1 ? `1px solid ${T.border}` : 'none', display: 'flex', alignItems: 'flex-start', gap: 10, transition: 'background .12s' }}
                 >
-                  <MapPin size={13} color={T.textMuted} style={{ marginTop: 3, flexShrink: 0 }} />
+                  <MapPin size={13} color={isActive ? T.accent : T.textMuted} style={{ marginTop: 3, flexShrink: 0, transition: 'color .12s' }} />
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{main}</div>
+                    <div style={{ fontSize: 13, color: T.text }}>
+                      <span style={{ fontWeight: 800 }}>{mainBold}</span>
+                      <span style={{ fontWeight: 500 }}>{mainRest}</span>
+                    </div>
                     {secondary && <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 1 }}>{secondary}</div>}
                   </div>
                 </div>
@@ -274,7 +332,6 @@ export default function BookingPanel({ onBookNow }) {
   const [error,         setError]         = useState('');
   const [showBreakdown, setShowBreakdown] = useState(false);
 
-  // ── Location alert state ───────────────────────────────
   const [showLocationAlert, setShowLocationAlert] = useState(false);
   const [locationLoading,   setLocationLoading]   = useState(false);
   const [locationError,     setLocationError]     = useState('');
@@ -290,7 +347,6 @@ export default function BookingPanel({ onBookNow }) {
     else clearBookingForm();
   }, [pickup, dropoff, selectedRide, tripData, quotesData]);
 
-  // ── GPS handler ────────────────────────────────────────
   const handleLocationAllow = useCallback(async () => {
     setLocationError('');
     setLocationLoading(true);
@@ -317,7 +373,6 @@ export default function BookingPanel({ onBookNow }) {
     setLocationError('');
   }, []);
 
-  // ── STEP 1: TRIP DATA ──────────────────────────────────
   useEffect(() => {
     const p = pickup.trim(), d = dropoff.trim();
     if (!p || !d) { setTripData(null); setQuotesData(null); setError(''); setLoadingTrip(false); setLoadingQuotes(false); setShowBreakdown(false); return; }
@@ -338,7 +393,6 @@ export default function BookingPanel({ onBookNow }) {
     return () => clearTimeout(timeout);
   }, [pickup, dropoff]);
 
-  // ── STEP 2: PRICES ─────────────────────────────────────
   useEffect(() => {
     if (!tripData) return;
     if (saved?.quotesData && saved?.tripData?.miles === tripData.miles) return;
@@ -379,28 +433,15 @@ export default function BookingPanel({ onBookNow }) {
       <div className="glass" style={{ padding: '26px' }}>
         <h2 style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '-0.3px', color: T.text, marginBottom: '20px' }}>Book a Ride</h2>
 
-        {/* ── Location alert banner (replaces modal) ── */}
         {(showLocationAlert || locationLoading || locationError) && (
-          <LocationAlert
-            onAllow={handleLocationAllow}
-            onDeny={handleLocationDeny}
-            loading={locationLoading}
-            error={locationError}
-          />
+          <LocationAlert onAllow={handleLocationAllow} onDeny={handleLocationDeny} loading={locationLoading} error={locationError} />
         )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
           <PlaceInput
-            label="Pickup (A)"
-            icon={MapPin}
-            iconColor={T.accent}
-            placeholder="Enter pickup address…"
-            value={pickup}
-            onChange={setPickup}
-            onLocationRequest={() => {
-              setLocationError('');
-              setShowLocationAlert(true);
-            }}
+            label="Pickup (A)" icon={MapPin} iconColor={T.accent}
+            placeholder="Enter pickup address…" value={pickup} onChange={setPickup}
+            onLocationRequest={() => { setLocationError(''); setShowLocationAlert(true); }}
           />
           <PlaceInput label="Drop-off (B)" icon={Navigation} iconColor={T.ink} placeholder="Enter destination…" value={dropoff} onChange={setDropoff} />
         </div>
