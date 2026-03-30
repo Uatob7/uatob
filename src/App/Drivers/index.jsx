@@ -1,16 +1,17 @@
-// src/App/Drivers.jsx
-import React, { useEffect, useState } from 'react';
-import {
-  getFirestore,
-  collection,
-  query,
-  where,
-  onSnapshot,
-  doc,
-  updateDoc,
-} from 'firebase/firestore';
+import { useState, useEffect, useRef } from "react";
+import { Bell, Star } from "lucide-react";
 
-const db = getFirestore();
+import CSS              from '@/App/Drivers/styles.js';
+import { C, TRIP_REQUESTS } from '@/App/Drivers/constants.js';
+import UaTobIcon        from '@/App/Drivers/Icon.jsx';
+import Notification     from '@/App/Drivers/Notification.jsx';
+import SurgeBanner      from '@/App/Drivers/SurgeBanner.jsx';
+import TripRequestModal from '@/App/Drivers/TripRequestModal.jsx';
+import BottomTabBar     from '@/App/Drivers/BottomTabBar.jsx';
+import HomeTab          from '@/App/Drivers/HomeTab.jsx';
+import EarningsTab      from '@/App/Drivers/EarningsTab.jsx';
+import TripsTab         from '@/App/Drivers/TripsTab.jsx';
+import ProfileTab       from '@/App/Drivers/ProfileTab.jsx';
 
 export default function UaTobDriverApp() {
 
