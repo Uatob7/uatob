@@ -295,7 +295,7 @@ export default function UaTobApp({ uid }) {
       )}
 
       {/* ── Confirmation Modal ───────────────────────────── */}
-      {showConfirm && (
+      {rides && (
         <ConfirmationModal
         onClose={handleConfirmClose}
         onPaymentCancelled={handlePaymentCancelled}

@@ -1,13 +1,18 @@
 // src/App/UaTob/useUserRides.js
 import { useState, useEffect } from 'react';
-import { getFirestore, collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import {
+  getFirestore,
+  collection,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+} from 'firebase/firestore';
 
 export function useUserRides(uid) {
-  const [rides,   setRides]   = useState([]);
+  const [rides, setRides] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState(null);
-
-
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!uid) {
@@ -20,18 +25,29 @@ export function useUserRides(uid) {
     setLoading(true);
     setError(null);
 
-    const db  = getFirestore();
+    const db = getFirestore();
     const col = collection(db, 'Rides');
-    const q   = query(
+
+    // ✅ ONLY ACTIVE STATUSES
+    const q = query(
       col,
       where('uid', '==', uid),
+      where('status', 'in', [
+        'pending_payment',
+        'searching_driver',
+        'driver_assigned',
+      ]),
       orderBy('createdAt', 'desc')
     );
 
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const docs = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        const docs = snap.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+
         setRides(docs);
         setLoading(false);
       },
