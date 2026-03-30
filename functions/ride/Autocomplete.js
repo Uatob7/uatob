@@ -1,44 +1,60 @@
-const express = require('express');
-const cors = require('cors');
-const fetch = require('node-fetch');
+const { onRequest } = require("firebase-functions/v2/https");
+const { defineSecret } = require("firebase-functions/params");
+const axios = require("axios");
+const cors = require("cors")({ origin: true });
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+const GOOGLE_MAPS_KEY = defineSecret("GOOGLE_MAPS_KEY");
 
-const GOOGLE_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
+exports.Autocomplete = onRequest(
+  {
+    region: "us-central1",
+    secrets: [GOOGLE_MAPS_KEY],
+  },
+  async (req, res) => {
+    return cors(req, res, async () => {
+      try {
+        if (req.method === "OPTIONS") return res.status(204).send("");
+        if (req.method !== "POST") {
+          return res.status(405).json({ error: "Method Not Allowed" });
+        }
 
-// POST /
-// body: { input: "Orlan" }
-app.post('/', async (req, res) => {
-  try {
-    const { input } = req.body;
+        const trimmed = req.body?.input?.trim();
+        if (!trimmed || trimmed.length < 3) {
+          return res.status(400).json({ error: "Input must be at least 3 characters" });
+        }
 
-    if (!input) {
-      return res.status(400).json({ error: 'Missing input' });
-    }
+        const response = await axios.post(
+          "https://places.googleapis.com/v1/places:autocomplete",
+          {
+            input: trimmed,
+            includedRegionCodes: ["us"],
+          },
+          {
+            headers: {
+              "Content-Type": "application/json",
+              "X-Goog-Api-Key": GOOGLE_MAPS_KEY.value(),
+              "X-Goog-FieldMask":
+                "suggestions.placePrediction.text,suggestions.placePrediction.placeId",
+            },
+          }
+        );
 
-    const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
-      input
-    )}&types=geocode&key=${GOOGLE_API_KEY}`;
+        const suggestions = response.data.suggestions ?? [];
+        const predictions = suggestions.map((s) => ({
+          description: s.placePrediction.text.text,
+          place_id: s.placePrediction.placeId,
+        }));
 
-    const response = await fetch(url);
-    const data = await response.json();
+        return res.json({ predictions, status: "OK" });
+      } catch (err) {
+        const status = err?.response?.status ?? 500;
+        const message =
+          err?.response?.data?.error?.message ?? err.message ?? "Autocomplete failed";
 
-    if (data.status !== 'OK') {
-      return res.status(400).json({
-        error: 'Google Places error',
-        details: data.status,
-      });
-    }
+        console.error("Autocomplete error:", err?.response?.data || err.message);
 
-    res.json({
-      predictions: data.predictions,
+        return res.status(status).json({ error: message });
+      }
     });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
   }
-});
-
-exports.autocomplete = app;
+);
