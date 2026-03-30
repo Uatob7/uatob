@@ -1,159 +1,298 @@
-// src/App/Drivers.jsx
-import React, { useEffect, useState } from 'react';
-import {
-  getFirestore,
-  collection,
-  query,
-  where,
-  onSnapshot,
-  doc,
-  updateDoc,
-} from 'firebase/firestore';
+import { useState, useEffect, useRef } from "react";
+import { Bell, Star } from "lucide-react";
 
-const db = getFirestore();
+import CSS              from '@/App/Drivers/styles.js';
+import { C, TRIP_REQUESTS } from '@/App/Drivers/constants.js';
+import UaTobIcon        from '@/App/Drivers/Icon.jsx';
+import Notification     from '@/App/Drivers/Notification.jsx';
+import SurgeBanner      from '@/App/Drivers/SurgeBanner.jsx';
+import TripRequestModal from '@/App/Drivers/TripRequestModal.jsx';
+import BottomTabBar     from '@/App/Drivers/BottomTabBar.jsx';
+import HomeTab          from '@/App/Drivers/HomeTab.jsx';
+import EarningsTab      from '@/App/Drivers/EarningsTab.jsx';
+import TripsTab         from '@/App/Drivers/TripsTab.jsx';
+import ProfileTab       from '@/App/Drivers/ProfileTab.jsx';
 
-export default function Drivers({ uid }) {
-  const [isOnline, setIsOnline] = useState(false);
-  const [requests, setRequests] = useState([]);
-  const [activeRide, setActiveRide] = useState(null);
+export default function UaTobDriverApp() {
 
-  // ── LISTEN FOR RIDE REQUESTS ─────────────
+  // ── Driver core state ─────────────────────────────────
+  const [online, setOnline] = useState(false);
+  const [activeTab, setActiveTab] = useState("home");
+  const [mounted, setMounted] = useState(false);
+
+  // ── Trip request flow ─────────────────────────────────
+  const [tripRequest, setTripRequest] = useState(null);
+  const [requestTimer, setRequestTimer] = useState(15);
+  const [reqIndex, setReqIndex] = useState(0);
+
+  // ── Active trip state ─────────────────────────────────
+  const [activeTrip, setActiveTrip] = useState(null);
+  const [tripStage, setTripStage] = useState("idle");
+
+  // ── Earnings ──────────────────────────────────────────
+  const [earnings, setEarnings] = useState({
+    today: 142.8,
+    week: 929.0,
+    trips: 8,
+  });
+
+  // ── UI state ──────────────────────────────────────────
+  const [showSurgeAlert, setShowSurgeAlert] = useState(false);
+  const [notification, setNotification] = useState(null);
+
+  const timerRef = useRef(null);
+  const reqRef = useRef(null);
+
+  // ── Mount animation ───────────────────────────────────
   useEffect(() => {
-    if (!isOnline) return;
+    setMounted(true);
+  }, []);
 
-    const q = query(
-      collection(db, 'Rides'),
-      where('status', '==', 'searching_driver')
-    );
+  // ── Auto dispatch requests ────────────────────────────
+  useEffect(() => {
+    if (!online || tripRequest || activeTrip) return;
 
-    const unsub = onSnapshot(q, (snap) => {
-      const rides = snap.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
+    const delay = Math.random() * 4000 + 3000;
+
+    reqRef.current = setTimeout(() => {
+      setTripRequest(TRIP_REQUESTS[reqIndex % TRIP_REQUESTS.length]);
+      setRequestTimer(15);
+    }, delay);
+
+    return () => {
+      if (reqRef.current) clearTimeout(reqRef.current);
+    };
+  }, [online, tripRequest, activeTrip, reqIndex]);
+
+  // ── Countdown timer ───────────────────────────────────
+  useEffect(() => {
+    if (!tripRequest) return;
+
+    timerRef.current = setInterval(() => {
+      setRequestTimer((t) => {
+        if (t <= 1) {
+          clearInterval(timerRef.current);
+          setTripRequest(null);
+          setReqIndex((i) => i + 1);
+          showNotif("Request expired", "Looking for next request...");
+          return 15;
+        }
+        return t - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [tripRequest]);
+
+  // ── Surge alert ───────────────────────────────────────
+  useEffect(() => {
+    if (!online) return;
+
+    const t = setTimeout(() => setShowSurgeAlert(true), 8000);
+    return () => clearTimeout(t);
+  }, [online]);
+
+  // ── Notification helper ───────────────────────────────
+  const showNotif = (title, msg) => {
+    setNotification({ title, msg });
+    setTimeout(() => setNotification(null), 3500);
+  };
+
+  // ── Toggle online/offline ─────────────────────────────
+  const handleToggleOnline = () => {
+    if (online) {
+      setOnline(false);
+
+      setTripRequest(null);
+      setActiveTrip(null);
+      setTripStage("idle");
+
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (reqRef.current) clearTimeout(reqRef.current);
+
+      showNotif("Offline", "See you next time.");
+    } else {
+      setOnline(true);
+      showNotif("Online", "Ready to receive requests.");
+    }
+  };
+
+  // ── Accept trip ───────────────────────────────────────
+  const handleAcceptTrip = () => {
+    if (!tripRequest) return;
+
+    clearInterval(timerRef.current);
+
+    const acceptedTrip = tripRequest;
+
+    setActiveTrip(acceptedTrip);
+    setTripRequest(null);
+    setTripStage("enroute");
+
+    showNotif("Trip accepted", `En route to ${acceptedTrip.rider}`);
+    setActiveTab("home");
+  };
+
+  // ── Decline trip ──────────────────────────────────────
+  const handleDeclineTrip = () => {
+    clearInterval(timerRef.current);
+
+    setTripRequest(null);
+    setReqIndex((i) => i + 1);
+
+    showNotif("Declined", "Scanning for next request...");
+  };
+
+  // ── Advance trip lifecycle ────────────────────────────
+  const handleAdvanceTrip = () => {
+    if (tripStage === "enroute") {
+      setTripStage("arrived");
+    } 
+    else if (tripStage === "arrived") {
+      setTripStage("in_progress");
+    } 
+    else if (tripStage === "in_progress") {
+
+      const trip = activeTrip;
+
+      setTripStage("completed");
+
+      const fareNum = parseFloat(trip.fare.replace("$", ""));
+
+      setEarnings((e) => ({
+        today: +(e.today + fareNum).toFixed(2),
+        week: +(e.week + fareNum).toFixed(2),
+        trips: e.trips + 1,
       }));
 
-      setRequests(rides);
-    });
-
-    return () => unsub();
-  }, [isOnline]);
-
-  // ── ACCEPT RIDE ─────────────────────────
-  const acceptRide = async (ride) => {
-    try {
-      const ref = doc(db, 'Rides', ride.id);
-
-      await updateDoc(ref, {
-        status: 'driver_assigned',
-        driver: {
-          id: uid,
-          name: 'Driver Name',
-          vehicle: 'Toyota Camry',
-          plate: 'ABC123',
-        },
-      });
-
-      setActiveRide(ride);
-      setRequests([]);
-    } catch (err) {
-      console.error('Accept ride error:', err);
+      setTimeout(() => {
+        setTripStage("idle");
+        setActiveTrip(null);
+        setReqIndex((i) => i + 1);
+        showNotif("Trip complete", `+${trip.fare} earned`);
+      }, 3000);
     }
   };
 
-  // ── COMPLETE RIDE ───────────────────────
-  const completeRide = async () => {
-    if (!activeRide) return;
+  // ── Derived UI values ─────────────────────────────────
+  const tripBtnLabel = {
+    enroute: "Arrived at Pickup",
+    arrived: "Start Trip",
+    in_progress: "Complete Trip",
+  }[tripStage];
 
-    try {
-      const ref = doc(db, 'Rides', activeRide.id);
+  const tripStageColor = {
+    enroute: C.blue,
+    arrived: C.onlineGreen,
+    in_progress: C.green,
+  }[tripStage] || C.green;
 
-      await updateDoc(ref, {
-        status: 'completed',
-      });
-
-      setActiveRide(null);
-    } catch (err) {
-      console.error('Complete ride error:', err);
-    }
-  };
-
+  // ── Render ────────────────────────────────────────────
   return (
-    <div style={{ padding: 20 }}>
-      <h2>🚗 Driver Dashboard</h2>
+    <div
+      style={{
+        minHeight: "100vh",
+        background: C.bg,
+        fontFamily: '"Barlow", system-ui, sans-serif',
+        color: C.text,
+        position: "relative",
+      }}
+    >
+      <style>{CSS}</style>
 
-      {/* ONLINE TOGGLE */}
-      <button
-        onClick={() => setIsOnline(!isOnline)}
-        style={{
-          padding: 10,
-          marginBottom: 20,
-          background: isOnline ? 'green' : 'gray',
-          color: '#fff',
-          borderRadius: 8,
-        }}
-      >
-        {isOnline ? 'Online' : 'Go Online'}
-      </button>
+      {/* Overlays */}
+      <Notification notification={notification} />
+      <SurgeBanner
+        show={showSurgeAlert}
+        online={online}
+        onClose={() => setShowSurgeAlert(false)}
+      />
+      <TripRequestModal
+        tripRequest={tripRequest}
+        requestTimer={requestTimer}
+        onAccept={handleAcceptTrip}
+        onDecline={handleDeclineTrip}
+      />
 
-      {/* ACTIVE RIDE */}
-      {activeRide && (
-        <div style={{ border: '1px solid #ddd', padding: 15, marginBottom: 20 }}>
-          <h3>Current Ride</h3>
-          <p><b>Pickup:</b> {activeRide.pickup}</p>
-          <p><b>Dropoff:</b> {activeRide.dropoff}</p>
+      {/* Content */}
+      <div style={{ maxWidth: 680, margin: "0 auto", paddingBottom: 90 }}>
 
-          <button
-            onClick={completeRide}
-            style={{
-              marginTop: 10,
-              padding: 10,
-              background: 'black',
-              color: '#fff',
-              borderRadius: 8,
-            }}
-          >
-            Complete Ride
-          </button>
-        </div>
-      )}
-
-      {/* REQUESTS */}
-      {!activeRide && isOnline && (
-        <>
-          <h3>Ride Requests</h3>
-
-          {requests.length === 0 && <p>No requests...</p>}
-
-          {requests.map((ride) => (
-            <div
-              key={ride.id}
-              style={{
-                border: '1px solid #ddd',
-                padding: 15,
-                marginBottom: 10,
-                borderRadius: 10,
-              }}
-            >
-              <p><b>Pickup:</b> {ride.pickup}</p>
-              <p><b>Dropoff:</b> {ride.dropoff}</p>
-              <p><b>Fare:</b> ${ride.fareEstimate}</p>
-
-              <button
-                onClick={() => acceptRide(ride)}
-                style={{
-                  marginTop: 10,
-                  padding: 10,
-                  background: 'green',
-                  color: '#fff',
-                  borderRadius: 8,
-                }}
-              >
-                Accept Ride
-              </button>
+        {/* Header */}
+        <div
+          style={{
+            padding: "20px 20px 0",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            animation: mounted ? "slideUp .5s ease-out forwards" : "none",
+            opacity: 0,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <UaTobIcon size={40} online={online} />
+            <div>
+              <div className="condensed lbl">Driver Console</div>
+              <div style={{ fontSize: 20, fontWeight: 800 }}>
+                Marcus J.
+              </div>
             </div>
-          ))}
-        </>
-      )}
+          </div>
+
+          <div style={{ display: "flex", gap: 8 }}>
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              background: C.surface,
+              borderRadius: 100,
+              padding: "6px 12px"
+            }}>
+              <Star size={11} fill="#F59E0B" color="#F59E0B" />
+              <span>4.93</span>
+            </div>
+
+            <button>
+              <Bell size={15} />
+            </button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        {activeTab === "home" && (
+          <HomeTab
+            online={online}
+            activeTrip={activeTrip}
+            tripStage={tripStage}
+            tripStageColor={tripStageColor}
+            tripBtnLabel={tripBtnLabel}
+            earnings={earnings}
+            onToggleOnline={handleToggleOnline}
+            onAdvanceTrip={handleAdvanceTrip}
+          />
+        )}
+
+        {activeTab === "earnings" && (
+          <EarningsTab earnings={earnings} online={online} />
+        )}
+
+        {activeTab === "trips" && (
+          <TripsTab earnings={earnings} online={online} />
+        )}
+
+        {activeTab === "profile" && (
+          <ProfileTab online={online} />
+        )}
+      </div>
+
+      {/* Bottom nav */}
+      <BottomTabBar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        online={online}
+        activeTrip={activeTrip}
+      />
     </div>
   );
 }
