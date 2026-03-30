@@ -256,15 +256,8 @@ export default function UaTobApp({ uid }) {
         <div style={{ animation: mounted ? 'slideUp .65s ease-out .18s forwards' : 'none', opacity: 0 }}>
           {tracking.isTracking ? (
             <LiveTrackingPanel
-              pickup={bookingPayload?.pickup ?? ''}
-              dropoff={bookingPayload?.dropoff ?? ''}
-              fareData={bookingPayload ? { total: bookingPayload.fareEstimate, breakdown: bookingPayload.breakdown || {}, surgeMultiplier: bookingPayload.surgeMultiplier || 1 } : null}
-              tripData={bookingPayload ? { miles: bookingPayload.tripDistanceMiles, durationMin: bookingPayload.tripDurationMin } : null}
-              assignedDriver={tracking.assignedDriver}
-              rideStatus={tracking.rideStatus}
-              etaMinutes={tracking.etaMinutes}
-              distToDropoff={tracking.distToDropoff}
-              getProgress={tracking.getProgress}
+              rides={rides}
+             ridesLoading={ridesLoading}
             />
           ) : (
             <BookingPanel onBookNow={handleBookNow} />
