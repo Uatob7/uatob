@@ -25,6 +25,8 @@ function loadSession()      { try { const raw = localStorage.getItem(LS_KEY); re
 function clearSession()     { try { localStorage.removeItem(LS_KEY); } catch (_) {} }
 
 export default function UaTobApp({ uid }) {
+
+  console.log(uid);
   const { uid: authUid } = useAuthContext();
   const { rides, loading: ridesLoading } = useUserRides(authUid ?? uid);
 
@@ -295,7 +297,7 @@ export default function UaTobApp({ uid }) {
       )}
 
       {/* ── Confirmation Modal ───────────────────────────── */}
-      {rides && (
+      {showConfirm && (
         <ConfirmationModal
         onClose={handleConfirmClose}
         onPaymentCancelled={handlePaymentCancelled}
