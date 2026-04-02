@@ -39,8 +39,15 @@ export default function ActiveTripCard({
 
   const stage = stageConfig[tripStage] ?? stageConfig.driver_assigned;
   const isComplete = tripStage === "in_progress";
+  const isInProgress = tripStage === "in_progress";
 
   const accent = tripStageColor ?? "#2563EB";
+
+  const openInMaps = (address) => {
+    if (!address) return;
+    const q = encodeURIComponent(address);
+    window.open(`https://maps.google.com/?q=${q}`, "_blank");
+  };
 
   return (
     <>
@@ -142,6 +149,12 @@ export default function ActiveTripCard({
           font-weight: 500;
           color: #1A1F2E;
           line-height: 1.4;
+          flex: 1;
+        }
+        .atc-stop-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
         }
 
         /* ── stats ── */
@@ -177,6 +190,16 @@ export default function ActiveTripCard({
         }
         .atc-map-btn:hover  { background: #DBEAFE; border-color: #BFDBFE; }
         .atc-map-btn:active { transform: scale(.93); }
+
+        .atc-map-btn.green {
+          background: #ECFDF5;
+          border-color: #A7F3D0;
+          color: #10B981;
+        }
+        .atc-map-btn.green:hover {
+          background: #D1FAE5;
+          border-color: #6EE7B7;
+        }
 
         .atc-stat + .atc-stat {
           padding-left: 14px;
@@ -232,7 +255,6 @@ export default function ActiveTripCard({
       `}</style>
 
       <div className="atc-root">
-
         {/* Stage strip */}
         <div className="atc-stage" style={{ color: accent }}>
           <div
@@ -252,26 +274,41 @@ export default function ActiveTripCard({
             <div className={`atc-stop${isComplete ? " dimmed" : ""}`}>
               <div className="atc-stop-node" style={{ borderColor: "#3B82F6" }} />
               <div className="atc-stop-tag">Pickup</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div className="atc-stop-row">
                 <div className="atc-stop-addr">{activeTrip.pickup}</div>
-                <button
-                  className="atc-map-btn"
-                  onClick={() => {
-                    const q = encodeURIComponent(activeTrip.pickup);
-                    window.open(`https://maps.google.com/?q=${q}`, "_blank");
-                  }}
-                  title="Open in Maps"
-                >
-                  <MapPin size={13} strokeWidth={2.2} />
-                </button>
+
+                {!isInProgress && (
+                  <button
+                    className="atc-map-btn"
+                    onClick={() => openInMaps(activeTrip.pickup)}
+                    title="Open Pickup in Maps"
+                  >
+                    <MapPin size={13} strokeWidth={2.2} />
+                  </button>
+                )}
               </div>
             </div>
 
             {/* Dropoff */}
-            <div className={`atc-stop${tripStage === "driver_assigned" ? " dimmed" : ""}`} style={{ paddingBottom: 0 }}>
+            <div
+              className={`atc-stop${tripStage === "driver_assigned" ? " dimmed" : ""}`}
+              style={{ paddingBottom: 0 }}
+            >
               <div className="atc-stop-node" style={{ borderColor: "#10B981" }} />
               <div className="atc-stop-tag">Dropoff</div>
-              <div className="atc-stop-addr">{activeTrip.dropoff}</div>
+              <div className="atc-stop-row">
+                <div className="atc-stop-addr">{activeTrip.dropoff}</div>
+
+                {isInProgress && (
+                  <button
+                    className="atc-map-btn green"
+                    onClick={() => openInMaps(activeTrip.dropoff)}
+                    title="Open Dropoff in Maps"
+                  >
+                    <MapPin size={13} strokeWidth={2.2} color="#10B981" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -280,9 +317,9 @@ export default function ActiveTripCard({
         <div className="atc-divider" />
         <div className="atc-stats">
           {[
-            { value: activeTrip.fareTotal,                              key: "Fare"     },
-            { value: `${activeTrip.tripDistanceMiles?.toFixed(1)} mi`,  key: "Distance" },
-            { value: `${activeTrip.tripDurationMin} min`,               key: "Est. Time"},
+            { value: activeTrip.fareTotal, key: "Fare" },
+            { value: `${activeTrip.tripDistanceMiles?.toFixed(1)} mi`, key: "Distance" },
+            { value: `${activeTrip.tripDurationMin} min`, key: "Est. Time" },
           ].map((item, i) => (
             <div key={i} className="atc-stat">
               <span className="atc-stat-value">{item.value}</span>
@@ -304,7 +341,6 @@ export default function ActiveTripCard({
             </div>
           </button>
         </div>
-
       </div>
     </>
   );
