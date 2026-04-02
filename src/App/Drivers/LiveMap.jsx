@@ -2,6 +2,7 @@ import { Car, Users } from 'lucide-react';
 import { C } from '@/App/Drivers/constants.js';
 
 
+
 // Deterministic dot positions — one per ride, spread across the map
 const DOT_POSITIONS = [
   { x: 18, y: 28 },
