@@ -1,19 +1,32 @@
 import { Car, Users } from 'lucide-react';
 import { C } from '@/App/Drivers/constants.js';
-const RIDER_DOTS = [
+
+// Deterministic dot positions — one per ride, spread across the map
+const DOT_POSITIONS = [
   { x: 18, y: 28 },
   { x: 58, y: 42 },
   { x: 72, y: 20 },
   { x: 38, y: 68 },
   { x: 82, y: 55 },
+  { x: 25, y: 55 },
+  { x: 65, y: 75 },
+  { x: 90, y: 35 },
 ];
 
 /**
  * Decorative map widget shown when the driver is online but not on a trip.
- * No external props required.
+ *
+ * Props:
+ *   online      — boolean
+ *   rides       — array of ride docs from useDriverRides
+ *   activeTrip  — active trip object or null
  */
-export default function LiveMap({ online, activeTrip }) {
+export default function LiveMap({ online, rides, activeTrip }) {
   if (!online || activeTrip) return null;
+
+  const nearbyRides = rides.filter(r => r.status === "searching_driver");
+  const dotCount    = Math.min(nearbyRides.length, DOT_POSITIONS.length);
+  const dots        = DOT_POSITIONS.slice(0, dotCount);
 
   return (
     <div className="map-area" style={{ height: 190, animation: "scaleIn .4s ease-out" }}>
@@ -30,10 +43,10 @@ export default function LiveMap({ online, activeTrip }) {
       {/* Diagonal stripe overlay */}
       <div style={{ position: "absolute", inset: 0, background: "repeating-linear-gradient(45deg,transparent,transparent 60px,rgba(22,163,74,.018) 60px,rgba(22,163,74,.018) 61px)" }}/>
 
-      {/* Pulsing rider dots */}
-      {RIDER_DOTS.map((p, i) => (
+      {/* Rider dots — one per searching_driver ride */}
+      {dots.map((p, i) => (
         <div
-          key={i}
+          key={nearbyRides[i]?.id ?? i}
           style={{
             position: "absolute", left: `${p.x}%`, top: `${p.y}%`,
             transform: "translate(-50%,-50%)",
@@ -77,7 +90,9 @@ export default function LiveMap({ online, activeTrip }) {
         boxShadow: `0 4px 16px ${C.shadow}`,
       }}>
         <span className="condensed" style={{ fontSize: 12.5, fontWeight: 700, color: C.text, letterSpacing: ".5px" }}>
-          5 RIDERS NEARBY — SCANNING
+          {nearbyRides.length > 0
+            ? `${nearbyRides.length} RIDER${nearbyRides.length > 1 ? "S" : ""} NEARBY — SCANNING`
+            : "SCANNING FOR RIDERS..."}
         </span>
       </div>
     </div>

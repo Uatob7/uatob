@@ -19,6 +19,7 @@ import Achievements   from '@/App/Drivers/Achievements.jsx';
  */
 export default function HomeTab({
   online,
+  rides,
   activeTrip,
   tripStage,
   tripStageColor,
@@ -46,7 +47,7 @@ export default function HomeTab({
 
       <StatTiles earnings={earnings} online={online}/>
 
-      <LiveMap online={online} activeTrip={activeTrip}/>
+      <LiveMap online={online} rides={rides} activeTrip={activeTrip}/>
 
       <Achievements online={online}/>
     </div>

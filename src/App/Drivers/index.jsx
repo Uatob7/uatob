@@ -285,6 +285,7 @@ export default function UaTobDriverApp({ uid }) {
         {activeTab === "home" && (
           <HomeTab
             online={online}
+            rides={rides}
             activeTrip={activeTrip}
             tripStage={tripStage}
             tripStageColor={tripStageColor}
