@@ -11,6 +11,7 @@ import HomeTab          from '@/App/Drivers/HomeTab.jsx';
 import EarningsTab      from '@/App/Drivers/EarningsTab.jsx';
 import TripsTab         from '@/App/Drivers/TripsTab.jsx';
 import ProfileTab       from '@/App/Drivers/ProfileTab.jsx';
+import { useDriverAccount } from "@/App/Drivers/useDriverAccount";
 import { useDriverRides } from '@/App/Drivers/useDriverRides';
 import { useActiveRides } from "@/App/Drivers/useActiveRides";
 
@@ -216,6 +217,7 @@ function LocationPopup({ onAllow, onDeny, loading, error }) {
 export default function UaTobDriverApp({ uid }) {
 
   // ── Remote data ───────────────────────────────────────
+  const { driver } = useDriverAccount(uid);
   const { rides, loading: ridesLoading } = useDriverRides();
   const { activeRides, loading }         = useActiveRides(uid);
 
@@ -590,7 +592,9 @@ export default function UaTobDriverApp({ uid }) {
             <UaTobIcon size={40} online={online} />
             <div>
               <div className="condensed lbl">Driver Console</div>
-              <div style={{ fontSize: 20, fontWeight: 800 }}>Marcus J.</div>
+              <div style={{ fontSize: 20, fontWeight: 800 }}>
+            {driver?.name ? driver.name.split(" ")[0] : ""}
+           </div>
             </div>
           </div>
 
