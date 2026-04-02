@@ -6,6 +6,7 @@ import {
   CheckCircle, Clock, ArrowRight
 } from "lucide-react";
 import signUp from '@/firebase/auth/signup';
+import { useDriverSignUp } from "@/App/SignUp/useDriverSignUp";
 
 const CLOUD_FUNCTION_URL = "https://createdriverprofile-ady2s2xhhq-uc.a.run.app";
 
@@ -458,16 +459,83 @@ function StepVerify({ accountData, contactData, vehicleData, docData }) {
   );
 }
 
+/* ─── PENDING SCREEN ─────────────────────────── */
+
+function PendingScreen({ firstName, email }) {
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, fontFamily: '"Barlow", system-ui, sans-serif', color: C.text, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800;900&family=Barlow+Condensed:wght@500;600;700;800;900&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        @keyframes scaleIn  { from { opacity: 0; transform: scale(.85) } to { opacity: 1; transform: scale(1) } }
+        @keyframes fadeUp   { from { opacity: 0; transform: translateY(20px) } to { opacity: 1; transform: translateY(0) } }
+        @keyframes pulse    { 0%,100% { opacity: 1 } 50% { opacity: .5 } }
+      `}</style>
+      <div style={{ textAlign: "center", maxWidth: 420, width: "100%", animation: "scaleIn .6s cubic-bezier(.34,1.56,.64,1)" }}>
+
+        {/* Icon */}
+        <div style={{ width: 90, height: 90, background: "rgba(22,163,74,.08)", border: "2px solid rgba(22,163,74,.25)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 28px", boxShadow: "0 0 0 12px rgba(22,163,74,.04)" }}>
+          <Clock size={40} color={C.accent} />
+        </div>
+
+        {/* Heading */}
+        <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 38, fontWeight: 900, color: C.text, letterSpacing: "-1px", marginBottom: 10, lineHeight: 1.1 }}>
+          Application<br/>Submitted!
+        </div>
+        <div style={{ fontSize: 15, color: C.textMid, lineHeight: 1.7, marginBottom: 32 }}>
+          Welcome to UaTob, <strong style={{ color: C.text }}>{firstName}</strong>.<br/>
+          Our team is reviewing your application. You'll hear back within <strong style={{ color: C.accent }}>24–48 hours</strong>.
+        </div>
+
+        {/* Info cards */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {[
+            { icon: Mail,  label: "Confirmation sent to", val: email,            c: C.blue   },
+            { icon: Clock, label: "Review time",          val: "24–48 hours",    c: C.accent },
+            { icon: Zap,   label: "Once approved",        val: "Start earning immediately", c: C.green },
+          ].map((item, i) => (
+            <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 18px", display: "flex", gap: 12, alignItems: "center", animation: `fadeUp .5s ease-out ${0.2 + i * 0.1}s both`, boxShadow: "0 1px 4px rgba(0,0,0,.04)" }}>
+              <div style={{ width: 36, height: 36, background: item.c + "12", borderRadius: 11, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <item.icon size={16} color={item.c} />
+              </div>
+              <div style={{ textAlign: "left" }}>
+                <div style={{ fontSize: 11, color: C.textDim, fontWeight: 600, letterSpacing: ".5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>{item.label}</div>
+                <div style={{ fontSize: 13.5, color: C.text, fontWeight: 700, marginTop: 2 }}>{item.val}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Pending badge */}
+        <div style={{ marginTop: 28, display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(245,158,11,.08)", border: "1px solid rgba(245,158,11,.25)", borderRadius: 100, padding: "10px 20px" }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#F59E0B", animation: "pulse 1.5s ease-in-out infinite" }} />
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#B45309", fontFamily: "'Barlow Condensed', sans-serif", letterSpacing: ".5px" }}>
+            STATUS: PENDING REVIEW
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── MAIN COMPONENT ─────────────────────────── */
 
-export default function UaTobDriverSignup() {
+export default function UaTobDriverSignup({ uid }) {
+  const { driverSignUp } = useDriverSignUp(uid);
+  console.log("DriverSignUp state:", { driverSignUp });
+
+  // ── Redirect approved drivers to the driver app ──────
+  useEffect(() => {
+    if (driverSignUp?.status === "approved") {
+      window.location.href = "https://uatob.com/driver";
+    }
+  }, [driverSignUp?.status]);
 
   // ── Rehydrate from localStorage on first mount ──
   const [step,        setStep]        = useState(() => lsGet(LS_KEYS.step, 1));
   const [createdUid,  setCreatedUid]  = useState(() => lsGet(LS_KEYS.uid, null));
   const [accountData, setAccountData] = useState(() => {
     const saved = lsGet(LS_KEYS.account, DEFAULT_ACCOUNT);
-    // Never restore passwords — security best practice
     return { ...DEFAULT_ACCOUNT, ...saved, password: "", confirmPassword: "" };
   });
   const [contactData, setContactData] = useState(() => lsGet(LS_KEYS.contact, DEFAULT_CONTACT));
@@ -476,7 +544,6 @@ export default function UaTobDriverSignup() {
 
   const [direction,    setDirection]    = useState("forward");
   const [animating,    setAnimating]    = useState(false);
-  const [submitted,    setSubmitted]    = useState(false);
   const [errors,       setErrors]       = useState({});
   const [loading,      setLoading]      = useState(false);
   const [submitError,  setSubmitError]  = useState(null);
@@ -487,7 +554,6 @@ export default function UaTobDriverSignup() {
   useEffect(() => { lsSet(LS_KEYS.step, step); },       [step]);
   useEffect(() => { lsSet(LS_KEYS.uid,  createdUid); }, [createdUid]);
   useEffect(() => {
-    // Strip passwords before saving to localStorage
     const { password, confirmPassword, ...safe } = accountData;
     lsSet(LS_KEYS.account, safe);
   }, [accountData]);
@@ -575,9 +641,10 @@ export default function UaTobDriverSignup() {
         if (!uid) throw new Error("Missing user ID — please restart signup.");
         await submitDriverData(uid);
         console.log("✅ Full driver data submitted for uid:", uid);
-        lsClear(); // wipe saved progress after successful submit
-        setSubmitted(true);
+        lsClear();
         return;
+        // ↑ useDriverSignUp will now return status: "pending"
+        // which triggers the PendingScreen below
       }
 
       setDirection("forward");
@@ -629,47 +696,20 @@ export default function UaTobDriverSignup() {
 
   const pct = ((step - 1) / (STEPS.length - 1)) * 100;
 
-  /* ── Success screen ── */
+  /* ── Status-based screens ── */
 
-  if (submitted) {
+  // Approved → redirect handled in useEffect above, show nothing while redirecting
+  if (driverSignUp?.status === "approved") {
+    return null;
+  }
+
+  // Pending → show the pending/success screen
+  if (driverSignUp?.status === "pending") {
     return (
-      <div style={{ minHeight: "100vh", background: C.bg, fontFamily: '"Barlow", system-ui, sans-serif', color: C.text, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-        <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800;900&family=Barlow+Condensed:wght@500;600;700;800;900&display=swap');
-          * { box-sizing: border-box; margin: 0; padding: 0; }
-          @keyframes scaleIn { from { opacity: 0; transform: scale(.85) } to { opacity: 1; transform: scale(1) } }
-          @keyframes fadeUp  { from { opacity: 0; transform: translateY(20px) } to { opacity: 1; transform: translateY(0) } }
-        `}</style>
-        <div style={{ textAlign: "center", maxWidth: 420, animation: "scaleIn .6s cubic-bezier(.34,1.56,.64,1)" }}>
-          <div style={{ width: 90, height: 90, background: "rgba(22,163,74,.1)", border: "2px solid rgba(22,163,74,.3)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 28px", boxShadow: "0 0 0 12px rgba(22,163,74,.05)" }}>
-            <CheckCircle size={44} color={C.green} />
-          </div>
-          <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 38, fontWeight: 900, color: C.text, letterSpacing: "-1px", marginBottom: 10, lineHeight: 1.1 }}>
-            Application<br/>Submitted!
-          </div>
-          <div style={{ fontSize: 15, color: C.textMid, lineHeight: 1.7, marginBottom: 32 }}>
-            Welcome to UaTob, <strong style={{ color: C.text }}>{accountData.firstName}</strong>.<br/>
-            Our team will review your application within <strong style={{ color: C.accent }}>24–48 hours</strong>. Check your email for updates.
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {[
-              { icon: Mail,  label: "Confirmation sent to", val: accountData.email,          c: C.blue   },
-              { icon: Clock, label: "Review time",          val: "24–48 hours",               c: C.accent },
-              { icon: Zap,   label: "Once approved",        val: "Start earning immediately", c: C.green  },
-            ].map((item, i) => (
-              <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 18px", display: "flex", gap: 12, alignItems: "center", animation: `fadeUp .5s ease-out ${0.2 + i * 0.1}s both`, boxShadow: "0 1px 4px rgba(0,0,0,.04)" }}>
-                <div style={{ width: 36, height: 36, background: item.c + "12", borderRadius: 11, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <item.icon size={16} color={item.c} />
-                </div>
-                <div style={{ textAlign: "left" }}>
-                  <div style={{ fontSize: 11, color: C.textDim, fontWeight: 600, letterSpacing: ".5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>{item.label}</div>
-                  <div style={{ fontSize: 13.5, color: C.text, fontWeight: 700, marginTop: 2 }}>{item.val}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      <PendingScreen
+        firstName={driverSignUp.firstName || accountData.firstName}
+        email={driverSignUp.email || accountData.email}
+      />
     );
   }
 
@@ -721,7 +761,6 @@ export default function UaTobDriverSignup() {
             <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 10, fontWeight: 700, color: C.textDim, letterSpacing: "2px", textTransform: "uppercase", marginBottom: 2 }}>Driver Signup</div>
             <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 21, fontWeight: 900, color: C.text, letterSpacing: "-0.3px" }}>Start Driving Today</div>
           </div>
-          {/* Start Over — only visible when there's saved progress */}
           {(step > 1 || accountData.firstName) && (
             <button
               onClick={restartForm}

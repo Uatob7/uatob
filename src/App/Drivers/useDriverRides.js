@@ -1,6 +1,6 @@
 // src/App/Drivers/useDriverRides.js
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 import {
   collection,
   query,
@@ -9,70 +9,52 @@ import {
   onSnapshot,
   limit,
   getFirestore,
-} from 'firebase/firestore';
-import { firebase_app } from '@/firebase/config'; // ✅ use this
+} from "firebase/firestore";
+import { firebase_app } from "@/firebase/config";
 
-const db = getFirestore(firebase_app); // ✅ same as your old code
+const db = getFirestore(firebase_app);
 
 export function useDriverRides() {
   const [rides, setRides] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  console.log(rides)
-
   useEffect(() => {
-    let unsubscribe = () => {};
-    let isMounted = true;
+    const q = query(
+      collection(db, "Rides"),
+      where("paymentStatus", "==", "succeeded"),
+      where("status", "==", "searching_driver"),
+      orderBy("createdAt", "desc"), // ✅ important
+      limit(25)
+    );
 
-    try {
-      const q = query(
-        collection(db, 'Rides'),
-        where('paymentStatus', '==', 'succeeded'),
-        where('status', '==', 'searching_driver'),
-        limit(25)
-      );
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const docs = snapshot.docs.map((doc) => {
+          const data = doc.data();
 
-      unsubscribe = onSnapshot(
-        q,
-        (snapshot) => {
-          if (!isMounted) return;
+          return {
+            id: doc.id,
+            ...data,
+            createdAt: data.createdAt?.toDate?.() ?? null,
+            updatedAt: data.updatedAt?.toDate?.() ?? null,
+          };
+        });
 
-          const docs = snapshot.docs.map((doc) => {
-            const data = doc.data();
+        setRides(docs);
+        setLoading(false);
+        setError(null);
+      },
+      (err) => {
+        console.error("[useDriverRides]", err);
+        setError(err.message || "Failed to load rides");
+        setRides([]);
+        setLoading(false);
+      }
+    );
 
-            return {
-              id: doc.id,
-              ...data,
-              createdAt: data.createdAt?.toDate?.() ?? null,
-              updatedAt: data.updatedAt?.toDate?.() ?? null,
-            };
-          });
-
-          setRides(docs);
-          setLoading(false);
-          setError(null);
-        },
-        (err) => {
-          console.error('[useDriverRides]', err);
-
-          if (!isMounted) return;
-
-          setError(err.message || 'Failed to load rides');
-          setRides([]);
-          setLoading(false);
-        }
-      );
-    } catch (err) {
-      console.error('[useDriverRides setup]', err);
-      setError(err.message);
-      setLoading(false);
-    }
-
-    return () => {
-      isMounted = false;
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, []);
 
   return { rides, loading, error };

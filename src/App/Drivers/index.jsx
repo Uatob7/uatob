@@ -214,6 +214,8 @@ export default function UaTobDriverApp({ uid }) {
   const { rides, loading: ridesLoading } = useDriverRides();
   const { activeRides, loading }         = useActiveRides(uid);
 
+  console.log(uid);
+
   console.log("Driver account:", driver);
   console.log("All rides:",    rides);
   console.log("Active rides:", activeRides);
@@ -574,7 +576,7 @@ export default function UaTobDriverApp({ uid }) {
             <div>
               <div className="condensed lbl">Driver Console</div>
               <div style={{ fontSize: 20, fontWeight: 800 }}>
-                {driver?.name ? driver.name.split(" ")[0] : ""}
+                {driver?.firstName ? driver.firstName : ""}
               </div>
             </div>
           </div>
