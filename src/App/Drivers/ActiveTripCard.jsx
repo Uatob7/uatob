@@ -161,6 +161,23 @@ export default function ActiveTripCard({
           flex-direction: column;
           gap: 3px;
         }
+        .atc-map-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 4px;
+          border: 1px solid #DAEAFF;
+          border-radius: 7px;
+          background: #EFF6FF;
+          color: #3B82F6;
+          cursor: pointer;
+          flex-shrink: 0;
+          transition: background .13s, border-color .13s, transform .1s;
+          line-height: 0;
+        }
+        .atc-map-btn:hover  { background: #DBEAFE; border-color: #BFDBFE; }
+        .atc-map-btn:active { transform: scale(.93); }
+
         .atc-stat + .atc-stat {
           padding-left: 14px;
           border-left: 1px solid #EDF0F4;
@@ -235,11 +252,23 @@ export default function ActiveTripCard({
             <div className={`atc-stop${isComplete ? " dimmed" : ""}`}>
               <div className="atc-stop-node" style={{ borderColor: "#3B82F6" }} />
               <div className="atc-stop-tag">Pickup</div>
-              <div className="atc-stop-addr">{activeTrip.pickup}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div className="atc-stop-addr">{activeTrip.pickup}</div>
+                <button
+                  className="atc-map-btn"
+                  onClick={() => {
+                    const q = encodeURIComponent(activeTrip.pickup);
+                    window.open(`https://maps.google.com/?q=${q}`, "_blank");
+                  }}
+                  title="Open in Maps"
+                >
+                  <MapPin size={13} strokeWidth={2.2} />
+                </button>
+              </div>
             </div>
 
             {/* Dropoff */}
-            <div className="atc-stop" style={{ paddingBottom: 0 }}>
+            <div className={`atc-stop${tripStage === "driver_assigned" ? " dimmed" : ""}`} style={{ paddingBottom: 0 }}>
               <div className="atc-stop-node" style={{ borderColor: "#10B981" }} />
               <div className="atc-stop-tag">Dropoff</div>
               <div className="atc-stop-addr">{activeTrip.dropoff}</div>
