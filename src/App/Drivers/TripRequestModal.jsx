@@ -1,17 +1,21 @@
-import { Star, Zap, Check, X } from 'lucide-react';
+import { Zap, Check, X } from 'lucide-react';
 import { C, TYPE_COLOR, TYPE_LABEL } from '@/App/Drivers/constants.js';
 
 /**
  * Full-screen overlay shown when a new trip request arrives.
  *
  * Props:
- *   tripRequest   — request object (null = hidden)
+ *   tripRequest   — Firestore ride object (null = hidden)
  *   requestTimer  — seconds remaining (1–15)
  *   onAccept      — callback
  *   onDecline     — callback
  */
 export default function TripRequestModal({ tripRequest, requestTimer, onAccept, onDecline }) {
   if (!tripRequest) return null;
+
+  const fare     = `$${tripRequest.fareTotal?.toFixed(2) ?? "0.00"}`;
+  const distance = `${tripRequest.tripDistanceMiles?.toFixed(1) ?? "—"} mi`;
+  const eta      = `${tripRequest.tripDurationMin ?? "—"} min`;
 
   return (
     <div style={{
@@ -34,23 +38,24 @@ export default function TripRequestModal({ tripRequest, requestTimer, onAccept, 
         boxShadow: "0 -12px 60px rgba(0,0,0,.1)",
       }}>
 
-        {/* Header row — rider info + countdown */}
+        {/* Header row — ride type label + countdown */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
           <div>
             <div className="lbl" style={{ color: C.onlineGreen }}>Incoming Request</div>
             <div className="condensed" style={{ fontSize: 28, fontWeight: 900, color: C.text, letterSpacing: "-0.5px", lineHeight: 1.1 }}>
-              {tripRequest.rider}
+              {tripRequest.rideLabel ?? "Standard"}
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 5 }}>
-              {[...Array(5)].map((_, i) => (
-                <Star
-                  key={i} size={11}
-                  fill={i < Math.floor(tripRequest.rating) ? "#F59E0B" : C.border}
-                  color={i < Math.floor(tripRequest.rating) ? "#F59E0B" : C.border}
-                />
-              ))}
-              <span style={{ fontSize: 12, fontWeight: 700, color: C.textMid, marginLeft: 3 }}>
-                {tripRequest.rating}
+            <div style={{ marginTop: 6 }}>
+              <span
+                className="badge-chip"
+                style={{
+                  background: (TYPE_COLOR[tripRequest.rideType] ?? C.blue) + "18",
+                  border:     `1px solid ${(TYPE_COLOR[tripRequest.rideType] ?? C.blue)}40`,
+                  color:      TYPE_COLOR[tripRequest.rideType] ?? C.blue,
+                  fontSize:   11,
+                }}
+              >
+                {TYPE_LABEL[tripRequest.rideType] ?? tripRequest.rideType}
               </span>
             </div>
           </div>
@@ -91,7 +96,7 @@ export default function TripRequestModal({ tripRequest, requestTimer, onAccept, 
           }}>
             <div className="lbl">Fare</div>
             <div className="mono condensed" style={{ fontSize: 30, fontWeight: 700, color: C.onlineGreen, letterSpacing: "-0.5px", lineHeight: 1 }}>
-              {tripRequest.fare}
+              {fare}
             </div>
             {tripRequest.surgeMultiplier > 1 && (
               <div style={{
@@ -110,7 +115,7 @@ export default function TripRequestModal({ tripRequest, requestTimer, onAccept, 
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 0.8 }}>
-            {[{ lbl: "Distance", val: tripRequest.distance }, { lbl: "ETA", val: tripRequest.eta }].map(m => (
+            {[{ lbl: "Distance", val: distance }, { lbl: "ETA", val: eta }].map(m => (
               <div key={m.lbl} style={{
                 background: C.surfaceAlt,
                 border: `1px solid ${C.border}`,
@@ -142,17 +147,6 @@ export default function TripRequestModal({ tripRequest, requestTimer, onAccept, 
                 <div style={{ fontSize: 13.5, fontWeight: 600, color: C.text }}>{tripRequest.dropoff}</div>
               </div>
             </div>
-            <div
-              className="badge-chip"
-              style={{
-                background: TYPE_COLOR[tripRequest.rideType] + "18",
-                border:     `1px solid ${TYPE_COLOR[tripRequest.rideType]}40`,
-                color:      TYPE_COLOR[tripRequest.rideType],
-                alignSelf:  "center",
-              }}
-            >
-              {TYPE_LABEL[tripRequest.rideType]}
-            </div>
           </div>
         </div>
 
@@ -172,9 +166,10 @@ export default function TripRequestModal({ tripRequest, requestTimer, onAccept, 
             onMouseLeave={e => { e.currentTarget.style.transform = "";                 e.currentTarget.style.boxShadow = "0 4px 18px rgba(22,163,74,.3)"; }}
             onClick={onAccept}
           >
-            <Check size={18}/> Accept · {tripRequest.fare}
+            <Check size={18}/> Accept · {fare}
           </button>
         </div>
+
       </div>
     </div>
   );
