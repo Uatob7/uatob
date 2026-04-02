@@ -1,46 +1,3 @@
-(default)
-
-Drivers
-
-Rides
-Drivers
-
-eOsWR0SJWEPETNgt3GOd0GtUYjr1
-eOsWR0SJWEPETNgt3GOd0GtUYjr1
-lastLocationAt
-April 2, 2026 at 6:31:36 PM UTC-4
-(timestamp)
-
-
-lastSeenAt
-April 2, 2026 at 6:31:36 PM UTC-4
-(timestamp)
-
-
-lat
-28.572715500000005
-(double)
-
-
-lng
--81.467766
-(double)
-
-
-name
-"dar"
-(string)
-
-
-status
-"online"
-(string)
-
-
-updatedAt
-April 2, 2026 at 6:31:36 PM UTC-4 
-
-
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Bell, Star, LocateFixed, Loader2, X, AlertCircle } from "lucide-react";
 
@@ -54,13 +11,11 @@ import HomeTab          from '@/App/Drivers/HomeTab.jsx';
 import EarningsTab      from '@/App/Drivers/EarningsTab.jsx';
 import TripsTab         from '@/App/Drivers/TripsTab.jsx';
 import ProfileTab       from '@/App/Drivers/ProfileTab.jsx';
-import { useDriverAccount } from "@/App/Drivers/useDriverAccount";
 import { useDriverRides } from '@/App/Drivers/useDriverRides';
 import { useActiveRides } from "@/App/Drivers/useActiveRides";
 
-
 // ── Cloud Function URLs ───────────────────────────────────────────────
-const DRIVER_STATUS_URL = "https://setdriverstatus-ady2s2xhhq-uc.a.run.app";
+const DRIVER_STATUS_URL = "https://PLACEHOLDER-setdriverstatus-ady2s2xhhq-uc.a.run.app";
 //                         ↑ Replace with your real Cloud Function URL
 
 // ── Trip request chime (Web Audio API — no audio file needed) ────────
@@ -261,11 +216,9 @@ function LocationPopup({ onAllow, onDeny, loading, error }) {
 export default function UaTobDriverApp({ uid }) {
 
   // ── Remote data ───────────────────────────────────────
-  const { driver } = useDriverAccount(uid);
   const { rides, loading: ridesLoading } = useDriverRides();
   const { activeRides, loading }         = useActiveRides(uid);
 
-  console.log("Driver account:", driver);
   console.log("All rides:",    rides);
   console.log("Active rides:", activeRides);
 
@@ -273,6 +226,7 @@ export default function UaTobDriverApp({ uid }) {
   const [mounted,        setMounted]        = useState(false);
   const [activeTab,      setActiveTab]      = useState("home");
   const [online,         setOnline]         = useState(false);
+  const onlineSyncedRef = useRef(false); // prevent re-syncing after the driver manually toggles
   const [activeTrip,     setActiveTrip]     = useState(null);
   const [requestTimer,   setRequestTimer]   = useState(15);
   const [notification,   setNotification]   = useState(null);
@@ -305,6 +259,15 @@ export default function UaTobDriverApp({ uid }) {
     if (newId && newId !== prevRequestId.current) playRequestChime();
     prevRequestId.current = newId;
   }, [tripRequest?.id]);
+
+  // ── Seed online state from Firestore on first load ───
+  //  Runs once when driver data arrives. After that the driver's
+  //  manual toggles take over — we never overwrite them.
+  useEffect(() => {
+    if (!driver || onlineSyncedRef.current) return;
+    onlineSyncedRef.current = true;
+    setOnline(driver.status === "online");
+  }, [driver]);
 
   // ── Mount animation ───────────────────────────────────
   useEffect(() => { setMounted(true); }, []);
@@ -627,9 +590,7 @@ export default function UaTobDriverApp({ uid }) {
             <UaTobIcon size={40} online={online} />
             <div>
               <div className="condensed lbl">Driver Console</div>
-            <div style={{ fontSize: 20, fontWeight: 800 }}>
-            {driver?.name ? driver.name.split(" ")[0] : ""}
-           </div>
+              <div style={{ fontSize: 20, fontWeight: 800 }}>Marcus J.</div>
             </div>
           </div>
 
