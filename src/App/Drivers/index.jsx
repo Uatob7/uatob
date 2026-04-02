@@ -15,9 +15,9 @@ import { useDriverAccount } from "@/App/Drivers/useDriverAccount";
 import { useDriverRides } from '@/App/Drivers/useDriverRides';
 import { useActiveRides } from "@/App/Drivers/useActiveRides";
 
+
 // ── Cloud Function URLs ───────────────────────────────────────────────
-const DRIVER_STATUS_URL = "https://PLACEHOLDER-setdriverstatus-ady2s2xhhq-uc.a.run.app";
-//                         ↑ Replace with your real Cloud Function URL
+const DRIVER_STATUS_URL = "https://setdriverstatus-ady2s2xhhq-uc.a.run.app";
 
 // ── Trip request chime (Web Audio API — no audio file needed) ────────
 function playRequestChime() {
@@ -77,15 +77,8 @@ function playRequestChime() {
 }
 
 // ── LOCATION PERMISSION POPUP ─────────────────────────────────────────
-//
-//  States it cycles through:
-//    "prompt"  → "UaTob needs your location" with Allow / Cancel
-//    "loading" → spinner while browser fetches coords
-//    "error"   → shows the error message with Retry / Cancel
-//
 function LocationPopup({ onAllow, onDeny, loading, error }) {
   return (
-    // ── Backdrop
     <div
       onClick={e => { if (e.target === e.currentTarget) onDeny(); }}
       style={{
@@ -122,15 +115,15 @@ function LocationPopup({ onAllow, onDeny, loading, error }) {
         {/* Icon ring */}
         <div style={{ display: "flex", justifyContent: "center", marginBottom: "20px" }}>
           <div style={{
-            width:        "68px",
-            height:       "68px",
-            borderRadius: "50%",
-            background:   error ? "rgba(220,38,38,.08)" : "rgba(22,163,74,.1)",
-            border:       `2px solid ${error ? "rgba(220,38,38,.25)" : "rgba(22,163,74,.3)"}`,
-            display:      "flex",
-            alignItems:   "center",
+            width:          "68px",
+            height:         "68px",
+            borderRadius:   "50%",
+            background:     error ? "rgba(220,38,38,.08)" : "rgba(22,163,74,.1)",
+            border:         `2px solid ${error ? "rgba(220,38,38,.25)" : "rgba(22,163,74,.3)"}`,
+            display:        "flex",
+            alignItems:     "center",
             justifyContent: "center",
-            boxShadow:    error ? "0 0 0 8px rgba(220,38,38,.05)" : "0 0 0 8px rgba(22,163,74,.06)",
+            boxShadow:      error ? "0 0 0 8px rgba(220,38,38,.05)" : "0 0 0 8px rgba(22,163,74,.06)",
           }}>
             {loading
               ? <Loader2 size={28} color="#16A34A" style={{ animation: "locSpin 1s linear infinite" }} />
@@ -168,21 +161,21 @@ function LocationPopup({ onAllow, onDeny, loading, error }) {
             <button
               onClick={onAllow}
               style={{
-                width:        "100%",
-                padding:      "15px",
-                borderRadius: "14px",
-                border:       "none",
-                background:   error ? "#DC2626" : "linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D)",
-                color:        "#fff",
-                fontSize:     "15px",
-                fontWeight:   "800",
-                fontFamily:   "'Barlow', sans-serif",
-                cursor:       "pointer",
-                boxShadow:    error ? "0 4px 14px rgba(220,38,38,.3)" : "0 4px 14px rgba(22,163,74,.35)",
-                display:      "flex",
-                alignItems:   "center",
+                width:          "100%",
+                padding:        "15px",
+                borderRadius:   "14px",
+                border:         "none",
+                background:     error ? "#DC2626" : "linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D)",
+                color:          "#fff",
+                fontSize:       "15px",
+                fontWeight:     "800",
+                fontFamily:     "'Barlow', sans-serif",
+                cursor:         "pointer",
+                boxShadow:      error ? "0 4px 14px rgba(220,38,38,.3)" : "0 4px 14px rgba(22,163,74,.35)",
+                display:        "flex",
+                alignItems:     "center",
                 justifyContent: "center",
-                gap:          "8px",
+                gap:            "8px",
               }}
             >
               <LocateFixed size={16} />
@@ -221,6 +214,7 @@ export default function UaTobDriverApp({ uid }) {
   const { rides, loading: ridesLoading } = useDriverRides();
   const { activeRides, loading }         = useActiveRides(uid);
 
+  console.log("Driver account:", driver);
   console.log("All rides:",    rides);
   console.log("Active rides:", activeRides);
 
@@ -228,7 +222,6 @@ export default function UaTobDriverApp({ uid }) {
   const [mounted,        setMounted]        = useState(false);
   const [activeTab,      setActiveTab]      = useState("home");
   const [online,         setOnline]         = useState(false);
-  const onlineSyncedRef = useRef(false); // prevent re-syncing after the driver manually toggles
   const [activeTrip,     setActiveTrip]     = useState(null);
   const [requestTimer,   setRequestTimer]   = useState(15);
   const [notification,   setNotification]   = useState(null);
@@ -242,10 +235,23 @@ export default function UaTobDriverApp({ uid }) {
   const [locationError,     setLocationError]      = useState("");
 
   // ── Refs ──────────────────────────────────────────────
-  const skippedIds       = useRef(new Set());
-  const timerRef         = useRef(null);
-  const prevRequestId    = useRef(null);
-  const locationPingRef  = useRef(null);   // holds the 60-second location interval
+  const skippedIds         = useRef(new Set());
+  const timerRef           = useRef(null);
+  const prevRequestId      = useRef(null);
+  const locationPingRef    = useRef(null);
+  const onlineInitialized  = useRef(false);   // ← prevents re-sync on every driver update
+
+  // ── Sync online state from Firestore on first load ────
+  //
+  //  Runs once when the driver doc first becomes available.
+  //  If the driver was online before refresh, the toggle snaps to true.
+  //  The ref guard stops Firestore real-time updates from fighting the toggle.
+  //
+  useEffect(() => {
+    if (!driver || onlineInitialized.current) return;
+    onlineInitialized.current = true;
+    setOnline(driver.status === "online");
+  }, [driver]);
 
   // ── Derived: trip request ─────────────────────────────
   const tripRequest = online && !activeTrip && !ridesLoading
@@ -261,15 +267,6 @@ export default function UaTobDriverApp({ uid }) {
     if (newId && newId !== prevRequestId.current) playRequestChime();
     prevRequestId.current = newId;
   }, [tripRequest?.id]);
-
-  // ── Seed online state from Firestore on first load ───
-  //  Runs once when driver data arrives. After that the driver's
-  //  manual toggles take over — we never overwrite them.
-  useEffect(() => {
-    if (!driver || onlineSyncedRef.current) return;
-    onlineSyncedRef.current = true;
-    setOnline(driver.status === "online");
-  }, [driver]);
 
   // ── Mount animation ───────────────────────────────────
   useEffect(() => { setMounted(true); }, []);
@@ -335,14 +332,7 @@ export default function UaTobDriverApp({ uid }) {
   }, [online]);
 
   // ── 60-second location ping while online ─────────────
-  //
-  //  Sends { uid, status: "location_ping", lat, lng } to DRIVER_STATUS_URL
-  //  every 60 seconds while the driver is online.
-  //  Starts immediately on going online (first ping fires after 60 s).
-  //  Clears automatically when the driver goes offline or unmounts.
-  //
   useEffect(() => {
-    // Clear any existing interval first
     clearInterval(locationPingRef.current);
 
     if (!online) return;
@@ -353,7 +343,7 @@ export default function UaTobDriverApp({ uid }) {
           navigator.geolocation.getCurrentPosition(resolve, reject, {
             enableHighAccuracy: true,
             timeout:            8000,
-            maximumAge:         30000,   // accept a position up to 30 s old
+            maximumAge:         30000,
           })
         );
 
@@ -367,10 +357,9 @@ export default function UaTobDriverApp({ uid }) {
 
         console.log(`📍 Location ping sent — lat:${lat.toFixed(5)} lng:${lng.toFixed(5)}`);
       } catch (err) {
-        // Silent fail — just log so it never interrupts the driver's UI
         console.warn("📍 Location ping failed:", err?.message ?? err);
       }
-    }, 60_000); // every 60 seconds
+    }, 60_000);
 
     return () => clearInterval(locationPingRef.current);
   }, [online, uid]);
@@ -406,7 +395,6 @@ export default function UaTobDriverApp({ uid }) {
     setLocationLoading(true);
 
     try {
-      // 1. Get GPS coords from browser
       const position = await new Promise((resolve, reject) =>
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           enableHighAccuracy: true,
@@ -417,17 +405,14 @@ export default function UaTobDriverApp({ uid }) {
 
       const { latitude: lat, longitude: lng } = position.coords;
 
-      // 2. Call cloud function with status + location
       await callDriverStatusAPI("online", lat, lng);
 
-      // 3. Success — go online
       setOnline(true);
       setShowLocationPopup(false);
       setLocationError("");
       showNotif("Online", "Ready for rides");
 
     } catch (err) {
-      // GeolocationPositionError codes: 1=denied, 2=unavailable, 3=timeout
       if (err.code === 1) {
         setLocationError("Location access was denied. Allow location in your browser settings to go online.");
       } else if (err.code === 2) {
@@ -445,12 +430,10 @@ export default function UaTobDriverApp({ uid }) {
   // ── ONLINE / OFFLINE toggle ───────────────────────────
   const handleToggleOnline = useCallback(async () => {
     if (online) {
-      // ── Going OFFLINE ──────────────────────────────────
       try {
         await callDriverStatusAPI("offline");
       } catch (err) {
         console.error("Failed to update status to offline:", err);
-        // Still go offline locally so the UI isn't stuck
       }
       setOnline(false);
       setActiveTrip(null);
@@ -458,7 +441,6 @@ export default function UaTobDriverApp({ uid }) {
       showNotif("Offline", "See you next time");
 
     } else {
-      // ── Going ONLINE — show location popup first ────────
       setLocationError("");
       setShowLocationPopup(true);
     }
@@ -466,11 +448,10 @@ export default function UaTobDriverApp({ uid }) {
 
   // ── Cancel / dismiss the location popup ──────────────
   const handleLocationDeny = useCallback(() => {
-    if (locationLoading) return; // don't dismiss mid-request
+    if (locationLoading) return;
     setShowLocationPopup(false);
     setLocationError("");
     setLocationLoading(false);
-    // Driver stays offline — location is required
   }, [locationLoading]);
 
   // ── ACCEPT ────────────────────────────────────────────
@@ -580,12 +561,12 @@ export default function UaTobDriverApp({ uid }) {
         {/* Header */}
         <div
           style={{
-            padding:   "20px 20px 0",
-            display:   "flex",
+            padding:        "20px 20px 0",
+            display:        "flex",
             justifyContent: "space-between",
-            alignItems: "center",
-            animation: mounted ? "slideUp .5s ease-out forwards" : "none",
-            opacity:   0,
+            alignItems:     "center",
+            animation:      mounted ? "slideUp .5s ease-out forwards" : "none",
+            opacity:        0,
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -593,8 +574,8 @@ export default function UaTobDriverApp({ uid }) {
             <div>
               <div className="condensed lbl">Driver Console</div>
               <div style={{ fontSize: 20, fontWeight: 800 }}>
-            {driver?.name ? driver.name.split(" ")[0] : ""}
-           </div>
+                {driver?.name ? driver.name.split(" ")[0] : ""}
+              </div>
             </div>
           </div>
 
