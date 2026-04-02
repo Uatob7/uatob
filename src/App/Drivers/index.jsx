@@ -1,3 +1,46 @@
+(default)
+
+Drivers
+
+Rides
+Drivers
+
+eOsWR0SJWEPETNgt3GOd0GtUYjr1
+eOsWR0SJWEPETNgt3GOd0GtUYjr1
+lastLocationAt
+April 2, 2026 at 6:31:36 PM UTC-4
+(timestamp)
+
+
+lastSeenAt
+April 2, 2026 at 6:31:36 PM UTC-4
+(timestamp)
+
+
+lat
+28.572715500000005
+(double)
+
+
+lng
+-81.467766
+(double)
+
+
+name
+"dar"
+(string)
+
+
+status
+"online"
+(string)
+
+
+updatedAt
+April 2, 2026 at 6:31:36 PM UTC-4 
+
+
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Bell, Star, LocateFixed, Loader2, X, AlertCircle } from "lucide-react";
 
@@ -11,8 +54,10 @@ import HomeTab          from '@/App/Drivers/HomeTab.jsx';
 import EarningsTab      from '@/App/Drivers/EarningsTab.jsx';
 import TripsTab         from '@/App/Drivers/TripsTab.jsx';
 import ProfileTab       from '@/App/Drivers/ProfileTab.jsx';
+import { useDriverAccount } from "@/App/Drivers/useDriverAccount";
 import { useDriverRides } from '@/App/Drivers/useDriverRides';
 import { useActiveRides } from "@/App/Drivers/useActiveRides";
+
 
 // ── Cloud Function URLs ───────────────────────────────────────────────
 const DRIVER_STATUS_URL = "https://setdriverstatus-ady2s2xhhq-uc.a.run.app";
@@ -216,9 +261,11 @@ function LocationPopup({ onAllow, onDeny, loading, error }) {
 export default function UaTobDriverApp({ uid }) {
 
   // ── Remote data ───────────────────────────────────────
+  const { driver } = useDriverAccount(uid);
   const { rides, loading: ridesLoading } = useDriverRides();
   const { activeRides, loading }         = useActiveRides(uid);
 
+  console.log("Driver account:", driver);
   console.log("All rides:",    rides);
   console.log("Active rides:", activeRides);
 
@@ -580,7 +627,9 @@ export default function UaTobDriverApp({ uid }) {
             <UaTobIcon size={40} online={online} />
             <div>
               <div className="condensed lbl">Driver Console</div>
-              <div style={{ fontSize: 20, fontWeight: 800 }}>Marcus J.</div>
+            <div style={{ fontSize: 20, fontWeight: 800 }}>
+            {driver?.name ? driver.name.split(" ")[0] : ""}
+           </div>
             </div>
           </div>
 
