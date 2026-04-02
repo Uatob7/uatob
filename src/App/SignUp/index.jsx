@@ -1,5 +1,4 @@
-
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Car, User, FileText, Shield, Camera, Check, ChevronRight,
   ChevronLeft, Eye, EyeOff, Upload, Phone, Mail, Lock,
@@ -9,6 +8,39 @@ import {
 import signUp from '@/firebase/auth/signup';
 
 const CLOUD_FUNCTION_URL = "https://createdriverprofile-ady2s2xhhq-uc.a.run.app";
+
+/* ─── localStorage helpers ───────────────────── */
+const LS_KEYS = {
+  step:    "uatob_driver_step",
+  account: "uatob_driver_account",
+  contact: "uatob_driver_contact",
+  vehicle: "uatob_driver_vehicle",
+  doc:     "uatob_driver_doc",
+  uid:     "uatob_driver_uid",
+};
+
+function lsGet(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function lsSet(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+}
+
+function lsClear() {
+  Object.values(LS_KEYS).forEach(k => localStorage.removeItem(k));
+}
+
+/* ─── Default state values ───────────────────── */
+const DEFAULT_ACCOUNT = { firstName: "", lastName: "", email: "", password: "", confirmPassword: "", terms: false };
+const DEFAULT_CONTACT = { phone: "", address: "", city: "", state: "", zip: "" };
+const DEFAULT_VEHICLE = { make: "", model: "", year: "", color: "", plate: "", vin: "", rideTypes: [] };
+const DEFAULT_DOC     = { licenseFront: false, licenseBack: false, licenseNumber: "", registration: false, insurance: false, profilePhoto: false };
 
 function UaTobIcon({ size = 38 }) {
   return (
@@ -355,10 +387,7 @@ function StepDocuments({ data, setData, errors }) {
           All documents are <strong style={{ color: C.text }}>encrypted and stored securely</strong>. We only use them for driver verification.
         </div>
       </div>
-
-      <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, marginBottom: 12, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>
-        Driver's License
-      </div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, marginBottom: 12, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>Driver's License</div>
       <div style={{ display: "flex", gap: 10, marginBottom: 4 }}>
         <div style={{ flex: 1 }}>
           <UploadBox label="Front Side" hint="Tap to upload photo" icon={Camera} uploaded={data.licenseFront} onUpload={v => setData(d => ({...d, licenseFront: v}))} />
@@ -370,22 +399,14 @@ function StepDocuments({ data, setData, errors }) {
         </div>
       </div>
       <InputField label="License Number" placeholder="D1234567" icon={FileText} value={data.licenseNumber} onChange={v => setData(d => ({...d, licenseNumber: v}))} hint="As shown on your license" error={errors?.licenseNumber} />
-
       <div style={{ height: 1, background: C.border, margin: "4px 0 18px" }} />
-
-      <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, marginBottom: 12, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>
-        Vehicle Registration & Insurance
-      </div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, marginBottom: 12, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>Vehicle Registration & Insurance</div>
       <UploadBox label="Vehicle Registration" hint="Photo or PDF accepted" icon={FileText} uploaded={data.registration} onUpload={v => setData(d => ({...d, registration: v}))} />
       {errors?.registration && <div style={{ fontSize: 11.5, color: C.red, marginBottom: 8, paddingLeft: 2 }}>{errors.registration}</div>}
       <UploadBox label="Proof of Insurance" hint="Must be current & valid" icon={Shield} uploaded={data.insurance} onUpload={v => setData(d => ({...d, insurance: v}))} />
       {errors?.insurance && <div style={{ fontSize: 11.5, color: C.red, marginBottom: 8, paddingLeft: 2 }}>{errors.insurance}</div>}
-
       <div style={{ height: 1, background: C.border, margin: "4px 0 18px" }} />
-
-      <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, marginBottom: 12, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>
-        Profile Photo
-      </div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, marginBottom: 12, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>Profile Photo</div>
       <UploadBox label="Your Photo" hint="Clear, recent headshot • No sunglasses" icon={Camera} uploaded={data.profilePhoto} onUpload={v => setData(d => ({...d, profilePhoto: v}))} />
       {errors?.profilePhoto && <div style={{ fontSize: 11.5, color: C.red, marginTop: 4, paddingLeft: 2 }}>{errors.profilePhoto}</div>}
     </div>
@@ -394,25 +415,19 @@ function StepDocuments({ data, setData, errors }) {
 
 function StepVerify({ accountData, contactData, vehicleData, docData }) {
   const allDocs = docData.licenseFront && docData.licenseBack && docData.registration && docData.insurance && docData.profilePhoto;
-
   const Section = ({ title, items }) => (
     <div style={{ marginBottom: 18 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, marginBottom: 12, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>
-        {title}
-      </div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, marginBottom: 12, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>{title}</div>
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,.04)" }}>
         {items.map((item, i) => (
           <div key={i} style={{ padding: "12px 16px", borderBottom: i < items.length - 1 ? `1px solid ${C.border}` : "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 12.5, color: C.textMid, fontWeight: 500 }}>{item.label}</span>
-            <span style={{ fontSize: 13, color: item.val ? C.text : C.textDim, fontWeight: 600, maxWidth: "55%", textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {item.val || "—"}
-            </span>
+            <span style={{ fontSize: 13, color: item.val ? C.text : C.textDim, fontWeight: 600, maxWidth: "55%", textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.val || "—"}</span>
           </div>
         ))}
       </div>
     </div>
   );
-
   return (
     <div>
       <div style={{ background: allDocs ? "rgba(22,163,74,.05)" : "rgba(22,163,74,.04)", border: `1px solid ${allDocs ? "rgba(22,163,74,.25)" : "rgba(22,163,74,.18)"}`, borderRadius: 16, padding: "16px 18px", marginBottom: 22, display: "flex", gap: 12, alignItems: "center" }}>
@@ -420,36 +435,19 @@ function StepVerify({ accountData, contactData, vehicleData, docData }) {
           {allDocs ? <CheckCircle size={18} color={C.green} /> : <Clock size={18} color={C.accent} />}
         </div>
         <div>
-          <div style={{ fontSize: 13.5, fontWeight: 700, color: C.accent, marginBottom: 2 }}>
-            {allDocs ? "All documents uploaded" : "Some documents missing"}
-          </div>
-          <div style={{ fontSize: 11.5, color: C.textMid }}>
-            {allDocs ? "Your application is ready to submit for review." : "You can still submit — upload remaining docs later."}
-          </div>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: C.accent, marginBottom: 2 }}>{allDocs ? "All documents uploaded" : "Some documents missing"}</div>
+          <div style={{ fontSize: 11.5, color: C.textMid }}>{allDocs ? "Your application is ready to submit for review." : "You can still submit — upload remaining docs later."}</div>
         </div>
       </div>
-
-      <Section title="Account" items={[
-        { label: "Name",  val: `${accountData.firstName} ${accountData.lastName}` },
-        { label: "Email", val: accountData.email },
-      ]} />
-      <Section title="Contact" items={[
-        { label: "Phone",          val: contactData.phone },
-        { label: "Address",        val: contactData.address },
-        { label: "City / State",   val: contactData.city && contactData.state ? `${contactData.city}, ${contactData.state} ${contactData.zip}` : "" },
-      ]} />
-      <Section title="Vehicle" items={[
-        { label: "Vehicle",    val: vehicleData.make && vehicleData.model ? `${vehicleData.year} ${vehicleData.make} ${vehicleData.model}` : "" },
-        { label: "Plate",      val: vehicleData.plate },
-        { label: "Ride Types", val: vehicleData.rideTypes?.join(", ") },
-      ]} />
+      <Section title="Account" items={[{ label: "Name", val: `${accountData.firstName} ${accountData.lastName}` }, { label: "Email", val: accountData.email }]} />
+      <Section title="Contact" items={[{ label: "Phone", val: contactData.phone }, { label: "Address", val: contactData.address }, { label: "City / State", val: contactData.city && contactData.state ? `${contactData.city}, ${contactData.state} ${contactData.zip}` : "" }]} />
+      <Section title="Vehicle" items={[{ label: "Vehicle", val: vehicleData.make && vehicleData.model ? `${vehicleData.year} ${vehicleData.make} ${vehicleData.model}` : "" }, { label: "Plate", val: vehicleData.plate }, { label: "Ride Types", val: vehicleData.rideTypes?.join(", ") }]} />
       <Section title="Documents" items={[
         { label: "Driver's License", val: (docData.licenseFront && docData.licenseBack) ? "✓ Uploaded" : "Pending" },
         { label: "Registration",     val: docData.registration ? "✓ Uploaded" : "Pending" },
         { label: "Insurance",        val: docData.insurance    ? "✓ Uploaded" : "Pending" },
         { label: "Profile Photo",    val: docData.profilePhoto ? "✓ Uploaded" : "Pending" },
       ]} />
-
       <div style={{ background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", marginTop: 4, display: "flex", gap: 10, alignItems: "flex-start" }}>
         <Zap size={14} color={C.accent} style={{ flexShrink: 0, marginTop: 1 }} />
         <div style={{ fontSize: 12, color: C.textMid, lineHeight: 1.6 }}>
@@ -463,81 +461,62 @@ function StepVerify({ accountData, contactData, vehicleData, docData }) {
 /* ─── MAIN COMPONENT ─────────────────────────── */
 
 export default function UaTobDriverSignup() {
-  const [step,       setStep]       = useState(1);
-  const [direction,  setDirection]  = useState("forward");
-  const [animating,  setAnimating]  = useState(false);
-  const [submitted,  setSubmitted]  = useState(false);
-  const [errors,     setErrors]     = useState({});
-  const [loading,    setLoading]    = useState(false);
-  const [createdUid, setCreatedUid] = useState(null);
-  const [submitError, setSubmitError] = useState(null);
+
+  // ── Rehydrate from localStorage on first mount ──
+  const [step,        setStep]        = useState(() => lsGet(LS_KEYS.step, 1));
+  const [createdUid,  setCreatedUid]  = useState(() => lsGet(LS_KEYS.uid, null));
+  const [accountData, setAccountData] = useState(() => {
+    const saved = lsGet(LS_KEYS.account, DEFAULT_ACCOUNT);
+    // Never restore passwords — security best practice
+    return { ...DEFAULT_ACCOUNT, ...saved, password: "", confirmPassword: "" };
+  });
+  const [contactData, setContactData] = useState(() => lsGet(LS_KEYS.contact, DEFAULT_CONTACT));
+  const [vehicleData, setVehicleData] = useState(() => lsGet(LS_KEYS.vehicle, DEFAULT_VEHICLE));
+  const [docData,     setDocData]     = useState(() => lsGet(LS_KEYS.doc,     DEFAULT_DOC));
+
+  const [direction,    setDirection]    = useState("forward");
+  const [animating,    setAnimating]    = useState(false);
+  const [submitted,    setSubmitted]    = useState(false);
+  const [errors,       setErrors]       = useState({});
+  const [loading,      setLoading]      = useState(false);
+  const [submitError,  setSubmitError]  = useState(null);
+  const [showResumeBanner, setShowResumeBanner] = useState(() => lsGet(LS_KEYS.step, 1) > 1);
   const scrollRef = useRef(null);
 
-  const [accountData, setAccountData] = useState({ firstName: "", lastName: "", email: "", password: "", confirmPassword: "", terms: false });
-  const [contactData, setContactData] = useState({ phone: "", address: "", city: "", state: "", zip: "" });
-  const [vehicleData, setVehicleData] = useState({ make: "", model: "", year: "", color: "", plate: "", vin: "", rideTypes: [] });
-  const [docData,     setDocData]     = useState({ licenseFront: false, licenseBack: false, licenseNumber: "", registration: false, insurance: false, profilePhoto: false });
+  // ── Persist each slice to localStorage whenever it changes ──
+  useEffect(() => { lsSet(LS_KEYS.step, step); },       [step]);
+  useEffect(() => { lsSet(LS_KEYS.uid,  createdUid); }, [createdUid]);
+  useEffect(() => {
+    // Strip passwords before saving to localStorage
+    const { password, confirmPassword, ...safe } = accountData;
+    lsSet(LS_KEYS.account, safe);
+  }, [accountData]);
+  useEffect(() => { lsSet(LS_KEYS.contact, contactData); }, [contactData]);
+  useEffect(() => { lsSet(LS_KEYS.vehicle, vehicleData); }, [vehicleData]);
+  useEffect(() => { lsSet(LS_KEYS.doc,     docData); },     [docData]);
 
   /* ── API helpers ── */
 
-  // Step 1: create Firebase account + initial driver profile
-  const createDriverProfile = async (uid, accountData) => {
+  const createDriverProfile = async (uid, data) => {
     const res = await fetch(CLOUD_FUNCTION_URL, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({
-        uid,
-        accountData: {
-          firstName: accountData.firstName,
-          lastName:  accountData.lastName,
-          email:     accountData.email,
-        },
-      }),
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uid, accountData: { firstName: data.firstName, lastName: data.lastName, email: data.email } }),
     });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.error || "Failed to create driver profile");
-    }
+    if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error || "Failed to create driver profile"); }
     return res.json();
   };
 
-  // Step 5: send the rest of the driver data
   const submitDriverData = async (uid) => {
     const res = await fetch(CLOUD_FUNCTION_URL, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         uid,
-        contactData: {
-          phone:   contactData.phone,
-          address: contactData.address,
-          city:    contactData.city,
-          state:   contactData.state,
-          zip:     contactData.zip,
-        },
-        vehicleData: {
-          make:      vehicleData.make,
-          model:     vehicleData.model,
-          year:      vehicleData.year,
-          color:     vehicleData.color,
-          plate:     vehicleData.plate,
-          vin:       vehicleData.vin,
-          rideTypes: vehicleData.rideTypes,
-        },
-        docData: {
-          licenseFront:  docData.licenseFront,
-          licenseBack:   docData.licenseBack,
-          licenseNumber: docData.licenseNumber,
-          registration:  docData.registration,
-          insurance:     docData.insurance,
-          profilePhoto:  docData.profilePhoto,
-        },
+        contactData: { phone: contactData.phone, address: contactData.address, city: contactData.city, state: contactData.state, zip: contactData.zip },
+        vehicleData: { make: vehicleData.make, model: vehicleData.model, year: vehicleData.year, color: vehicleData.color, plate: vehicleData.plate, vin: vehicleData.vin, rideTypes: vehicleData.rideTypes },
+        docData:     { licenseFront: docData.licenseFront, licenseBack: docData.licenseBack, licenseNumber: docData.licenseNumber, registration: docData.registration, insurance: docData.insurance, profilePhoto: docData.profilePhoto },
       }),
     });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.error || "Failed to submit application");
-    }
+    if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error || "Failed to submit application"); }
     return res.json();
   };
 
@@ -576,35 +555,31 @@ export default function UaTobDriverSignup() {
   const goNext = async () => {
     if (loading || animating || !validate()) return;
     setSubmitError(null);
-
     try {
       setLoading(true);
 
-      // Step 1 — Firebase signup + create initial driver profile
       if (step === 1 && !createdUid) {
         const { result, error: signUpError } = await signUp(
           accountData.email.trim().toLowerCase(),
           accountData.password
         );
         if (signUpError) throw signUpError;
-
         const newUid = result.user.uid;
         setCreatedUid(newUid);
         await createDriverProfile(newUid, accountData);
         console.log("✅ Driver profile created:", newUid);
       }
 
-      // Step 5 — send contact, vehicle & doc data then mark as submitted
       if (step === 5) {
         const uid = createdUid;
-        if (!uid) throw new Error("Missing user ID — please restart the signup.");
+        if (!uid) throw new Error("Missing user ID — please restart signup.");
         await submitDriverData(uid);
         console.log("✅ Full driver data submitted for uid:", uid);
+        lsClear(); // wipe saved progress after successful submit
         setSubmitted(true);
         return;
       }
 
-      // Advance to next step
       setDirection("forward");
       setAnimating(true);
       setTimeout(() => {
@@ -615,8 +590,7 @@ export default function UaTobDriverSignup() {
       }, 200);
 
     } catch (err) {
-      console.error("❌ Signup error:", err);
-      // Show auth errors on the email field; show submit errors as a banner
+      console.error("❌ Error:", err);
       if (step === 1) {
         setErrors({ email: err.message || "Signup failed. Please try again." });
       } else {
@@ -638,6 +612,19 @@ export default function UaTobDriverSignup() {
       setAnimating(false);
       scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     }, 200);
+  };
+
+  const restartForm = () => {
+    lsClear();
+    setStep(1);
+    setCreatedUid(null);
+    setAccountData(DEFAULT_ACCOUNT);
+    setContactData(DEFAULT_CONTACT);
+    setVehicleData(DEFAULT_VEHICLE);
+    setDocData(DEFAULT_DOC);
+    setErrors({});
+    setSubmitError(null);
+    setShowResumeBanner(false);
   };
 
   const pct = ((step - 1) / (STEPS.length - 1)) * 100;
@@ -702,6 +689,7 @@ export default function UaTobDriverSignup() {
         @keyframes revealUp     { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
         @keyframes greenPulse   { 0%,100% { box-shadow: 0 4px 18px rgba(22,163,74,.25) } 50% { box-shadow: 0 4px 28px rgba(22,163,74,.5) } }
         @keyframes errorShake   { 0%,100% { transform: translateX(0) } 20%,60% { transform: translateX(-6px) } 40%,80% { transform: translateX(6px) } }
+        @keyframes slideDown    { from { opacity: 0; transform: translateY(-10px) } to { opacity: 1; transform: translateY(0) } }
         .green-btn {
           background: linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D);
           border: none; border-radius: 15px; color: #fff;
@@ -729,11 +717,36 @@ export default function UaTobDriverSignup() {
         {/* Header */}
         <div style={{ padding: "28px 0 24px", display: "flex", alignItems: "center", gap: 14 }}>
           <UaTobIcon size={38} />
-          <div>
+          <div style={{ flex: 1 }}>
             <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 10, fontWeight: 700, color: C.textDim, letterSpacing: "2px", textTransform: "uppercase", marginBottom: 2 }}>Driver Signup</div>
             <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 21, fontWeight: 900, color: C.text, letterSpacing: "-0.3px" }}>Start Driving Today</div>
           </div>
+          {/* Start Over — only visible when there's saved progress */}
+          {(step > 1 || accountData.firstName) && (
+            <button
+              onClick={restartForm}
+              style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 10, padding: "7px 12px", fontSize: 11, fontWeight: 700, color: C.textDim, cursor: "pointer", fontFamily: "'Barlow Condensed', sans-serif", letterSpacing: ".5px", textTransform: "uppercase", transition: "all .2s" }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = C.red; e.currentTarget.style.color = C.red; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textDim; }}
+            >
+              Start Over
+            </button>
+          )}
         </div>
+
+        {/* Resume banner */}
+        {showResumeBanner && (
+          <div style={{ background: "rgba(22,163,74,.05)", border: "1px solid rgba(22,163,74,.2)", borderRadius: 14, padding: "13px 16px", marginBottom: 20, display: "flex", gap: 12, alignItems: "center", animation: "slideDown .3s ease" }}>
+            <div style={{ width: 34, height: 34, background: C.accentGlow, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <CheckCircle size={16} color={C.accent} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: C.accent, marginBottom: 2 }}>Progress saved — welcome back!</div>
+              <div style={{ fontSize: 11.5, color: C.textMid }}>Resuming from step {step} of {STEPS.length}.</div>
+            </div>
+            <button onClick={() => setShowResumeBanner(false)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 18, lineHeight: 1, padding: "0 2px" }}>×</button>
+          </div>
+        )}
 
         {/* Progress bar */}
         <div style={{ marginBottom: 28 }}>
