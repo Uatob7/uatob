@@ -1,9 +1,10 @@
+import { ArrowDownToLine } from 'lucide-react';
 import { C, EARNINGS_DATA } from '@/App/Drivers/constants.js';
 
 const MAX_EARNING = Math.max(...EARNINGS_DATA.map(d => d.amount));
 
 /**
- * Earnings tab — weekly bar chart, breakdown bars, summary tiles.
+ * Earnings tab — weekly bar chart, withdrawal card, summary tiles.
  *
  * Props:
  *   earnings — { today, week, trips }
@@ -11,6 +12,7 @@ const MAX_EARNING = Math.max(...EARNINGS_DATA.map(d => d.amount));
  */
 export default function EarningsTab({ earnings, online }) {
   const accentColor = online ? C.onlineGreen : C.offlineInk;
+  const available   = (earnings.week + 3840).toFixed(2); // week + mock month balance
 
   return (
     <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14, animation: "slideUp .38s ease-out forwards" }}>
@@ -55,28 +57,60 @@ export default function EarningsTab({ earnings, online }) {
         </div>
       </div>
 
-      {/* Breakdown bars */}
+      {/* Withdrawal card */}
       <div className="card" style={{ padding: "22px" }}>
-        <div className="condensed" style={{ fontSize: 13, fontWeight: 700, color: C.textMid, marginBottom: 18, letterSpacing: "1px", textTransform: "uppercase" }}>
-          Breakdown
+        <div className="condensed" style={{ fontSize: 13, fontWeight: 700, color: C.textMid, marginBottom: 16, letterSpacing: "1px", textTransform: "uppercase" }}>
+          Available to Withdraw
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {[
-            { label: "Base Fare",      amount: "$780.00", pct: 84, c: accentColor },
-            { label: "Surge Earnings", amount: "$98.00",  pct: 11, c: C.blue     },
-            { label: "Tips",           amount: "$51.00",  pct: 5,  c: C.green    },
-          ].map(item => (
-            <div key={item.label}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 7 }}>
-                <span style={{ fontSize: 13.5, fontWeight: 600, color: C.text }}>{item.label}</span>
-                <span className="mono" style={{ fontSize: 13.5, fontWeight: 700, color: item.c }}>{item.amount}</span>
-              </div>
-              <div style={{ height: 6, background: C.surfaceAlt, borderRadius: 3, overflow: "hidden", border: `1px solid ${C.border}` }}>
-                <div style={{ width: `${item.pct}%`, height: "100%", background: item.c, borderRadius: 3 }}/>
-              </div>
+
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+          <div>
+            <div className="mono condensed" style={{ fontSize: 38, fontWeight: 700, color: C.text, letterSpacing: "-1px", lineHeight: 1 }}>
+              ${available}
             </div>
-          ))}
+            <div style={{ fontSize: 12, color: C.textDim, fontWeight: 600, marginTop: 4 }}>
+              Instant transfer · usually &lt; 30 min
+            </div>
+          </div>
+          <div style={{
+            width: 52, height: 52,
+            background: accentColor + "15",
+            border: `1.5px solid ${accentColor}30`,
+            borderRadius: "50%",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            flexShrink: 0,
+          }}>
+            <ArrowDownToLine size={22} color={accentColor} />
+          </div>
         </div>
+
+        <button
+          style={{
+            width: "100%",
+            padding: "15px 20px",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
+            background: online
+              ? "linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D)"
+              : "linear-gradient(135deg,#374151,#111827)",
+            border: "none",
+            borderRadius: 13,
+            color: "#fff",
+            fontFamily: "'Barlow',sans-serif",
+            fontWeight: 800,
+            fontSize: 15,
+            letterSpacing: ".3px",
+            cursor: "pointer",
+            boxShadow: online ? "0 4px 18px rgba(22,163,74,.28)" : "0 4px 18px rgba(0,0,0,.18)",
+            transition: "filter .15s, transform .1s",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.filter = "brightness(1.08)"; }}
+          onMouseLeave={e => { e.currentTarget.style.filter = ""; }}
+          onMouseDown={e  => { e.currentTarget.style.transform = "scale(.98)"; }}
+          onMouseUp={e    => { e.currentTarget.style.transform = ""; }}
+        >
+          <ArrowDownToLine size={17} />
+          Withdraw ${available}
+        </button>
       </div>
 
       {/* Summary tiles */}
