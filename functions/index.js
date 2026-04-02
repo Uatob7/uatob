@@ -12,6 +12,7 @@ const { cashAppPayment } = require("./payments/cashAppPayment");
 
 // driver functions
 const { createDriverProfile } = require("./drivers/createDriverProfile");
+const { setDriverStatus } = require("./drivers/setDriverStatus");
 const { acceptRide } = require("./drivers/acceptRide");
 const { declineRide } = require("./drivers/declineRide");
 const { updateTripStatus } = require("./drivers/updateTripStatus");
@@ -30,3 +31,4 @@ exports.declineRide = declineRide;
 exports.updateTripStatus = updateTripStatus;
 exports.getTripButtonLabel = getTripButtonLabel;
 exports.createDriverProfile = createDriverProfile;
+exports.setDriverStatus = setDriverStatus;

@@ -15,7 +15,7 @@ import { useDriverRides } from '@/App/Drivers/useDriverRides';
 import { useActiveRides } from "@/App/Drivers/useActiveRides";
 
 // ── Cloud Function URLs ───────────────────────────────────────────────
-const DRIVER_STATUS_URL = "https://PLACEHOLDER-setdriverstatus-ady2s2xhhq-uc.a.run.app";
+const DRIVER_STATUS_URL = "https://setdriverstatus-ady2s2xhhq-uc.a.run.app";
 //                         ↑ Replace with your real Cloud Function URL
 
 // ── Trip request chime (Web Audio API — no audio file needed) ────────
