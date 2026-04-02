@@ -30,7 +30,6 @@ export function useDriverRides() {
         collection(db, 'Rides'),
         where('paymentStatus', '==', 'succeeded'),
         where('status', '==', 'searching_driver'),
-        orderBy('createdAt', 'desc'),
         limit(25)
       );
 
