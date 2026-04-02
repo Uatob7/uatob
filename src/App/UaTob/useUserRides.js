@@ -1,17 +1,21 @@
 // src/App/UaTob/useUserRides.js
 import { useState, useEffect } from 'react';
 import {
-  getFirestore,
   collection,
   query,
   where,
   orderBy,
   onSnapshot,
+  limit,
+  getFirestore,
 } from 'firebase/firestore';
+import { firebase_app } from '@/firebase/config'; // ✅ match your working pattern
+
+const db = getFirestore(firebase_app);
 
 export function useUserRides(uid) {
   const [rides, setRides] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // ✅ start true
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -22,43 +26,72 @@ export function useUserRides(uid) {
       return;
     }
 
+    let unsub = () => {};
+    let isMounted = true;
+
     setLoading(true);
     setError(null);
 
-    const db = getFirestore();
-    const col = collection(db, 'Rides');
+    try {
+      const q = query(
+        collection(db, 'Rides'),
+        where('uid', '==', uid),
+        where('status', 'in', [
+          'pending_payment',
+          'searching_driver',
+          'driver_assigned',
+        ]),
+        orderBy('createdAt', 'desc'),
+        limit(20) // ✅ prevents large reads
+      );
 
-    // ✅ ONLY ACTIVE STATUSES
-    const q = query(
-      col,
-      where('uid', '==', uid),
-      where('status', 'in', [
-        'pending_payment',
-        'searching_driver',
-        'driver_assigned',
-      ]),
-      orderBy('createdAt', 'desc')
-    );
+      unsub = onSnapshot(
+        q,
+        (snap) => {
+          if (!isMounted) return;
 
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        const docs = snap.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+          const docs = snap.docs.map((doc) => {
+            const data = doc.data();
 
-        setRides(docs);
-        setLoading(false);
-      },
-      (err) => {
-        console.error('[useUserRides]', err);
-        setError(err.message || 'Failed to load rides');
+            return {
+              id: doc.id,
+              ...data,
+              createdAt: data.createdAt?.toDate?.() ?? null,
+              updatedAt: data.updatedAt?.toDate?.() ?? null,
+            };
+          });
+
+          setRides(docs);
+          setLoading(false);
+        },
+        (err) => {
+          console.error('[useUserRides]', err);
+
+          if (!isMounted) return;
+
+          if (err.code === 'failed-precondition') {
+            setError('Database index required. Check Firebase console.');
+          } else {
+            setError(err.message || 'Failed to load rides');
+          }
+
+          setRides([]); // ✅ clear stale data
+          setLoading(false);
+        }
+      );
+    } catch (err) {
+      console.error('[useUserRides setup]', err);
+
+      if (isMounted) {
+        setError(err.message);
         setLoading(false);
       }
-    );
+    }
 
-    return () => unsub();
+    return () => {
+      isMounted = false;
+      unsub();
+    };
   }, [uid]);
 
   return { rides, loading, error };

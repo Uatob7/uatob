@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Bell, Star } from "lucide-react";
 
 import CSS              from '@/App/Drivers/styles.js';
-import { C, TRIP_REQUESTS } from '@/App/Drivers/constants.js';
+import { C }            from '@/App/Drivers/constants.js';
 import UaTobIcon        from '@/App/Drivers/Icon.jsx';
 import Notification     from '@/App/Drivers/Notification.jsx';
 import SurgeBanner      from '@/App/Drivers/SurgeBanner.jsx';
@@ -12,59 +12,86 @@ import HomeTab          from '@/App/Drivers/HomeTab.jsx';
 import EarningsTab      from '@/App/Drivers/EarningsTab.jsx';
 import TripsTab         from '@/App/Drivers/TripsTab.jsx';
 import ProfileTab       from '@/App/Drivers/ProfileTab.jsx';
+import { useDriverRides } from '@/App/Drivers/useDriverRides';
+import { useActiveRides } from "@/App/Drivers/useActiveRides";
 
-export default function UaTobDriverApp() {
+export default function UaTobDriverApp({ uid }) {
+  // ── Remote data ───────────────────────────────────────
+  const { rides, loading: ridesLoading } = useDriverRides();
+  const { activeRides, loading } = useActiveRides(uid);
 
-  // ── Driver core state ─────────────────────────────────
-  const [online, setOnline] = useState(false);
-  const [activeTab, setActiveTab] = useState("home");
-  const [mounted, setMounted] = useState(false);
+  console.log("All rides:", rides);
+  console.log("Active rides:", activeRides);
 
-  // ── Trip request flow ─────────────────────────────────
-  const [tripRequest, setTripRequest] = useState(null);
-  const [requestTimer, setRequestTimer] = useState(15);
-  const [reqIndex, setReqIndex] = useState(0);
-
-  // ── Active trip state ─────────────────────────────────
-  const [activeTrip, setActiveTrip] = useState(null);
-  const [tripStage, setTripStage] = useState("idle");
-
-  // ── Earnings ──────────────────────────────────────────
-  const [earnings, setEarnings] = useState({
-    today: 142.8,
-    week: 929.0,
-    trips: 8,
-  });
-
-  // ── UI state ──────────────────────────────────────────
+  // ── Local state ───────────────────────────────────────
+  const [mounted,        setMounted]        = useState(false);
+  const [activeTab,      setActiveTab]      = useState("home");
+  const [online,         setOnline]         = useState(false);
+  const [tripRequest,    setTripRequest]    = useState(null);
+  const [activeTrip,     setActiveTrip]     = useState(null);
+  const [requestTimer,   setRequestTimer]   = useState(15);
+  const [notification,   setNotification]   = useState(null);
   const [showSurgeAlert, setShowSurgeAlert] = useState(false);
-  const [notification, setNotification] = useState(null);
+  const [earnings,       setEarnings]       = useState({ today: 0, week: 0, trips: 0 });
+  const [tripBtnLabel,   setTripBtnLabel]   = useState(""); // from Cloud Function
 
-  const timerRef = useRef(null);
-  const reqRef = useRef(null);
+  // ── Refs ──────────────────────────────────────────────
+  const skippedIds = useRef(new Set());
+  const timerRef   = useRef(null);
 
   // ── Mount animation ───────────────────────────────────
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useEffect(() => { setMounted(true); }, []);
 
-  // ── Auto dispatch requests ────────────────────────────
+  // ── Sync active trip from backend ─────────────────────
+  useEffect(() => {
+    const active = activeRides.find(r =>
+      r.driverUid === uid &&
+      ["driver_assigned", "arrived", "in_progress"].includes(r.status)
+    );
+
+    setActiveTrip(active || null);
+  }, [activeRides, uid]);
+
+  // ── Fetch trip button label from Cloud Function ───────
+  useEffect(() => {
+    async function fetchTripBtnLabel(status) {
+      if (!status) return "";
+
+      try {
+        const res = await fetch("https://gettripbuttonlabel-ady2s2xhhq-uc.a.run.app", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status }),
+        });
+
+        const data = await res.json();
+        setTripBtnLabel(data.success ? data.label : "Unknown Action");
+      } catch (err) {
+        console.error("Error fetching trip label:", err);
+        setTripBtnLabel("Error");
+      }
+    }
+
+    if (activeTrip?.status) fetchTripBtnLabel(activeTrip.status);
+  }, [activeTrip?.status]);
+
+  // ── Show new request ──────────────────────────────────
   useEffect(() => {
     if (!online || tripRequest || activeTrip) return;
+    if (ridesLoading || rides.length === 0) return;
 
-    const delay = Math.random() * 4000 + 3000;
+    const next = rides.find(r =>
+      r.status === "searching_driver" &&
+      !skippedIds.current.has(r.id)
+    );
 
-    reqRef.current = setTimeout(() => {
-      setTripRequest(TRIP_REQUESTS[reqIndex % TRIP_REQUESTS.length]);
-      setRequestTimer(15);
-    }, delay);
+    if (!next) return;
 
-    return () => {
-      if (reqRef.current) clearTimeout(reqRef.current);
-    };
-  }, [online, tripRequest, activeTrip, reqIndex]);
+    setTripRequest(normaliseRide(next));
+    setRequestTimer(15);
+  }, [online, rides, ridesLoading, tripRequest, activeTrip]);
 
-  // ── Countdown timer ───────────────────────────────────
+  // ── Timer ─────────────────────────────────────────────
   useEffect(() => {
     if (!tripRequest) return;
 
@@ -72,121 +99,135 @@ export default function UaTobDriverApp() {
       setRequestTimer((t) => {
         if (t <= 1) {
           clearInterval(timerRef.current);
+          skippedIds.current.add(tripRequest.id);
           setTripRequest(null);
-          setReqIndex((i) => i + 1);
-          showNotif("Request expired", "Looking for next request...");
+          showNotif("Request expired", "Looking for next...");
           return 15;
         }
         return t - 1;
       });
     }, 1000);
 
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
+    return () => clearInterval(timerRef.current);
   }, [tripRequest]);
 
-  // ── Surge alert ───────────────────────────────────────
+  // ── Surge ─────────────────────────────────────────────
   useEffect(() => {
     if (!online) return;
-
     const t = setTimeout(() => setShowSurgeAlert(true), 8000);
     return () => clearTimeout(t);
   }, [online]);
 
-  // ── Notification helper ───────────────────────────────
+  // ── Helpers ───────────────────────────────────────────
   const showNotif = (title, msg) => {
     setNotification({ title, msg });
-    setTimeout(() => setNotification(null), 3500);
+    setTimeout(() => setNotification(null), 3000);
   };
 
-  // ── Toggle online/offline ─────────────────────────────
-  const handleToggleOnline = () => {
-    if (online) {
-      setOnline(false);
+  function normaliseRide(doc) {
+    return {
+      ...doc,
+      fare: `$${doc.fareTotal?.toFixed(2) || "0.00"}`,
+    };
+  }
 
+  // ── ONLINE toggle ─────────────────────────────────────
+  const handleToggleOnline = () => {
+    setOnline(!online);
+
+    if (online) {
       setTripRequest(null);
       setActiveTrip(null);
-      setTripStage("idle");
-
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (reqRef.current) clearTimeout(reqRef.current);
-
-      showNotif("Offline", "See you next time.");
+      skippedIds.current.clear();
+      showNotif("Offline", "See you next time");
     } else {
-      setOnline(true);
-      showNotif("Online", "Ready to receive requests.");
+      showNotif("Online", "Ready for rides");
     }
   };
 
-  // ── Accept trip ───────────────────────────────────────
-  const handleAcceptTrip = () => {
-    if (!tripRequest) return;
+  // ── ACCEPT ────────────────────────────────────────────
+  const handleAcceptTrip = async () => {
+    try {
+      await fetch("https://acceptride-ady2s2xhhq-uc.a.run.app", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rideId: tripRequest.id,
+          driverUid: uid,
+        }),
+      });
 
-    clearInterval(timerRef.current);
-
-    const acceptedTrip = tripRequest;
-
-    setActiveTrip(acceptedTrip);
-    setTripRequest(null);
-    setTripStage("enroute");
-
-    showNotif("Trip accepted", `En route to ${acceptedTrip.rider}`);
-    setActiveTab("home");
-  };
-
-  // ── Decline trip ──────────────────────────────────────
-  const handleDeclineTrip = () => {
-    clearInterval(timerRef.current);
-
-    setTripRequest(null);
-    setReqIndex((i) => i + 1);
-
-    showNotif("Declined", "Scanning for next request...");
-  };
-
-  // ── Advance trip lifecycle ────────────────────────────
-  const handleAdvanceTrip = () => {
-    if (tripStage === "enroute") {
-      setTripStage("arrived");
-    } 
-    else if (tripStage === "arrived") {
-      setTripStage("in_progress");
-    } 
-    else if (tripStage === "in_progress") {
-
-      const trip = activeTrip;
-
-      setTripStage("completed");
-
-      const fareNum = parseFloat(trip.fare.replace("$", ""));
-
-      setEarnings((e) => ({
-        today: +(e.today + fareNum).toFixed(2),
-        week: +(e.week + fareNum).toFixed(2),
-        trips: e.trips + 1,
-      }));
-
-      setTimeout(() => {
-        setTripStage("idle");
-        setActiveTrip(null);
-        setReqIndex((i) => i + 1);
-        showNotif("Trip complete", `+${trip.fare} earned`);
-      }, 3000);
+      clearInterval(timerRef.current);
+      setTripRequest(null);
+      showNotif("Accepted", "Drive to pickup");
+    } catch {
+      showNotif("Error", "Accept failed");
     }
   };
 
-  // ── Derived UI values ─────────────────────────────────
-  const tripBtnLabel = {
-    enroute: "Arrived at Pickup",
-    arrived: "Start Trip",
-    in_progress: "Complete Trip",
-  }[tripStage];
+  // ── DECLINE ───────────────────────────────────────────
+  const handleDeclineTrip = async () => {
+    try {
+      await fetch("https://declineride-ady2s2xhhq-uc.a.run.app", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rideId: tripRequest.id,
+          driverUid: uid,
+        }),
+      });
+    } catch {}
+
+    clearInterval(timerRef.current);
+    setTripRequest(null);
+  };
+
+  // ── ADVANCE TRIP ──────────────────────────────────────
+  const handleAdvanceTrip = async () => {
+    if (!activeTrip) return;
+
+    const actionMap = {
+      driver_assigned: "arrive",
+      arrived:         "start",
+      in_progress:     "complete",
+    };
+
+    const action = actionMap[activeTrip.status];
+
+    try {
+      await fetch("https://updatetripstatus-ady2s2xhhq-uc.a.run.app", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rideId:    activeTrip.id,
+          driverUid: uid,
+          action,
+        }),
+      });
+
+      if (action === "complete") {
+        const fare = activeTrip.fareTotal || 0;
+
+        setEarnings(e => ({
+          today: +(e.today + fare).toFixed(2),
+          week:  +(e.week  + fare).toFixed(2),
+          trips:   e.trips + 1,
+        }));
+
+        showNotif("Trip complete", `+$${fare}`);
+      }
+    } catch {
+      showNotif("Error", "Update failed");
+    }
+  };
+
+  // ── DERIVED STATE ─────────────────────────────────────
+  const tripStage = activeTrip?.status;
 
   const tripStageColor = {
-    enroute: C.blue,
-    arrived: C.onlineGreen,
-    in_progress: C.green,
+    driver_assigned: C.blue,
+    arrived:         C.onlineGreen,
+    in_progress:     C.green,
   }[tripStage] || C.green;
 
   // ── Render ────────────────────────────────────────────
@@ -266,7 +307,7 @@ export default function UaTobDriverApp() {
             activeTrip={activeTrip}
             tripStage={tripStage}
             tripStageColor={tripStageColor}
-            tripBtnLabel={tripBtnLabel}
+            tripBtnLabel={tripBtnLabel} // from Cloud Function
             earnings={earnings}
             onToggleOnline={handleToggleOnline}
             onAdvanceTrip={handleAdvanceTrip}
