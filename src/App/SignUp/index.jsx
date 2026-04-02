@@ -90,15 +90,25 @@ const ALL_STATES = [
   { value: "WI", label: "Wisconsin" },     { value: "WY", label: "Wyoming" },
 ];
 
+/* ─── FIELD COMPONENTS ───────────────────────── */
+
 function InputField({ label, placeholder, type = "text", icon: Icon, value, onChange, error, hint, suffix }) {
   const [focused, setFocused] = useState(false);
   const [showPw, setShowPw] = useState(false);
   const isPw = type === "password";
   return (
     <div style={{ marginBottom: 16 }}>
-      {label && <div style={{ fontSize: 11, fontWeight: 700, color: focused ? C.accent : C.textMid, marginBottom: 7, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif", transition: "color .2s" }}>{label}</div>}
+      {label && (
+        <div style={{ fontSize: 11, fontWeight: 700, color: focused ? C.accent : C.textMid, marginBottom: 7, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif", transition: "color .2s" }}>
+          {label}
+        </div>
+      )}
       <div style={{ position: "relative" }}>
-        {Icon && <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", zIndex: 1, pointerEvents: "none" }}><Icon size={15} color={focused ? C.accent : C.textDim} style={{ transition: "color .2s" }} /></div>}
+        {Icon && (
+          <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", zIndex: 1, pointerEvents: "none" }}>
+            <Icon size={15} color={focused ? C.accent : C.textDim} style={{ transition: "color .2s" }} />
+          </div>
+        )}
         <input
           type={isPw && showPw ? "text" : type}
           placeholder={placeholder}
@@ -120,10 +130,20 @@ function InputField({ label, placeholder, type = "text", icon: Icon, value, onCh
             {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
           </button>
         )}
-        {suffix && !isPw && <div style={{ position: "absolute", right: 13, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: C.textDim, fontWeight: 600, pointerEvents: "none" }}>{suffix}</div>}
+        {suffix && !isPw && (
+          <div style={{ position: "absolute", right: 13, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: C.textDim, fontWeight: 600, pointerEvents: "none" }}>
+            {suffix}
+          </div>
+        )}
       </div>
-      {error && <div style={{ fontSize: 11.5, color: C.red, marginTop: 5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}><AlertCircle size={11} />{error}</div>}
-      {hint && !error && <div style={{ fontSize: 11, color: C.textDim, marginTop: 5, fontWeight: 500 }}>{hint}</div>}
+      {error && (
+        <div style={{ fontSize: 11.5, color: C.red, marginTop: 5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+          <AlertCircle size={11} />{error}
+        </div>
+      )}
+      {hint && !error && (
+        <div style={{ fontSize: 11, color: C.textDim, marginTop: 5, fontWeight: 500 }}>{hint}</div>
+      )}
     </div>
   );
 }
@@ -132,12 +152,22 @@ function SelectField({ label, value, onChange, options, icon: Icon }) {
   const [focused, setFocused] = useState(false);
   return (
     <div style={{ marginBottom: 16 }}>
-      {label && <div style={{ fontSize: 11, fontWeight: 700, color: focused ? C.accent : C.textMid, marginBottom: 7, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif", transition: "color .2s" }}>{label}</div>}
+      {label && (
+        <div style={{ fontSize: 11, fontWeight: 700, color: focused ? C.accent : C.textMid, marginBottom: 7, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif", transition: "color .2s" }}>
+          {label}
+        </div>
+      )}
       <div style={{ position: "relative" }}>
-        {Icon && <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><Icon size={15} color={focused ? C.accent : C.textDim} /></div>}
+        {Icon && (
+          <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
+            <Icon size={15} color={focused ? C.accent : C.textDim} />
+          </div>
+        )}
         <select
-          value={value} onChange={e => onChange(e.target.value)}
-          onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           style={{
             width: "100%", background: C.surface, border: `1px solid ${focused ? C.accent : C.border}`,
             borderRadius: 13, padding: `13px 14px 13px ${Icon ? 42 : 14}px`, color: value ? C.text : C.textDim,
@@ -183,25 +213,38 @@ function UploadBox({ label, hint, icon: Icon = Upload, uploaded, onUpload }) {
   );
 }
 
+/* ─── STEP COMPONENTS ────────────────────────── */
+
 function StepAccount({ data, setData, errors }) {
   return (
     <div>
       <div style={{ display: "flex", gap: 12 }}>
-        <div style={{ flex: 1 }}><InputField label="First Name" placeholder="Marcus" icon={User} value={data.firstName} onChange={v => setData(d => ({...d, firstName: v}))} error={errors.firstName} /></div>
-        <div style={{ flex: 1 }}><InputField label="Last Name" placeholder="Johnson" value={data.lastName} onChange={v => setData(d => ({...d, lastName: v}))} error={errors.lastName} /></div>
+        <div style={{ flex: 1 }}>
+          <InputField label="First Name" placeholder="Marcus" icon={User} value={data.firstName} onChange={v => setData(d => ({...d, firstName: v}))} error={errors.firstName} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <InputField label="Last Name" placeholder="Johnson" value={data.lastName} onChange={v => setData(d => ({...d, lastName: v}))} error={errors.lastName} />
+        </div>
       </div>
       <InputField label="Email Address" placeholder="marcus@example.com" type="email" icon={Mail} value={data.email} onChange={v => setData(d => ({...d, email: v}))} error={errors.email} />
       <InputField label="Password" placeholder="Min. 8 characters" type="password" icon={Lock} value={data.password} onChange={v => setData(d => ({...d, password: v}))} error={errors.password} hint="Use uppercase, lowercase, numbers, and symbols." />
       <InputField label="Confirm Password" placeholder="Re-enter password" type="password" icon={Lock} value={data.confirmPassword} onChange={v => setData(d => ({...d, confirmPassword: v}))} error={errors.confirmPassword} />
       <div style={{ background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", display: "flex", gap: 12, alignItems: "flex-start" }}>
-        <div onClick={() => setData(d => ({...d, terms: !d.terms}))} style={{ width: 20, height: 20, borderRadius: 6, border: `1.5px solid ${data.terms ? C.accent : C.border}`, background: data.terms ? C.accentGlow : "transparent", flexShrink: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", marginTop: 1, transition: "all .2s" }}>
+        <div
+          onClick={() => setData(d => ({...d, terms: !d.terms}))}
+          style={{ width: 20, height: 20, borderRadius: 6, border: `1.5px solid ${data.terms ? C.accent : C.border}`, background: data.terms ? C.accentGlow : "transparent", flexShrink: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", marginTop: 1, transition: "all .2s" }}
+        >
           {data.terms && <Check size={12} color={C.accent} />}
         </div>
         <div style={{ fontSize: 12.5, color: C.textMid, fontWeight: 500, lineHeight: 1.6 }}>
           I agree to UaTob's <span style={{ color: C.accent, cursor: "pointer" }}>Driver Terms of Service</span> and <span style={{ color: C.accent, cursor: "pointer" }}>Privacy Policy</span>
         </div>
       </div>
-      {errors.terms && <div style={{ fontSize: 11.5, color: C.red, marginTop: 6, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}><AlertCircle size={11} />{errors.terms}</div>}
+      {errors.terms && (
+        <div style={{ fontSize: 11.5, color: C.red, marginTop: 6, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+          <AlertCircle size={11} />{errors.terms}
+        </div>
+      )}
     </div>
   );
 }
@@ -212,8 +255,12 @@ function StepContact({ data, setData, errors }) {
       <InputField label="Mobile Number" placeholder="+1 (555) 000-0000" type="tel" icon={Phone} value={data.phone} onChange={v => setData(d => ({...d, phone: v}))} error={errors.phone} hint="We'll send a verification code to this number." />
       <InputField label="Street Address" placeholder="123 Main Street, Apt 4B" icon={MapPin} value={data.address} onChange={v => setData(d => ({...d, address: v}))} error={errors.address} />
       <div style={{ display: "flex", gap: 12 }}>
-        <div style={{ flex: 1.2 }}><InputField label="City" placeholder="Orlando" value={data.city} onChange={v => setData(d => ({...d, city: v}))} error={errors.city} /></div>
-        <div style={{ flex: 0.8 }}><InputField label="ZIP Code" placeholder="32801" value={data.zip} onChange={v => setData(d => ({...d, zip: v}))} error={errors.zip} /></div>
+        <div style={{ flex: 1.2 }}>
+          <InputField label="City" placeholder="Orlando" value={data.city} onChange={v => setData(d => ({...d, city: v}))} error={errors.city} />
+        </div>
+        <div style={{ flex: 0.8 }}>
+          <InputField label="ZIP Code" placeholder="32801" value={data.zip} onChange={v => setData(d => ({...d, zip: v}))} error={errors.zip} />
+        </div>
       </div>
       <SelectField label="State" icon={MapPin} value={data.state} onChange={v => setData(d => ({...d, state: v}))} options={ALL_STATES} />
       <div style={{ background: "rgba(22,163,74,.04)", border: "1px solid rgba(22,163,74,.2)", borderRadius: 14, padding: "14px 16px", display: "flex", gap: 12, alignItems: "center" }}>
@@ -242,40 +289,56 @@ function StepVehicle({ data, setData, errors }) {
             {value:"Volkswagen",label:"Volkswagen"},{value:"Jeep",label:"Jeep"},{value:"Other",label:"Other"},
           ]} />
         </div>
-        <div style={{ flex: 1 }}><InputField label="Model" placeholder="Camry, Civic…" value={data.model} onChange={v => setData(d => ({...d, model: v}))} error={errors.model} /></div>
+        <div style={{ flex: 1 }}>
+          <InputField label="Model" placeholder="Camry, Civic…" value={data.model} onChange={v => setData(d => ({...d, model: v}))} error={errors.model} />
+        </div>
       </div>
       <div style={{ display: "flex", gap: 12 }}>
-        <div style={{ flex: 1 }}><InputField label="Year" placeholder="2020" type="number" icon={Calendar} value={data.year} onChange={v => setData(d => ({...d, year: v}))} error={errors.year} /></div>
-        <div style={{ flex: 1 }}><InputField label="Color" placeholder="Pearl White" value={data.color} onChange={v => setData(d => ({...d, color: v}))} error={errors.color} /></div>
+        <div style={{ flex: 1 }}>
+          <InputField label="Year" placeholder="2020" type="number" icon={Calendar} value={data.year} onChange={v => setData(d => ({...d, year: v}))} error={errors.year} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <InputField label="Color" placeholder="Pearl White" value={data.color} onChange={v => setData(d => ({...d, color: v}))} error={errors.color} />
+        </div>
       </div>
       <InputField label="License Plate" placeholder="ABC-1234" icon={CreditCard} value={data.plate} onChange={v => setData(d => ({...d, plate: v}))} error={errors.plate} hint="Enter as shown on your registration." />
       <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, marginBottom: 10, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>Ride Types You Can Offer</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, marginBottom: 10, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>
+          Ride Types You Can Offer
+        </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {[
             { id: "standard", label: "Standard", c: "#2563EB", desc: "4 passengers" },
             { id: "xl",       label: "XL",       c: "#16A34A", desc: "6 passengers" },
-            { id: "premium",  label: "Premium",  c: "#7C3AED", desc: "Luxury cars" },
+            { id: "premium",  label: "Premium",  c: "#7C3AED", desc: "Luxury cars"  },
             { id: "economy",  label: "Economy",  c: "#D97706", desc: "Budget rides" },
           ].map(rt => {
             const selected = data.rideTypes?.includes(rt.id);
             return (
-              <div key={rt.id} onClick={() => setData(d => {
-                const cur = d.rideTypes || [];
-                return { ...d, rideTypes: selected ? cur.filter(r => r !== rt.id) : [...cur, rt.id] };
-              })} style={{
-                background: selected ? rt.c + "14" : C.surfaceRaised,
-                border: `1.5px solid ${selected ? rt.c + "50" : C.border}`,
-                borderRadius: 12, padding: "11px 16px", cursor: "pointer",
-                transition: "all .2s", flex: "1 1 calc(50% - 4px)",
-              }}>
+              <div
+                key={rt.id}
+                onClick={() => setData(d => {
+                  const cur = d.rideTypes || [];
+                  return { ...d, rideTypes: selected ? cur.filter(r => r !== rt.id) : [...cur, rt.id] };
+                })}
+                style={{
+                  background: selected ? rt.c + "14" : C.surfaceRaised,
+                  border: `1.5px solid ${selected ? rt.c + "50" : C.border}`,
+                  borderRadius: 12, padding: "11px 16px", cursor: "pointer",
+                  transition: "all .2s", flex: "1 1 calc(50% - 4px)",
+                }}
+              >
                 <div style={{ fontSize: 13, fontWeight: 800, color: selected ? rt.c : C.text, fontFamily: "'Barlow Condensed', sans-serif", letterSpacing: ".5px" }}>{rt.label}</div>
                 <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>{rt.desc}</div>
               </div>
             );
           })}
         </div>
-        {errors.rideTypes && <div style={{ fontSize: 11.5, color: C.red, marginTop: 6, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}><AlertCircle size={11} />{errors.rideTypes}</div>}
+        {errors.rideTypes && (
+          <div style={{ fontSize: 11.5, color: C.red, marginTop: 6, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+            <AlertCircle size={11} />{errors.rideTypes}
+          </div>
+        )}
       </div>
       <InputField label="Vehicle VIN" placeholder="1HGBH41JXMN109186" value={data.vin} onChange={v => setData(d => ({...d, vin: v}))} hint="17-character Vehicle Identification Number (optional)" />
     </div>
@@ -291,7 +354,10 @@ function StepDocuments({ data, setData, errors }) {
           All documents are <strong style={{ color: C.text }}>encrypted and stored securely</strong>. We only use them for driver verification.
         </div>
       </div>
-      <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, marginBottom: 12, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>Driver's License</div>
+
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, marginBottom: 12, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>
+        Driver's License
+      </div>
       <div style={{ display: "flex", gap: 10, marginBottom: 4 }}>
         <div style={{ flex: 1 }}>
           <UploadBox label="Front Side" hint="Tap to upload photo" icon={Camera} uploaded={data.licenseFront} onUpload={v => setData(d => ({...d, licenseFront: v}))} />
@@ -303,14 +369,22 @@ function StepDocuments({ data, setData, errors }) {
         </div>
       </div>
       <InputField label="License Number" placeholder="D1234567" icon={FileText} value={data.licenseNumber} onChange={v => setData(d => ({...d, licenseNumber: v}))} hint="As shown on your license" error={errors?.licenseNumber} />
+
       <div style={{ height: 1, background: C.border, margin: "4px 0 18px" }} />
-      <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, marginBottom: 12, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>Vehicle Registration & Insurance</div>
+
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, marginBottom: 12, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>
+        Vehicle Registration & Insurance
+      </div>
       <UploadBox label="Vehicle Registration" hint="Photo or PDF accepted" icon={FileText} uploaded={data.registration} onUpload={v => setData(d => ({...d, registration: v}))} />
       {errors?.registration && <div style={{ fontSize: 11.5, color: C.red, marginBottom: 8, paddingLeft: 2 }}>{errors.registration}</div>}
       <UploadBox label="Proof of Insurance" hint="Must be current & valid" icon={Shield} uploaded={data.insurance} onUpload={v => setData(d => ({...d, insurance: v}))} />
       {errors?.insurance && <div style={{ fontSize: 11.5, color: C.red, marginBottom: 8, paddingLeft: 2 }}>{errors.insurance}</div>}
+
       <div style={{ height: 1, background: C.border, margin: "4px 0 18px" }} />
-      <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, marginBottom: 12, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>Profile Photo</div>
+
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, marginBottom: 12, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>
+        Profile Photo
+      </div>
       <UploadBox label="Your Photo" hint="Clear, recent headshot • No sunglasses" icon={Camera} uploaded={data.profilePhoto} onUpload={v => setData(d => ({...d, profilePhoto: v}))} />
       {errors?.profilePhoto && <div style={{ fontSize: 11.5, color: C.red, marginTop: 4, paddingLeft: 2 }}>{errors.profilePhoto}</div>}
     </div>
@@ -319,19 +393,25 @@ function StepDocuments({ data, setData, errors }) {
 
 function StepVerify({ accountData, contactData, vehicleData, docData }) {
   const allDocs = docData.licenseFront && docData.licenseBack && docData.registration && docData.insurance && docData.profilePhoto;
+
   const Section = ({ title, items }) => (
     <div style={{ marginBottom: 18 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, marginBottom: 12, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>{title}</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, marginBottom: 12, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>
+        {title}
+      </div>
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,.04)" }}>
         {items.map((item, i) => (
           <div key={i} style={{ padding: "12px 16px", borderBottom: i < items.length - 1 ? `1px solid ${C.border}` : "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 12.5, color: C.textMid, fontWeight: 500 }}>{item.label}</span>
-            <span style={{ fontSize: 13, color: item.val ? C.text : C.textDim, fontWeight: 600, maxWidth: "55%", textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.val || "—"}</span>
+            <span style={{ fontSize: 13, color: item.val ? C.text : C.textDim, fontWeight: 600, maxWidth: "55%", textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {item.val || "—"}
+            </span>
           </div>
         ))}
       </div>
     </div>
   );
+
   return (
     <div>
       <div style={{ background: allDocs ? "rgba(22,163,74,.05)" : "rgba(22,163,74,.04)", border: `1px solid ${allDocs ? "rgba(22,163,74,.25)" : "rgba(22,163,74,.18)"}`, borderRadius: 16, padding: "16px 18px", marginBottom: 22, display: "flex", gap: 12, alignItems: "center" }}>
@@ -339,19 +419,36 @@ function StepVerify({ accountData, contactData, vehicleData, docData }) {
           {allDocs ? <CheckCircle size={18} color={C.green} /> : <Clock size={18} color={C.accent} />}
         </div>
         <div>
-          <div style={{ fontSize: 13.5, fontWeight: 700, color: C.accent, marginBottom: 2 }}>{allDocs ? "All documents uploaded" : "Some documents missing"}</div>
-          <div style={{ fontSize: 11.5, color: C.textMid }}>{allDocs ? "Your application is ready to submit for review." : "You can still submit — upload remaining docs later."}</div>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: C.accent, marginBottom: 2 }}>
+            {allDocs ? "All documents uploaded" : "Some documents missing"}
+          </div>
+          <div style={{ fontSize: 11.5, color: C.textMid }}>
+            {allDocs ? "Your application is ready to submit for review." : "You can still submit — upload remaining docs later."}
+          </div>
         </div>
       </div>
-      <Section title="Account" items={[{ label: "Name", val: `${accountData.firstName} ${accountData.lastName}` }, { label: "Email", val: accountData.email }]} />
-      <Section title="Contact" items={[{ label: "Phone", val: contactData.phone }, { label: "Address", val: contactData.address }, { label: "City / State", val: contactData.city && contactData.state ? `${contactData.city}, ${contactData.state} ${contactData.zip}` : "" }]} />
-      <Section title="Vehicle" items={[{ label: "Vehicle", val: vehicleData.make && vehicleData.model ? `${vehicleData.year} ${vehicleData.make} ${vehicleData.model}` : "" }, { label: "Plate", val: vehicleData.plate }, { label: "Ride Types", val: vehicleData.rideTypes?.join(", ") }]} />
+
+      <Section title="Account" items={[
+        { label: "Name",  val: `${accountData.firstName} ${accountData.lastName}` },
+        { label: "Email", val: accountData.email },
+      ]} />
+      <Section title="Contact" items={[
+        { label: "Phone",          val: contactData.phone },
+        { label: "Address",        val: contactData.address },
+        { label: "City / State",   val: contactData.city && contactData.state ? `${contactData.city}, ${contactData.state} ${contactData.zip}` : "" },
+      ]} />
+      <Section title="Vehicle" items={[
+        { label: "Vehicle",    val: vehicleData.make && vehicleData.model ? `${vehicleData.year} ${vehicleData.make} ${vehicleData.model}` : "" },
+        { label: "Plate",      val: vehicleData.plate },
+        { label: "Ride Types", val: vehicleData.rideTypes?.join(", ") },
+      ]} />
       <Section title="Documents" items={[
         { label: "Driver's License", val: (docData.licenseFront && docData.licenseBack) ? "✓ Uploaded" : "Pending" },
         { label: "Registration",     val: docData.registration ? "✓ Uploaded" : "Pending" },
         { label: "Insurance",        val: docData.insurance    ? "✓ Uploaded" : "Pending" },
         { label: "Profile Photo",    val: docData.profilePhoto ? "✓ Uploaded" : "Pending" },
       ]} />
+
       <div style={{ background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", marginTop: 4, display: "flex", gap: 10, alignItems: "flex-start" }}>
         <Zap size={14} color={C.accent} style={{ flexShrink: 0, marginTop: 1 }} />
         <div style={{ fontSize: 12, color: C.textMid, lineHeight: 1.6 }}>
@@ -362,6 +459,8 @@ function StepVerify({ accountData, contactData, vehicleData, docData }) {
   );
 }
 
+/* ─── MAIN COMPONENT ─────────────────────────── */
+
 export default function UaTobDriverSignup() {
   const [step,       setStep]       = useState(1);
   const [direction,  setDirection]  = useState("forward");
@@ -370,6 +469,7 @@ export default function UaTobDriverSignup() {
   const [errors,     setErrors]     = useState({});
   const [loading,    setLoading]    = useState(false);
   const [createdUid, setCreatedUid] = useState(null);
+  const [submitError, setSubmitError] = useState(null);
   const scrollRef = useRef(null);
 
   const [accountData, setAccountData] = useState({ firstName: "", lastName: "", email: "", password: "", confirmPassword: "", terms: false });
@@ -377,43 +477,87 @@ export default function UaTobDriverSignup() {
   const [vehicleData, setVehicleData] = useState({ make: "", model: "", year: "", color: "", plate: "", vin: "", rideTypes: [] });
   const [docData,     setDocData]     = useState({ licenseFront: false, licenseBack: false, licenseNumber: "", registration: false, insurance: false, profilePhoto: false });
 
+  /* ── API helpers ── */
 
-
-  console.log(accountData);
-  console.log(contactData);
-  console.log(vehicleData);
-  console.log(docData);
-
-
-  const sendToBackend = async (uid, accountData) => {
+  // Step 1: create Firebase account + initial driver profile
+  const createDriverProfile = async (uid, accountData) => {
     const res = await fetch(CLOUD_FUNCTION_URL, {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ uid, accountData }),
+      body:    JSON.stringify({
+        uid,
+        accountData: {
+          firstName: accountData.firstName,
+          lastName:  accountData.lastName,
+          email:     accountData.email,
+        },
+      }),
     });
     if (!res.ok) {
-      const { error } = await res.json();
-      throw new Error(error || "Failed to create driver profile");
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || "Failed to create driver profile");
     }
     return res.json();
   };
+
+  // Step 5: send the rest of the driver data
+  const submitDriverData = async (uid) => {
+    const res = await fetch(CLOUD_FUNCTION_URL, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({
+        uid,
+        contactData: {
+          phone:   contactData.phone,
+          address: contactData.address,
+          city:    contactData.city,
+          state:   contactData.state,
+          zip:     contactData.zip,
+        },
+        vehicleData: {
+          make:      vehicleData.make,
+          model:     vehicleData.model,
+          year:      vehicleData.year,
+          color:     vehicleData.color,
+          plate:     vehicleData.plate,
+          vin:       vehicleData.vin,
+          rideTypes: vehicleData.rideTypes,
+        },
+        docData: {
+          licenseFront:  docData.licenseFront,
+          licenseBack:   docData.licenseBack,
+          licenseNumber: docData.licenseNumber,
+          registration:  docData.registration,
+          insurance:     docData.insurance,
+          profilePhoto:  docData.profilePhoto,
+        },
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || "Failed to submit application");
+    }
+    return res.json();
+  };
+
+  /* ── Validation ── */
 
   const validate = () => {
     const e = {};
     if (step === 1) {
       if (!accountData.firstName.trim()) e.firstName = "Required";
-      if (!accountData.lastName.trim()) e.lastName = "Required";
+      if (!accountData.lastName.trim())  e.lastName  = "Required";
       if (!accountData.email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) e.email = "Enter a valid email address";
       if (accountData.password.length < 8) e.password = "Password must be at least 8 characters";
       if (accountData.password !== accountData.confirmPassword) e.confirmPassword = "Passwords don't match";
       if (!accountData.terms) e.terms = "You must agree to continue";
     }
     if (step === 2) {
-      if (!contactData.phone.trim()) e.phone = "Required";
+      if (!contactData.phone.trim())   e.phone   = "Required";
       if (!contactData.address.trim()) e.address = "Required";
-      if (!contactData.city.trim()) e.city = "Required";
+      if (!contactData.city.trim())    e.city    = "Required";
       if (!contactData.zip.match(/^\d{5}(-\d{4})?$/)) e.zip = "Enter a valid ZIP code";
-      if (!contactData.state) e.state = "Required";
+      if (!contactData.state)          e.state   = "Required";
     }
     if (step === 3) {
       if (!vehicleData.model.trim()) e.model = "Required";
@@ -426,31 +570,40 @@ export default function UaTobDriverSignup() {
     return Object.keys(e).length === 0;
   };
 
+  /* ── Navigation ── */
+
   const goNext = async () => {
-    if (loading || !validate()) return;
+    if (loading || animating || !validate()) return;
+    setSubmitError(null);
 
     try {
       setLoading(true);
 
-      // Step 1 — create Firebase Auth account + send to Cloud Function
+      // Step 1 — Firebase signup + create initial driver profile
       if (step === 1 && !createdUid) {
         const { result, error: signUpError } = await signUp(
           accountData.email.trim().toLowerCase(),
           accountData.password
         );
         if (signUpError) throw signUpError;
+
         const newUid = result.user.uid;
         setCreatedUid(newUid);
-        await sendToBackend(newUid, accountData);
-        console.log("Driver profile created:", newUid);
+        await createDriverProfile(newUid, accountData);
+        console.log("✅ Driver profile created:", newUid);
       }
 
-      // Step 5 — final submit
+      // Step 5 — send contact, vehicle & doc data then mark as submitted
       if (step === 5) {
+        const uid = createdUid;
+        if (!uid) throw new Error("Missing user ID — please restart the signup.");
+        await submitDriverData(uid);
+        console.log("✅ Full driver data submitted for uid:", uid);
         setSubmitted(true);
         return;
       }
 
+      // Advance to next step
       setDirection("forward");
       setAnimating(true);
       setTimeout(() => {
@@ -461,19 +614,26 @@ export default function UaTobDriverSignup() {
       }, 200);
 
     } catch (err) {
-      console.error(err);
-      setErrors({ email: err.message || "Signup failed" });
+      console.error("❌ Signup error:", err);
+      // Show auth errors on the email field; show submit errors as a banner
+      if (step === 1) {
+        setErrors({ email: err.message || "Signup failed. Please try again." });
+      } else {
+        setSubmitError(err.message || "Something went wrong. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const goBack = () => {
+    if (animating) return;
     setDirection("back");
     setAnimating(true);
     setTimeout(() => {
       setStep(s => s - 1);
       setErrors({});
+      setSubmitError(null);
       setAnimating(false);
       scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     }, 200);
@@ -481,15 +641,24 @@ export default function UaTobDriverSignup() {
 
   const pct = ((step - 1) / (STEPS.length - 1)) * 100;
 
+  /* ── Success screen ── */
+
   if (submitted) {
     return (
       <div style={{ minHeight: "100vh", background: C.bg, fontFamily: '"Barlow", system-ui, sans-serif', color: C.text, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-        <style>{`@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800;900&family=Barlow+Condensed:wght@500;600;700;800;900&display=swap'); *{box-sizing:border-box;margin:0;padding:0;} @keyframes scaleIn{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}} @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}`}</style>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800;900&family=Barlow+Condensed:wght@500;600;700;800;900&display=swap');
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          @keyframes scaleIn { from { opacity: 0; transform: scale(.85) } to { opacity: 1; transform: scale(1) } }
+          @keyframes fadeUp  { from { opacity: 0; transform: translateY(20px) } to { opacity: 1; transform: translateY(0) } }
+        `}</style>
         <div style={{ textAlign: "center", maxWidth: 420, animation: "scaleIn .6s cubic-bezier(.34,1.56,.64,1)" }}>
           <div style={{ width: 90, height: 90, background: "rgba(22,163,74,.1)", border: "2px solid rgba(22,163,74,.3)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 28px", boxShadow: "0 0 0 12px rgba(22,163,74,.05)" }}>
             <CheckCircle size={44} color={C.green} />
           </div>
-          <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 38, fontWeight: 900, color: C.text, letterSpacing: "-1px", marginBottom: 10, lineHeight: 1.1 }}>Application<br/>Submitted!</div>
+          <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 38, fontWeight: 900, color: C.text, letterSpacing: "-1px", marginBottom: 10, lineHeight: 1.1 }}>
+            Application<br/>Submitted!
+          </div>
           <div style={{ fontSize: 15, color: C.textMid, lineHeight: 1.7, marginBottom: 32 }}>
             Welcome to UaTob, <strong style={{ color: C.text }}>{accountData.firstName}</strong>.<br/>
             Our team will review your application within <strong style={{ color: C.accent }}>24–48 hours</strong>. Check your email for updates.
@@ -501,7 +670,9 @@ export default function UaTobDriverSignup() {
               { icon: Zap,   label: "Once approved",        val: "Start earning immediately", c: C.green  },
             ].map((item, i) => (
               <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 18px", display: "flex", gap: 12, alignItems: "center", animation: `fadeUp .5s ease-out ${0.2 + i * 0.1}s both`, boxShadow: "0 1px 4px rgba(0,0,0,.04)" }}>
-                <div style={{ width: 36, height: 36, background: item.c + "12", borderRadius: 11, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><item.icon size={16} color={item.c} /></div>
+                <div style={{ width: 36, height: 36, background: item.c + "12", borderRadius: 11, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <item.icon size={16} color={item.c} />
+                </div>
                 <div style={{ textAlign: "left" }}>
                   <div style={{ fontSize: 11, color: C.textDim, fontWeight: 600, letterSpacing: ".5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>{item.label}</div>
                   <div style={{ fontSize: 13.5, color: C.text, fontWeight: 700, marginTop: 2 }}>{item.val}</div>
@@ -514,6 +685,8 @@ export default function UaTobDriverSignup() {
     );
   }
 
+  /* ── Main form ── */
+
   return (
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: '"Barlow", system-ui, sans-serif', color: C.text }}>
       <style>{`
@@ -522,11 +695,12 @@ export default function UaTobDriverSignup() {
         input::placeholder { color: ${C.textDim}; }
         select option { background: ${C.surface}; color: ${C.text}; }
         input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
-        @keyframes slideForward { from{opacity:0;transform:translateX(28px)} to{opacity:1;transform:translateX(0)} }
-        @keyframes slideBack    { from{opacity:0;transform:translateX(-28px)} to{opacity:1;transform:translateX(0)} }
-        @keyframes fadeOut      { to{opacity:0} }
-        @keyframes revealUp     { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes greenPulse   { 0%,100%{box-shadow:0 4px 18px rgba(22,163,74,.25)} 50%{box-shadow:0 4px 28px rgba(22,163,74,.5)} }
+        @keyframes slideForward { from { opacity: 0; transform: translateX(28px)  } to { opacity: 1; transform: translateX(0) } }
+        @keyframes slideBack    { from { opacity: 0; transform: translateX(-28px) } to { opacity: 1; transform: translateX(0) } }
+        @keyframes fadeOut      { to { opacity: 0 } }
+        @keyframes revealUp     { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
+        @keyframes greenPulse   { 0%,100% { box-shadow: 0 4px 18px rgba(22,163,74,.25) } 50% { box-shadow: 0 4px 28px rgba(22,163,74,.5) } }
+        @keyframes errorShake   { 0%,100% { transform: translateX(0) } 20%,60% { transform: translateX(-6px) } 40%,80% { transform: translateX(6px) } }
         .green-btn {
           background: linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D);
           border: none; border-radius: 15px; color: #fff;
@@ -535,7 +709,7 @@ export default function UaTobDriverSignup() {
           display: flex; align-items: center; justify-content: center; gap: 8px;
           animation: greenPulse 3s ease-in-out infinite;
         }
-        .green-btn:hover  { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(22,163,74,.4) !important; }
+        .green-btn:hover    { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(22,163,74,.4) !important; }
         .green-btn:disabled { opacity: .6; cursor: not-allowed; transform: none; animation: none; }
         .ghost-btn {
           background: ${C.surface}; border: 1.5px solid ${C.border};
@@ -560,7 +734,7 @@ export default function UaTobDriverSignup() {
           </div>
         </div>
 
-        {/* Progress */}
+        {/* Progress bar */}
         <div style={{ marginBottom: 28 }}>
           <div style={{ height: 3, background: C.surfaceBright, borderRadius: 2, marginBottom: 18, overflow: "hidden" }}>
             <div style={{ height: "100%", width: `${pct}%`, background: "linear-gradient(90deg,#15803D,#16A34A,#22C55E)", borderRadius: 2, transition: "width .5s cubic-bezier(.34,1.2,.64,1)", boxShadow: "0 0 10px rgba(22,163,74,.4)" }} />
@@ -573,26 +747,41 @@ export default function UaTobDriverSignup() {
                   <div style={{ display: "flex", justifyContent: "center", marginBottom: 5 }}>
                     {done ? <Check size={13} color={C.accent} /> : <s.icon size={13} color={active ? C.accent : C.textDim} />}
                   </div>
-                  <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 9.5, fontWeight: 700, color: done || active ? C.accent : C.textDim, letterSpacing: "1px", textTransform: "uppercase" }}>{s.label}</div>
+                  <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 9.5, fontWeight: 700, color: done || active ? C.accent : C.textDim, letterSpacing: "1px", textTransform: "uppercase" }}>
+                    {s.label}
+                  </div>
                 </div>
               );
             })}
           </div>
         </div>
 
-        {/* Step Title */}
+        {/* Step title */}
         <div style={{ marginBottom: 22 }}>
-          <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 10, fontWeight: 700, color: C.accent, letterSpacing: "2px", textTransform: "uppercase", marginBottom: 4 }}>Step {step} of {STEPS.length}</div>
+          <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 10, fontWeight: 700, color: C.accent, letterSpacing: "2px", textTransform: "uppercase", marginBottom: 4 }}>
+            Step {step} of {STEPS.length}
+          </div>
           <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 28, fontWeight: 900, color: C.text, letterSpacing: "-0.5px", animation: "revealUp .35s ease-out" }}>
-            {["Create your account","Where are you located?","Tell us about your vehicle","Upload your documents","Review & submit"][step - 1]}
+            {["Create your account", "Where are you located?", "Tell us about your vehicle", "Upload your documents", "Review & submit"][step - 1]}
           </div>
           <div style={{ fontSize: 13.5, color: C.textMid, marginTop: 5, fontWeight: 500 }}>
-            {["Set up your UaTob driver profile.","We need your contact and location details.","Your vehicle must meet our quality standards.","Securely upload your required documents.","Double-check everything before submitting."][step - 1]}
+            {["Set up your UaTob driver profile.", "We need your contact and location details.", "Your vehicle must meet our quality standards.", "Securely upload your required documents.", "Double-check everything before submitting."][step - 1]}
           </div>
         </div>
 
-        {/* Step Content */}
-        <div ref={scrollRef} style={{ animation: animating ? "fadeOut .15s ease forwards" : direction === "forward" ? "slideForward .35s cubic-bezier(.25,.46,.45,.94)" : "slideBack .35s cubic-bezier(.25,.46,.45,.94)" }}>
+        {/* Submit error banner */}
+        {submitError && (
+          <div style={{ background: "rgba(220,38,38,.06)", border: "1px solid rgba(220,38,38,.25)", borderRadius: 14, padding: "13px 16px", marginBottom: 18, display: "flex", gap: 10, alignItems: "center", animation: "errorShake .4s ease" }}>
+            <AlertCircle size={16} color={C.red} style={{ flexShrink: 0 }} />
+            <div style={{ fontSize: 13, color: C.red, fontWeight: 600 }}>{submitError}</div>
+          </div>
+        )}
+
+        {/* Step content */}
+        <div
+          ref={scrollRef}
+          style={{ animation: animating ? "fadeOut .15s ease forwards" : direction === "forward" ? "slideForward .35s cubic-bezier(.25,.46,.45,.94)" : "slideBack .35s cubic-bezier(.25,.46,.45,.94)" }}
+        >
           {step === 1 && <StepAccount   data={accountData} setData={setAccountData} errors={errors} />}
           {step === 2 && <StepContact   data={contactData} setData={setContactData} errors={errors} />}
           {step === 3 && <StepVehicle   data={vehicleData} setData={setVehicleData} errors={errors} />}
@@ -601,7 +790,7 @@ export default function UaTobDriverSignup() {
         </div>
       </div>
 
-      {/* Sticky Bottom Nav */}
+      {/* Sticky bottom nav */}
       <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "rgba(250,250,250,.97)", backdropFilter: "blur(24px)", borderTop: `1px solid ${C.border}`, padding: "14px 20px 20px", boxShadow: "0 -8px 32px rgba(0,0,0,.06)" }}>
         <div style={{ maxWidth: 560, margin: "0 auto", display: "flex", gap: 10, alignItems: "center" }}>
           {step > 1 && (
