@@ -101,7 +101,7 @@ exports.setDriverStatus = onRequest(
         // ── Write to Firestore ─────────────────────────────
         // merge: true so we never clobber other driver profile fields
         await db
-          .collection("drivers")
+          .collection("Drivers")
           .doc(uid.trim())
           .set(update, { merge: true });
 
