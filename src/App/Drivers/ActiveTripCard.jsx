@@ -24,6 +24,8 @@ export default function ActiveTripCard({
 }) {
   if (!activeTrip) return null;
 
+  console.log(activeTrip)
+
   const stageConfig = {
     driver_assigned: {
       icon:       <Navigation size={15} />,
@@ -234,7 +236,7 @@ export default function ActiveTripCard({
           <div style={metaChipStyle("#F59E0B")}>
             <DollarSign size={13} />
             <div>
-              <span>{activeTrip.fare}</span>
+              <span>{activeTrip.fareTotal}</span>
               <span style={metaSubStyle}>Fare</span>
             </div>
           </div>

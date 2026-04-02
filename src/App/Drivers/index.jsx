@@ -5,7 +5,6 @@ import CSS              from '@/App/Drivers/styles.js';
 import { C }            from '@/App/Drivers/constants.js';
 import UaTobIcon        from '@/App/Drivers/Icon.jsx';
 import Notification     from '@/App/Drivers/Notification.jsx';
-import SurgeBanner      from '@/App/Drivers/SurgeBanner.jsx';
 import TripRequestModal from '@/App/Drivers/TripRequestModal.jsx';
 import BottomTabBar     from '@/App/Drivers/BottomTabBar.jsx';
 import HomeTab          from '@/App/Drivers/HomeTab.jsx';
@@ -245,11 +244,7 @@ export default function UaTobDriverApp({ uid }) {
 
       {/* Overlays */}
       <Notification notification={notification} />
-      <SurgeBanner
-        show={showSurgeAlert}
-        online={online}
-        onClose={() => setShowSurgeAlert(false)}
-      />
+  
       <TripRequestModal
         tripRequest={tripRequest}
         requestTimer={requestTimer}
