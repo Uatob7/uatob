@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Bell, Star } from "lucide-react";
 
-
-
 import CSS              from '@/App/Drivers/styles.js';
 import { C }            from '@/App/Drivers/constants.js';
 import UaTobIcon        from '@/App/Drivers/Icon.jsx';
@@ -15,6 +13,42 @@ import TripsTab         from '@/App/Drivers/TripsTab.jsx';
 import ProfileTab       from '@/App/Drivers/ProfileTab.jsx';
 import { useDriverRides } from '@/App/Drivers/useDriverRides';
 import { useActiveRides } from "@/App/Drivers/useActiveRides";
+
+// ── Trip request chime (Web Audio API — no audio file needed) ────────
+function playRequestChime() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+    const notes = [
+      { freq: 880,  start: 0,    duration: 0.12 },
+      { freq: 1100, start: 0.13, duration: 0.12 },
+      { freq: 1320, start: 0.26, duration: 0.22 },
+    ];
+
+    notes.forEach(({ freq, start, duration }) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.type            = "sine";
+      osc.frequency.value = freq;
+
+      const t = ctx.currentTime + start;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.35, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+
+      osc.start(t);
+      osc.stop(t + duration);
+    });
+
+    setTimeout(() => ctx.close(), 1000);
+  } catch (err) {
+    console.warn("Audio playback failed:", err);
+  }
+}
 
 export default function UaTobDriverApp({ uid }) {
   // ── Remote data ───────────────────────────────────────
@@ -36,16 +70,26 @@ export default function UaTobDriverApp({ uid }) {
   const [tripBtnLabel,   setTripBtnLabel]   = useState("");
 
   // ── Refs ──────────────────────────────────────────────
-  const skippedIds = useRef(new Set());
-  const timerRef   = useRef(null);
+  const skippedIds    = useRef(new Set());
+  const timerRef      = useRef(null);
+  const prevRequestId = useRef(null);
 
-  // ── Derived: trip request (no useEffect needed) ───────
+  // ── Derived: trip request ─────────────────────────────
   const tripRequest = online && !activeTrip && !ridesLoading
     ? (rides.find(r =>
         r.status === "searching_driver" &&
         !skippedIds.current.has(r.id)
       ) ?? null)
     : null;
+
+  // ── Chime on new request ──────────────────────────────
+  useEffect(() => {
+    const newId = tripRequest?.id ?? null;
+    if (newId && newId !== prevRequestId.current) {
+      playRequestChime();
+    }
+    prevRequestId.current = newId;
+  }, [tripRequest?.id]);
 
   // ── Mount animation ───────────────────────────────────
   useEffect(() => { setMounted(true); }, []);
