@@ -1,8 +1,7 @@
-import { MapPin, Flag, Clock, Navigation, DollarSign, ChevronRight } from "lucide-react";
-import { C } from '@/App/Drivers/constants.js';
+import { MapPin, Flag, Navigation, ChevronRight } from "lucide-react";
 
 /**
- * ActiveTripCard
+ * ActiveTripCard – light redesign
  *
  * Props:
  *   activeTrip      — trip object | null
@@ -22,17 +21,17 @@ export default function ActiveTripCard({
 
   const stageConfig = {
     driver_assigned: {
-      icon:  <Navigation size={13} />,
+      icon: <Navigation size={12} />,
       label: "En Route to Pickup",
       pulse: true,
     },
     arrived: {
-      icon:  <MapPin size={13} />,
+      icon: <MapPin size={12} />,
       label: "Waiting for Rider",
       pulse: false,
     },
     in_progress: {
-      icon:  <Flag size={13} />,
+      icon: <Flag size={12} />,
       label: "Trip In Progress",
       pulse: true,
     },
@@ -41,237 +40,241 @@ export default function ActiveTripCard({
   const stage = stageConfig[tripStage] ?? stageConfig.driver_assigned;
   const isComplete = tripStage === "in_progress";
 
-  /* ─── styles ─────────────────────────────────────────────────── */
-
-  const s = {
-    card: {
-      background:   "#141414",
-      borderRadius: 20,
-      overflow:     "hidden",
-      border:       "1px solid #2a2a2a",
-    },
-
-    stageBadge: {
-      display:       "flex",
-      alignItems:    "center",
-      gap:           8,
-      padding:       "11px 16px",
-      background:    `${tripStageColor}14`,
-      borderBottom:  `1px solid ${tripStageColor}22`,
-      color:         tripStageColor,
-      fontSize:      11,
-      fontWeight:    700,
-      letterSpacing: "0.08em",
-      textTransform: "uppercase",
-    },
-
-    dot: {
-      width:        7,
-      height:       7,
-      borderRadius: "50%",
-      background:   tripStageColor,
-      flexShrink:   0,
-      ...(stage.pulse ? { animation: "pulseDot 1.4s ease-in-out infinite" } : {}),
-    },
-
-    body: {
-      padding:    "16px 16px 0",
-    },
-
-    /* vertical timeline */
-    timeline: {
-      paddingLeft: 28,
-      position:    "relative",
-      display:     "flex",
-      flexDirection: "column",
-    },
-
-    timelineLine: {
-      position:   "absolute",
-      left:       9,
-      top:        22,
-      bottom:     22,
-      width:      1,
-      background: "linear-gradient(to bottom, #3B82F6, #10B981)",
-      opacity:    0.3,
-    },
-
-    stop: (dimmed) => ({
-      display:      "flex",
-      alignItems:   "flex-start",
-      gap:          12,
-      paddingBottom: 16,
-      position:     "relative",
-      opacity:      dimmed ? 0.35 : 1,
-    }),
-
-    stopDot: (color) => ({
-      position:     "absolute",
-      left:         -19,
-      top:          4,
-      width:        10,
-      height:       10,
-      borderRadius: "50%",
-      border:       `2px solid ${color}`,
-      background:   "#141414",
-      flexShrink:   0,
-    }),
-
-    stopLabel: {
-      fontSize:      10,
-      fontWeight:    700,
-      letterSpacing: "0.06em",
-      textTransform: "uppercase",
-      color:         "#555",
-      marginBottom:  2,
-    },
-
-    stopAddr: {
-      fontSize:   13.5,
-      fontWeight: 500,
-      color:      "#e8e8e8",
-      lineHeight: 1.35,
-    },
-
-    divider: {
-      height:     1,
-      background: "#1f1f1f",
-      margin:     "14px 0 0",
-    },
-
-    stats: {
-      display:             "grid",
-      gridTemplateColumns: "repeat(3, 1fr)",
-      padding:             "12px 16px",
-    },
-
-    stat: (i) => ({
-      display:       "flex",
-      flexDirection: "column",
-      gap:           2,
-      padding:       i === 0 ? "0 8px 0 0" : "0 8px",
-      borderLeft:    i > 0 ? "1px solid #222" : "none",
-    }),
-
-    statValue: {
-      fontFamily: "'DM Mono', 'Fira Mono', monospace",
-      fontSize:   15,
-      fontWeight: 500,
-      color:      "#e8e8e8",
-    },
-
-    statKey: {
-      fontSize:      10,
-      fontWeight:    600,
-      letterSpacing: "0.05em",
-      textTransform: "uppercase",
-      color:         "#444",
-    },
-
-    hardDivider: {
-      height:     1,
-      background: "#1f1f1f",
-      margin:     0,
-    },
-
-    cta: {
-      display:        "flex",
-      alignItems:     "center",
-      justifyContent: "center",
-      gap:            10,
-      width:          "100%",
-      padding:        "15px 20px",
-      background:     tripStageColor,
-      border:         "none",
-      color:          "#fff",
-      fontSize:       14,
-      fontWeight:     700,
-      letterSpacing:  "0.04em",
-      cursor:         "pointer",
-      transition:     "filter .12s",
-    },
-
-    ctaArrow: {
-      display:         "flex",
-      alignItems:      "center",
-      justifyContent:  "center",
-      width:           24,
-      height:          24,
-      borderRadius:    "50%",
-      background:      "rgba(255,255,255,0.18)",
-      flexShrink:      0,
-    },
-  };
+  const accent = tripStageColor ?? "#2563EB";
 
   return (
     <>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+
         @keyframes pulseDot {
           0%, 100% { opacity: 1; transform: scale(1); }
-          50%       { opacity: .4; transform: scale(.65); }
+          50%       { opacity: .3; transform: scale(.55); }
         }
-        .atc-cta:hover  { filter: brightness(1.12); }
-        .atc-cta:active { filter: brightness(.9); }
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(6px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .atc-root {
+          font-family: 'DM Sans', sans-serif;
+          background: #FFFFFF;
+          border-radius: 18px;
+          border: 1px solid #E8ECF0;
+          box-shadow:
+            0 1px 3px rgba(0,0,0,.06),
+            0 8px 32px rgba(0,0,0,.06);
+          overflow: hidden;
+          animation: fadeUp .32s ease-out both;
+        }
+
+        /* ── stage strip ── */
+        .atc-stage {
+          display: flex;
+          align-items: center;
+          gap: 7px;
+          padding: 10px 16px;
+          border-bottom: 1px solid #F0F2F5;
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: .07em;
+          text-transform: uppercase;
+        }
+        .atc-dot {
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          flex-shrink: 0;
+        }
+        .atc-dot.pulse {
+          animation: pulseDot 1.5s ease-in-out infinite;
+        }
+
+        /* ── body ── */
+        .atc-body {
+          padding: 18px 16px 0;
+        }
+
+        /* ── timeline ── */
+        .atc-timeline {
+          position: relative;
+          padding-left: 26px;
+          display: flex;
+          flex-direction: column;
+        }
+        .atc-timeline-track {
+          position: absolute;
+          left: 9px;
+          top: 20px;
+          bottom: 20px;
+          width: 1.5px;
+          background: linear-gradient(to bottom, #3B82F6 0%, #10B981 100%);
+          opacity: .25;
+          border-radius: 2px;
+        }
+        .atc-stop {
+          position: relative;
+          padding-bottom: 16px;
+          transition: opacity .2s;
+        }
+        .atc-stop.dimmed { opacity: .3; }
+        .atc-stop-node {
+          position: absolute;
+          left: -17px;
+          top: 5px;
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          border-width: 2px;
+          border-style: solid;
+          background: #fff;
+        }
+        .atc-stop-tag {
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: .06em;
+          text-transform: uppercase;
+          color: #B0B8C4;
+          margin-bottom: 2px;
+        }
+        .atc-stop-addr {
+          font-size: 13.5px;
+          font-weight: 500;
+          color: #1A1F2E;
+          line-height: 1.4;
+        }
+
+        /* ── stats ── */
+        .atc-divider {
+          height: 1px;
+          background: #F0F2F5;
+          margin: 16px 0 0;
+        }
+        .atc-stats {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          padding: 14px 16px;
+          gap: 0;
+        }
+        .atc-stat {
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+        }
+        .atc-stat + .atc-stat {
+          padding-left: 14px;
+          border-left: 1px solid #EDF0F4;
+        }
+        .atc-stat-value {
+          font-family: 'DM Mono', monospace;
+          font-size: 14.5px;
+          font-weight: 500;
+          color: #1A1F2E;
+          letter-spacing: -.01em;
+        }
+        .atc-stat-key {
+          font-size: 10px;
+          font-weight: 600;
+          letter-spacing: .055em;
+          text-transform: uppercase;
+          color: #B0B8C4;
+        }
+
+        /* ── CTA ── */
+        .atc-cta-wrap {
+          padding: 0 14px 14px;
+        }
+        .atc-cta {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          width: 100%;
+          padding: 14px 18px;
+          border: none;
+          border-radius: 12px;
+          font-family: 'DM Sans', sans-serif;
+          font-size: 14px;
+          font-weight: 700;
+          color: #fff;
+          cursor: pointer;
+          transition: filter .13s, transform .1s;
+          letter-spacing: .02em;
+        }
+        .atc-cta:hover  { filter: brightness(1.08); }
+        .atc-cta:active { filter: brightness(.94); transform: scale(.99); }
+        .atc-cta-arrow {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 26px;
+          height: 26px;
+          border-radius: 50%;
+          background: rgba(255,255,255,.22);
+          flex-shrink: 0;
+        }
       `}</style>
 
-      <div style={s.card}>
+      <div className="atc-root">
 
-        {/* Stage badge */}
-        <div style={s.stageBadge}>
-          <div style={s.dot} />
+        {/* Stage strip */}
+        <div className="atc-stage" style={{ color: accent }}>
+          <div
+            className={`atc-dot${stage.pulse ? " pulse" : ""}`}
+            style={{ background: accent }}
+          />
           {stage.icon}
           {stage.label}
         </div>
 
         {/* Route timeline */}
-        <div style={s.body}>
-          <div style={s.timeline}>
-            <div style={s.timelineLine} />
+        <div className="atc-body">
+          <div className="atc-timeline">
+            <div className="atc-timeline-track" />
 
             {/* Pickup */}
-            <div style={s.stop(isComplete)}>
-              <div style={s.stopDot("#3B82F6")} />
-              <div>
-                <div style={s.stopLabel}>Pickup</div>
-                <div style={s.stopAddr}>{activeTrip.pickup}</div>
-              </div>
+            <div className={`atc-stop${isComplete ? " dimmed" : ""}`}>
+              <div className="atc-stop-node" style={{ borderColor: "#3B82F6" }} />
+              <div className="atc-stop-tag">Pickup</div>
+              <div className="atc-stop-addr">{activeTrip.pickup}</div>
             </div>
 
             {/* Dropoff */}
-            <div style={{ ...s.stop(false), paddingBottom: 0 }}>
-              <div style={s.stopDot("#10B981")} />
-              <div>
-                <div style={s.stopLabel}>Dropoff</div>
-                <div style={s.stopAddr}>{activeTrip.dropoff}</div>
-              </div>
+            <div className="atc-stop" style={{ paddingBottom: 0 }}>
+              <div className="atc-stop-node" style={{ borderColor: "#10B981" }} />
+              <div className="atc-stop-tag">Dropoff</div>
+              <div className="atc-stop-addr">{activeTrip.dropoff}</div>
             </div>
           </div>
         </div>
 
-        {/* Stats row */}
-        <div style={s.divider} />
-        <div style={s.stats}>
+        {/* Stats */}
+        <div className="atc-divider" />
+        <div className="atc-stats">
           {[
-            { value: activeTrip.fareTotal,                            label: "Fare" },
-            { value: `${activeTrip.tripDistanceMiles?.toFixed(1)} mi`, label: "Distance" },
-            { value: `${activeTrip.tripDurationMin} min`,             label: "Est. time" },
+            { value: activeTrip.fareTotal,                              key: "Fare"     },
+            { value: `${activeTrip.tripDistanceMiles?.toFixed(1)} mi`,  key: "Distance" },
+            { value: `${activeTrip.tripDurationMin} min`,               key: "Est. Time"},
           ].map((item, i) => (
-            <div key={i} style={s.stat(i)}>
-              <span style={s.statValue}>{item.value}</span>
-              <span style={s.statKey}>{item.label}</span>
+            <div key={i} className="atc-stat">
+              <span className="atc-stat-value">{item.value}</span>
+              <span className="atc-stat-key">{item.key}</span>
             </div>
           ))}
         </div>
 
-        <div style={s.hardDivider} />
-
         {/* CTA */}
-        <button className="atc-cta" style={s.cta} onClick={onAdvance}>
-          {tripBtnLabel}
-          <div style={s.ctaArrow}>
-            <ChevronRight size={13} strokeWidth={2.5} />
-          </div>
-        </button>
+        <div className="atc-cta-wrap">
+          <button
+            className="atc-cta"
+            style={{ background: accent }}
+            onClick={onAdvance}
+          >
+            <span>{tripBtnLabel}</span>
+            <div className="atc-cta-arrow">
+              <ChevronRight size={14} strokeWidth={2.5} />
+            </div>
+          </button>
+        </div>
 
       </div>
     </>
