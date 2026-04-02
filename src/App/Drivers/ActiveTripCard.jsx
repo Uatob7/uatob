@@ -4,10 +4,6 @@ import { C } from '@/App/Drivers/constants.js';
 /**
  * ActiveTripCard
  *
- * Renders nothing when there is no active trip.
- * When a trip is active, shows stage-appropriate UI with pickup/dropoff,
- * fare, distance, duration, and the stage-advance CTA button.
- *
  * Props:
  *   activeTrip      — trip object | null
  *   tripStage       — "driver_assigned" | "arrived" | "in_progress"
@@ -24,162 +20,187 @@ export default function ActiveTripCard({
 }) {
   if (!activeTrip) return null;
 
-  console.log(activeTrip)
-
   const stageConfig = {
     driver_assigned: {
-      icon:       <Navigation size={15} />,
-      label:      "En Route to Pickup",
-      pulse:      true,
+      icon:  <Navigation size={13} />,
+      label: "En Route to Pickup",
+      pulse: true,
     },
     arrived: {
-      icon:       <MapPin size={15} />,
-      label:      "Waiting for Rider",
-      pulse:      false,
+      icon:  <MapPin size={13} />,
+      label: "Waiting for Rider",
+      pulse: false,
     },
     in_progress: {
-      icon:       <Flag size={15} />,
-      label:      "Trip In Progress",
-      pulse:      true,
+      icon:  <Flag size={13} />,
+      label: "Trip In Progress",
+      pulse: true,
     },
   };
 
-  const stage = stageConfig[tripStage] || stageConfig.driver_assigned;
+  const stage = stageConfig[tripStage] ?? stageConfig.driver_assigned;
+  const isComplete = tripStage === "in_progress";
 
-  const cardStyle = {
-    background:   C.surface,
-    borderRadius: 18,
-    overflow:     "hidden",
-    border:       `1.5px solid ${tripStageColor}33`,
-    boxShadow:    `0 0 24px ${tripStageColor}18`,
-  };
+  /* ─── styles ─────────────────────────────────────────────────── */
 
-  const stageBadgeStyle = {
-    display:        "flex",
-    alignItems:     "center",
-    gap:            7,
-    background:     `${tripStageColor}18`,
-    borderBottom:   `1px solid ${tripStageColor}22`,
-    padding:        "10px 16px",
-    color:          tripStageColor,
-    fontSize:       13,
-    fontWeight:     700,
-    letterSpacing:  "0.04em",
-    textTransform:  "uppercase",
-  };
+  const s = {
+    card: {
+      background:   "#141414",
+      borderRadius: 20,
+      overflow:     "hidden",
+      border:       "1px solid #2a2a2a",
+    },
 
-  const dotStyle = {
-    width:        8,
-    height:       8,
-    borderRadius: "50%",
-    background:   tripStageColor,
-    flexShrink:   0,
-    ...(stage.pulse ? { animation: "pulseDot 1.4s ease-in-out infinite" } : {}),
-  };
+    stageBadge: {
+      display:       "flex",
+      alignItems:    "center",
+      gap:           8,
+      padding:       "11px 16px",
+      background:    `${tripStageColor}14`,
+      borderBottom:  `1px solid ${tripStageColor}22`,
+      color:         tripStageColor,
+      fontSize:      11,
+      fontWeight:    700,
+      letterSpacing: "0.08em",
+      textTransform: "uppercase",
+    },
 
-  const bodyStyle = {
-    padding: "16px 16px 0",
-  };
+    dot: {
+      width:        7,
+      height:       7,
+      borderRadius: "50%",
+      background:   tripStageColor,
+      flexShrink:   0,
+      ...(stage.pulse ? { animation: "pulseDot 1.4s ease-in-out infinite" } : {}),
+    },
 
-  const routeRowStyle = {
-    display:       "flex",
-    flexDirection: "column",
-    gap:           0,
-  };
+    body: {
+      padding:    "16px 16px 0",
+    },
 
-  const routeItemStyle = (isLast) => ({
-    display:       "flex",
-    alignItems:    "flex-start",
-    gap:           12,
-    paddingBottom: isLast ? 0 : 10,
-    position:      "relative",
-  });
+    /* vertical timeline */
+    timeline: {
+      paddingLeft: 28,
+      position:    "relative",
+      display:     "flex",
+      flexDirection: "column",
+    },
 
-  const iconDotStyle = (color) => ({
-    width:        32,
-    height:       32,
-    borderRadius: "50%",
-    background:   `${color}18`,
-    border:        `1.5px solid ${color}44`,
-    display:      "flex",
-    alignItems:   "center",
-    justifyContent: "center",
-    color:        color,
-    flexShrink:   0,
-    marginTop:    2,
-  });
+    timelineLine: {
+      position:   "absolute",
+      left:       9,
+      top:        22,
+      bottom:     22,
+      width:      1,
+      background: "linear-gradient(to bottom, #3B82F6, #10B981)",
+      opacity:    0.3,
+    },
 
-  const connectorStyle = {
-    position:   "absolute",
-    left:       15,
-    top:        36,
-    width:       2,
-    height:     "calc(100% - 8px)",
-    background: `${C.text}18`,
-  };
+    stop: (dimmed) => ({
+      display:      "flex",
+      alignItems:   "flex-start",
+      gap:          12,
+      paddingBottom: 16,
+      position:     "relative",
+      opacity:      dimmed ? 0.35 : 1,
+    }),
 
-  const addressLabelStyle = {
-    fontSize:   11,
-    fontWeight: 700,
-    color:      `${C.text}55`,
-    textTransform: "uppercase",
-    letterSpacing: "0.06em",
-    marginBottom: 2,
-  };
+    stopDot: (color) => ({
+      position:     "absolute",
+      left:         -19,
+      top:          4,
+      width:        10,
+      height:       10,
+      borderRadius: "50%",
+      border:       `2px solid ${color}`,
+      background:   "#141414",
+      flexShrink:   0,
+    }),
 
-  const addressTextStyle = {
-    fontSize:   14,
-    fontWeight: 600,
-    color:      C.text,
-    lineHeight: 1.35,
-  };
+    stopLabel: {
+      fontSize:      10,
+      fontWeight:    700,
+      letterSpacing: "0.06em",
+      textTransform: "uppercase",
+      color:         "#555",
+      marginBottom:  2,
+    },
 
-  const metaRowStyle = {
-    display:        "flex",
-    gap:            8,
-    padding:        "14px 16px",
-    borderTop:      `1px solid ${C.text}0f`,
-    marginTop:      14,
-  };
+    stopAddr: {
+      fontSize:   13.5,
+      fontWeight: 500,
+      color:      "#e8e8e8",
+      lineHeight: 1.35,
+    },
 
-  const metaChipStyle = (color) => ({
-    display:        "flex",
-    alignItems:     "center",
-    gap:            5,
-    flex:           1,
-    background:     `${color || C.text}0d`,
-    borderRadius:   10,
-    padding:        "8px 10px",
-    color:          color || C.text,
-    fontSize:       13,
-    fontWeight:     700,
-  });
+    divider: {
+      height:     1,
+      background: "#1f1f1f",
+      margin:     "14px 0 0",
+    },
 
-  const metaSubStyle = {
-    fontSize:   10,
-    fontWeight: 500,
-    opacity:    0.6,
-    display:    "block",
-    marginTop:  1,
-  };
+    stats: {
+      display:             "grid",
+      gridTemplateColumns: "repeat(3, 1fr)",
+      padding:             "12px 16px",
+    },
 
-  const btnStyle = {
-    display:        "flex",
-    alignItems:     "center",
-    justifyContent: "center",
-    gap:            8,
-    width:          "100%",
-    padding:        "15px 20px",
-    background:     tripStageColor,
-    border:         "none",
-    borderTop:      `2px solid ${tripStageColor}`,
-    color:          "#fff",
-    fontSize:       15,
-    fontWeight:     800,
-    letterSpacing:  "0.02em",
-    cursor:         "pointer",
-    marginTop:      0,
-    transition:     "filter .15s",
+    stat: (i) => ({
+      display:       "flex",
+      flexDirection: "column",
+      gap:           2,
+      padding:       i === 0 ? "0 8px 0 0" : "0 8px",
+      borderLeft:    i > 0 ? "1px solid #222" : "none",
+    }),
+
+    statValue: {
+      fontFamily: "'DM Mono', 'Fira Mono', monospace",
+      fontSize:   15,
+      fontWeight: 500,
+      color:      "#e8e8e8",
+    },
+
+    statKey: {
+      fontSize:      10,
+      fontWeight:    600,
+      letterSpacing: "0.05em",
+      textTransform: "uppercase",
+      color:         "#444",
+    },
+
+    hardDivider: {
+      height:     1,
+      background: "#1f1f1f",
+      margin:     0,
+    },
+
+    cta: {
+      display:        "flex",
+      alignItems:     "center",
+      justifyContent: "center",
+      gap:            10,
+      width:          "100%",
+      padding:        "15px 20px",
+      background:     tripStageColor,
+      border:         "none",
+      color:          "#fff",
+      fontSize:       14,
+      fontWeight:     700,
+      letterSpacing:  "0.04em",
+      cursor:         "pointer",
+      transition:     "filter .12s",
+    },
+
+    ctaArrow: {
+      display:         "flex",
+      alignItems:      "center",
+      justifyContent:  "center",
+      width:           24,
+      height:          24,
+      borderRadius:    "50%",
+      background:      "rgba(255,255,255,0.18)",
+      flexShrink:      0,
+    },
   };
 
   return (
@@ -187,82 +208,71 @@ export default function ActiveTripCard({
       <style>{`
         @keyframes pulseDot {
           0%, 100% { opacity: 1; transform: scale(1); }
-          50%       { opacity: .5; transform: scale(.75); }
+          50%       { opacity: .4; transform: scale(.65); }
         }
-        .atc-btn:hover  { filter: brightness(1.1); }
-        .atc-btn:active { filter: brightness(.92); }
+        .atc-cta:hover  { filter: brightness(1.12); }
+        .atc-cta:active { filter: brightness(.9); }
       `}</style>
 
-      <div style={cardStyle}>
+      <div style={s.card}>
 
         {/* Stage badge */}
-        <div style={stageBadgeStyle}>
-          <div style={dotStyle} />
+        <div style={s.stageBadge}>
+          <div style={s.dot} />
           {stage.icon}
           {stage.label}
         </div>
 
-        {/* Route */}
-        <div style={bodyStyle}>
-          <div style={routeRowStyle}>
+        {/* Route timeline */}
+        <div style={s.body}>
+          <div style={s.timeline}>
+            <div style={s.timelineLine} />
 
             {/* Pickup */}
-            <div style={routeItemStyle(false)}>
-              <div style={connectorStyle} />
-              <div style={iconDotStyle(C.blue)}>
-                <MapPin size={14} />
-              </div>
+            <div style={s.stop(isComplete)}>
+              <div style={s.stopDot("#3B82F6")} />
               <div>
-                <div style={addressLabelStyle}>Pickup</div>
-                <div style={addressTextStyle}>{activeTrip.pickup}</div>
+                <div style={s.stopLabel}>Pickup</div>
+                <div style={s.stopAddr}>{activeTrip.pickup}</div>
               </div>
             </div>
 
             {/* Dropoff */}
-            <div style={routeItemStyle(true)}>
-              <div style={iconDotStyle(C.green)}>
-                <Flag size={14} />
-              </div>
+            <div style={{ ...s.stop(false), paddingBottom: 0 }}>
+              <div style={s.stopDot("#10B981")} />
               <div>
-                <div style={addressLabelStyle}>Dropoff</div>
-                <div style={addressTextStyle}>{activeTrip.dropoff}</div>
+                <div style={s.stopLabel}>Dropoff</div>
+                <div style={s.stopAddr}>{activeTrip.dropoff}</div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Meta chips */}
-        <div style={metaRowStyle}>
-          <div style={metaChipStyle("#F59E0B")}>
-            <DollarSign size={13} />
-            <div>
-              <span>{activeTrip.fareTotal}</span>
-              <span style={metaSubStyle}>Fare</span>
+        {/* Stats row */}
+        <div style={s.divider} />
+        <div style={s.stats}>
+          {[
+            { value: activeTrip.fareTotal,                            label: "Fare" },
+            { value: `${activeTrip.tripDistanceMiles?.toFixed(1)} mi`, label: "Distance" },
+            { value: `${activeTrip.tripDurationMin} min`,             label: "Est. time" },
+          ].map((item, i) => (
+            <div key={i} style={s.stat(i)}>
+              <span style={s.statValue}>{item.value}</span>
+              <span style={s.statKey}>{item.label}</span>
             </div>
-          </div>
-
-          <div style={metaChipStyle(C.blue)}>
-            <Navigation size={13} />
-            <div>
-              <span>{activeTrip.tripDistanceMiles?.toFixed(1)} mi</span>
-              <span style={metaSubStyle}>Distance</span>
-            </div>
-          </div>
-
-          <div style={metaChipStyle(C.text)}>
-            <Clock size={13} />
-            <div>
-              <span>{activeTrip.tripDurationMin} min</span>
-              <span style={metaSubStyle}>Est. time</span>
-            </div>
-          </div>
+          ))}
         </div>
+
+        <div style={s.hardDivider} />
 
         {/* CTA */}
-        <button className="atc-btn" style={btnStyle} onClick={onAdvance}>
+        <button className="atc-cta" style={s.cta} onClick={onAdvance}>
           {tripBtnLabel}
-          <ChevronRight size={17} />
+          <div style={s.ctaArrow}>
+            <ChevronRight size={13} strokeWidth={2.5} />
+          </div>
         </button>
+
       </div>
     </>
   );
