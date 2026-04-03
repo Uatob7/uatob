@@ -515,13 +515,19 @@ function PendingScreen({ firstName, email }) {
 
 export default function UaTobDriverSignup({ uid }) {
   const { driverSignUp } = useDriverSignUp(uid);
-  console.log("DriverSignUp state:", { driverSignUp });
 
-  // ── Local flag: show PendingScreen immediately after submit ──────────
-  // Initialized from localStorage so it survives a page refresh.
-  // Does NOT depend on driverSignUp.status — that field is set during step 1
-  // (profile creation) and would falsely trigger PendingScreen mid-flow.
+  // ── submitted flag: fast-path from localStorage, then synced from Firestore ──
   const [submitted, setSubmitted] = useState(() => lsGet(LS_KEYS.submitted, false));
+
+  // ── When Firestore confirms status === 'pending', lock in the submitted state.
+  // This is what survives a hard refresh — localStorage is just the instant show,
+  // Firestore is the source of truth.
+  useEffect(() => {
+    if (driverSignUp?.status === 'pending' || driverSignUp?.status === 'approved') {
+      setSubmitted(true);
+      lsSet(LS_KEYS.submitted, true);
+    }
+  }, [driverSignUp?.status]);
 
   // ── Redirect approved drivers ────────────────────────────────────────
   useEffect(() => {
@@ -632,16 +638,12 @@ export default function UaTobDriverSignup({ uid }) {
         const newUid = result.user.uid;
         setCreatedUid(newUid);
         await createDriverProfile(newUid, accountData);
-        console.log("✅ Driver profile created:", newUid);
       }
 
       if (step === 5) {
         const uid = createdUid;
         if (!uid) throw new Error("Missing user ID — please restart signup.");
         await submitDriverData(uid);
-        console.log("✅ Full driver data submitted for uid:", uid);
-        // Persist the submitted flag BEFORE clearing other keys so it
-        // survives the lsClear and is still readable on page refresh.
         lsClear();
         lsSet(LS_KEYS.submitted, true);
         setSubmitted(true);
@@ -700,17 +702,14 @@ export default function UaTobDriverSignup({ uid }) {
 
   /* ── Status-based screens ── */
 
-  // Approved → redirect (useEffect above handles it), render nothing while redirecting
   if (driverSignUp?.status === "approved") return null;
 
-  // PendingScreen is driven exclusively by the local `submitted` flag.
-  // This prevents driverSignUp.status === "pending" (written during step 1
-  // profile creation) from falsely triggering this screen mid-flow.
+  // ── PendingScreen: use Firestore data when available, fall back to localStorage ──
   if (submitted) {
     return (
       <PendingScreen
-        firstName={accountData.firstName}
-        email={accountData.email}
+        firstName={driverSignUp?.firstName ?? accountData.firstName}
+        email={driverSignUp?.email         ?? accountData.email}
       />
     );
   }
