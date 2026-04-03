@@ -76,7 +76,7 @@ const CSS = `
   to   { opacity: 1; transform: none; }
 }
 
-/* ── CTA Button ── */
+/* ── CTA Button / Link ── */
 .dsl-cta {
   width: 100%;
   border: none;
@@ -99,6 +99,7 @@ const CSS = `
   transition: transform .2s ease, box-shadow .2s ease;
   position: relative;
   overflow: hidden;
+  text-decoration: none;
 }
 .dsl-cta::before {
   content: '';
@@ -200,21 +201,6 @@ function useSR() {
 }
 
 /* ─── SUB-COMPONENTS ─────────────────────────── */
-function Tag({ children }) {
-  return (
-    <span style={{
-      fontFamily: "'DM Mono', monospace",
-      fontSize: 10,
-      color: MUT,
-      letterSpacing: '.1em',
-      textTransform: 'uppercase',
-      display: 'inline-block'
-    }}>
-      {children}
-    </span>
-  );
-}
-
 function StatBlock({ value, label, index }) {
   return (
     <div style={{
@@ -271,14 +257,12 @@ function BenCard({ icon: Icon, title, desc, delay = 0 }) {
         overflow: 'hidden'
       }}
     >
-      {/* corner accent */}
       <div style={{
         position: 'absolute', top: 0, right: 0,
         width: 60, height: 60,
         background: `radial-gradient(circle at top right, rgba(34,197,94,.08), transparent 70%)`,
         pointerEvents: 'none'
       }} />
-
       <div style={{
         width: 40, height: 40,
         borderRadius: 3,
@@ -289,7 +273,6 @@ function BenCard({ icon: Icon, title, desc, delay = 0 }) {
       }}>
         <Icon size={18} color={G} strokeWidth={1.75} />
       </div>
-
       <div style={{
         fontFamily: "'Space Grotesk', sans-serif",
         fontSize: 14, fontWeight: 700,
@@ -323,14 +306,12 @@ function ReqRow({ icon: Icon, text }) {
       }}>
         <Icon size={16} color={G} strokeWidth={1.75} />
       </div>
-
       <span style={{
         fontFamily: "'Space Grotesk', sans-serif",
         fontSize: 13, fontWeight: 600, color: TXT, flex: 1
       }}>
         {text}
       </span>
-
       <ChevronRight size={14} color={MUTE2} />
     </div>
   );
@@ -368,17 +349,18 @@ function StepCard({ number, title, desc }) {
 }
 
 /* ─── MAIN ───────────────────────────────────── */
-export default function DriverSignupLanding({ onStartApplication }) {
+export default function DriverSignupLanding() {
   useSR();
-  const fire = () => typeof onStartApplication === 'function' && onStartApplication();
+
+  const SIGNUP_URL = 'https://uatob.com/driver/signup';
 
   const BENEFITS = [
-    { icon: DollarSign,  title: 'Keep 80% of every fare',      desc: 'UaTob drivers keep more from every ride, with no confusing payout math or hidden cuts.' },
-    { icon: Zap,         title: 'Next-day payouts',             desc: 'Your money lands fast. No weekly waiting cycle and no payout mystery.' },
-    { icon: MapPin,      title: 'Orlando-focused demand',       desc: 'Built for the routes drivers actually want — airport, nightlife, events, and campus runs.' },
-    { icon: TrendingUp,  title: 'Fair surge pricing',           desc: 'When demand spikes, you see it clearly. No black-box pricing games.' },
-    { icon: Clock3,      title: 'Drive whenever you want',      desc: 'Go online when it works for you. No minimum hours and no forced schedules.' },
-    { icon: ShieldCheck, title: 'Real human support',           desc: "You can actually reach the team when something matters — fast." },
+    { icon: DollarSign,  title: 'Keep 80% of every fare',   desc: 'UaTob drivers keep more from every ride, with no confusing payout math or hidden cuts.' },
+    { icon: Zap,         title: 'Next-day payouts',          desc: 'Your money lands fast. No weekly waiting cycle and no payout mystery.' },
+    { icon: MapPin,      title: 'Orlando-focused demand',    desc: 'Built for the routes drivers actually want — airport, nightlife, events, and campus runs.' },
+    { icon: TrendingUp,  title: 'Fair surge pricing',        desc: 'When demand spikes, you see it clearly. No black-box pricing games.' },
+    { icon: Clock3,      title: 'Drive whenever you want',   desc: 'Go online when it works for you. No minimum hours and no forced schedules.' },
+    { icon: ShieldCheck, title: 'Real human support',        desc: "You can actually reach the team when something matters — fast." },
   ];
 
   const TICKER = [
@@ -405,15 +387,13 @@ export default function DriverSignupLanding({ onStartApplication }) {
 
         {/* glow orbs */}
         <div style={{
-          position: 'absolute', width: 500, height: 500,
-          borderRadius: '50%',
+          position: 'absolute', width: 500, height: 500, borderRadius: '50%',
           background: 'radial-gradient(circle, rgba(22,163,74,.10) 0%, transparent 65%)',
           top: -200, right: -120, pointerEvents: 'none',
           animation: 'floatSlow 10s ease-in-out infinite'
         }} />
         <div style={{
-          position: 'absolute', width: 340, height: 340,
-          borderRadius: '50%',
+          position: 'absolute', width: 340, height: 340, borderRadius: '50%',
           background: 'radial-gradient(circle, rgba(22,163,74,.07) 0%, transparent 65%)',
           bottom: 60, left: -100, pointerEvents: 'none',
           animation: 'floatSlow 14s ease-in-out infinite reverse'
@@ -437,8 +417,7 @@ export default function DriverSignupLanding({ onStartApplication }) {
               display: 'inline-flex', alignItems: 'center', gap: 8,
               background: 'rgba(22,163,74,.07)',
               border: '1px solid rgba(22,163,74,.18)',
-              borderRadius: 3,
-              padding: '8px 14px'
+              borderRadius: 3, padding: '8px 14px'
             }}>
               <span style={{
                 width: 7, height: 7, borderRadius: '50%',
@@ -457,10 +436,7 @@ export default function DriverSignupLanding({ onStartApplication }) {
 
           {/* big headline */}
           <div style={{ textAlign: 'center', marginBottom: 12 }}>
-            <h1 className="hero-h dsl-h" style={{
-              fontSize: 'clamp(58px,18vw,100px)',
-              color: TXT
-            }}>
+            <h1 className="hero-h dsl-h" style={{ fontSize: 'clamp(58px,18vw,100px)', color: TXT }}>
               EARN
             </h1>
             <h1 className="hero-h dsl-h" style={{
@@ -490,10 +466,7 @@ export default function DriverSignupLanding({ onStartApplication }) {
           </p>
 
           {/* chips */}
-          <div style={{
-            display: 'flex', justifyContent: 'center',
-            flexWrap: 'wrap', gap: 8, marginBottom: 32
-          }}>
+          <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 32 }}>
             <div className="dsl-chip"><Wallet size={11} />Keep 80%</div>
             <div className="dsl-chip"><Zap size={11} />Paid next day</div>
             <div className="dsl-chip"><Sparkles size={11} />Founding perks</div>
@@ -501,34 +474,23 @@ export default function DriverSignupLanding({ onStartApplication }) {
 
           {/* Earning snapshot card */}
           <div className="sr dsl-card" style={{
-            padding: '22px',
-            marginBottom: 20,
-            background: CARD,
-            position: 'relative', overflow: 'hidden'
+            padding: '22px', marginBottom: 20,
+            background: CARD, position: 'relative', overflow: 'hidden'
           }}>
-            {/* top-left accent line */}
             <div style={{
               position: 'absolute', top: 0, left: 0, right: 0, height: 2,
               background: `linear-gradient(90deg, ${G} 0%, transparent 70%)`
             }} />
-
-            <div style={{
-              display: 'flex', alignItems: 'flex-start',
-              justifyContent: 'space-between', marginBottom: 18
-            }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 18 }}>
               <div>
                 <div style={{
                   fontFamily: "'DM Mono', monospace",
                   fontSize: 10, color: G,
-                  letterSpacing: '.16em', textTransform: 'uppercase',
-                  marginBottom: 6
+                  letterSpacing: '.16em', textTransform: 'uppercase', marginBottom: 6
                 }}>
                   Driver snapshot
                 </div>
-                <div style={{
-                  fontFamily: "'Space Grotesk', sans-serif",
-                  fontSize: 16, fontWeight: 700, color: TXT
-                }}>
+                <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: TXT }}>
                   20 hrs can go a long way
                 </div>
               </div>
@@ -541,9 +503,7 @@ export default function DriverSignupLanding({ onStartApplication }) {
               </div>
             </div>
 
-            <div style={{
-              display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8
-            }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               {[
                 ['Avg fare', '$15'],
                 ['Your cut', '$12'],
@@ -551,16 +511,13 @@ export default function DriverSignupLanding({ onStartApplication }) {
                 ['Busy week', '$600+']
               ].map(([k, v]) => (
                 <div key={k} style={{
-                  background: MID,
-                  border: `1px solid ${BDR}`,
-                  borderRadius: 3,
-                  padding: '14px 12px'
+                  background: MID, border: `1px solid ${BDR}`,
+                  borderRadius: 3, padding: '14px 12px'
                 }}>
                   <div style={{
                     fontFamily: "'DM Mono', monospace",
                     fontSize: 10, color: MUT,
-                    letterSpacing: '.1em', textTransform: 'uppercase',
-                    marginBottom: 6
+                    letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 6
                   }}>{k}</div>
                   <div style={{
                     fontFamily: "'Unbounded', sans-serif",
@@ -572,9 +529,10 @@ export default function DriverSignupLanding({ onStartApplication }) {
             </div>
           </div>
 
-          <button className="dsl-cta" onClick={fire}>
+          {/* ── Hero CTA ── */}
+          <a href={SIGNUP_URL} className="dsl-cta">
             Start Application <ArrowRight size={17} strokeWidth={2.5} />
-          </button>
+          </a>
           <p style={{
             textAlign: 'center', fontSize: 11, color: MUTE2,
             marginTop: 12, fontFamily: "'DM Mono', monospace",
@@ -587,8 +545,7 @@ export default function DriverSignupLanding({ onStartApplication }) {
 
       {/* ── TICKER ──────────────────────────────── */}
       <section style={{
-        borderTop: `1px solid ${BDR}`,
-        borderBottom: `1px solid ${BDR}`,
+        borderTop: `1px solid ${BDR}`, borderBottom: `1px solid ${BDR}`,
         overflow: 'hidden', padding: '14px 0',
         background: BG2, position: 'relative'
       }}>
@@ -611,10 +568,8 @@ export default function DriverSignupLanding({ onStartApplication }) {
 
       {/* ── STATS ───────────────────────────────── */}
       <section style={{
-        display: 'flex',
-        borderBottom: `1px solid ${BDR}`,
-        background: WH,
-        position: 'relative', overflow: 'hidden'
+        display: 'flex', borderBottom: `1px solid ${BDR}`,
+        background: WH, position: 'relative', overflow: 'hidden'
       }}>
         <div className="dsl-noise" />
         <StatBlock value="80%" label="Driver cut"  index={0} />
@@ -629,7 +584,6 @@ export default function DriverSignupLanding({ onStartApplication }) {
           <div className="dsl-h" style={{ fontSize: 36, color: TXT, marginBottom: 4 }}>BUILT FOR</div>
           <div className="dsl-h" style={{ fontSize: 36, color: G }}>DRIVERS.</div>
         </div>
-
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           {BENEFITS.map((b, i) => (
             <BenCard key={i} {...b} delay={i * 0.07} />
@@ -645,9 +599,9 @@ export default function DriverSignupLanding({ onStartApplication }) {
           <div className="dsl-h" style={{ fontSize: 36, color: G }}>GET APPROVED.</div>
         </div>
         <div style={{ display: 'grid', gap: 8 }}>
-          <StepCard number={1} title="Submit your info"    desc="Start your application and tell us a little about you and your vehicle." />
-          <StepCard number={2} title="Upload documents"    desc="Add your license, insurance, and vehicle details securely in the app." />
-          <StepCard number={3} title="Start driving"       desc="Once approved, go online and begin earning on your own schedule." />
+          <StepCard number={1} title="Submit your info"  desc="Start your application and tell us a little about you and your vehicle." />
+          <StepCard number={2} title="Upload documents"  desc="Add your license, insurance, and vehicle details securely in the app." />
+          <StepCard number={3} title="Start driving"     desc="Once approved, go online and begin earning on your own schedule." />
         </div>
       </section>
 
@@ -659,36 +613,30 @@ export default function DriverSignupLanding({ onStartApplication }) {
             WHAT YOU'LL<br /><span style={{ color: G }}>NEED TO APPLY</span>
           </div>
         </div>
-
         <div className="sr dsl-card" style={{ padding: '4px 20px 8px', position: 'relative', overflow: 'hidden' }}>
           <div style={{
             position: 'absolute', top: 0, left: 0, right: 0, height: 2,
             background: `linear-gradient(90deg, ${G} 0%, transparent 60%)`
           }} />
-          <ReqRow icon={BadgeCheck} text="Valid driver's license" />
-          <ReqRow icon={CarFront}   text="Eligible 4-door vehicle" />
+          <ReqRow icon={BadgeCheck}  text="Valid driver's license" />
+          <ReqRow icon={CarFront}    text="Eligible 4-door vehicle" />
           <ReqRow icon={ShieldCheck} text="Active vehicle insurance" />
-          <ReqRow icon={Star}       text="Clean driving record" />
-          <ReqRow icon={Users}      text="Professional, rider-friendly attitude" />
+          <ReqRow icon={Star}        text="Clean driving record" />
+          <ReqRow icon={Users}       text="Professional, rider-friendly attitude" />
         </div>
       </section>
 
       {/* ── TESTIMONIAL ─────────────────────────── */}
       <section style={{ padding: '0 22px 42px', background: BG }}>
         <div className="sr" style={{
-          background: BG2,
-          border: `1px solid ${BDR}`,
-          borderRadius: 4,
-          padding: '28px 22px',
+          background: BG2, border: `1px solid ${BDR}`,
+          borderRadius: 4, padding: '28px 22px',
           position: 'relative', overflow: 'hidden'
         }}>
-          {/* top accent */}
           <div style={{
             position: 'absolute', top: 0, left: 0, right: 0, height: 2,
             background: `linear-gradient(90deg, ${G} 0%, transparent 65%)`
           }} />
-
-          {/* big quote mark */}
           <div style={{
             fontFamily: "'Unbounded', sans-serif",
             fontSize: 80, lineHeight: 1,
@@ -698,13 +646,11 @@ export default function DriverSignupLanding({ onStartApplication }) {
           }}>
             "
           </div>
-
           <div style={{ display: 'flex', gap: 3, marginBottom: 18 }}>
             {[...Array(5)].map((_, i) => (
               <Star key={i} size={14} fill={G} color={G} />
             ))}
           </div>
-
           <p style={{
             fontSize: 15, fontWeight: 500, color: TXT,
             lineHeight: 1.75, marginBottom: 22, fontStyle: 'italic'
@@ -712,7 +658,6 @@ export default function DriverSignupLanding({ onStartApplication }) {
             "The pay structure makes way more sense. I know what I'm making, and
             the app doesn't fight me every step of the way."
           </p>
-
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{
               width: 40, height: 40, borderRadius: 3,
@@ -723,14 +668,12 @@ export default function DriverSignupLanding({ onStartApplication }) {
               👤
             </div>
             <div>
-              <div style={{
-                fontFamily: "'Space Grotesk', sans-serif",
-                fontSize: 13, fontWeight: 700, color: TXT
-              }}>Marcus J.</div>
-              <div style={{
-                fontFamily: "'DM Mono', monospace",
-                fontSize: 10, color: MUT, letterSpacing: '.08em'
-              }}>UaTob driver · Orlando, FL</div>
+              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 700, color: TXT }}>
+                Marcus J.
+              </div>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: MUT, letterSpacing: '.08em' }}>
+                UaTob driver · Orlando, FL
+              </div>
             </div>
             <div className="dsl-chip" style={{ marginLeft: 'auto' }}>
               Founding Driver
@@ -740,41 +683,32 @@ export default function DriverSignupLanding({ onStartApplication }) {
       </section>
 
       {/* ── FINAL CTA ───────────────────────────── */}
-      <section style={{
-        padding: '0 22px 64px', background: BG2,
-        borderTop: `1px solid ${BDR}`
-      }}>
+      <section style={{ padding: '0 22px 64px', background: BG2, borderTop: `1px solid ${BDR}` }}>
         <div className="sr" style={{
-          padding: '40px 0 28px',
-          textAlign: 'center',
-          borderBottom: `1px solid ${BDR}`,
-          marginBottom: 28
+          padding: '40px 0 28px', textAlign: 'center',
+          borderBottom: `1px solid ${BDR}`, marginBottom: 28
         }}>
           <div className="dsl-label" style={{ justifyContent: 'center', marginBottom: 18 }}>
             Ready to start
           </div>
-          <div className="dsl-h" style={{ fontSize: 40, color: TXT, marginBottom: 6 }}>
-            READY TO
-          </div>
-          <div className="dsl-h" style={{ fontSize: 40, color: G, marginBottom: 16 }}>
-            START EARNING?
-          </div>
+          <div className="dsl-h" style={{ fontSize: 40, color: TXT, marginBottom: 6 }}>READY TO</div>
+          <div className="dsl-h" style={{ fontSize: 40, color: G, marginBottom: 16 }}>START EARNING?</div>
           <p style={{ fontSize: 13, color: MUT, lineHeight: 1.8, maxWidth: 300, margin: '0 auto' }}>
             Join the first wave of founding drivers and get priority onboarding,
             early access perks, and direct support.
           </p>
         </div>
 
-        <button className="dsl-cta" onClick={fire}>
+        {/* ── Final CTA ── */}
+        <a href={SIGNUP_URL} className="dsl-cta">
           Start Application <ArrowRight size={17} strokeWidth={2.5} />
-        </button>
+        </a>
 
         <p style={{
           textAlign: 'center',
           fontFamily: "'DM Mono', monospace",
           fontSize: 10, color: MUTE2,
-          marginTop: 16, lineHeight: 1.8,
-          letterSpacing: '.05em'
+          marginTop: 16, lineHeight: 1.8, letterSpacing: '.05em'
         }}>
           By continuing, you begin the UaTob driver onboarding process.<br />
           Free to join — no commitments.
