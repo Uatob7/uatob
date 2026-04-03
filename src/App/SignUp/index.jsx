@@ -12,12 +12,13 @@ const CLOUD_FUNCTION_URL = "https://createdriverprofile-ady2s2xhhq-uc.a.run.app"
 
 /* ─── localStorage helpers ───────────────────── */
 const LS_KEYS = {
-  step:    "uatob_driver_step",
-  account: "uatob_driver_account",
-  contact: "uatob_driver_contact",
-  vehicle: "uatob_driver_vehicle",
-  doc:     "uatob_driver_doc",
-  uid:     "uatob_driver_uid",
+  step:      "uatob_driver_step",
+  account:   "uatob_driver_account",
+  contact:   "uatob_driver_contact",
+  vehicle:   "uatob_driver_vehicle",
+  doc:       "uatob_driver_doc",
+  uid:       "uatob_driver_uid",
+  submitted: "uatob_driver_submitted",
 };
 
 function lsGet(key, fallback) {
@@ -484,9 +485,9 @@ function PendingScreen({ firstName, email }) {
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {[
-            { icon: Mail,  label: "Confirmation sent to", val: email,                     c: C.blue   },
-            { icon: Clock, label: "Review time",          val: "24–48 hours",              c: C.accent },
-            { icon: Zap,   label: "Once approved",        val: "Start earning immediately",c: C.green  },
+            { icon: Mail,  label: "Confirmation sent to", val: email,                      c: C.blue   },
+            { icon: Clock, label: "Review time",          val: "24–48 hours",               c: C.accent },
+            { icon: Zap,   label: "Once approved",        val: "Start earning immediately", c: C.green  },
           ].map((item, i) => (
             <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 18px", display: "flex", gap: 12, alignItems: "center", animation: `fadeUp .5s ease-out ${0.2 + i * 0.1}s both`, boxShadow: "0 1px 4px rgba(0,0,0,.04)" }}>
               <div style={{ width: 36, height: 36, background: item.c + "12", borderRadius: 11, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -517,8 +518,10 @@ export default function UaTobDriverSignup({ uid }) {
   console.log("DriverSignUp state:", { driverSignUp });
 
   // ── Local flag: show PendingScreen immediately after submit ──────────
-  // Doesn't wait for Firestore to update — fires the moment the API succeeds.
-  const [submitted, setSubmitted] = useState(false);
+  // Initialized from localStorage so it survives a page refresh.
+  // Does NOT depend on driverSignUp.status — that field is set during step 1
+  // (profile creation) and would falsely trigger PendingScreen mid-flow.
+  const [submitted, setSubmitted] = useState(() => lsGet(LS_KEYS.submitted, false));
 
   // ── Redirect approved drivers ────────────────────────────────────────
   useEffect(() => {
@@ -637,8 +640,11 @@ export default function UaTobDriverSignup({ uid }) {
         if (!uid) throw new Error("Missing user ID — please restart signup.");
         await submitDriverData(uid);
         console.log("✅ Full driver data submitted for uid:", uid);
+        // Persist the submitted flag BEFORE clearing other keys so it
+        // survives the lsClear and is still readable on page refresh.
         lsClear();
-        setSubmitted(true); // ← shows PendingScreen immediately, no refresh needed
+        lsSet(LS_KEYS.submitted, true);
+        setSubmitted(true);
         return;
       }
 
@@ -697,12 +703,14 @@ export default function UaTobDriverSignup({ uid }) {
   // Approved → redirect (useEffect above handles it), render nothing while redirecting
   if (driverSignUp?.status === "approved") return null;
 
-  // Pending → local flag fires immediately; Firestore status catches it on refresh
-  if (submitted || driverSignUp?.status === "pending") {
+  // PendingScreen is driven exclusively by the local `submitted` flag.
+  // This prevents driverSignUp.status === "pending" (written during step 1
+  // profile creation) from falsely triggering this screen mid-flow.
+  if (submitted) {
     return (
       <PendingScreen
-        firstName={driverSignUp?.firstName || accountData.firstName}
-        email={driverSignUp?.email     || accountData.email}
+        firstName={accountData.firstName}
+        email={accountData.email}
       />
     );
   }
