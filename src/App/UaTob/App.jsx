@@ -238,19 +238,7 @@ export default function UaTobApp({ uid }) {
         {/* Map */}
         <div style={{ marginBottom: '14px', animation: mounted ? 'slideUp .65s ease-out .12s forwards' : 'none', opacity: 0 }}>
           <MapView
-            pickup={bookingPayload?.pickup ?? ''}
-            dropoff={bookingPayload?.dropoff ?? ''}
-            pickupCoords={pickupCoords}
-            dropoffCoords={dropoffCoords}
-            tripData={bookingPayload ? { miles: bookingPayload.tripDistanceMiles, durationMin: bookingPayload.tripDurationMin } : null}
-            fareData={bookingPayload ? { total: bookingPayload.fareEstimate, surgeMultiplier: bookingPayload.surgeMultiplier || 1 } : null}
-            isTracking={tracking.isTracking}
-            driverPos={tracking.driverPos}
-            rideStatus={tracking.rideStatus}
-            assignedDriver={tracking.assignedDriver}
-            etaMinutes={tracking.etaMinutes}
-            distToDropoff={tracking.distToDropoff}
-            getStatusMsg={tracking.getStatusMsg}
+             bookingPayload={bookingPayload}
           />
         </div>
 
