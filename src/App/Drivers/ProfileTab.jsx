@@ -1,14 +1,28 @@
 import { Car, Star, Shield, DollarSign, Bell, Settings, LogOut, ChevronRight } from 'lucide-react';
 import { C } from '@/App/Drivers/constants.js';
 
-/**
- * Profile tab — driver card, vehicle details, settings menu.
- *
- * Props:
- *   online — bool (drives accent highlights)
- */
-export default function ProfileTab({ online }) {
+function formatDate(ts) {
+  if (!ts) return "—";
+  const date = ts.toDate?.() ?? new Date(ts);
+  return date.toLocaleDateString([], { month: "short", year: "numeric" });
+}
+
+export default function ProfileTab({ driver, online }) {
   const accentColor = online ? C.onlineGreen : C.offlineInk;
+
+  const firstName   = driver?.firstName  ?? "";
+  const lastName    = driver?.lastName   ?? "";
+  const fullName    = `${firstName} ${lastName}`.trim() || "Driver";
+  const totalTrips  = driver?.earnings?.month?.trips ?? 0;
+  const memberSince = formatDate(driver?.createdAt);
+
+  const vehicle     = driver?.vehicle ?? {};
+  const makeModel   = [vehicle.make, vehicle.model, vehicle.year].filter(Boolean).join(" ") || "—";
+  const plate       = vehicle.plate  ?? "—";
+  const color       = vehicle.color  ?? "—";
+  const rideTypes   = Array.isArray(vehicle.rideTypes) && vehicle.rideTypes.length > 0
+    ? vehicle.rideTypes.map(r => r.charAt(0).toUpperCase() + r.slice(1)).join(", ")
+    : "—";
 
   return (
     <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14, animation: "slideUp .38s ease-out forwards" }}>
@@ -18,16 +32,17 @@ export default function ProfileTab({ online }) {
         background: online
           ? "linear-gradient(135deg,#F0FDF4,#DCFCE7,#F0FDF4)"
           : "linear-gradient(135deg,#F9FAFB,#F3F4F6,#F9FAFB)",
-        border: online ? "1.5px solid rgba(22,163,74,.28)" : `1px solid ${C.border}`,
+        border:       online ? "1.5px solid rgba(22,163,74,.28)" : `1px solid ${C.border}`,
         borderRadius: 22, padding: "28px 24px",
         textAlign: "center", position: "relative", overflow: "hidden",
         boxShadow: online ? "0 4px 24px rgba(22,163,74,.1)" : `0 2px 12px ${C.shadow}`,
       }}>
         <div style={{
-          position: "absolute", inset: 0,
+          position:   "absolute", inset: 0,
           background: `repeating-linear-gradient(45deg,transparent,transparent 60px,${online ? "rgba(22,163,74,.03)" : "rgba(0,0,0,.015)"} 60px,${online ? "rgba(22,163,74,.03)" : "rgba(0,0,0,.015)"} 61px)`,
         }}/>
 
+        {/* Avatar */}
         <div style={{
           width: 72, height: 72,
           background: online
@@ -41,14 +56,16 @@ export default function ProfileTab({ online }) {
             : "0 0 0 6px rgba(0,0,0,.07), 0 8px 24px rgba(0,0,0,.18)",
           position: "relative",
         }}>
-          <Car size={30} color="#fff"/>
+          <span style={{ fontSize: 26, fontWeight: 900, color: "#fff", fontFamily: "'Barlow Condensed', sans-serif" }}>
+            {firstName.charAt(0).toUpperCase()}{lastName.charAt(0).toUpperCase()}
+          </span>
         </div>
 
         <div className="condensed" style={{ fontSize: 26, fontWeight: 900, color: C.text, letterSpacing: "-0.5px" }}>
-          Marcus Johnson
+          {fullName}
         </div>
         <div style={{ fontSize: 13, color: online ? accentColor : C.textMid, marginTop: 4, fontWeight: 600 }}>
-          Driver since Jan 2022 · 1,247 trips
+          Driver since {memberSince} · {totalTrips} trips
         </div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, marginTop: 12 }}>
           {[...Array(5)].map((_, i) => <Star key={i} size={15} fill="#F59E0B" color="#F59E0B"/>)}
@@ -63,10 +80,10 @@ export default function ProfileTab({ online }) {
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           {[
-            { label: "Make & Model", value: "Toyota Camry 2022" },
-            { label: "Plate",        value: "MJ-4829"           },
-            { label: "Color",        value: "Pearl White"        },
-            { label: "Ride Types",   value: "Standard, XL"      },
+            { label: "Make & Model", value: makeModel  },
+            { label: "Plate",        value: plate       },
+            { label: "Color",        value: color       },
+            { label: "Ride Types",   value: rideTypes   },
           ].map(v => (
             <div key={v.label} style={{
               flex: "1 1 calc(50% - 5px)",
@@ -74,7 +91,7 @@ export default function ProfileTab({ online }) {
               borderRadius: 13, padding: "13px 15px",
             }}>
               <div className="lbl">{v.label}</div>
-              <div style={{ fontSize: 13.5, fontWeight: 700, color: C.text }}>{v.value}</div>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: C.text, textTransform: "capitalize" }}>{v.value}</div>
             </div>
           ))}
         </div>
@@ -83,16 +100,16 @@ export default function ProfileTab({ online }) {
       {/* Settings list */}
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         {[
-          { icon: Shield,      label: "Documents & Insurance", c: C.blue        },
-          { icon: DollarSign,  label: "Payment & Payouts",     c: accentColor   },
-          { icon: Bell,        label: "Notifications",         c: C.textMid     },
-          { icon: Settings,    label: "App Settings",          c: C.purple      },
-          { icon: LogOut,      label: "Sign Out",              c: C.red         },
+          { icon: Shield,     label: "Documents & Insurance", c: C.blue      },
+          { icon: DollarSign, label: "Payment & Payouts",     c: accentColor },
+          { icon: Bell,       label: "Notifications",         c: C.textMid   },
+          { icon: Settings,   label: "App Settings",          c: C.purple    },
+          { icon: LogOut,     label: "Sign Out",              c: C.red       },
         ].map((item, i, arr) => (
           <div
             key={item.label}
             style={{
-              padding: "15px 20px",
+              padding:      "15px 20px",
               borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none",
               display: "flex", alignItems: "center", gap: 14,
               cursor: "pointer", transition: "background .15s",

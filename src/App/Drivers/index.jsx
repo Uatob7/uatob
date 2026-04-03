@@ -17,6 +17,7 @@ import { useDriverAccount } from "@/App/Drivers/useDriverAccount";
 import { useDriverRides } from '@/App/Drivers/useDriverRides';
 import { useActiveRides } from "@/App/Drivers/useActiveRides";
 import { useDriverEarnings } from "@/App/Drivers/useDriverEarnings";
+import { useCompletedRides } from "@/App/Drivers/useCompletedRides";
 
 
 // ── Cloud Function URLs ───────────────────────────────────────────────
@@ -217,6 +218,8 @@ export default function UaTobDriverApp({ uid }) {
   const { earnings, refetch } = useDriverEarnings(uid);
   const { rides, loading: ridesLoading } = useDriverRides();
   const { activeRides, loading }         = useActiveRides(uid);
+  const { completedRides }              = useCompletedRides(uid);
+  console.log("Completed rides:", completedRides);
 
   console.log(uid);
 
@@ -608,8 +611,8 @@ export default function UaTobDriverApp({ uid }) {
           />
         )}
         {activeTab === "earnings" && <EarningsTab earnings={earnings} online={online} />}
-        {activeTab === "trips"    && <TripsTab    earnings={earnings} online={online} />}
-        {activeTab === "profile"  && <ProfileTab  online={online} />}
+        {activeTab === "trips"    && <TripsTab    completedRides={completedRides} online={online} />}
+        {activeTab === "profile"  && <ProfileTab  driver={driver} online={online} />}
       </div>
 
       {/* Bottom nav */}
