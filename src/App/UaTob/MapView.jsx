@@ -26,17 +26,7 @@ function safeNum(val, fallback = 0) {
 }
 
 export default function MapView({
-  pickupCoords = null,
-  dropoffCoords = null,
-  tripData = null,
-  fareData = null,
-  isTracking = false,
-  driverPos = null,
-  rideStatus = '',
-  assignedDriver = null,
-  etaMinutes = 0,
-  distToDropoff = 0,
-  getStatusMsg = () => '',
+  bookingPayload
 }) {
   const miles = safeNum(tripData?.miles, 0);
   const durationMin = safeNum(tripData?.durationMin, 0);
