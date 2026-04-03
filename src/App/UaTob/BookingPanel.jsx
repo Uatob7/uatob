@@ -205,6 +205,77 @@ function PlaceInput({ label, icon: Icon, iconColor, placeholder, value, onChange
   );
 }
 
+// ── BREAKDOWN RENDERER ───────────────────────────────────
+// Renders receipt lines from the backend's `receipt` array.
+// Falls back to flat `breakdown` fields if receipt is unavailable.
+function BreakdownLines({ quote, tripData }) {
+  const receipt = quote?.receipt;
+  const bd      = quote?.breakdown || {};
+  const meta    = quote?.meta     || {};
+
+  // Use structured receipt lines if available
+  if (Array.isArray(receipt) && receipt.length > 0) {
+    // Filter out zero-amount info-only lines for the running total,
+    // but still render them as a note row
+    const chargeLines = receipt.filter(l => l.key !== 'minimumFareNote');
+    const noteLines   = receipt.filter(l => l.key === 'minimumFareNote');
+
+    return (
+      <div style={{ borderTop: `1px solid ${T.accentBorder}`, paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '9px' }}>
+        {chargeLines.map((line, i) => (
+          <div key={line.key ?? i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+              <span style={{ fontSize: '12.5px', color: T.text, fontWeight: 600 }}>{line.label}</span>
+              {line.note && (
+                <span style={{ fontSize: '11px', color: T.textMuted, fontWeight: 500 }}>{line.note}</span>
+              )}
+            </div>
+            <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '13px', fontWeight: 700, color: T.text }}>
+              +${Number(line.amount || 0).toFixed(2)}
+            </span>
+          </div>
+        ))}
+
+        {noteLines.map((line, i) => (
+          <div key={`note-${i}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(22,163,74,.07)', border: '1px solid rgba(22,163,74,.18)', borderRadius: '8px', padding: '7px 10px' }}>
+            <Zap size={11} color={T.accent} />
+            <span style={{ fontSize: '11.5px', color: T.accent, fontWeight: 700 }}>{line.note || line.label}</span>
+          </div>
+        ))}
+
+        <div style={{ borderTop: `1px dashed ${T.accentBorder}`, paddingTop: '10px', display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: '13px', fontWeight: 800, color: T.text }}>Total</span>
+          <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '15px', fontWeight: 700, color: T.accent }}>${quote.total}</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Fallback — flat breakdown fields (old shape)
+  const rows = [
+    { label: 'Base fee',                                                                        val: bd.base },
+    { label: `Distance (${tripData?.miles} mi × $${meta.perMile || 0}/mi)`,                    val: bd.distance },
+    { label: `Time (~${tripData?.durationMin} min × $${meta.perMin || 0}/min)`,                val: bd.time },
+    { label: 'Booking fee',                                                                     val: bd.bookingFee },
+    ...(safeNum(bd.surge, 0) > 0 ? [{ label: 'Surge', val: bd.surge, highlight: true }] : []),
+  ].filter(r => r.val != null);
+
+  return (
+    <div style={{ borderTop: `1px solid ${T.accentBorder}`, paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '9px' }}>
+      {rows.map((row, i) => (
+        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: '12.5px', color: row.highlight ? T.accent : T.text, fontWeight: 600 }}>{row.label}</span>
+          <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '13px', fontWeight: 700, color: row.highlight ? T.accent : T.text }}>+${Number(row.val || 0).toFixed(2)}</span>
+        </div>
+      ))}
+      <div style={{ borderTop: `1px dashed ${T.accentBorder}`, paddingTop: '10px', display: 'flex', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: '13px', fontWeight: 800, color: T.text }}>Total</span>
+        <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '15px', fontWeight: 700, color: T.accent }}>${quote.total}</span>
+      </div>
+    </div>
+  );
+}
+
 // ── MAIN COMPONENT ───────────────────────────────────────
 export default function BookingPanel({ onBookNow, onPayloadChange }) {
   const { uid } = useAuthContext();
@@ -254,13 +325,13 @@ export default function BookingPanel({ onBookNow, onPayloadChange }) {
       rideType:          selectedRide,
       rideLabel:         quote.label,
       fareEstimate:      quote.total,
-      surgeMultiplier:   quotesData.surgeMultiplier || 1,
       breakdown:         quote.breakdown || {},
+      receipt:           quote.receipt   || [],
       allQuotes:         quotesData.rides || {},
       status:            'searching_driver',
       createdAt:         new Date().toISOString(),
     });
-  }, [selectedRide, quotesData, tripData]);   // ← fires on every change
+  }, [selectedRide, quotesData, tripData]);
 
   const handleLocationAllow = useCallback(async () => {
     setLocationError('');
@@ -346,8 +417,8 @@ export default function BookingPanel({ onBookNow, onPayloadChange }) {
       rideType:          selectedRide,
       rideLabel:         selectedQuote.label,
       fareEstimate:      selectedQuote.total,
-      surgeMultiplier:   quotesData.surgeMultiplier || 1,
       breakdown:         selectedQuote.breakdown || {},
+      receipt:           selectedQuote.receipt   || [],
       allQuotes:         quotesData.rides || {},
       status:            'searching_driver',
       createdAt:         new Date().toISOString(),
@@ -451,11 +522,6 @@ export default function BookingPanel({ onBookNow, onPayloadChange }) {
                   <div className="lbl">Estimated Fare</div>
                   <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '4px', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '12px', color: T.textMuted, fontWeight: 500 }}>{tripData.miles} mi · ~{tripData.durationMin} min</span>
-                    {safeNum(quotesData.surgeMultiplier, 1) > 1 && (
-                      <span style={{ background: 'rgba(22,163,74,.12)', border: '1px solid rgba(22,163,74,.25)', borderRadius: '100px', padding: '2px 9px', fontSize: '11px', fontWeight: 700, color: T.accent, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Zap size={10} />{quotesData.surgeMultiplier}x surge
-                      </span>
-                    )}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
@@ -466,25 +532,8 @@ export default function BookingPanel({ onBookNow, onPayloadChange }) {
                 </div>
               </div>
 
-              {showBreakdown && selectedQuote?.breakdown && (
-                <div style={{ borderTop: `1px solid ${T.accentBorder}`, paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '9px' }}>
-                  {[
-                    { label: 'Base fee', val: selectedQuote.breakdown.base },
-                    { label: `Distance (${tripData.miles} mi × $${selectedQuote.meta?.perMile || 0}/mi)`, val: selectedQuote.breakdown.distance },
-                    { label: `Time (~${tripData.durationMin} min × $${selectedQuote.meta?.perMin || 0}/min)`, val: selectedQuote.breakdown.time },
-                    { label: 'Booking fee', val: selectedQuote.breakdown.bookingFee },
-                    ...(safeNum(selectedQuote.breakdown.surge, 0) > 0 ? [{ label: 'Surge', val: selectedQuote.breakdown.surge, highlight: true }] : []),
-                  ].map((row, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '12.5px', color: row.highlight ? T.accent : T.text, fontWeight: 600 }}>{row.label}</span>
-                      <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '13px', fontWeight: 700, color: row.highlight ? T.accent : T.text }}>+${Number(row.val || 0).toFixed(2)}</span>
-                    </div>
-                  ))}
-                  <div style={{ borderTop: `1px dashed ${T.accentBorder}`, paddingTop: '10px', display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '13px', fontWeight: 800, color: T.text }}>Total</span>
-                    <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '15px', fontWeight: 700, color: T.accent }}>${selectedQuote.total}</span>
-                  </div>
-                </div>
+              {showBreakdown && (
+                <BreakdownLines quote={selectedQuote} tripData={tripData} />
               )}
             </div>
 

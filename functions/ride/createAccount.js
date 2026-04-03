@@ -8,6 +8,7 @@ exports.createAccount = onRequest((req, res) => {
 
     const { uid, email } = req.body;
     if (!uid || !email) return res.status(400).json({ error: 'uid and email are required' });
+    console.log(`Creating account for UID: ${uid}, Email: ${email}`);
 
     // your logic here — e.g. create Firestore doc, send welcome email, etc.
 
