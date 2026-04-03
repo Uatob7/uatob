@@ -59,11 +59,6 @@ export default function UaTobApp({ uid }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  // ── MapView key — forces remount when route or ride type changes ──
-  const mapKey = bookingPayload
-    ? `${bookingPayload.rideType}-${bookingPayload.pickup}-${bookingPayload.dropoff}`
-    : 'idle';
-
   // ── Persist session whenever key state changes ─────────
   useEffect(() => {
     if (bookingPayload) {
@@ -243,19 +238,7 @@ export default function UaTobApp({ uid }) {
         {/* Map */}
         <div style={{ marginBottom: '14px', animation: mounted ? 'slideUp .65s ease-out .12s forwards' : 'none', opacity: 0 }}>
           <MapView
-            pickup={bookingPayload?.pickup ?? ''}
-            dropoff={bookingPayload?.dropoff ?? ''}
-            pickupCoords={pickupCoords}
-            dropoffCoords={dropoffCoords}
-            tripData={bookingPayload ? { miles: bookingPayload.tripDistanceMiles, durationMin: bookingPayload.tripDurationMin } : null}
-            fareData={bookingPayload ? { total: bookingPayload.fareEstimate, surgeMultiplier: bookingPayload.surgeMultiplier || 1 } : null}
-            isTracking={tracking.isTracking}
-            driverPos={tracking.driverPos}
-            rideStatus={tracking.rideStatus}
-            assignedDriver={tracking.assignedDriver}
-            etaMinutes={tracking.etaMinutes}
-            distToDropoff={tracking.distToDropoff}
-            getStatusMsg={tracking.getStatusMsg}
+             bookingPayload={bookingPayload}
           />
         </div>
 
@@ -302,14 +285,14 @@ export default function UaTobApp({ uid }) {
       )}
 
       {/* ── Confirmation Modal ───────────────────────────── */}
-      {showConfirm && rides && (
+      {showConfirm &&  rides && (
         <ConfirmationModal
-          onClose={handleConfirmClose}
-          onPaymentCancelled={handlePaymentCancelled}
-          onRetry={handleRetry}
-          rides={rides}
-          ridesLoading={ridesLoading}
-        />
+        onClose={handleConfirmClose}
+        onPaymentCancelled={handlePaymentCancelled}
+        onRetry={handleRetry}
+        rides={rides}
+        ridesLoading={ridesLoading}
+      />
       )}
     </div>
   );
