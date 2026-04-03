@@ -6,8 +6,6 @@ import {
 } from 'lucide-react';
 import { useAuthContext } from '@/context/AuthContext';
 
-
-// ── THEME ────────────────────────────────────────────────
 const T = {
   accent:       '#16A34A',
   accentBorder: '#86EFAC',
@@ -18,19 +16,16 @@ const T = {
   ink:          '#111827',
 };
 
-// ── CLOUD FUNCTION URLS ──────────────────────────────────
 const ROUTE_URL        = 'https://atob-ady2s2xhhq-uc.a.run.app';
 const PRICE_URL        = 'https://price-ady2s2xhhq-uc.a.run.app';
 const AUTOCOMPLETE_URL = 'https://autocomplete-ady2s2xhhq-uc.a.run.app';
 const REVERSE_GEO_URL  = 'https://geo-ady2s2xhhq-uc.a.run.app';
 
-// ── localStorage ─────────────────────────────────────────
 const LS_BOOKING_KEY = 'uatob_booking_form';
 function saveBookingForm(data)  { try { localStorage.setItem(LS_BOOKING_KEY, JSON.stringify(data)); } catch (_) {} }
 function loadBookingForm()      { try { const r = localStorage.getItem(LS_BOOKING_KEY); return r ? JSON.parse(r) : null; } catch (_) { return null; } }
 function clearBookingForm()     { try { localStorage.removeItem(LS_BOOKING_KEY); } catch (_) {} }
 
-// ── HELPERS ──────────────────────────────────────────────
 function safeNum(val, fallback = 0) { const n = Number(val); return Number.isFinite(n) ? n : fallback; }
 function round2(val) { return Number(safeNum(val).toFixed(2)); }
 function getRideIcon(rideId) {
@@ -39,7 +34,6 @@ function getRideIcon(rideId) {
   return Car;
 }
 
-// ── FETCH ROUTE ──────────────────────────────────────────
 async function fetchTripData(pickup, dropoff) {
   const res  = await fetch(ROUTE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ origin: pickup, destination: dropoff }) });
   const data = await res.json();
@@ -53,7 +47,6 @@ async function fetchTripData(pickup, dropoff) {
   return { pickup, dropoff, miles: round2(data.distance_miles || 0), durationMin: Math.max(1, durationMin), durationText: data.duration_text || '' };
 }
 
-// ── FETCH PRICES ─────────────────────────────────────────
 async function fetchQuotesData(tripData) {
   const res  = await fetch(PRICE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(tripData) });
   const data = await res.json();
@@ -61,7 +54,6 @@ async function fetchQuotesData(tripData) {
   return data;
 }
 
-// ── REVERSE GEOCODE ──────────────────────────────────────
 async function reverseGeocode(lat, lng) {
   const res  = await fetch(REVERSE_GEO_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat, lng }) });
   const data = await res.json();
@@ -69,82 +61,42 @@ async function reverseGeocode(lat, lng) {
   return data.address;
 }
 
-// ── LOCATION ALERT (inline banner) ───────────────────────
 function LocationAlert({ onAllow, onDeny, loading, error }) {
   return (
-    <div style={{
-      borderRadius: '14px',
-      border: `1.5px solid ${error ? '#FECACA' : '#BBF7D0'}`,
-      background: error ? '#FEF2F2' : 'linear-gradient(135deg,#F0FDF4,#DCFCE7)',
-      padding: '14px 16px',
-      marginBottom: '16px',
-      animation: 'alertIn .2s ease',
-    }}>
+    <div style={{ borderRadius: '14px', border: `1.5px solid ${error ? '#FECACA' : '#BBF7D0'}`, background: error ? '#FEF2F2' : 'linear-gradient(135deg,#F0FDF4,#DCFCE7)', padding: '14px 16px', marginBottom: '16px', animation: 'alertIn .2s ease' }}>
       <style>{`
         @keyframes alertIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
         @keyframes spin     { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
       `}</style>
-
       {error ? (
-        /* ── Error state ── */
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
           <AlertCircle size={15} color="#DC2626" style={{ flexShrink: 0, marginTop: '1px' }} />
           <div style={{ flex: 1 }}>
             <p style={{ fontSize: '13px', color: '#DC2626', fontWeight: 600, margin: '0 0 10px' }}>{error}</p>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                onClick={onAllow}
-                style={{ flex: 1, padding: '8px 12px', borderRadius: '10px', border: 'none', background: '#DC2626', color: '#fff', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Outfit,sans-serif' }}
-              >
-                Try again
-              </button>
-              <button
-                onClick={onDeny}
-                style={{ flex: 1, padding: '8px 12px', borderRadius: '10px', border: '1.5px solid #FECACA', background: '#fff', color: '#DC2626', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Outfit,sans-serif' }}
-              >
-                Dismiss
-              </button>
+              <button onClick={onAllow} style={{ flex: 1, padding: '8px 12px', borderRadius: '10px', border: 'none', background: '#DC2626', color: '#fff', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Outfit,sans-serif' }}>Try again</button>
+              <button onClick={onDeny}  style={{ flex: 1, padding: '8px 12px', borderRadius: '10px', border: '1.5px solid #FECACA', background: '#fff', color: '#DC2626', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Outfit,sans-serif' }}>Dismiss</button>
             </div>
           </div>
         </div>
       ) : (
-        /* ── Prompt / loading state ── */
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-
-          {/* Icon */}
           <div style={{ width: '38px', height: '38px', flexShrink: 0, background: '#fff', border: '1.5px solid #BBF7D0', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {loading
               ? <Loader2 size={16} color={T.accent} style={{ animation: 'spin 1s linear infinite' }} />
               : <LocateFixed size={16} color={T.accent} />
             }
           </div>
-
-          {/* Text */}
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ fontSize: '13px', fontWeight: 700, color: T.text, margin: '0 0 1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {loading ? 'Getting your location…' : 'Use your current location?'}
             </p>
-            {!loading && (
-              <p style={{ fontSize: '11.5px', color: T.textMuted, fontWeight: 500, margin: 0 }}>
-                Auto-fill your pickup address
-              </p>
-            )}
+            {!loading && <p style={{ fontSize: '11.5px', color: T.textMuted, fontWeight: 500, margin: 0 }}>Auto-fill your pickup address</p>}
           </div>
-
-          {/* Actions */}
           {!loading && (
             <div style={{ display: 'flex', gap: '7px', flexShrink: 0 }}>
-              <button
-                onClick={onAllow}
-                style={{ padding: '7px 13px', borderRadius: '10px', border: 'none', background: T.accent, color: '#fff', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Outfit,sans-serif', boxShadow: '0 3px 10px rgba(22,163,74,.3)' }}
-              >
-                Allow
-              </button>
-              <button
-                onClick={onDeny}
-                title="Dismiss"
-                style={{ width: '32px', height: '32px', borderRadius: '10px', border: `1.5px solid ${T.border}`, background: '#fff', color: T.textMuted, fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
-              >
+              <button onClick={onAllow} style={{ padding: '7px 13px', borderRadius: '10px', border: 'none', background: T.accent, color: '#fff', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Outfit,sans-serif', boxShadow: '0 3px 10px rgba(22,163,74,.3)' }}>Allow</button>
+              <button onClick={onDeny}  title="Dismiss" style={{ width: '32px', height: '32px', borderRadius: '10px', border: `1.5px solid ${T.border}`, background: '#fff', color: T.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
                 <X size={14} />
               </button>
             </div>
@@ -155,7 +107,6 @@ function LocationAlert({ onAllow, onDeny, loading, error }) {
   );
 }
 
-// ── PLACE INPUT ──────────────────────────────────────────
 function PlaceInput({ label, icon: Icon, iconColor, placeholder, value, onChange, onLocationRequest }) {
   const [suggestions, setSuggestions] = useState([]);
   const [ghostText,   setGhostText]   = useState('');
@@ -205,12 +156,8 @@ function PlaceInput({ label, icon: Icon, iconColor, placeholder, value, onChange
     <div ref={wrapRef}>
       <div className="lbl">{label}</div>
       <div style={{ position: 'relative' }}>
-
         {isPickup && onLocationRequest ? (
-          <button
-            type="button"
-            onClick={onLocationRequest}
-            title="Use my current location"
+          <button type="button" onClick={onLocationRequest} title="Use my current location"
             style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', zIndex: 3, background: 'none', border: 'none', padding: '4px', cursor: 'pointer', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background .15s' }}
             onMouseEnter={e => e.currentTarget.style.background = '#ECFDF5'}
             onMouseLeave={e => e.currentTarget.style.background = 'none'}
@@ -228,8 +175,7 @@ function PlaceInput({ label, icon: Icon, iconColor, placeholder, value, onChange
           </div>
         )}
 
-        <input
-          type="text" className="field" placeholder={placeholder} value={value}
+        <input type="text" className="field" placeholder={placeholder} value={value}
           onChange={handleChange} onFocus={() => setFocused(true)} onKeyDown={handleKeyDown}
           autoComplete="off" style={{ position: 'relative', zIndex: 2, background: 'transparent' }}
         />
@@ -260,7 +206,7 @@ function PlaceInput({ label, icon: Icon, iconColor, placeholder, value, onChange
 }
 
 // ── MAIN COMPONENT ───────────────────────────────────────
-export default function BookingPanel({ onBookNow }) {
+export default function BookingPanel({ onBookNow, onPayloadChange }) {
   const { uid } = useAuthContext();
   const saved   = loadBookingForm();
 
@@ -275,7 +221,6 @@ export default function BookingPanel({ onBookNow }) {
   const [error,         setError]         = useState('');
   const [showBreakdown, setShowBreakdown] = useState(false);
 
-  // ── Location alert state ───────────────────────────────
   const [showLocationAlert, setShowLocationAlert] = useState(false);
   const [locationLoading,   setLocationLoading]   = useState(false);
   const [locationError,     setLocationError]     = useState('');
@@ -291,7 +236,32 @@ export default function BookingPanel({ onBookNow }) {
     else clearBookingForm();
   }, [pickup, dropoff, selectedRide, tripData, quotesData]);
 
-  // ── GPS handler ────────────────────────────────────────
+  // ── Push live payload to parent whenever selection changes ──
+  useEffect(() => {
+    if (!tripData || !quotesData) return;
+    const quote = quotesData?.rides?.[selectedRide];
+    if (!quote) return;
+    if (typeof onPayloadChange !== 'function') return;
+
+    onPayloadChange({
+      pickup:            tripData.pickup,
+      dropoff:           tripData.dropoff,
+      miles:             tripData.miles,
+      durationMin:       tripData.durationMin,
+      durationText:      tripData.durationText,
+      tripDistanceMiles: tripData.miles,
+      tripDurationMin:   tripData.durationMin,
+      rideType:          selectedRide,
+      rideLabel:         quote.label,
+      fareEstimate:      quote.total,
+      surgeMultiplier:   quotesData.surgeMultiplier || 1,
+      breakdown:         quote.breakdown || {},
+      allQuotes:         quotesData.rides || {},
+      status:            'searching_driver',
+      createdAt:         new Date().toISOString(),
+    });
+  }, [selectedRide, quotesData, tripData]);   // ← fires on every change
+
   const handleLocationAllow = useCallback(async () => {
     setLocationError('');
     setLocationLoading(true);
@@ -365,7 +335,23 @@ export default function BookingPanel({ onBookNow }) {
 
   const handleBookNow = useCallback(() => {
     if (!tripData || !quotesData || !selectedQuote) return;
-    const payload = { pickup: tripData.pickup, dropoff: tripData.dropoff, miles: tripData.miles, durationMin: tripData.durationMin, durationText: tripData.durationText, tripDistanceMiles: tripData.miles, tripDurationMin: tripData.durationMin, rideType: selectedRide, rideLabel: selectedQuote.label, fareEstimate: selectedQuote.total, surgeMultiplier: quotesData.surgeMultiplier || 1, breakdown: selectedQuote.breakdown || {}, allQuotes: quotesData.rides || {}, status: 'searching_driver', createdAt: new Date().toISOString() };
+    const payload = {
+      pickup:            tripData.pickup,
+      dropoff:           tripData.dropoff,
+      miles:             tripData.miles,
+      durationMin:       tripData.durationMin,
+      durationText:      tripData.durationText,
+      tripDistanceMiles: tripData.miles,
+      tripDurationMin:   tripData.durationMin,
+      rideType:          selectedRide,
+      rideLabel:         selectedQuote.label,
+      fareEstimate:      selectedQuote.total,
+      surgeMultiplier:   quotesData.surgeMultiplier || 1,
+      breakdown:         selectedQuote.breakdown || {},
+      allQuotes:         quotesData.rides || {},
+      status:            'searching_driver',
+      createdAt:         new Date().toISOString(),
+    };
     clearBookingForm();
     if (typeof onBookNow === 'function') onBookNow(payload);
   }, [tripData, quotesData, selectedQuote, selectedRide, onBookNow]);
@@ -380,7 +366,6 @@ export default function BookingPanel({ onBookNow }) {
       <div className="glass" style={{ padding: '26px' }}>
         <h2 style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '-0.3px', color: T.text, marginBottom: '20px' }}>Book a Ride</h2>
 
-        {/* ── Location alert banner (replaces modal) ── */}
         {(showLocationAlert || locationLoading || locationError) && (
           <LocationAlert
             onAllow={handleLocationAllow}
@@ -392,16 +377,9 @@ export default function BookingPanel({ onBookNow }) {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
           <PlaceInput
-            label="Pickup (A)"
-            icon={MapPin}
-            iconColor={T.accent}
-            placeholder="Enter pickup address…"
-            value={pickup}
-            onChange={setPickup}
-            onLocationRequest={() => {
-              setLocationError('');
-              setShowLocationAlert(true);
-            }}
+            label="Pickup (A)" icon={MapPin} iconColor={T.accent}
+            placeholder="Enter pickup address…" value={pickup} onChange={setPickup}
+            onLocationRequest={() => { setLocationError(''); setShowLocationAlert(true); }}
           />
           <PlaceInput label="Drop-off (B)" icon={Navigation} iconColor={T.ink} placeholder="Enter destination…" value={dropoff} onChange={setDropoff} />
         </div>
@@ -425,10 +403,13 @@ export default function BookingPanel({ onBookNow }) {
             <div className="lbl">Choose Ride</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
               {rideOptions.map((ride) => {
-                const active = selectedRide === ride.id;
-                const IconComp = getRideIcon(ride.id);
+                const active    = selectedRide === ride.id;
+                const IconComp  = getRideIcon(ride.id);
                 return (
-                  <div key={ride.id} className={`ride-card ${active ? 'active' : ''}`} onClick={() => { setSelectedRide(ride.id); setShowBreakdown(false); }} style={{ cursor: 'pointer' }}>
+                  <div key={ride.id} className={`ride-card ${active ? 'active' : ''}`}
+                    onClick={() => { setSelectedRide(ride.id); setShowBreakdown(false); }}
+                    style={{ cursor: 'pointer' }}
+                  >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                       <div style={{ width: '32px', height: '32px', background: active ? '#ECFDF5' : '#F3F4F6', borderRadius: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: active ? `1px solid ${T.accent}40` : '1px solid transparent', transition: 'all .3s' }}>
                         <IconComp size={16} color={active ? T.accent : '#D1D5DB'} />

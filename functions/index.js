@@ -2,6 +2,7 @@ const admin = require("firebase-admin");
 admin.initializeApp();
 
 // Ride function
+const { createAccount } = require("./ride/createAccount");
 const { ATOB } = require("./ride/ATOB");
 const { Price } = require("./ride/Price"); 
 const { Autocomplete } = require("./ride/Autocomplete"); 
@@ -21,6 +22,7 @@ const { getDriverEarnings } = require("./drivers/getDriverEarnings");
 
 
 // Exports
+exports.createAccount = createAccount;
 exports.ATOB = ATOB;
 exports.Autocomplete = Autocomplete;
 exports.Price = Price;

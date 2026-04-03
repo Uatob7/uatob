@@ -26,7 +26,6 @@ function clearSession()     { try { localStorage.removeItem(LS_KEY); } catch (_)
 
 export default function UaTobApp({ uid }) {
 
-  console.log(uid);
   const { uid: authUid } = useAuthContext();
   const { rides, loading: ridesLoading } = useUserRides(authUid ?? uid);
 
@@ -121,29 +120,57 @@ export default function UaTobApp({ uid }) {
   }, [ridesLoading, rides]);
 
   // ── Auth submit ────────────────────────────────────────
-  const handleAuth = async (e) => {
-    e.preventDefault();
-    setAuthLoading(true);
-    setAuthError('');
-    try {
-      const authResult = authMode === 'login'
-        ? await signIn(email, password)
-        : await signUp(email, password);
+// ── Auth submit ────────────────────────────────────────
+const handleAuth = async (e) => {
+  e.preventDefault();
+  setAuthLoading(true);
+  setAuthError('');
+  try {
+    const authResult = authMode === 'login'
+      ? await signIn(email, password)
+      : await signUp(email, password);
 
-      if (authResult.error) throw new Error(authResult.error.message || 'Authentication failed');
-      setShowAuth(false);
-      setShowPayment(true);
-    } catch (err) {
-      setAuthError(err.message || 'Authentication failed');
-    } finally {
-      setAuthLoading(false);
+    if (authResult.error) throw new Error(authResult.error.message || 'Authentication failed');
+
+    // ── Create account on backend (signup only) ────────
+    if (authMode === 'signup') {
+      const user = authResult.user ?? authResult;
+      await fetch('https://createaccount-ady2s2xhhq-uc.a.run.app', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uid:   user.uid,
+          email: user.email,
+        }),
+      });
     }
+
+    setShowAuth(false);
+    setShowPayment(true);
+  } catch (err) {
+    setAuthError(err.message || 'Authentication failed');
+  } finally {
+    setAuthLoading(false);
+  }
+};
+
+
+  // ── Live payload sync — fires as user changes ride type/fare ──
+  const handlePayloadChange = (payload) => {
+    if (!payload) return;
+    setBookingPayload(prev => ({
+      ...prev,
+      ...payload,
+    }));
   };
 
   // ── Book Now ───────────────────────────────────────────
   const handleBookNow = (payload) => {
     if (!payload) return;
-    setBookingPayload(payload);
+
+    // Use latest payload state merged with what was just submitted
+    const finalPayload = { ...bookingPayload, ...payload };
+    setBookingPayload(finalPayload);
     setPickupCoords({ x: -81.37, y: 28.53 });
     setDropoffCoords({ x: -81.30, y: 28.45 });
 
@@ -237,32 +264,21 @@ export default function UaTobApp({ uid }) {
 
         {/* Map */}
         <div style={{ marginBottom: '14px', animation: mounted ? 'slideUp .65s ease-out .12s forwards' : 'none', opacity: 0 }}>
-          <MapView
-            pickup={bookingPayload?.pickup ?? ''}
-            dropoff={bookingPayload?.dropoff ?? ''}
-            pickupCoords={pickupCoords}
-            dropoffCoords={dropoffCoords}
-            tripData={bookingPayload ? { miles: bookingPayload.tripDistanceMiles, durationMin: bookingPayload.tripDurationMin } : null}
-            fareData={bookingPayload ? { total: bookingPayload.fareEstimate, surgeMultiplier: bookingPayload.surgeMultiplier || 1 } : null}
-            isTracking={tracking.isTracking}
-            driverPos={tracking.driverPos}
-            rideStatus={tracking.rideStatus}
-            assignedDriver={tracking.assignedDriver}
-            etaMinutes={tracking.etaMinutes}
-            distToDropoff={tracking.distToDropoff}
-            getStatusMsg={tracking.getStatusMsg}
-          />
+          <MapView bookingPayload={bookingPayload} />
         </div>
 
         {/* Main panel */}
         <div style={{ animation: mounted ? 'slideUp .65s ease-out .18s forwards' : 'none', opacity: 0 }}>
           {tracking.isTracking ? (
             <LiveTrackingPanel
-             rides={rides}
-             ridesLoading={ridesLoading}
+              rides={rides}
+              ridesLoading={ridesLoading}
             />
           ) : (
-            <BookingPanel onBookNow={handleBookNow} />
+            <BookingPanel
+              onBookNow={handleBookNow}
+              onPayloadChange={handlePayloadChange}
+            />
           )}
         </div>
       </div>
@@ -297,14 +313,14 @@ export default function UaTobApp({ uid }) {
       )}
 
       {/* ── Confirmation Modal ───────────────────────────── */}
-      {showConfirm &&  rides && (
+      {showConfirm && rides && (
         <ConfirmationModal
-        onClose={handleConfirmClose}
-        onPaymentCancelled={handlePaymentCancelled}
-        onRetry={handleRetry}
-        rides={rides}
-        ridesLoading={ridesLoading}
-      />
+          onClose={handleConfirmClose}
+          onPaymentCancelled={handlePaymentCancelled}
+          onRetry={handleRetry}
+          rides={rides}
+          ridesLoading={ridesLoading}
+        />
       )}
     </div>
   );
