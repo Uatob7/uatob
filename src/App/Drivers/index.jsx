@@ -15,6 +15,7 @@ import ProfileTab       from '@/App/Drivers/ProfileTab.jsx';
 import { useDriverAccount } from "@/App/Drivers/useDriverAccount";
 import { useDriverRides } from '@/App/Drivers/useDriverRides';
 import { useActiveRides } from "@/App/Drivers/useActiveRides";
+import { useDriverEarnings } from "@/App/Drivers/useDriverEarnings";
 
 
 // ── Cloud Function URLs ───────────────────────────────────────────────
@@ -212,6 +213,7 @@ export default function UaTobDriverApp({ uid }) {
 
   // ── Remote data ───────────────────────────────────────
   const { driver } = useDriverAccount(uid);
+  const { earnings, refetch } = useDriverEarnings(uid);
   const { rides, loading: ridesLoading } = useDriverRides();
   const { activeRides, loading }         = useActiveRides(uid);
 
@@ -229,7 +231,6 @@ export default function UaTobDriverApp({ uid }) {
   const [requestTimer,   setRequestTimer]   = useState(15);
   const [notification,   setNotification]   = useState(null);
   const [showSurgeAlert, setShowSurgeAlert] = useState(false);
-  const [earnings,       setEarnings]       = useState({ today: 0, week: 0, trips: 0 });
   const [tripBtnLabel,   setTripBtnLabel]   = useState("");
 
   // ── Location popup state ──────────────────────────────

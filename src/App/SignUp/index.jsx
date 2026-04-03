@@ -472,13 +472,9 @@ function PendingScreen({ firstName, email }) {
         @keyframes pulse    { 0%,100% { opacity: 1 } 50% { opacity: .5 } }
       `}</style>
       <div style={{ textAlign: "center", maxWidth: 420, width: "100%", animation: "scaleIn .6s cubic-bezier(.34,1.56,.64,1)" }}>
-
-        {/* Icon */}
         <div style={{ width: 90, height: 90, background: "rgba(22,163,74,.08)", border: "2px solid rgba(22,163,74,.25)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 28px", boxShadow: "0 0 0 12px rgba(22,163,74,.04)" }}>
           <Clock size={40} color={C.accent} />
         </div>
-
-        {/* Heading */}
         <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 38, fontWeight: 900, color: C.text, letterSpacing: "-1px", marginBottom: 10, lineHeight: 1.1 }}>
           Application<br/>Submitted!
         </div>
@@ -486,13 +482,11 @@ function PendingScreen({ firstName, email }) {
           Welcome to UaTob, <strong style={{ color: C.text }}>{firstName}</strong>.<br/>
           Our team is reviewing your application. You'll hear back within <strong style={{ color: C.accent }}>24–48 hours</strong>.
         </div>
-
-        {/* Info cards */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {[
-            { icon: Mail,  label: "Confirmation sent to", val: email,            c: C.blue   },
-            { icon: Clock, label: "Review time",          val: "24–48 hours",    c: C.accent },
-            { icon: Zap,   label: "Once approved",        val: "Start earning immediately", c: C.green },
+            { icon: Mail,  label: "Confirmation sent to", val: email,                     c: C.blue   },
+            { icon: Clock, label: "Review time",          val: "24–48 hours",              c: C.accent },
+            { icon: Zap,   label: "Once approved",        val: "Start earning immediately",c: C.green  },
           ].map((item, i) => (
             <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 18px", display: "flex", gap: 12, alignItems: "center", animation: `fadeUp .5s ease-out ${0.2 + i * 0.1}s both`, boxShadow: "0 1px 4px rgba(0,0,0,.04)" }}>
               <div style={{ width: 36, height: 36, background: item.c + "12", borderRadius: 11, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -505,8 +499,6 @@ function PendingScreen({ firstName, email }) {
             </div>
           ))}
         </div>
-
-        {/* Pending badge */}
         <div style={{ marginTop: 28, display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(245,158,11,.08)", border: "1px solid rgba(245,158,11,.25)", borderRadius: 100, padding: "10px 20px" }}>
           <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#F59E0B", animation: "pulse 1.5s ease-in-out infinite" }} />
           <span style={{ fontSize: 13, fontWeight: 700, color: "#B45309", fontFamily: "'Barlow Condensed', sans-serif", letterSpacing: ".5px" }}>
@@ -524,14 +516,18 @@ export default function UaTobDriverSignup({ uid }) {
   const { driverSignUp } = useDriverSignUp(uid);
   console.log("DriverSignUp state:", { driverSignUp });
 
-  // ── Redirect approved drivers to the driver app ──────
+  // ── Local flag: show PendingScreen immediately after submit ──────────
+  // Doesn't wait for Firestore to update — fires the moment the API succeeds.
+  const [submitted, setSubmitted] = useState(false);
+
+  // ── Redirect approved drivers ────────────────────────────────────────
   useEffect(() => {
     if (driverSignUp?.status === "approved") {
       window.location.href = "https://uatob.com/driver";
     }
   }, [driverSignUp?.status]);
 
-  // ── Rehydrate from localStorage on first mount ──
+  // ── Rehydrate from localStorage on first mount ───────────────────────
   const [step,        setStep]        = useState(() => lsGet(LS_KEYS.step, 1));
   const [createdUid,  setCreatedUid]  = useState(() => lsGet(LS_KEYS.uid, null));
   const [accountData, setAccountData] = useState(() => {
@@ -542,15 +538,15 @@ export default function UaTobDriverSignup({ uid }) {
   const [vehicleData, setVehicleData] = useState(() => lsGet(LS_KEYS.vehicle, DEFAULT_VEHICLE));
   const [docData,     setDocData]     = useState(() => lsGet(LS_KEYS.doc,     DEFAULT_DOC));
 
-  const [direction,    setDirection]    = useState("forward");
-  const [animating,    setAnimating]    = useState(false);
-  const [errors,       setErrors]       = useState({});
-  const [loading,      setLoading]      = useState(false);
-  const [submitError,  setSubmitError]  = useState(null);
+  const [direction,        setDirection]        = useState("forward");
+  const [animating,        setAnimating]        = useState(false);
+  const [errors,           setErrors]           = useState({});
+  const [loading,          setLoading]          = useState(false);
+  const [submitError,      setSubmitError]      = useState(null);
   const [showResumeBanner, setShowResumeBanner] = useState(() => lsGet(LS_KEYS.step, 1) > 1);
   const scrollRef = useRef(null);
 
-  // ── Persist each slice to localStorage whenever it changes ──
+  // ── Persist to localStorage ──────────────────────────────────────────
   useEffect(() => { lsSet(LS_KEYS.step, step); },       [step]);
   useEffect(() => { lsSet(LS_KEYS.uid,  createdUid); }, [createdUid]);
   useEffect(() => {
@@ -642,9 +638,8 @@ export default function UaTobDriverSignup({ uid }) {
         await submitDriverData(uid);
         console.log("✅ Full driver data submitted for uid:", uid);
         lsClear();
+        setSubmitted(true); // ← shows PendingScreen immediately, no refresh needed
         return;
-        // ↑ useDriverSignUp will now return status: "pending"
-        // which triggers the PendingScreen below
       }
 
       setDirection("forward");
@@ -691,6 +686,7 @@ export default function UaTobDriverSignup({ uid }) {
     setDocData(DEFAULT_DOC);
     setErrors({});
     setSubmitError(null);
+    setSubmitted(false);
     setShowResumeBanner(false);
   };
 
@@ -698,17 +694,15 @@ export default function UaTobDriverSignup({ uid }) {
 
   /* ── Status-based screens ── */
 
-  // Approved → redirect handled in useEffect above, show nothing while redirecting
-  if (driverSignUp?.status === "approved") {
-    return null;
-  }
+  // Approved → redirect (useEffect above handles it), render nothing while redirecting
+  if (driverSignUp?.status === "approved") return null;
 
-  // Pending → show the pending/success screen
-  if (driverSignUp?.status === "pending") {
+  // Pending → local flag fires immediately; Firestore status catches it on refresh
+  if (submitted || driverSignUp?.status === "pending") {
     return (
       <PendingScreen
-        firstName={driverSignUp.firstName || accountData.firstName}
-        email={driverSignUp.email || accountData.email}
+        firstName={driverSignUp?.firstName || accountData.firstName}
+        email={driverSignUp?.email     || accountData.email}
       />
     );
   }

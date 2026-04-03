@@ -17,6 +17,7 @@ const { acceptRide } = require("./drivers/acceptRide");
 const { declineRide } = require("./drivers/declineRide");
 const { updateTripStatus } = require("./drivers/updateTripStatus");
 const { getTripButtonLabel } = require("./drivers/getTripButtonLabel");
+const { getDriverEarnings } = require("./drivers/getDriverEarnings");
 
 
 // Exports
@@ -32,3 +33,4 @@ exports.updateTripStatus = updateTripStatus;
 exports.getTripButtonLabel = getTripButtonLabel;
 exports.createDriverProfile = createDriverProfile;
 exports.setDriverStatus = setDriverStatus;
+exports.getDriverEarnings = getDriverEarnings;

@@ -28,10 +28,16 @@ exports.cashAppPayment = onRequest(
           return res.status(400).json({ success: false, message: "Missing bookingPayload.fareEstimate" });
         }
 
-        const amountCents = Math.round(Number(bookingPayload.fareEstimate) * 100);
+        const fareTotal   = Number(bookingPayload.fareEstimate);
+        const amountCents = Math.round(fareTotal * 100);
+
         if (amountCents < 50) {
           return res.status(400).json({ success: false, message: "Amount too low (minimum $0.50)" });
         }
+
+        // ── Platform split (25% platform / 75% driver) ─────────
+        const platformFee  = +(fareTotal * 0.25).toFixed(2);
+        const driverPayout = +(fareTotal * 0.75).toFixed(2);
 
         // ── Create PaymentIntent ───────────────────────────────
         const paymentIntent = await stripe.paymentIntents.create({
@@ -45,6 +51,8 @@ exports.cashAppPayment = onRequest(
             tripDurationMin:   String(bookingPayload.tripDurationMin   ?? ""),
             pickup:            bookingPayload.pickup               ?? "",
             dropoff:           bookingPayload.dropoff              ?? "",
+            platformFee:       String(platformFee),
+            driverPayout:      String(driverPayout),
           },
         });
 
@@ -56,7 +64,10 @@ exports.cashAppPayment = onRequest(
           dropoff:           bookingPayload.dropoff            ?? null,
           rideType:          bookingPayload.rideType           ?? "standard",
           rideLabel:         bookingPayload.rideLabel          ?? null,
-          fareTotal:         Number(bookingPayload.fareEstimate),
+          fareTotal,
+          platformFee,
+          driverPayout,
+          payoutStatus:      "pending",
           tripDistanceMiles: bookingPayload.tripDistanceMiles  ?? null,
           tripDurationMin:   bookingPayload.tripDurationMin    ?? null,
           fareBreakdown:     bookingPayload.breakdown          ?? null,
@@ -64,18 +75,22 @@ exports.cashAppPayment = onRequest(
           paymentMethod:     "cashapp",
           paymentIntentId:   paymentIntent.id,
           paymentStatus:     "pending",
-          status:            "pending_payment",  // flipped to searching_driver by webhook
+          status:            "pending_payment",
+          uid:               bookingPayload.uid               ?? null,
           createdAt:         admin.firestore.FieldValue.serverTimestamp(),
           updatedAt:         admin.firestore.FieldValue.serverTimestamp(),
         });
 
-        console.log(`[cashAppPayment] Ride ${rideRef.id} pending. PaymentIntent: ${paymentIntent.id}`);
+        console.log(`[cashAppPayment] Ride ${rideRef.id} pending — fareTotal: $${fareTotal} | platformFee: $${platformFee} | driverPayout: $${driverPayout} | PaymentIntent: ${paymentIntent.id}`);
 
         // ── Return clientSecret to frontend ───────────────────
         return res.status(200).json({
           success:      true,
           clientSecret: paymentIntent.client_secret,
           rideId:       rideRef.id,
+          fareTotal,
+          platformFee,
+          driverPayout,
         });
 
       } catch (err) {

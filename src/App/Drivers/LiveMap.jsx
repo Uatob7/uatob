@@ -23,7 +23,7 @@ const DOT_POSITIONS = [
  *   rides       — array of ride docs from useDriverRides
  *   activeTrip  — active trip object or null
  */
-export default function LiveMap({ online, rides, activeTrip }) {
+export default function LiveMap({ online, rides = [], activeTrip }) {
   if (!online || activeTrip) return null;
 
   const nearbyRides = rides.filter(r => r.status === "searching_driver");

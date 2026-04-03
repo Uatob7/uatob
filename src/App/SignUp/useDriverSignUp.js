@@ -7,6 +7,8 @@ const db = getFirestore(firebase_app);
 export function useDriverSignUp(uid) {
   const [driverSignUp, setDriverSignUp] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  console.log("Fetching driver sign-up for UID:", uid);
   
 
   useEffect(() => {

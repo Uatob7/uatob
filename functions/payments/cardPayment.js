@@ -31,10 +31,16 @@ exports.cardPayment = onRequest(
           return res.status(400).json({ success: false, message: "Missing bookingPayload.fareEstimate" });
         }
 
-        const amountCents = Math.round(Number(bookingPayload.fareEstimate) * 100);
+        const fareTotal  = Number(bookingPayload.fareEstimate);
+        const amountCents = Math.round(fareTotal * 100);
+
         if (amountCents < 50) {
           return res.status(400).json({ success: false, message: "Amount too low (minimum $0.50)" });
         }
+
+        // ── Platform split (25% platform / 75% driver) ─────────
+        const platformFee  = +(fareTotal * 0.25).toFixed(2);
+        const driverPayout = +(fareTotal * 0.75).toFixed(2);
 
         // ── Create & confirm PaymentIntent ─────────────────────
         const paymentIntent = await stripe.paymentIntents.create({
@@ -53,6 +59,8 @@ exports.cardPayment = onRequest(
             tripDurationMin:   String(bookingPayload.tripDurationMin   ?? ""),
             pickup:            bookingPayload.pickup               ?? "",
             dropoff:           bookingPayload.dropoff              ?? "",
+            platformFee:       String(platformFee),
+            driverPayout:      String(driverPayout),
           },
         });
 
@@ -81,7 +89,10 @@ exports.cardPayment = onRequest(
           dropoff:           bookingPayload.dropoff            ?? null,
           rideType:          bookingPayload.rideType           ?? "standard",
           rideLabel:         bookingPayload.rideLabel          ?? null,
-          fareTotal:         Number(bookingPayload.fareEstimate),
+          fareTotal,
+          platformFee,
+          driverPayout,
+          payoutStatus:      "pending",
           tripDistanceMiles: bookingPayload.tripDistanceMiles  ?? null,
           tripDurationMin:   bookingPayload.tripDurationMin    ?? null,
           fareBreakdown:     bookingPayload.breakdown          ?? null,
@@ -90,16 +101,20 @@ exports.cardPayment = onRequest(
           paymentIntentId:   paymentIntent.id,
           paymentStatus:     "succeeded",
           status:            "searching_driver",
+          uid:               bookingPayload.uid               ?? null,
           createdAt:         admin.firestore.FieldValue.serverTimestamp(),
           updatedAt:         admin.firestore.FieldValue.serverTimestamp(),
         });
 
-        console.log(`[cardPayment] Ride ${rideRef.id} created. PaymentIntent: ${paymentIntent.id}`);
+        console.log(`[cardPayment] Ride ${rideRef.id} created — fareTotal: $${fareTotal} | platformFee: $${platformFee} | driverPayout: $${driverPayout} | PaymentIntent: ${paymentIntent.id}`);
 
         return res.status(200).json({
           success:       true,
           rideId:        rideRef.id,
           paymentIntent: paymentIntent.id,
+          fareTotal,
+          platformFee,
+          driverPayout,
         });
 
       } catch (err) {
