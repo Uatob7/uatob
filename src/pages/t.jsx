@@ -1,513 +1,793 @@
-import { useState, useEffect } from "react";
+import { useEffect, useRef } from 'react';
+import {
+  CarFront, Clock3, DollarSign, ShieldCheck,
+  BadgeCheck, Star, MapPin, Users,
+  Zap, TrendingUp, ArrowRight, ChevronRight,
+  Sparkles, Wallet, CircleDollarSign
+} from 'lucide-react';
 
-/* ─── DATA ─────────────────────────────────────────────────── */
-const stats = {
-  totalRides: 1284, activeRides: 7,
-  totalRevenue: 24860.50, platformRevenue: 6215.13, driverPayouts: 18645.37,
-  activeDrivers: 43, totalDrivers: 118, totalRiders: 892,
-  avgRating: 4.83, completionRate: 96.4,
-};
+/* ─── TOKENS ─────────────────────────────────── */
+const G    = '#16A34A';
+const G2   = '#15803D';
+const GL   = '#DCFCE7';
+const GB   = '#BBF7D0';
+const BG   = '#F7FCF8';
+const WH   = '#FFFFFF';
+const TXT  = '#0B1B11';
+const MUT  = '#6B7280';
+const BDR  = '#E5E7EB';
+const GBDR = '#86EFAC';
+const DARK = '#0D1F12';
 
-const liveRides = [
-  { id: "R-7821", rider: "Marcus T.", driver: "Deon Williams", status: "in_progress", tier: "Standard", fare: 14.50, pickup: "Downtown Orlando", dropoff: "OIA Airport", eta: "12 min" },
-  { id: "R-7820", rider: "Sofia L.", driver: "Priya Nair", status: "enroute", tier: "Premium", fare: 28.00, pickup: "Dr. Phillips", dropoff: "Universal Studios", eta: "4 min" },
-  { id: "R-7819", rider: "James K.", driver: "Carlos Mendez", status: "arrived", tier: "Economy", fare: 9.25, pickup: "Thornton Park", dropoff: "Lake Nona", eta: "0 min" },
-  { id: "R-7818", rider: "Aisha R.", driver: "Brandon Lee", status: "in_progress", tier: "XL", fare: 42.00, pickup: "SeaWorld", dropoff: "Windermere", eta: "18 min" },
-  { id: "R-7817", rider: "Owen P.", driver: "Fatima Diallo", status: "enroute", tier: "Economy", fare: 11.75, pickup: "Audubon Park", dropoff: "Mills 50", eta: "6 min" },
-  { id: "R-7816", rider: "Nina C.", driver: "Tyrone Grant", status: "in_progress", tier: "Standard", fare: 17.00, pickup: "Baldwin Park", dropoff: "UCF Campus", eta: "9 min" },
-  { id: "R-7815", rider: "Liam S.", driver: "Amara Osei", status: "arrived", tier: "Premium", fare: 31.50, pickup: "Celebration", dropoff: "I-Drive", eta: "0 min" },
-];
+/* ─── GLOBAL CSS ─────────────────────────────── */
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Syne:wght@400;500;600;700;800&display=swap');
 
-const recentTrips = [
-  { id: "R-7814", rider: "Emma D.", driver: "Deon W.", tier: "Standard", fare: 13.25, platform: 3.31, payout: 9.94, status: "completed", time: "2m ago", rating: 5 },
-  { id: "R-7813", rider: "Noah B.", driver: "Priya N.", tier: "Economy", fare: 8.50, platform: 2.13, payout: 6.37, status: "completed", time: "8m ago", rating: 4 },
-  { id: "R-7812", rider: "Chloe M.", driver: "Carlos M.", tier: "Premium", fare: 34.00, platform: 8.50, payout: 25.50, status: "completed", time: "15m ago", rating: 5 },
-  { id: "R-7811", rider: "Ethan F.", driver: "Brandon L.", tier: "XL", fare: 47.25, platform: 11.81, payout: 35.44, status: "completed", time: "22m ago", rating: 5 },
-  { id: "R-7810", rider: "Ava W.", driver: "Fatima D.", tier: "Economy", fare: 7.75, platform: 1.94, payout: 5.81, status: "cancelled", time: "31m ago", rating: null },
-  { id: "R-7809", rider: "Lucas H.", driver: "Tyrone G.", tier: "Standard", fare: 19.50, platform: 4.88, payout: 14.62, status: "completed", time: "45m ago", rating: 4 },
-  { id: "R-7808", rider: "Mia T.", driver: "Amara O.", tier: "Premium", fare: 26.00, platform: 6.50, payout: 19.50, status: "completed", time: "1h ago", rating: 5 },
-];
-
-const topDrivers = [
-  { name: "Deon Williams", trips: 184, earnings: 2840, rating: 4.97, tier: "Premium", status: "online" },
-  { name: "Priya Nair", trips: 167, earnings: 2610, rating: 4.95, tier: "Standard", status: "online" },
-  { name: "Carlos Mendez", trips: 153, earnings: 2480, rating: 4.92, tier: "XL", status: "busy" },
-  { name: "Brandon Lee", trips: 141, earnings: 2190, rating: 4.89, tier: "Economy", status: "online" },
-  { name: "Fatima Diallo", trips: 138, earnings: 2050, rating: 4.91, tier: "Standard", status: "offline" },
-  { name: "Tyrone Grant", trips: 129, earnings: 1960, rating: 4.88, tier: "Economy", status: "online" },
-  { name: "Amara Osei", trips: 122, earnings: 1840, rating: 4.86, tier: "Premium", status: "busy" },
-];
-
-const weekly = [
-  { day: "M", rides: 142, revenue: 2890 },
-  { day: "T", rides: 168, revenue: 3240 },
-  { day: "W", rides: 185, revenue: 3710 },
-  { day: "T", rides: 159, revenue: 3180 },
-  { day: "F", rides: 214, revenue: 4260 },
-  { day: "S", rides: 241, revenue: 4820 },
-  { day: "S", rides: 175, revenue: 3560 },
-];
-
-const tierColors = { Economy: "#0284c7", Standard: "#059669", Premium: "#7c3aed", XL: "#ea580c" };
-const tierBg    = { Economy: "#e0f2fe", Standard: "#d1fae5", Premium: "#ede9fe", XL: "#ffedd5" };
-
-const statusCfg = {
-  enroute:     { label: "En Route",    color: "#0284c7", bg: "#e0f2fe" },
-  arrived:     { label: "Arrived",     color: "#b45309", bg: "#fef3c7" },
-  in_progress: { label: "In Progress", color: "#059669", bg: "#dcfce7" },
-  completed:   { label: "Completed",   color: "#6b7280", bg: "#f3f4f6" },
-  cancelled:   { label: "Cancelled",   color: "#dc2626", bg: "#fee2e2" },
-};
-
-const fmt = n => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const initials = name => name.split(" ").map(w => w[0]).join("");
-
-/* ─── STYLES ───────────────────────────────────────────────── */
-const css = `
-@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=Instrument+Mono:ital,wght@0,300;0,400&display=swap');
-
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-
-:root{
-  --bg:#f5f3ef;
-  --white:#ffffff;
-  --border:#e5e1db;
-  --text:#18120e;
-  --text2:#6b6460;
-  --text3:#b0a9a4;
-  --coral:#f4521e;
-  --coral-l:#fff2ed;
-  --coral-m:#fdd5c4;
-  --green:#059669;
-  --green-l:#dcfce7;
-  --blue:#0284c7;
-  --blue-l:#e0f2fe;
-  --amber:#b45309;
-  --amber-l:#fef3c7;
-  --red:#dc2626;
-  --red-l:#fee2e2;
-  --font:'Bricolage Grotesque',sans-serif;
-  --mono:'Instrument Mono',monospace;
-  --r:14px;
-  --rs:10px;
-}
-
-html,body{background:var(--bg);min-height:100vh;}
-
-.app{
-  max-width:430px;
-  margin:0 auto;
+.dsl * { box-sizing:border-box; margin:0; padding:0; }
+.dsl {
+  background:${BG};
+  color:${TXT};
+  font-family:'Syne',system-ui,sans-serif;
+  overflow-x:hidden;
   min-height:100vh;
-  display:flex;
-  flex-direction:column;
-  background:var(--bg);
-  font-family:var(--font);
-  color:var(--text);
 }
 
-/* TOPBAR */
-.topbar{
-  background:var(--white);
-  padding:48px 18px 14px;
-  border-bottom:1px solid var(--border);
+.sr {
+  opacity:0;
+  transform:translateY(24px);
+  transition:opacity .6s ease, transform .6s ease;
+}
+.sr.in {
+  opacity:1;
+  transform:none;
+}
+
+@keyframes tick { from { transform:translateX(0) } to { transform:translateX(-50%) } }
+@keyframes shimmer { 0%{background-position:-200% center} 100%{background-position:200% center} }
+@keyframes floatY { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+@keyframes pulseGlow {
+  0%,100% { transform:scale(1); opacity:.9; }
+  50% { transform:scale(1.08); opacity:.65; }
+}
+@keyframes roadSc { from{background-position:0 0} to{background-position:0 72px} }
+
+.dsl-cta {
+  width:100%;
+  border:none;
+  border-radius:18px;
+  padding:18px 22px;
+  background:linear-gradient(90deg,#16A34A 0%,#15803D 35%,#16A34A 75%,#15803D 100%);
+  background-size:220% auto;
+  color:#fff;
+  font-family:'Syne',sans-serif;
+  font-size:16px;
+  font-weight:800;
+  letter-spacing:.02em;
+  cursor:pointer;
   display:flex;
   align-items:center;
-  justify-content:space-between;
-  position:sticky;
-  top:0;z-index:100;
+  justify-content:center;
+  gap:8px;
+  box-shadow:0 16px 40px rgba(22,163,74,.28);
+  animation:shimmer 4s linear infinite;
+  transition:transform .18s ease, box-shadow .18s ease, filter .18s ease;
 }
-.logo{font-size:21px;font-weight:800;letter-spacing:-.5px;}
-.logo span{color:var(--coral);}
-.topbar-r{display:flex;align-items:center;gap:8px;}
-.city{background:var(--coral-l);color:var(--coral);font-size:10px;font-weight:700;padding:4px 10px;border-radius:20px;border:1px solid var(--coral-m);}
-.bell{width:32px;height:32px;border-radius:50%;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;position:relative;}
-.bell-dot{position:absolute;top:4px;right:4px;width:7px;height:7px;background:var(--coral);border-radius:50%;border:1.5px solid var(--white);}
+.dsl-cta:hover {
+  transform:translateY(-2px);
+  box-shadow:0 20px 50px rgba(22,163,74,.34);
+  filter:brightness(1.02);
+}
+.dsl-cta:active { transform:translateY(0); }
 
-/* SCROLL */
-.scroll{flex:1;overflow-y:auto;padding:14px 14px 96px;display:flex;flex-direction:column;gap:12px;-webkit-overflow-scrolling:touch;}
-
-/* HERO */
-.hero{
-  background:var(--coral);
-  border-radius:var(--r);
-  padding:20px 18px;
-  color:#fff;
-  position:relative;
+.dsl-card {
+  background:${WH};
+  border:1px solid ${BDR};
+  border-radius:24px;
+  box-shadow:0 6px 28px rgba(0,0,0,.045);
+  transition:border-color .25s ease, box-shadow .25s ease, transform .2s ease;
   overflow:hidden;
 }
-.hero::before{content:'';position:absolute;top:-50px;right:-50px;width:180px;height:180px;border-radius:50%;background:rgba(255,255,255,.07);}
-.hero::after{content:'';position:absolute;bottom:-40px;left:40px;width:130px;height:130px;border-radius:50%;background:rgba(255,255,255,.04);}
-.hero-lbl{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;opacity:.65;margin-bottom:4px;}
-.hero-val{font-size:36px;font-weight:800;letter-spacing:-1.5px;line-height:1;position:relative;z-index:1;}
-.hero-sub{font-size:11px;opacity:.6;margin-top:4px;}
-.hero-chips{display:flex;gap:8px;margin-top:16px;position:relative;z-index:1;}
-.chip{flex:1;background:rgba(255,255,255,.14);border-radius:10px;padding:10px 10px;backdrop-filter:blur(8px);}
-.chip-val{font-size:15px;font-weight:800;letter-spacing:-.3px;}
-.chip-lbl{font-size:9px;opacity:.65;margin-top:1px;letter-spacing:.3px;}
-
-/* STAT GRID */
-.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
-.stat-card{background:var(--white);border-radius:var(--rs);padding:14px;border:1px solid var(--border);}
-.stat-ico{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;margin-bottom:8px;}
-.stat-num{font-size:21px;font-weight:800;letter-spacing:-.8px;line-height:1;}
-.stat-name{font-size:11px;color:var(--text2);margin-top:3px;}
-.stat-chg{font-size:10px;font-weight:700;margin-top:4px;}
-.up{color:var(--green);}
-.nt{color:var(--text3);}
-
-/* CARD */
-.card{background:var(--white);border-radius:var(--r);border:1px solid var(--border);overflow:hidden;}
-.card-hd{padding:14px 16px 10px;display:flex;align-items:center;justify-content:space-between;}
-.card-ttl{font-size:14px;font-weight:700;letter-spacing:-.2px;}
-
-/* BADGE */
-.bdg{font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;}
-.bdg-coral{background:var(--coral-l);color:var(--coral);}
-.bdg-green{background:var(--green-l);color:var(--green);}
-.bdg-blue{background:var(--blue-l);color:var(--blue);}
-.bdg-amber{background:var(--amber-l);color:var(--amber);}
-
-/* BAR CHART */
-.bars{padding:0 16px 14px;display:flex;align-items:flex-end;gap:5px;height:110px;}
-.bc{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end;}
-.bf{width:100%;border-radius:4px 4px 0 0;background:linear-gradient(to top,var(--coral),#fb7c52);transition:height .9s cubic-bezier(.4,0,.2,1);min-height:3px;}
-.bf.hi{background:linear-gradient(to top,#d43e0e,var(--coral));box-shadow:0 -2px 10px rgba(244,82,30,.25);}
-.bd{font-size:10px;color:var(--text3);font-weight:600;}
-.bar-vals{padding:0 16px 12px;display:flex;}
-.bv{flex:1;text-align:center;font-size:10px;font-weight:700;}
-
-/* SPLIT */
-.split{padding:16px;}
-.split-track{height:7px;border-radius:4px;overflow:hidden;display:flex;gap:2px;margin:12px 0 14px;}
-.split-seg{height:100%;border-radius:4px;}
-.split-2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
-.split-box{border-radius:10px;padding:13px;}
-.sb-lbl{font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;opacity:.55;margin-bottom:5px;}
-.sb-amt{font-size:17px;font-weight:800;letter-spacing:-.4px;}
-.sb-pct{font-size:10px;opacity:.55;margin-top:2px;}
-
-/* LIVE COUNT */
-.live-ct{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--green);}
-.pdot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite;}
-@keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.4;transform:scale(.7);}}
-
-/* RIDE ROW */
-.ride{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
-.ride:last-child{border-bottom:none;}
-.rav{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0;}
-.ri{flex:1;min-width:0;}
-.rnames{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.rroute{font-size:10px;color:var(--text2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--mono);}
-.rtags{display:flex;align-items:center;gap:4px;margin-top:4px;}
-.rr{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;}
-.rfare{font-size:13px;font-weight:800;letter-spacing:-.3px;}
-.reta{font-size:10px;color:var(--text3);font-family:var(--mono);}
-
-/* STATUS PILL */
-.spill{font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;white-space:nowrap;}
-
-/* TIER TAG */
-.ttag{display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;}
-
-/* TRIP ROW */
-.trip{padding:13px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
-.trip:last-child{border-bottom:none;}
-.tico{width:34px;height:34px;border-radius:9px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;}
-.tinfo{flex:1;min-width:0;}
-.tid{font-size:10px;font-weight:700;font-family:var(--mono);color:var(--coral);}
-.tnames{font-size:12px;font-weight:600;margin-top:1px;}
-.tmeta{font-size:10px;color:var(--text3);margin-top:2px;display:flex;align-items:center;gap:5px;}
-.tr{text-align:right;flex-shrink:0;}
-.tfare{font-size:13px;font-weight:800;letter-spacing:-.3px;}
-.tsplit{font-size:10px;font-family:var(--mono);}
-.stars{color:#f59e0b;font-size:10px;letter-spacing:-1px;}
-
-/* DRIVER ROW */
-.drv{padding:13px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
-.drv:last-child{border-bottom:none;}
-.drnk{font-size:15px;font-weight:800;width:20px;text-align:center;flex-shrink:0;color:var(--text3);}
-.drnk.g{color:#f59e0b;}
-.drnk.s{color:#94a3b8;}
-.drnk.b{color:#cd7c4c;}
-.dav{width:37px;height:37px;border-radius:11px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0;position:relative;}
-.sring{position:absolute;bottom:-1px;right:-1px;width:10px;height:10px;border-radius:50%;border:1.5px solid var(--white);}
-.sring.online{background:var(--green);}
-.sring.busy{background:#f59e0b;}
-.sring.offline{background:var(--text3);}
-.dinfo{flex:1;min-width:0;}
-.dname{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.dmeta{font-size:10px;color:var(--text3);margin-top:2px;display:flex;align-items:center;gap:5px;}
-.dr{text-align:right;flex-shrink:0;}
-.dearn{font-size:13px;font-weight:800;color:var(--green);}
-.dtrips{font-size:10px;color:var(--text3);margin-top:2px;}
-
-/* BOTTOM NAV */
-.bnav{
-  position:fixed;bottom:0;left:50%;transform:translateX(-50%);
-  width:100%;max-width:430px;
-  background:var(--white);
-  border-top:1px solid var(--border);
-  display:flex;
-  padding:6px 0 22px;
-  z-index:200;
-  box-shadow:0 -4px 20px rgba(0,0,0,.06);
+.dsl-card:hover {
+  border-color:${GBDR};
+  box-shadow:0 12px 36px rgba(22,163,74,.08);
+  transform:translateY(-2px);
 }
-.ntab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;padding:4px 0;transition:transform .1s;}
-.ntab:active{transform:scale(.92);}
-.niw{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;transition:background .15s;}
-.ntab.active .niw{background:var(--coral-l);}
-.nlbl{font-size:10px;font-weight:600;color:var(--text3);transition:color .15s;}
-.ntab.active .nlbl{color:var(--coral);}
+
+.dsl-chip {
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  background:${GL};
+  border:1px solid ${GBDR};
+  border-radius:999px;
+  padding:8px 14px;
+  font-size:12px;
+  font-weight:800;
+  color:${G};
+  letter-spacing:.04em;
+}
+
+.dsl-section-label {
+  font-size:11px;
+  font-weight:800;
+  color:${G};
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  margin-bottom:10px;
+}
+
+.dsl-title {
+  font-family:'Bebas Neue',sans-serif;
+  font-size:42px;
+  line-height:1;
+  letter-spacing:.01em;
+}
+
+.dsl-req-row:last-child {
+  border-bottom:none !important;
+  padding-bottom:0 !important;
+}
+
+.dsl-divider {
+  width:100%;
+  height:1px;
+  background:${BDR};
+}
+
+.dsl-glass {
+  background:rgba(255,255,255,.78);
+  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+  border:1px solid rgba(255,255,255,.7);
+}
+
+@media (max-width: 360px) {
+  .dsl-title { font-size:38px; }
+}
 `;
 
-/* ─── COMPONENTS ───────────────────────────────────────────── */
-const StatusPill = ({ status }) => {
-  const c = statusCfg[status] || statusCfg.completed;
-  return <span className="spill" style={{ color: c.color, background: c.bg }}>{c.label}</span>;
-};
-
-const TierTag = ({ tier }) => (
-  <span className="ttag" style={{ color: tierColors[tier], background: tierBg[tier] }}>{tier}</span>
-);
-
-const Stars = ({ n }) => n
-  ? <span className="stars">{"★".repeat(n)}{"☆".repeat(5 - n)}</span>
-  : <span style={{ fontSize: 10, color: "var(--text3)" }}>—</span>;
-
-/* ─── SCREENS ──────────────────────────────────────────────── */
-function Overview({ ready }) {
-  const maxRev = Math.max(...weekly.map(d => d.revenue));
+/* ─── SUB-COMPONENTS ─────────────────────────── */
+function Stat({ value, label, sub }) {
   return (
-    <>
-      <div className="hero">
-        <div className="hero-lbl">Total Revenue</div>
-        <div className="hero-val">{fmt(stats.totalRevenue)}</div>
-        <div className="hero-sub">Orlando, FL · All time</div>
-        <div className="hero-chips">
-          <div className="chip">
-            <div className="chip-val">{stats.totalRides.toLocaleString()}</div>
-            <div className="chip-lbl">Total Rides</div>
-          </div>
-          <div className="chip">
-            <div className="chip-val">{stats.completionRate}%</div>
-            <div className="chip-lbl">Completion</div>
-          </div>
-          <div className="chip">
-            <div className="chip-val">⭐ {stats.avgRating}</div>
-            <div className="chip-lbl">Avg Rating</div>
-          </div>
+    <div style={{ textAlign:'center', flex:1 }}>
+      <div
+        style={{
+          fontFamily:"'Bebas Neue',sans-serif",
+          fontSize:46,
+          lineHeight:1,
+          color:G
+        }}
+      >
+        {value}
+      </div>
+      <div
+        style={{
+          fontSize:11,
+          fontWeight:800,
+          color:MUT,
+          letterSpacing:'.08em',
+          textTransform:'uppercase',
+          marginTop:4
+        }}
+      >
+        {label}
+      </div>
+      {sub && (
+        <div style={{ fontSize:11, color:MUT, marginTop:6 }}>
+          {sub}
         </div>
+      )}
+    </div>
+  );
+}
+
+function BenCard({ icon: Icon, title, desc, delay = 0 }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) el.classList.add('in');
+    }, { threshold:.15 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      className="sr dsl-card"
+      style={{
+        padding:'22px 18px',
+        transitionDelay:`${delay}s`,
+        minHeight:180
+      }}
+    >
+      <div
+        style={{
+          width:48,
+          height:48,
+          borderRadius:16,
+          background:GL,
+          border:`1px solid ${GBDR}`,
+          display:'flex',
+          alignItems:'center',
+          justifyContent:'center',
+          marginBottom:14
+        }}
+      >
+        <Icon size={20} color={G} />
       </div>
 
-      <div className="stat-grid">
-        <div className="stat-card">
-          <div className="stat-ico" style={{ background: var(--blue-l) ?? "#e0f2fe" }}>🚗</div>
-          <div className="stat-num" style={{ color: "var(--blue)" }}>{stats.activeRides}</div>
-          <div className="stat-name">Active Rides</div>
-          <div className="stat-chg up">↑ Live now</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-ico" style={{ background: "#dcfce7" }}>🟢</div>
-          <div className="stat-num" style={{ color: "var(--green)" }}>
-            {stats.activeDrivers}
-            <span style={{ fontSize: 12, color: "var(--text3)", fontWeight: 400 }}>/{stats.totalDrivers}</span>
-          </div>
-          <div className="stat-name">Drivers Online</div>
-          <div className="stat-chg nt">36% active</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-ico" style={{ background: "var(--coral-l)" }}>💰</div>
-          <div className="stat-num" style={{ fontSize: 16, color: "var(--coral)" }}>{fmt(stats.platformRevenue)}</div>
-          <div className="stat-name">Platform (25%)</div>
-          <div className="stat-chg up">↑ 8.3%</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-ico" style={{ background: "#ede9fe" }}>👥</div>
-          <div className="stat-num" style={{ color: "#7c3aed" }}>{stats.totalRiders}</div>
-          <div className="stat-name">Total Riders</div>
-          <div className="stat-chg up">↑ 12%</div>
-        </div>
+      <div style={{ fontSize:15, fontWeight:800, color:TXT, marginBottom:7 }}>
+        {title}
       </div>
 
-      <div className="card">
-        <div className="card-hd">
-          <div className="card-ttl">Weekly Revenue</div>
-          <span className="bdg bdg-coral">This Week</span>
-        </div>
-        <div className="bars">
-          {weekly.map((d, i) => (
-            <div key={i} className="bc">
-              <div
-                className={`bf ${i === 5 ? "hi" : ""}`}
+      <div style={{ fontSize:13, color:MUT, lineHeight:1.7 }}>
+        {desc}
+      </div>
+    </div>
+  );
+}
+
+function ReqRow({ icon: Icon, text }) {
+  return (
+    <div
+      className="dsl-req-row"
+      style={{
+        display:'flex',
+        alignItems:'center',
+        gap:14,
+        padding:'16px 0',
+        borderBottom:`1px solid ${BDR}`
+      }}
+    >
+      <div
+        style={{
+          width:40,
+          height:40,
+          minWidth:40,
+          borderRadius:14,
+          background:GL,
+          border:`1px solid ${GBDR}`,
+          display:'flex',
+          alignItems:'center',
+          justifyContent:'center'
+        }}
+      >
+        <Icon size={17} color={G} />
+      </div>
+
+      <span style={{ fontSize:14, fontWeight:700, color:TXT }}>
+        {text}
+      </span>
+
+      <div
+        style={{
+          marginLeft:'auto',
+          width:24,
+          height:24,
+          borderRadius:'50%',
+          background:GL,
+          border:`1px solid ${GBDR}`,
+          display:'flex',
+          alignItems:'center',
+          justifyContent:'center'
+        }}
+      >
+        <ChevronRight size={12} color={G} />
+      </div>
+    </div>
+  );
+}
+
+function StepCard({ number, title, desc }) {
+  return (
+    <div className="dsl-card" style={{ padding:'20px 18px' }}>
+      <div
+        style={{
+          width:36,
+          height:36,
+          borderRadius:'50%',
+          background:GL,
+          border:`1px solid ${GBDR}`,
+          display:'flex',
+          alignItems:'center',
+          justifyContent:'center',
+          fontWeight:800,
+          color:G,
+          marginBottom:14
+        }}
+      >
+        {number}
+      </div>
+      <div style={{ fontSize:15, fontWeight:800, marginBottom:6 }}>{title}</div>
+      <div style={{ fontSize:13, color:MUT, lineHeight:1.7 }}>{desc}</div>
+    </div>
+  );
+}
+
+/* ─── MAIN ───────────────────────────────────── */
+export default function DriverSignupLanding({ onStartApplication }) {
+  useEffect(() => {
+    const els = document.querySelectorAll('.dsl .sr');
+    const obs = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (e.isIntersecting) e.target.classList.add('in');
+      });
+    }, { threshold:.12 });
+
+    els.forEach(el => obs.observe(el));
+    return () => obs.disconnect();
+  }, []);
+
+  const fire = () => typeof onStartApplication === 'function' && onStartApplication();
+
+  const BENEFITS = [
+    {
+      icon:DollarSign,
+      title:'Keep 80% of every fare',
+      desc:'UaTob drivers keep more from every ride, with no confusing payout math or hidden cuts.'
+    },
+    {
+      icon:Zap,
+      title:'Next-day payouts',
+      desc:'Your money lands fast. No weekly waiting cycle and no payout mystery.'
+    },
+    {
+      icon:MapPin,
+      title:'Orlando-focused demand',
+      desc:'Built for the routes drivers actually want — airport, nightlife, events, and campus runs.'
+    },
+    {
+      icon:TrendingUp,
+      title:'Fair surge pricing',
+      desc:'When demand goes up, you see it clearly. No black-box pricing games.'
+    },
+    {
+      icon:Clock3,
+      title:'Drive whenever you want',
+      desc:'Go online when it works for you. No minimum hours and no forced schedules.'
+    },
+    {
+      icon:ShieldCheck,
+      title:'Real human support',
+      desc:'You can actually reach the team when something matters — fast.'
+    },
+  ];
+
+  const TICKER = [
+    '80% earnings split',
+    'Next-day payouts',
+    'Orlando-first',
+    'Zero hidden fees',
+    'Founding driver perks',
+    'Fair surge pricing',
+    'Clean driver app',
+    'Airport demand',
+    'Night run opportunities'
+  ];
+
+  return (
+    <div className="dsl">
+      <style>{CSS}</style>
+
+      {/* ── HERO ──────────────────────────────────── */}
+      <section style={{ position:'relative', overflow:'hidden' }}>
+        {/* road grid */}
+        <div
+          style={{
+            position:'absolute',
+            inset:0,
+            pointerEvents:'none',
+            backgroundImage:`linear-gradient(rgba(22,163,74,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(22,163,74,.055) 1px,transparent 1px)`,
+            backgroundSize:'72px 72px',
+            animation:'roadSc 10s linear infinite',
+            transform:'perspective(700px) rotateX(54deg) scale(2.8) translateY(14%)',
+            transformOrigin:'center bottom'
+          }}
+        />
+
+        {/* glow blobs */}
+        <div
+          style={{
+            position:'absolute',
+            width:420,
+            height:420,
+            borderRadius:'50%',
+            background:'rgba(22,163,74,.08)',
+            filter:'blur(110px)',
+            top:-140,
+            right:-100,
+            pointerEvents:'none',
+            animation:'floatY 9s ease-in-out infinite'
+          }}
+        />
+        <div
+          style={{
+            position:'absolute',
+            width:280,
+            height:280,
+            borderRadius:'50%',
+            background:'rgba(22,163,74,.06)',
+            filter:'blur(90px)',
+            bottom:0,
+            left:-60,
+            pointerEvents:'none',
+            animation:'floatY 12s ease-in-out infinite reverse'
+          }}
+        />
+
+        <div style={{ position:'relative', zIndex:2, padding:'54px 22px 34px' }}>
+          {/* badge */}
+          <div style={{ display:'flex', justifyContent:'center', marginBottom:20 }}>
+            <div
+              className="dsl-glass"
+              style={{
+                display:'inline-flex',
+                alignItems:'center',
+                gap:8,
+                borderRadius:999,
+                padding:'9px 16px',
+                fontSize:11,
+                fontWeight:800,
+                color:G,
+                letterSpacing:'.1em',
+                textTransform:'uppercase'
+              }}
+            >
+              <span
                 style={{
-                  height: ready ? `${(d.revenue / maxRev) * 100}%` : "0%",
-                  transition: `height .9s cubic-bezier(.4,0,.2,1) ${i * .08}s`
+                  width:8,
+                  height:8,
+                  borderRadius:'50%',
+                  background:G,
+                  display:'inline-block',
+                  animation:'pulseGlow 1.6s ease-in-out infinite'
                 }}
               />
-              <div className="bd">{d.day}</div>
+              Now recruiting · Orlando, FL
             </div>
+          </div>
+
+          {/* headline */}
+          <h1
+            style={{
+              fontFamily:"'Bebas Neue',sans-serif",
+              fontSize:'clamp(68px,20vw,108px)',
+              lineHeight:.88,
+              letterSpacing:'.01em',
+              textAlign:'center',
+              marginBottom:10
+            }}
+          >
+            <span style={{ color:G }}>EARN</span><br />
+            <span style={{ WebkitTextStroke:`2px rgba(13,31,18,.15)`, color:'transparent' }}>
+              MORE.
+            </span><br />
+            DRIVE SMART.
+          </h1>
+
+          <p
+            style={{
+              textAlign:'center',
+              fontSize:15,
+              color:MUT,
+              lineHeight:1.75,
+              maxWidth:345,
+              margin:'16px auto 28px',
+              fontWeight:500
+            }}
+          >
+            Join Orlando’s driver-first rideshare platform with higher take-home pay,
+            faster payouts, and fewer headaches.
+          </p>
+
+          {/* chips */}
+          <div
+            style={{
+              display:'flex',
+              justifyContent:'center',
+              flexWrap:'wrap',
+              gap:8,
+              marginBottom:30
+            }}
+          >
+            <div className="dsl-chip"><Wallet size={12} />Keep 80%</div>
+            <div className="dsl-chip"><Zap size={12} />Paid next day</div>
+            <div className="dsl-chip"><Sparkles size={12} />Founding perks</div>
+          </div>
+
+          {/* Hero earning card */}
+          <div
+            className="sr dsl-card"
+            style={{
+              padding:'18px',
+              marginBottom:18,
+              background:'linear-gradient(180deg,#ffffff 0%, #f8fff9 100%)'
+            }}
+          >
+            <div
+              style={{
+                display:'flex',
+                alignItems:'center',
+                justifyContent:'space-between',
+                marginBottom:14
+              }}
+            >
+              <div>
+                <div style={{ fontSize:12, fontWeight:800, color:G, letterSpacing:'.12em', textTransform:'uppercase' }}>
+                  Driver snapshot
+                </div>
+                <div style={{ fontSize:18, fontWeight:800, marginTop:6 }}>
+                  20 hours can go a long way
+                </div>
+              </div>
+
+              <div
+                style={{
+                  width:48,
+                  height:48,
+                  borderRadius:16,
+                  background:GL,
+                  border:`1px solid ${GBDR}`,
+                  display:'flex',
+                  alignItems:'center',
+                  justifyContent:'center'
+                }}
+              >
+                <CircleDollarSign size={22} color={G} />
+              </div>
+            </div>
+
+            <div
+              style={{
+                display:'grid',
+                gridTemplateColumns:'1fr 1fr',
+                gap:10
+              }}
+            >
+              {[
+                ['Avg fare', '$15'],
+                ['Your cut', '$12'],
+                ['40 trips', '~$480'],
+                ['Busy week', '$600+']
+              ].map(([k,v]) => (
+                <div
+                  key={k}
+                  style={{
+                    background:WH,
+                    border:`1px solid ${BDR}`,
+                    borderRadius:16,
+                    padding:'14px 12px'
+                  }}
+                >
+                  <div style={{ fontSize:12, color:MUT, fontWeight:700, marginBottom:5 }}>{k}</div>
+                  <div style={{ fontSize:20, fontWeight:800, color:TXT }}>{v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <button className="dsl-cta" onClick={fire}>
+            Start Application <ArrowRight size={18} />
+          </button>
+
+          <p style={{ textAlign:'center', fontSize:11, color:MUT, marginTop:12 }}>
+            Takes under 3 minutes · Free to join
+          </p>
+        </div>
+      </section>
+
+      {/* ── TICKER ────────────────────────────────── */}
+      <section
+        style={{
+          borderTop:`1px solid ${BDR}`,
+          borderBottom:`1px solid ${BDR}`,
+          overflow:'hidden',
+          padding:'13px 0',
+          background:GL
+        }}
+      >
+        <div
+          style={{
+            display:'flex',
+            gap:56,
+            whiteSpace:'nowrap',
+            animation:'tick 20s linear infinite'
+          }}
+        >
+          {[...TICKER, ...TICKER].map((t, i) => (
+            <span
+              key={i}
+              style={{
+                display:'inline-flex',
+                alignItems:'center',
+                gap:10,
+                fontSize:12,
+                fontWeight:800,
+                color:G,
+                letterSpacing:'.1em',
+                textTransform:'uppercase'
+              }}
+            >
+              <span style={{ opacity:.45, fontSize:14 }}>◆</span>{t}
+            </span>
           ))}
         </div>
-        <div className="bar-vals">
-          {weekly.map((d, i) => (
-            <div key={i} className="bv" style={{ color: i === 5 ? "var(--coral)" : "var(--text2)" }}>{d.rides}</div>
+      </section>
+
+      {/* ── STATS ─────────────────────────────────── */}
+      <section
+        style={{
+          display:'flex',
+          padding:'32px 22px',
+          borderBottom:`1px solid ${BDR}`,
+          background:WH
+        }}
+      >
+        <Stat value="80%" label="Driver cut" />
+        <div style={{ width:1, background:BDR, margin:'0 4px' }} />
+        <Stat value="24H" label="Payouts" />
+        <div style={{ width:1, background:BDR, margin:'0 4px' }} />
+        <Stat value="$0" label="To join" />
+      </section>
+
+      {/* ── BENEFITS ──────────────────────────────── */}
+      <section style={{ padding:'42px 22px' }}>
+        <div className="sr" style={{ marginBottom:24 }}>
+          <div className="dsl-section-label">Why drivers switch</div>
+          <div className="dsl-title">
+            BUILT FOR<br /><span style={{ color:G }}>DRIVERS.</span>
+          </div>
+        </div>
+
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+          {BENEFITS.map((b, i) => (
+            <BenCard key={i} {...b} delay={i * 0.07} />
           ))}
         </div>
-      </div>
+      </section>
 
-      <div className="card">
-        <div className="card-hd">
-          <div className="card-ttl">Revenue Split</div>
-          <span className="bdg bdg-amber">25 / 75</span>
-        </div>
-        <div className="split">
-          <div className="split-track">
-            <div className="split-seg" style={{ width: "25%", background: "var(--coral)" }} />
-            <div className="split-seg" style={{ width: "75%", background: "var(--green)" }} />
-          </div>
-          <div className="split-2">
-            <div className="split-box" style={{ background: "var(--coral-l)" }}>
-              <div className="sb-lbl" style={{ color: "var(--coral)" }}>Platform</div>
-              <div className="sb-amt" style={{ color: "var(--coral)" }}>{fmt(stats.platformRevenue)}</div>
-              <div className="sb-pct" style={{ color: "var(--coral)" }}>25% of gross</div>
-            </div>
-            <div className="split-box" style={{ background: "var(--green-l)" }}>
-              <div className="sb-lbl" style={{ color: "var(--green)" }}>Drivers</div>
-              <div className="sb-amt" style={{ color: "var(--green)" }}>{fmt(stats.driverPayouts)}</div>
-              <div className="sb-pct" style={{ color: "var(--green)" }}>75% of gross</div>
-            </div>
+      {/* ── HOW IT WORKS ──────────────────────────── */}
+      <section style={{ padding:'0 22px 34px' }}>
+        <div className="sr" style={{ marginBottom:18 }}>
+          <div className="dsl-section-label">How it works</div>
+          <div className="dsl-title">
+            APPLY.<br /><span style={{ color:G }}>GET APPROVED.</span>
           </div>
         </div>
-      </div>
-    </>
-  );
-}
 
-function LiveRides() {
-  return (
-    <div className="card">
-      <div className="card-hd">
-        <div className="card-ttl">Live Rides</div>
-        <div className="live-ct"><div className="pdot" />{liveRides.length} Active</div>
-      </div>
-      {liveRides.map(r => (
-        <div key={r.id} className="ride">
-          <div className="rav" style={{ background: tierBg[r.tier], color: tierColors[r.tier] }}>
-            {initials(r.rider)}
-          </div>
-          <div className="ri">
-            <div className="rnames">{r.rider} · {r.driver}</div>
-            <div className="rroute">{r.pickup} → {r.dropoff}</div>
-            <div className="rtags">
-              <TierTag tier={r.tier} />
-            </div>
-          </div>
-          <div className="rr">
-            <StatusPill status={r.status} />
-            <div className="rfare">{fmt(r.fare)}</div>
-            <div className="reta">⏱ {r.eta}</div>
+        <div style={{ display:'grid', gap:12 }}>
+          <StepCard number="1" title="Submit your info" desc="Start your application and tell us a little about you and your vehicle." />
+          <StepCard number="2" title="Upload documents" desc="Add your license, insurance, and vehicle details securely in the app." />
+          <StepCard number="3" title="Start driving" desc="Once approved, go online and begin earning on your own schedule." />
+        </div>
+      </section>
+
+      {/* ── REQUIREMENTS ──────────────────────────── */}
+      <section style={{ padding:'0 22px 34px' }}>
+        <div className="sr" style={{ marginBottom:18 }}>
+          <div className="dsl-section-label">Requirements</div>
+          <div className="dsl-title">
+            WHAT YOU’LL<br />NEED TO APPLY
           </div>
         </div>
-      ))}
+
+        <div className="sr dsl-card" style={{ padding:'4px 20px 8px' }}>
+          <ReqRow icon={BadgeCheck} text="Valid driver's license" />
+          <ReqRow icon={CarFront} text="Eligible 4-door vehicle" />
+          <ReqRow icon={ShieldCheck} text="Active vehicle insurance" />
+          <ReqRow icon={Star} text="Clean driving record" />
+          <ReqRow icon={Users} text="Professional, rider-friendly attitude" />
+        </div>
+      </section>
+
+      {/* ── TRUST / TESTIMONIAL ───────────────────── */}
+      <section style={{ padding:'0 22px 34px' }}>
+        <div
+          className="sr"
+          style={{
+            background:`linear-gradient(135deg,${GL},#f0fdf4)`,
+            border:`1px solid ${GBDR}`,
+            borderRadius:24,
+            padding:'26px 22px'
+          }}
+        >
+          <div style={{ display:'flex', gap:3, marginBottom:14 }}>
+            {[...Array(5)].map((_, i) => (
+              <Star key={i} size={16} fill={G} color={G} />
+            ))}
+          </div>
+
+          <p
+            style={{
+              fontSize:15,
+              fontWeight:700,
+              color:TXT,
+              lineHeight:1.7,
+              marginBottom:18
+            }}
+          >
+            "The pay structure makes way more sense. I know what I’m making, and
+            the app doesn’t fight me every step of the way."
+          </p>
+
+          <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+            <div
+              style={{
+                width:42,
+                height:42,
+                borderRadius:'50%',
+                background:GB,
+                border:`1px solid ${GBDR}`,
+                display:'flex',
+                alignItems:'center',
+                justifyContent:'center',
+                fontSize:18
+              }}
+            >
+              👤
+            </div>
+
+            <div>
+              <div style={{ fontSize:13, fontWeight:800, color:TXT }}>Marcus J.</div>
+              <div style={{ fontSize:11, color:MUT }}>UaTob driver · Orlando, FL</div>
+            </div>
+
+            <div className="dsl-chip" style={{ marginLeft:'auto', fontSize:11 }}>
+              Founding Driver
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── FINAL CTA ─────────────────────────────── */}
+      <section style={{ padding:'0 22px 60px' }}>
+        <div
+          className="sr dsl-card"
+          style={{
+            padding:'30px 22px',
+            marginBottom:18,
+            textAlign:'center',
+            background:'linear-gradient(180deg,#ffffff 0%, #f8fff9 100%)'
+          }}
+        >
+          <div
+            style={{
+              fontFamily:"'Bebas Neue',sans-serif",
+              fontSize:46,
+              lineHeight:1,
+              marginBottom:12
+            }}
+          >
+            READY TO<br /><span style={{ color:G }}>START EARNING?</span>
+          </div>
+
+          <p style={{ fontSize:13, color:MUT, lineHeight:1.75 }}>
+            Join the first wave of founding drivers and get priority onboarding,
+            early access perks, and direct support.
+          </p>
+        </div>
+
+        <button className="dsl-cta" onClick={fire}>
+          Start Application <ArrowRight size={18} />
+        </button>
+
+        <p
+          style={{
+            textAlign:'center',
+            fontSize:11,
+            color:MUT,
+            marginTop:14,
+            lineHeight:1.7
+          }}
+        >
+          By continuing, you begin the UaTob driver onboarding process.
+          Free to join, no commitments.
+        </p>
+      </section>
     </div>
-  );
-}
-
-function Trips() {
-  return (
-    <div className="card">
-      <div className="card-hd">
-        <div className="card-ttl">Recent Trips</div>
-        <span className="bdg bdg-blue">Last 2 hrs</span>
-      </div>
-      {recentTrips.map(t => (
-        <div key={t.id} className="trip">
-          <div className="tico">{t.status === "cancelled" ? "✕" : "✓"}</div>
-          <div className="tinfo">
-            <div className="tid">{t.id}</div>
-            <div className="tnames">{t.rider} · {t.driver}</div>
-            <div className="tmeta"><TierTag tier={t.tier} /><span>{t.time}</span></div>
-          </div>
-          <div className="tr">
-            <div className="tfare">{fmt(t.fare)}</div>
-            <div className="tsplit" style={{ color: "var(--coral)" }}>{fmt(t.platform)} fee</div>
-            <div className="tsplit" style={{ color: "var(--green)" }}>{fmt(t.payout)} out</div>
-            <Stars n={t.rating} />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function Drivers() {
-  const rc = i => i === 0 ? "g" : i === 1 ? "s" : i === 2 ? "b" : "";
-  return (
-    <div className="card">
-      <div className="card-hd">
-        <div className="card-ttl">Top Drivers</div>
-        <span className="bdg bdg-amber">This Month</span>
-      </div>
-      {topDrivers.map((d, i) => (
-        <div key={d.name} className="drv">
-          <div className={`drnk ${rc(i)}`}>{i + 1}</div>
-          <div className="dav">
-            {initials(d.name)}
-            <div className={`sring ${d.status}`} />
-          </div>
-          <div className="dinfo">
-            <div className="dname">{d.name}</div>
-            <div className="dmeta"><TierTag tier={d.tier} /><span>⭐ {d.rating}</span></div>
-          </div>
-          <div className="dr">
-            <div className="dearn">{fmt(d.earnings)}</div>
-            <div className="dtrips">{d.trips} trips</div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* ─── APP ──────────────────────────────────────────────────── */
-const TABS = [
-  { id: "overview", icon: "◈", label: "Overview" },
-  { id: "live",     icon: "📍", label: "Live" },
-  { id: "trips",    icon: "🧾", label: "Trips" },
-  { id: "drivers",  icon: "🚗", label: "Drivers" },
-];
-
-export default function UaTobAdmin() {
-  const [tab, setTab] = useState("overview");
-  const [ready, setReady] = useState(false);
-  useEffect(() => { setTimeout(() => setReady(true), 120); }, []);
-
-  return (
-    <>
-      <style>{css}</style>
-      <div className="app">
-        <div className="topbar">
-          <div className="logo">Ua<span>Tob</span></div>
-          <div className="topbar-r">
-            <span className="city">📍 Orlando</span>
-            <div className="bell">🔔<div className="bell-dot" /></div>
-          </div>
-        </div>
-        <div className="scroll">
-          {tab === "overview" && <Overview ready={ready} />}
-          {tab === "live"     && <LiveRides />}
-          {tab === "trips"    && <Trips />}
-          {tab === "drivers"  && <Drivers />}
-        </div>
-        <nav className="bnav">
-          {TABS.map(t => (
-            <div key={t.id} className={`ntab ${tab === t.id ? "active" : ""}`} onClick={() => setTab(t.id)}>
-              <div className="niw">{t.icon}</div>
-              <div className="nlbl">{t.label}</div>
-            </div>
-          ))}
-        </nav>
-      </div>
-    </>
   );
 }
