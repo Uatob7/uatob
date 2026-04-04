@@ -45,3 +45,37 @@
 [debug] [2026-04-04T18:33:38.497Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/uatob-e7b4b/adminSdkConfig [none]
 [debug] [2026-04-04T18:33:38.749Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/uatob-e7b4b/adminSdkConfig 200
 [debug] [2026-04-04T18:33:38.750Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/uatob-e7b4b/adminSdkConfig {"projectId":"uatob-e7b4b","storageBucket":"uatob-e7b4b.firebasestorage.app"}
+[debug] [2026-04-04T18:33:38.752Z] Validating nodejs source
+[warn] !  functions: package.json indicates an outdated version of firebase-functions. Please upgrade using npm install --save firebase-functions@latest in your functions directory. 
+[debug] [2026-04-04T18:33:40.233Z] > [functions] package.json contents: {
+  "name": "functions",
+  "description": "Cloud Functions for Firebase",
+  "scripts": {
+    "serve": "firebase emulators:start --only functions",
+    "shell": "firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "24"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "axios": "^1.14.0",
+    "cors": "^2.8.6",
+    "firebase-admin": "^13.6.0",
+    "firebase-functions": "^7.0.0",
+    "stripe": "^12.18.0"
+  },
+  "devDependencies": {
+    "firebase-functions-test": "^3.4.1"
+  },
+  "private": true
+}
+[debug] [2026-04-04T18:33:40.233Z] Building nodejs source
+[info] i  functions: Loading and analyzing source code for codebase default to determine what to deploy 
+[debug] [2026-04-04T18:33:40.234Z] Could not find functions.yaml. Must use http discovery
+[debug] [2026-04-04T18:33:40.246Z] Found firebase-functions binary at 'C:\Users\UaTob\uatob\functions\node_modules\.bin\firebase-functions'
+[info] Serving at port 8757
+
