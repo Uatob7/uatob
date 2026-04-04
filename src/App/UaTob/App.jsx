@@ -1,7 +1,5 @@
-// src/App/UaTobApp.jsx
 import React, { useState, useEffect } from 'react';
 import { Route } from 'lucide-react';
-
 
 import { THEME as T } from '@/App/UaTob/pricing.js';
 import CSS from '@/App/UaTob/styles.js';
@@ -16,10 +14,11 @@ import { useAuthContext } from '@/context/AuthContext';
 import signIn from '@/firebase/auth/signin';
 import signUp from '@/firebase/auth/signup';
 import { useUserRides } from '@/App/UaTob/useUserRides';
+import { useActiveRides } from '@/App/UaTob/useActiveRides';
 
 // ── Status buckets ─────────────────────────────────────────
 const SEARCHING_STATUSES = ['searching_driver'];
-const TRACKING_STATUSES  = ['driver_assigned', 'driver_arriving', 'in_progress'];
+const TRACKING_STATUSES  = ['driver_assigned', 'driver_arriving', 'arrived', 'in_progress'];
 const DONE_STATUSES      = ['completed', 'cancelled'];
 
 // ── localStorage helpers ───────────────────────────────────
@@ -32,7 +31,10 @@ function clearSession()    { try { localStorage.removeItem(LS_KEY); } catch (_) 
 export default function UaTobApp({ uid }) {
 
   const { uid: authUid } = useAuthContext();
-  const { rides, loading: ridesLoading } = useUserRides(authUid ?? uid);
+
+  const resolvedUid = authUid ?? uid;
+  const { rides, loading: ridesLoading } = useUserRides(resolvedUid);
+  const { active, loading } = useActiveRides(resolvedUid);
 
   const saved = loadSession();
 
@@ -67,14 +69,19 @@ export default function UaTobApp({ uid }) {
     }
   }, [bookingPayload, pickupCoords, dropoffCoords, showPayment, selectedPayment]);
 
-  // ── Derive ride state from Firestore ───────────────────
-  // The single source of truth — no manual modal state needed
-  const activeRide   = rides?.find(
+  // ── Derive ride state ──────────────────────────────────
+  // isSearching  → from rides  (paginated / full history hook)
+  // isTracking   → from active (real-time listener hook)
+  const activeRide  = rides?.find(
     (r) => r.paymentStatus === 'succeeded' && !DONE_STATUSES.includes(r.status)
   ) ?? null;
 
-  const isSearching  = !!activeRide && SEARCHING_STATUSES.includes(activeRide.status);
-  const isTracking   = !!activeRide && TRACKING_STATUSES.includes(activeRide.status);
+  const activeTrackingRide = active?.find(
+    (r) => r.paymentStatus === 'succeeded' && !DONE_STATUSES.includes(r.status)
+  ) ?? null;
+
+  const isSearching = !!activeRide         && SEARCHING_STATUSES.includes(activeRide.status);
+  const isTracking  = !!activeTrackingRide && TRACKING_STATUSES.includes(activeTrackingRide.status);
 
   // ── Close payment modal once ride appears in Firestore ─
   useEffect(() => {
@@ -139,7 +146,6 @@ export default function UaTobApp({ uid }) {
   };
 
   // ── Payment success ────────────────────────────────────
-  // Firestore will update status → searching_driver which auto-shows ConfirmationModal
   const handlePaymentSuccess = () => {
     setShowPayment(false);
   };
@@ -203,8 +209,7 @@ export default function UaTobApp({ uid }) {
         <div style={{ animation: mounted ? 'slideUp .65s ease-out .18s forwards' : 'none', opacity: 0 }}>
           {isTracking ? (
             <LiveTrackingPanel
-              rides={rides}
-              ridesLoading={ridesLoading}
+              active={active}
               onRideDone={resetRide}
             />
           ) : (
