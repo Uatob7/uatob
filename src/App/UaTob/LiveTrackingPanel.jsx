@@ -3,7 +3,7 @@ import React, { useMemo, useEffect, useState } from 'react';
 import { Car, Star, Check } from 'lucide-react';
 import { THEME as T } from '@/App/UaTob/pricing.js';
 import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
-
+import TrackingMap from '@/App/UaTob/TrackingMap.jsx';
 const RIDE_COLORS = {
   economy:  '#16A34A',
   standard: '#16A34A',
@@ -63,6 +63,8 @@ export default function LiveTrackingPanel({
   onRideDone,
 }) {
   const [driverDoc, setDriverDoc] = useState(null);
+    const driverUid = rides?.driverUid;
+  console.log(rides);
 
   // ── Derive current ride ────────────────────────────────
   const currentRide = useMemo(() => {
@@ -76,7 +78,6 @@ export default function LiveTrackingPanel({
 
   // ── Live-listen to Drivers/{driverUid} ────────────────
   useEffect(() => {
-    const driverUid = currentRide?.driverUid;
     if (!driverUid) { setDriverDoc(null); return; }
 
     const db   = getFirestore();
@@ -153,6 +154,8 @@ export default function LiveTrackingPanel({
 
   return (
     <div className="glass" style={{ padding: '26px' }}>
+
+      <TrackingMap />
 
       {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
