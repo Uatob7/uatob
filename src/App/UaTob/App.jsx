@@ -143,6 +143,7 @@ const handleAuth = async (e) => {
         body: JSON.stringify({
           uid:   user.uid,
           email: user.email,
+          name: name,
         }),
       });
     }
