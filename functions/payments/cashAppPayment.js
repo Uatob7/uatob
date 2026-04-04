@@ -21,9 +21,12 @@ exports.cashAppPayment = onRequest(
       const stripe = new Stripe(stripeKey);
 
       try {
-        const { bookingPayload } = req.body;
+        const { uid, bookingPayload } = req.body;
 
         // ── Validate ───────────────────────────────────────────
+        if (!uid) {
+          return res.status(400).json({ success: false, message: "Missing uid" });
+        }
         if (!bookingPayload?.fareEstimate) {
           return res.status(400).json({ success: false, message: "Missing bookingPayload.fareEstimate" });
         }
@@ -46,6 +49,7 @@ exports.cashAppPayment = onRequest(
           payment_method_types: ["cashapp"],
           description:          `Ride: ${bookingPayload.pickup ?? ""} → ${bookingPayload.dropoff ?? ""}`,
           metadata: {
+            uid:               uid,
             rideType:          bookingPayload.rideType            ?? "standard",
             tripDistanceMiles: String(bookingPayload.tripDistanceMiles ?? ""),
             tripDurationMin:   String(bookingPayload.tripDurationMin   ?? ""),
@@ -97,12 +101,12 @@ exports.cashAppPayment = onRequest(
 
           // ── Status & meta ─────────────────────────────────────
           status:            "pending_payment",
-          uid:               bookingPayload.uid               ?? null,
+          uid:               uid,
           createdAt:         admin.firestore.FieldValue.serverTimestamp(),
           updatedAt:         admin.firestore.FieldValue.serverTimestamp(),
         });
 
-        console.log(`[cashAppPayment] Ride ${rideRef.id} pending — fareTotal: $${fareTotal} | platformFee: $${platformFee} | driverPayout: $${driverPayout} | PaymentIntent: ${paymentIntent.id}`);
+        console.log(`[cashAppPayment] Ride ${rideRef.id} pending — uid: ${uid} | fareTotal: $${fareTotal} | platformFee: $${platformFee} | driverPayout: $${driverPayout} | PaymentIntent: ${paymentIntent.id}`);
 
         // ── Return clientSecret to frontend ───────────────────
         return res.status(200).json({

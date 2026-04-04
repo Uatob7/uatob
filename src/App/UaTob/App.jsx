@@ -311,6 +311,7 @@ const handleAuth = async (e) => {
       {/* ── Payment Modal ────────────────────────────────── */}
       {showPayment && bookingPayload && (
         <PaymentModal
+          uid={authUid}
           bookingPayload={bookingPayload}
           selectedPayment={selectedPayment}
           setSelectedPayment={setSelectedPayment}

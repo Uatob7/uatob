@@ -40,8 +40,8 @@ const CARD_ELEMENT_OPTIONS = {
 };
 
 /* ── Card Form ───────────────────────────────────────── */
-function CardForm({ bookingPayload, onSuccess, onError }) {
- 
+function CardForm({ uid, bookingPayload, onSuccess, onError }) {
+
   const stripe   = useStripe();
   const elements = useElements();
 
@@ -72,7 +72,7 @@ function CardForm({ bookingPayload, onSuccess, onError }) {
       const res = await fetch('https://cardpayment-ady2s2xhhq-uc.a.run.app', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentMethodId: paymentMethod.id, bookingPayload }),
+        body: JSON.stringify({ uid, paymentMethodId: paymentMethod.id, bookingPayload }),
       });
 
       const data = await res.json();
@@ -148,6 +148,7 @@ function CardForm({ bookingPayload, onSuccess, onError }) {
 
 /* ── Inner Modal ─────────────────────────────────────── */
 function PaymentModalInner({
+  uid,
   bookingPayload,
   selectedPayment,
   setSelectedPayment,
@@ -155,8 +156,6 @@ function PaymentModalInner({
   onSuccess,
 }) {
   const stripe = useStripe();
-
-  
 
   const [cashLoading, setCashLoading] = useState(false);
   const [topError,    setTopError]    = useState('');
@@ -178,7 +177,7 @@ function PaymentModalInner({
       const res = await fetch('https://cashapppayment-ady2s2xhhq-uc.a.run.app', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookingPayload }),
+        body: JSON.stringify({ uid, bookingPayload }),
       });
 
       const data = await res.json();
@@ -291,6 +290,7 @@ function PaymentModalInner({
             {/* ── Card UI ───────────────────────────────────── */}
             {selectedPayment === 'card' && (
               <CardForm
+                uid={uid}
                 bookingPayload={bookingPayload}
                 onSuccess={(result) => { onSuccess?.(result); onClose?.(); }}
                 onError={(msg) => setTopError(msg)}

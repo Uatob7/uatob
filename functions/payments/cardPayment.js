@@ -21,9 +21,12 @@ exports.cardPayment = onRequest(
       const stripe = new Stripe(stripeKey);
 
       try {
-        const { paymentMethodId, bookingPayload } = req.body;
+        const { uid, paymentMethodId, bookingPayload } = req.body;
 
         // ── Validate ───────────────────────────────────────────
+        if (!uid) {
+          return res.status(400).json({ success: false, message: "Missing uid" });
+        }
         if (!paymentMethodId) {
           return res.status(400).json({ success: false, message: "Missing paymentMethodId" });
         }
@@ -54,6 +57,7 @@ exports.cardPayment = onRequest(
           },
           description: `Ride: ${bookingPayload.pickup ?? ""} → ${bookingPayload.dropoff ?? ""}`,
           metadata: {
+            uid:               uid,
             rideType:          bookingPayload.rideType            ?? "standard",
             tripDistanceMiles: String(bookingPayload.tripDistanceMiles ?? ""),
             tripDurationMin:   String(bookingPayload.tripDurationMin   ?? ""),
@@ -122,12 +126,12 @@ exports.cardPayment = onRequest(
 
           // ── Status & meta ─────────────────────────────────────
           status:            "searching_driver",
-          uid:               bookingPayload.uid               ?? null,
+          uid:               uid,
           createdAt:         admin.firestore.FieldValue.serverTimestamp(),
           updatedAt:         admin.firestore.FieldValue.serverTimestamp(),
         });
 
-        console.log(`[cardPayment] Ride ${rideRef.id} created — fareTotal: $${fareTotal} | platformFee: $${platformFee} | driverPayout: $${driverPayout} | PaymentIntent: ${paymentIntent.id}`);
+        console.log(`[cardPayment] Ride ${rideRef.id} created — uid: ${uid} | fareTotal: $${fareTotal} | platformFee: $${platformFee} | driverPayout: $${driverPayout} | PaymentIntent: ${paymentIntent.id}`);
 
         return res.status(200).json({
           success:       true,
