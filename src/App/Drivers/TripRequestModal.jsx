@@ -4,10 +4,11 @@ import { C, TYPE_COLOR, TYPE_LABEL } from '@/App/Drivers/constants.js';
 
 const FN_URL = "https://getdrivertopickup-ady2s2xhhq-uc.a.run.app";
 
-export default function TripRequestModal({ driver, tripRequest, requestTimer, onAccept, onDecline }) {
+export default function TripRequestModal({ driver, tripRequest, requestTimer, onAccept, onDecline, actionPending = false }) {
   const [driverDistance, setDriverDistance] = useState(null); // "2.3 mi"
   const [driverEta,      setDriverEta]      = useState(null); // "7 mins"
   const [loadingGeo,     setLoadingGeo]     = useState(false);
+
 
   useEffect(() => {
     if (!tripRequest || !driver) return;
@@ -44,7 +45,7 @@ export default function TripRequestModal({ driver, tripRequest, requestTimer, on
 
   if (!tripRequest) return null;
 
-  const fare     = `$${tripRequest.fareTotal?.toFixed(2) ?? "0.00"}`;
+  const fare     = `$${tripRequest.driverPayout?.toFixed(2) ?? "0.00"}`;
   const distance = loadingGeo ? "…" : (driverDistance ?? `${tripRequest.tripDistanceMiles?.toFixed(1) ?? "—"} mi`);
   const eta      = loadingGeo ? "…" : (driverEta      ?? `${tripRequest.tripDurationMin ?? "—"} min`);
 
@@ -192,20 +193,54 @@ export default function TripRequestModal({ driver, tripRequest, requestTimer, on
         {/* Action buttons */}
         <div style={{ display: "flex", gap: 10 }}>
           <button
-            style={{ padding: "16px 18px", display: "flex", alignItems: "center", justifyContent: "center", background: C.surface, border: `1.5px solid ${C.border}`, borderRadius: 14, color: C.textMid, cursor: "pointer", boxShadow: `0 2px 8px ${C.shadow}`, transition: "all .2s" }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = C.red;    e.currentTarget.style.color = C.red; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textMid; }}
+            disabled={actionPending}
+            style={{
+              padding: "16px 18px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: C.surface,
+              border: `1.5px solid ${C.border}`,
+              borderRadius: 14,
+              color: C.textMid,
+              cursor: actionPending ? "not-allowed" : "pointer",
+              opacity: actionPending ? 0.6 : 1,
+              boxShadow: `0 2px 8px ${C.shadow}`,
+              transition: "all .2s",
+            }}
+            onMouseEnter={e => { if (!actionPending) { e.currentTarget.style.borderColor = C.red;    e.currentTarget.style.color = C.red; } }}
+            onMouseLeave={e => { if (!actionPending) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textMid; } }}
             onClick={onDecline}
           >
             <X size={20}/>
           </button>
           <button
-            style={{ flex: 1, padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "linear-gradient(135deg, #22C55E, #16A34A 55%, #15803D)", border: "none", borderRadius: 14, color: "#fff", fontFamily: "'Barlow',sans-serif", fontWeight: 800, fontSize: 15, cursor: "pointer", boxShadow: "0 4px 18px rgba(22,163,74,.3)", transition: "all .22s", letterSpacing: ".3px" }}
-            onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 8px 28px rgba(22,163,74,.4)"; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = "";                 e.currentTarget.style.boxShadow = "0 4px 18px rgba(22,163,74,.3)"; }}
+            disabled={actionPending}
+            style={{
+              flex: 1,
+              padding: "16px 24px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              background: actionPending ? "rgba(22,163,74,0.75)" : "linear-gradient(135deg, #22C55E, #16A34A 55%, #15803D)",
+              border: "none",
+              borderRadius: 14,
+              color: "#fff",
+              fontFamily: "'Barlow',sans-serif",
+              fontWeight: 800,
+              fontSize: 15,
+              cursor: actionPending ? "not-allowed" : "pointer",
+              opacity: actionPending ? 0.85 : 1,
+              boxShadow: actionPending ? "0 4px 18px rgba(22,163,74,.2)" : "0 4px 18px rgba(22,163,74,.3)",
+              transition: "all .22s",
+              letterSpacing: ".3px",
+            }}
+            onMouseEnter={e => { if (!actionPending) { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 8px 28px rgba(22,163,74,.4)"; } }}
+            onMouseLeave={e => { if (!actionPending) { e.currentTarget.style.transform = "";                 e.currentTarget.style.boxShadow = "0 4px 18px rgba(22,163,74,.3)"; } }}
             onClick={onAccept}
           >
-            <Check size={18}/> Accept · {fare}
+            <Check size={18}/> {actionPending ? "Processing…" : `Accept · ${fare}`}
           </button>
         </div>
 

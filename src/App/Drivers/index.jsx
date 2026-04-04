@@ -233,8 +233,10 @@ export default function UaTobDriverApp({ uid }) {
   const [activeTrip,     setActiveTrip]     = useState(null);
   const [requestTimer,   setRequestTimer]   = useState(15);
   const [notification,   setNotification]   = useState(null);
-  const [showSurgeAlert, setShowSurgeAlert] = useState(false);
   const [tripBtnLabel,   setTripBtnLabel]   = useState("");
+  const [dismissedRequests, setDismissedRequests] = useState(() => new Set());
+  const [acceptedRequestId, setAcceptedRequestId] = useState(null);
+  const [actionPending, setActionPending] = useState(false);
 
   // ── Location popup state ──────────────────────────────
   const [showLocationPopup, setShowLocationPopup] = useState(false);
@@ -242,7 +244,6 @@ export default function UaTobDriverApp({ uid }) {
   const [locationError,     setLocationError]      = useState("");
 
   // ── Refs ──────────────────────────────────────────────
-  const skippedIds         = useRef(new Set());
   const timerRef           = useRef(null);
   const prevRequestId      = useRef(null);
   const locationPingRef    = useRef(null);
@@ -264,7 +265,8 @@ export default function UaTobDriverApp({ uid }) {
   const tripRequest = online && !activeTrip && !ridesLoading
     ? (rides.find(r =>
         r.status === "searching_driver" &&
-        !skippedIds.current.has(r.id)
+        !dismissedRequests.has(r.id) &&
+        r.id !== acceptedRequestId
       ) ?? null)
     : null;
 
@@ -286,6 +288,12 @@ export default function UaTobDriverApp({ uid }) {
     );
     setActiveTrip(active || null);
   }, [activeRides, uid]);
+
+  useEffect(() => {
+    if (activeTrip?.id) {
+      setAcceptedRequestId(null);
+    }
+  }, [activeTrip?.id]);
 
   // ── Fetch trip button label from Cloud Function ───────
   useEffect(() => {
@@ -320,7 +328,11 @@ export default function UaTobDriverApp({ uid }) {
       setRequestTimer(t => {
         if (t <= 1) {
           clearInterval(timerRef.current);
-          skippedIds.current.add(tripRequest.id);
+          setDismissedRequests(prev => {
+            const next = new Set(prev);
+            if (tripRequest?.id) next.add(tripRequest.id);
+            return next;
+          });
           showNotif("Request expired", "Looking for next...");
           return 15;
         }
@@ -331,12 +343,6 @@ export default function UaTobDriverApp({ uid }) {
     return () => clearInterval(timerRef.current);
   }, [tripRequest?.id]);
 
-  // ── Surge alert ───────────────────────────────────────
-  useEffect(() => {
-    if (!online) return;
-    const t = setTimeout(() => setShowSurgeAlert(true), 8000);
-    return () => clearTimeout(t);
-  }, [online]);
 
   // ── 60-second location ping while online ─────────────
   useEffect(() => {
@@ -444,7 +450,8 @@ export default function UaTobDriverApp({ uid }) {
       }
       setOnline(false);
       setActiveTrip(null);
-      skippedIds.current.clear();
+      setDismissedRequests(new Set());
+      setAcceptedRequestId(null);
       showNotif("Offline", "See you next time");
 
     } else {
@@ -463,33 +470,60 @@ export default function UaTobDriverApp({ uid }) {
 
   // ── ACCEPT ────────────────────────────────────────────
   const handleAcceptTrip = async () => {
-    if (!tripRequest) return;
+    if (!tripRequest || actionPending) return;
+    setActionPending(true);
     try {
-      await fetch("https://acceptride-ady2s2xhhq-uc.a.run.app", {
+      const res = await fetch("https://acceptride-ady2s2xhhq-uc.a.run.app", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ rideId: tripRequest.id, driverUid: uid }),
       });
+      if (!res.ok) throw new Error("Accept failed");
+
       clearInterval(timerRef.current);
-      skippedIds.current.add(tripRequest.id);
+      setAcceptedRequestId(tripRequest.id);
+      setDismissedRequests(prev => {
+        const next = new Set(prev);
+        next.add(tripRequest.id);
+        return next;
+      });
       showNotif("Accepted", "Drive to pickup");
-    } catch {
+    } catch (err) {
+      console.error("handleAcceptTrip failed:", err);
       showNotif("Error", "Accept failed");
+    } finally {
+      setActionPending(false);
     }
   };
 
   // ── DECLINE ───────────────────────────────────────────
   const handleDeclineTrip = async () => {
-    if (!tripRequest) return;
+    if (!tripRequest || actionPending) return;
+    setActionPending(true);
     try {
-      await fetch("https://declineride-ady2s2xhhq-uc.a.run.app", {
+      const res = await fetch("https://declineride-ady2s2xhhq-uc.a.run.app", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ rideId: tripRequest.id, driverUid: uid }),
       });
-    } catch {}
-    clearInterval(timerRef.current);
-    skippedIds.current.add(tripRequest.id);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Decline failed");
+      }
+
+      clearInterval(timerRef.current);
+      setDismissedRequests(prev => {
+        const next = new Set(prev);
+        next.add(tripRequest.id);
+        return next;
+      });
+      showNotif("Declined", "Searching for next ride");
+    } catch (err) {
+      console.error("handleDeclineTrip failed:", err);
+      showNotif("Error", "Decline failed");
+    } finally {
+      setActionPending(false);
+    }
   };
 
   // ── ADVANCE TRIP ──────────────────────────────────────
@@ -561,6 +595,7 @@ export default function UaTobDriverApp({ uid }) {
         requestTimer={requestTimer}
         onAccept={handleAcceptTrip}
         onDecline={handleDeclineTrip}
+        actionPending={actionPending}
       />
 
       {/* ── Content ── */}
