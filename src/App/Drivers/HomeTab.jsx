@@ -26,6 +26,7 @@ export default function HomeTab({
   earnings,
   onToggleOnline,
   onAdvanceTrip,
+  advancePending,
 }) {
   return (
     <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14, animation: "slideUp .45s ease-out .05s forwards", opacity: 0 }}>
@@ -42,6 +43,7 @@ export default function HomeTab({
         tripStageColor={tripStageColor}
         tripBtnLabel={tripBtnLabel}
         onAdvance={onAdvanceTrip}
+        advancePending={advancePending}
       />
 
       <StatTiles earnings={earnings} online={online}/>

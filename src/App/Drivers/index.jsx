@@ -237,6 +237,7 @@ export default function UaTobDriverApp({ uid }) {
   const [dismissedRequests, setDismissedRequests] = useState(() => new Set());
   const [acceptedRequestId, setAcceptedRequestId] = useState(null);
   const [actionPending, setActionPending] = useState(false);
+  const [advancePending, setAdvancePending] = useState(false);
 
   // ── Location popup state ──────────────────────────────
   const [showLocationPopup, setShowLocationPopup] = useState(false);
@@ -528,30 +529,36 @@ export default function UaTobDriverApp({ uid }) {
 
   // ── ADVANCE TRIP ──────────────────────────────────────
   const handleAdvanceTrip = async () => {
-    if (!activeTrip) return;
+    if (!activeTrip || advancePending) return;
     const actionMap = {
       driver_assigned: "arrive",
       arrived:         "start",
       in_progress:     "complete",
     };
     const action = actionMap[activeTrip.status];
+    if (!action) return;
+
+    setAdvancePending(true);
     try {
-      await fetch("https://updatetripstatus-ady2s2xhhq-uc.a.run.app", {
+      const res = await fetch("https://updatetripstatus-ady2s2xhhq-uc.a.run.app", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ rideId: activeTrip.id, driverUid: uid, action }),
       });
+      if (!res.ok) throw new Error("Update failed");
+
       if (action === "complete") {
+        await refetch();
         const fare = activeTrip.fareTotal || 0;
-        setEarnings(e => ({
-          today: +(e.today + fare).toFixed(2),
-          week:  +(e.week  + fare).toFixed(2),
-          trips:   e.trips + 1,
-        }));
         showNotif("Trip complete", `+$${fare}`);
+      } else {
+        showNotif("Updating trip…", "Please wait");
       }
-    } catch {
+    } catch (err) {
+      console.error("handleAdvanceTrip failed:", err);
       showNotif("Error", "Update failed");
+    } finally {
+      setAdvancePending(false);
     }
   };
 
@@ -643,6 +650,7 @@ export default function UaTobDriverApp({ uid }) {
             earnings={earnings}
             onToggleOnline={handleToggleOnline}
             onAdvanceTrip={handleAdvanceTrip}
+            advancePending={advancePending}
           />
         )}
         {activeTab === "earnings" && <EarningsTab earnings={earnings} online={online} />}

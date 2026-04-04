@@ -1,4 +1,4 @@
-import { MapPin, Flag, Navigation, ChevronRight } from "lucide-react";
+import { MapPin, Flag, Navigation, ChevronRight, Loader2 } from "lucide-react";
 
 /**
  * ActiveTripCard – light redesign
@@ -16,6 +16,7 @@ export default function ActiveTripCard({
   tripStageColor,
   tripBtnLabel,
   onAdvance,
+  advancePending,
 }) {
   if (!activeTrip) return null;
 
@@ -332,13 +333,27 @@ export default function ActiveTripCard({
         <div className="atc-cta-wrap">
           <button
             className="atc-cta"
-            style={{ background: accent }}
+            style={{
+              background: accent,
+              opacity: advancePending ? 0.7 : 1,
+              cursor: advancePending ? "not-allowed" : "pointer",
+            }}
             onClick={onAdvance}
+            disabled={advancePending}
           >
-            <span>{tripBtnLabel}</span>
-            <div className="atc-cta-arrow">
-              <ChevronRight size={14} strokeWidth={2.5} />
-            </div>
+            {advancePending ? (
+              <>
+                <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                <span style={{ marginLeft: 8 }}>Processing...</span>
+              </>
+            ) : (
+              <>
+                <span>{tripBtnLabel}</span>
+                <div className="atc-cta-arrow">
+                  <ChevronRight size={14} strokeWidth={2.5} />
+                </div>
+              </>
+            )}
           </button>
         </div>
       </div>
