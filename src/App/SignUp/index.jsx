@@ -251,7 +251,7 @@ function UploadBox({ label, hint, icon: Icon = Upload, uploaded, onUpload }) {
 
 /* ─── STEP COMPONENTS ────────────────────────── */
 
-function StepAccount({ data, setData, errors }) {
+function StepAccount({ data, setData, errors, isExistingUser }) {
   return (
     <div>
       <div style={{ display: "flex", gap: 12 }}>
@@ -263,8 +263,15 @@ function StepAccount({ data, setData, errors }) {
         </div>
       </div>
       <InputField label="Email Address" placeholder="marcus@example.com" type="email" icon={Mail} value={data.email} onChange={v => setData(d => ({...d, email: v}))} error={errors.email} />
-      <InputField label="Password" placeholder="Min. 8 characters" type="password" icon={Lock} value={data.password} onChange={v => setData(d => ({...d, password: v}))} error={errors.password} hint="Use uppercase, lowercase, numbers, and symbols." />
-      <InputField label="Confirm Password" placeholder="Re-enter password" type="password" icon={Lock} value={data.confirmPassword} onChange={v => setData(d => ({...d, confirmPassword: v}))} error={errors.confirmPassword} />
+
+      {/* Only show password fields if this is a brand-new signup (no pre-existing uid) */}
+      {!isExistingUser && (
+        <>
+          <InputField label="Password" placeholder="Min. 8 characters" type="password" icon={Lock} value={data.password} onChange={v => setData(d => ({...d, password: v}))} error={errors.password} hint="Use uppercase, lowercase, numbers, and symbols." />
+          <InputField label="Confirm Password" placeholder="Re-enter password" type="password" icon={Lock} value={data.confirmPassword} onChange={v => setData(d => ({...d, confirmPassword: v}))} error={errors.confirmPassword} />
+        </>
+      )}
+
       <div style={{ background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", display: "flex", gap: 12, alignItems: "flex-start" }}>
         <div
           onClick={() => setData(d => ({...d, terms: !d.terms}))}
@@ -517,18 +524,26 @@ function PendingScreen({ firstName, email }) {
 export default function UaTobDriverSignup({ uid }) {
   const { driverSignUp } = useDriverSignUp(uid);
 
+  // ── uid prop means the driver is already authenticated (logged in).
+  // Treat any truthy uid as an existing user — no need to re-run Firebase Auth signup.
+  const isExistingUser = Boolean(uid);
+
   // ── submitted flag: fast-path from localStorage, then synced from Firestore ──
   const [submitted, setSubmitted] = useState(() => lsGet(LS_KEYS.submitted, false));
 
-  // ── When Firestore confirms status === 'pending', lock in the submitted state.
-  // This is what survives a hard refresh — localStorage is just the instant show,
-  // Firestore is the source of truth.
+  // ── When Firestore confirms status === 'pending' or 'approved', lock in the submitted state.
   useEffect(() => {
-    if (driverSignUp?.status === 'pending' || driverSignUp?.status === 'approved') {
+    if ((driverSignUp?.status === 'pending' || driverSignUp?.status === 'approved') && submitted) {
+      // Keep submitted true if both localStorage and Firestore agree
+    } else if (driverSignUp?.status === 'pending' || driverSignUp?.status === 'approved') {
       setSubmitted(true);
       lsSet(LS_KEYS.submitted, true);
+    } else if (driverSignUp?.status === 'in_progress' && submitted) {
+      // If Firestore shows in_progress but localStorage shows submitted, clear submitted
+      setSubmitted(false);
+      lsSet(LS_KEYS.submitted, false);
     }
-  }, [driverSignUp?.status]);
+  }, [driverSignUp?.status, submitted]);
 
   // ── Redirect approved drivers ────────────────────────────────────────
   useEffect(() => {
@@ -537,9 +552,10 @@ export default function UaTobDriverSignup({ uid }) {
     }
   }, [driverSignUp?.status]);
 
-  // ── Rehydrate from localStorage on first mount ───────────────────────
+  // ── Rehydrate from localStorage on first mount.
+  // If uid is already known, seed createdUid from it immediately.
   const [step,        setStep]        = useState(() => lsGet(LS_KEYS.step, 1));
-  const [createdUid,  setCreatedUid]  = useState(() => lsGet(LS_KEYS.uid, null));
+  const [createdUid,  setCreatedUid]  = useState(() => uid || lsGet(LS_KEYS.uid, null));
   const [accountData, setAccountData] = useState(() => {
     const saved = lsGet(LS_KEYS.account, DEFAULT_ACCOUNT);
     return { ...DEFAULT_ACCOUNT, ...saved, password: "", confirmPassword: "" };
@@ -555,6 +571,46 @@ export default function UaTobDriverSignup({ uid }) {
   const [submitError,      setSubmitError]      = useState(null);
   const [showResumeBanner, setShowResumeBanner] = useState(() => lsGet(LS_KEYS.step, 1) > 1);
   const scrollRef = useRef(null);
+
+  // ── One-time hydration from Firestore.
+  // Runs when driverSignUp loads. Takes Firestore data as source of truth
+  // and advances the step to wherever the driver left off (using the
+  // furthest of what's in localStorage vs what's in Firestore).
+  const firestoreHydrated = useRef(false);
+
+  useEffect(() => {
+    if (!driverSignUp || firestoreHydrated.current) return;
+    firestoreHydrated.current = true;
+
+    // Resume from the furthest step recorded
+    const savedStep = driverSignUp.currentStep ?? 1;
+    if (savedStep > 1) {
+      setStep(s => Math.max(s, savedStep));
+      setShowResumeBanner(true);
+    }
+
+    // Hydrate account fields (firstName / lastName / email are top-level on the doc)
+    if (driverSignUp.firstName || driverSignUp.lastName || driverSignUp.email) {
+      setAccountData(d => ({
+        ...d,
+        firstName: driverSignUp.firstName || d.firstName,
+        lastName:  driverSignUp.lastName  || d.lastName,
+        email:     driverSignUp.email     || d.email,
+        // Terms must be re-agreed to for legal reasons — don't hydrate it
+      }));
+    }
+
+    // Hydrate nested sub-documents if they exist
+    if (driverSignUp.contactData) {
+      setContactData(d => ({ ...d, ...driverSignUp.contactData }));
+    }
+    if (driverSignUp.vehicleData) {
+      setVehicleData(d => ({ ...d, ...driverSignUp.vehicleData }));
+    }
+    if (driverSignUp.docData) {
+      setDocData(d => ({ ...d, ...driverSignUp.docData }));
+    }
+  }, [driverSignUp]);
 
   // ── Persist to localStorage ──────────────────────────────────────────
   useEffect(() => { lsSet(LS_KEYS.step, step); },       [step]);
@@ -572,10 +628,42 @@ export default function UaTobDriverSignup({ uid }) {
   const createDriverProfile = async (uid, data) => {
     const res = await fetch(CLOUD_FUNCTION_URL, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uid, accountData: { firstName: data.firstName, lastName: data.lastName, email: data.email } }),
+      body: JSON.stringify({
+        uid,
+        accountData: { firstName: data.firstName, lastName: data.lastName, email: data.email },
+      }),
     });
     if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error || "Failed to create driver profile"); }
     return res.json();
+  };
+
+  // saveProgress writes the current step's data to Firestore without finalising
+  // the application. The Cloud Function must use merge: true so each call is
+  // additive rather than overwriting the whole document.
+  const saveProgress = async (nextStep, overrideUid) => {
+    const id = overrideUid ?? createdUid;
+    if (!id) return;
+
+    const res = await fetch(CLOUD_FUNCTION_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        uid: id,
+        currentStep: nextStep,
+        accountData: {
+          firstName: accountData.firstName,
+          lastName:  accountData.lastName,
+          email:     accountData.email,
+        },
+        contactData,
+        vehicleData,
+        docData,
+      }),
+    });
+    // Non-fatal — we don't block the UI for a progress-save failure
+    if (!res.ok) {
+      console.warn("⚠️ saveProgress failed silently:", await res.text().catch(() => ""));
+    }
   };
 
   const submitDriverData = async (uid) => {
@@ -583,6 +671,7 @@ export default function UaTobDriverSignup({ uid }) {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         uid,
+        submit: true,   // signal to the Cloud Function to mark status: 'pending'
         contactData: { phone: contactData.phone, address: contactData.address, city: contactData.city, state: contactData.state, zip: contactData.zip },
         vehicleData: { make: vehicleData.make, model: vehicleData.model, year: vehicleData.year, color: vehicleData.color, plate: vehicleData.plate, vin: vehicleData.vin, rideTypes: vehicleData.rideTypes },
         docData:     { licenseFront: docData.licenseFront, licenseBack: docData.licenseBack, licenseNumber: docData.licenseNumber, registration: docData.registration, insurance: docData.insurance, profilePhoto: docData.profilePhoto },
@@ -600,8 +689,11 @@ export default function UaTobDriverSignup({ uid }) {
       if (!accountData.firstName.trim()) e.firstName = "Required";
       if (!accountData.lastName.trim())  e.lastName  = "Required";
       if (!accountData.email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) e.email = "Enter a valid email address";
-      if (accountData.password.length < 8) e.password = "Password must be at least 8 characters";
-      if (accountData.password !== accountData.confirmPassword) e.confirmPassword = "Passwords don't match";
+      // Only validate password fields for brand-new accounts
+      if (!isExistingUser) {
+        if (accountData.password.length < 8) e.password = "Password must be at least 8 characters";
+        if (accountData.password !== accountData.confirmPassword) e.confirmPassword = "Passwords don't match";
+      }
       if (!accountData.terms) e.terms = "You must agree to continue";
     }
     if (step === 2) {
@@ -630,25 +722,38 @@ export default function UaTobDriverSignup({ uid }) {
     try {
       setLoading(true);
 
-      if (step === 1 && !createdUid) {
-        const { result, error: signUpError } = await signUp(
-          accountData.email.trim().toLowerCase(),
-          accountData.password
-        );
-        if (signUpError) throw signUpError;
-        const newUid = result.user.uid;
-        setCreatedUid(newUid);
-        await createDriverProfile(newUid, accountData);
-      }
-
-      if (step === 5) {
-        const uid = createdUid;
-        if (!uid) throw new Error("Missing user ID — please restart signup.");
-        await submitDriverData(uid);
+      if (step === 1) {
+        if (isExistingUser) {
+          // Driver is already authenticated — just update their profile data
+          await saveProgress(2, uid);
+        } else if (!createdUid) {
+          // Brand-new driver — create Firebase Auth account first
+          const { result, error: signUpError } = await signUp(
+            accountData.email.trim().toLowerCase(),
+            accountData.password
+          );
+          if (signUpError) throw signUpError;
+          const newUid = result.user.uid;
+          setCreatedUid(newUid);
+          // Create the Firestore doc, then immediately save step-1 progress
+          await createDriverProfile(newUid, accountData);
+          await saveProgress(2, newUid);
+        } else {
+          // Returning new driver who already created an account but didn't finish
+          await saveProgress(2);
+        }
+      } else if (step === 5) {
+        // Final submission
+        const id = createdUid;
+        if (!id) throw new Error("Missing user ID — please restart signup.");
+        await submitDriverData(id);
         lsClear();
         lsSet(LS_KEYS.submitted, true);
         setSubmitted(true);
         return;
+      } else {
+        // Steps 2, 3, 4 — save progress to Firestore then advance
+        await saveProgress(step + 1);
       }
 
       setDirection("forward");
@@ -662,7 +767,7 @@ export default function UaTobDriverSignup({ uid }) {
 
     } catch (err) {
       console.error("❌ Error:", err);
-      if (step === 1) {
+      if (step === 1 && !isExistingUser) {
         setErrors({ email: err.message || "Signup failed. Please try again." });
       } else {
         setSubmitError(err.message || "Something went wrong. Please try again.");
@@ -688,7 +793,8 @@ export default function UaTobDriverSignup({ uid }) {
   const restartForm = () => {
     lsClear();
     setStep(1);
-    setCreatedUid(null);
+    // If there's a pre-existing uid we keep it — we just wipe the form data
+    setCreatedUid(uid || null);
     setAccountData(DEFAULT_ACCOUNT);
     setContactData(DEFAULT_CONTACT);
     setVehicleData(DEFAULT_VEHICLE);
@@ -697,6 +803,7 @@ export default function UaTobDriverSignup({ uid }) {
     setSubmitError(null);
     setSubmitted(false);
     setShowResumeBanner(false);
+    firestoreHydrated.current = false;
   };
 
   const pct = ((step - 1) / (STEPS.length - 1)) * 100;
@@ -705,7 +812,7 @@ export default function UaTobDriverSignup({ uid }) {
 
   if (driverSignUp?.status === "approved") return null;
 
-  // ── PendingScreen: use Firestore data when available, fall back to localStorage ──
+  // PendingScreen: prefer Firestore data when available, fall back to local state
   if (submitted) {
     return (
       <PendingScreen
@@ -837,7 +944,7 @@ export default function UaTobDriverSignup({ uid }) {
           ref={scrollRef}
           style={{ animation: animating ? "fadeOut .15s ease forwards" : direction === "forward" ? "slideForward .35s cubic-bezier(.25,.46,.45,.94)" : "slideBack .35s cubic-bezier(.25,.46,.45,.94)" }}
         >
-          {step === 1 && <StepAccount   data={accountData} setData={setAccountData} errors={errors} />}
+          {step === 1 && <StepAccount   data={accountData} setData={setAccountData} errors={errors} isExistingUser={isExistingUser} />}
           {step === 2 && <StepContact   data={contactData} setData={setContactData} errors={errors} />}
           {step === 3 && <StepVehicle   data={vehicleData} setData={setVehicleData} errors={errors} />}
           {step === 4 && <StepDocuments data={docData}     setData={setDocData}     errors={errors} />}

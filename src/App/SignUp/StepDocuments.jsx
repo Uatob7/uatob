@@ -3,6 +3,8 @@ import { C } from '@/App/SignUp/constants.jsx';
 import { InputField, UploadBox } from '@/App/SignUp/FormFields.jsx';
 
 export default function StepDocuments({ data, setData, errors }) {
+
+  console.log(data)
   return (
     <div>
       {/* Security notice */}
@@ -24,7 +26,7 @@ export default function StepDocuments({ data, setData, errors }) {
             label="Front Side"
             hint="Tap to upload photo"
             icon={Camera}
-            uploaded={data.licenseFront}
+            uploaded={!!data.licenseFront}
             onUpload={v => setData(d => ({ ...d, licenseFront: v }))}
           />
           {errors?.licenseFront && (
@@ -38,7 +40,7 @@ export default function StepDocuments({ data, setData, errors }) {
             label="Back Side"
             hint="Tap to upload photo"
             icon={Camera}
-            uploaded={data.licenseBack}
+            uploaded={!!data.licenseBack}
             onUpload={v => setData(d => ({ ...d, licenseBack: v }))}
           />
           {errors?.licenseBack && (
@@ -70,7 +72,7 @@ export default function StepDocuments({ data, setData, errors }) {
         label="Vehicle Registration"
         hint="Photo or PDF accepted"
         icon={FileText}
-        uploaded={data.registration}
+        uploaded={!!data.registration}
         onUpload={v => setData(d => ({ ...d, registration: v }))}
       />
       {errors?.registration && (
@@ -83,7 +85,7 @@ export default function StepDocuments({ data, setData, errors }) {
         label="Proof of Insurance"
         hint="Must be current & valid"
         icon={Shield}
-        uploaded={data.insurance}
+        uploaded={!!data.insurance}
         onUpload={v => setData(d => ({ ...d, insurance: v }))}
       />
       {errors?.insurance && (
@@ -103,7 +105,7 @@ export default function StepDocuments({ data, setData, errors }) {
         label="Your Photo"
         hint="Clear, recent headshot • No sunglasses"
         icon={Camera}
-        uploaded={data.profilePhoto}
+        uploaded={!!data.profilePhoto}
         onUpload={v => setData(d => ({ ...d, profilePhoto: v }))}
       />
       {errors?.profilePhoto && (

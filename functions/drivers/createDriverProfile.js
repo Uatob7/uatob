@@ -12,7 +12,7 @@ exports.createDriverProfile = onRequest((req, res) => {
         return res.status(405).json({ error: "Method not allowed" });
       }
 
-      const { uid, accountData, contactData, vehicleData, docData } = req.body || {};
+      const { uid, accountData, contactData, vehicleData, docData, submit, currentStep } = req.body || {};
 
       // uid is required for both calls
       if (!uid) {
@@ -32,7 +32,8 @@ exports.createDriverProfile = onRequest((req, res) => {
           firstName,
           lastName,
           email,
-          status:    "pending",
+          status:    "in_progress",
+          currentStep: 1,
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
@@ -59,6 +60,14 @@ exports.createDriverProfile = onRequest((req, res) => {
         const update = {
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         };
+
+        if (currentStep) {
+          update.currentStep = currentStep;
+        }
+
+        if (submit) {
+          update.status = "pending";
+        }
 
         if (contactData) {
           const { phone, address, city, state, zip } = contactData;

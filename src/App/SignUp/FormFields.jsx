@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Eye, EyeOff, Check, AlertCircle, Upload } from "lucide-react";
+import { Eye, EyeOff, Check, AlertCircle, Upload, Loader2 } from "lucide-react";
 import { C }  from '@/App/SignUp/constants.jsx';
+import { storage, uploadBytes, getDownloadURL, ref } from '@/firebase/config';
 
 export function InputField({ label, placeholder, type = "text", icon: Icon, value, onChange, error, hint, suffix }) {
   const [focused, setFocused] = useState(false);
@@ -114,27 +115,61 @@ export function SelectField({ label, value, onChange, options, icon: Icon }) {
 
 export function UploadBox({ label, hint, icon: Icon = Upload, uploaded, onUpload }) {
   const [dragging, setDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFileSelect = async (file) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const storageRef = ref(storage, `documents/${Date.now()}_${file.name}`);
+      const snapshot = await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(snapshot.ref);
+      onUpload(downloadURL);
+    } catch (error) {
+      console.error('Upload failed:', error);
+      // Optionally, show error to user
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleClick = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*,.pdf';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      handleFileSelect(file);
+    };
+    input.click();
+  };
 
   return (
     <div
-      onClick={() => onUpload(true)}
+      onClick={uploading ? undefined : handleClick}
       onDragOver={e => { e.preventDefault(); setDragging(true); }}
       onDragLeave={() => setDragging(false)}
-      onDrop={e => { e.preventDefault(); setDragging(false); onUpload(true); }}
+      onDrop={e => { 
+        e.preventDefault(); 
+        setDragging(false); 
+        const file = e.dataTransfer.files[0];
+        handleFileSelect(file);
+      }}
       style={{
         background: uploaded ? "rgba(22,163,74,.04)" : dragging ? C.accentGlow : C.surfaceRaised,
         border: `1.5px dashed ${uploaded ? "rgba(22,163,74,.4)" : dragging ? C.accent : C.border}`,
-        borderRadius: 16, padding: "22px 18px", cursor: "pointer",
+        borderRadius: 16, padding: "22px 18px", cursor: uploading ? "not-allowed" : "pointer",
         display: "flex", flexDirection: "column", alignItems: "center", gap: 10,
         transition: "all .2s", textAlign: "center", marginBottom: 12,
+        opacity: uploading ? 0.6 : 1,
       }}
     >
       <div style={{ width: 44, height: 44, background: uploaded ? "rgba(22,163,74,.12)" : C.surfaceBright, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", transition: "background .2s" }}>
-        {uploaded ? <Check size={20} color={C.green} /> : <Icon size={20} color={C.textMid} />}
+        {uploading ? <Loader2 size={20} color={C.textMid} className="animate-spin" /> : uploaded ? <Check size={20} color={C.green} /> : <Icon size={20} color={C.textMid} />}
       </div>
       <div>
         <div style={{ fontSize: 13.5, fontWeight: 700, color: uploaded ? C.green : C.text, marginBottom: 3 }}>
-          {uploaded ? "Uploaded ✓" : label}
+          {uploading ? "Uploading..." : uploaded ? "Uploaded ✓" : label}
         </div>
         <div style={{ fontSize: 11.5, color: C.textDim, fontWeight: 500 }}>{hint}</div>
       </div>
