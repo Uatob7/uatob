@@ -134,18 +134,23 @@ const handleAuth = async (e) => {
     if (authResult.error) throw new Error(authResult.error.message || 'Authentication failed');
 
     // ── Create account on backend (signup only) ────────
-    if (authMode === 'signup') {
-      const user = authResult.user ?? authResult;
-      await fetch('https://createaccount-ady2s2xhhq-uc.a.run.app', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          uid:   user.uid,
-          email: user.email,
-          name: name,
-        }),
-      });
-    }
+   if (authMode === 'signup') {
+  const user = authResult.result?.user ?? authResult.user;
+
+  if (!user?.uid) {
+    throw new Error('Sign-up succeeded but UID is missing — cannot create account.');
+  }
+
+  await fetch('https://createaccount-ady2s2xhhq-uc.a.run.app', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      uid:   user.uid,
+      email: user.email,
+      name:  name,
+    }),
+  });
+}
 
     setShowAuth(false);
     setShowPayment(true);
