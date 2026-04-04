@@ -121,6 +121,13 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
   const driverLat = currentRide?.driverLat ?? null;
   const driverLng = currentRide?.driverLng ?? null;
 
+  const driverPos = useMemo(() => {
+    if (driverLat === null || driverLng === null) return null;
+    const x = ((driverLng + 180) / 360) * 100;
+    const y = ((90 - driverLat) / 180) * 100;
+    return { x: +x.toFixed(1), y: +y.toFixed(1) };
+  }, [driverLat, driverLng]);
+
   // ── Distance / ETA from ride doc (written by Cloud Fn) ─
   const headingToPickup  = ['driver_assigned', 'driver_arriving'].includes(liveStatus);
   const headingToDropoff = ['arrived', 'in_progress'].includes(liveStatus);
@@ -158,7 +165,15 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
   return (
     <div className="glass" style={{ padding: '26px' }}>
 
-      <TrackingMap />
+      <TrackingMap
+        bookingPayload={currentRide}
+        rideStatus={liveStatus}
+        assignedDriver={driverDoc}
+        driverPos={driverPos}
+        isTracking={true}
+        etaMinutes={etaMin}
+        distToDropoff={distanceMiles}
+      />
 
       {/* ── Header ── */}
       <div
