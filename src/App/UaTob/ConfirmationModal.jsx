@@ -8,6 +8,17 @@ import { firebase_app } from '@/firebase/config';
 const db = getFirestore(firebase_app);
 const SEARCH_LIMIT_SEC = 7 * 60;
 
+// ── Compute seconds remaining based on ride's createdAt ──
+function getSecondsRemaining(createdAt) {
+  if (!createdAt) return SEARCH_LIMIT_SEC;
+  const createdMs = createdAt instanceof Date
+    ? createdAt.getTime()
+    : createdAt?.toDate?.()?.getTime?.() ?? new Date(createdAt).getTime();
+  if (!createdMs || isNaN(createdMs)) return SEARCH_LIMIT_SEC;
+  const elapsedSec = Math.floor((Date.now() - createdMs) / 1000);
+  return Math.max(0, SEARCH_LIMIT_SEC - elapsedSec);
+}
+
 export default function ConfirmationModal({
   onClose,
   onPaymentCancelled,
@@ -15,6 +26,7 @@ export default function ConfirmationModal({
   rides,
   ridesLoading,
 }) {
+
   const [status,      setStatus]      = useState('searching');
   const [secondsLeft, setSecondsLeft] = useState(SEARCH_LIMIT_SEC);
   const [driver,      setDriver]      = useState(null);
@@ -29,7 +41,6 @@ export default function ConfirmationModal({
   // ── Derive the active ride directly from rides ─────────
   const currentRide = useMemo(() => {
     if (!rides?.length) return null;
-    // Priority: any non-completed, non-cancelled ride with succeeded payment
     return rides.find(
       (r) => r.paymentStatus === 'succeeded' &&
              r.status !== 'completed' &&
@@ -55,10 +66,13 @@ export default function ConfirmationModal({
   useEffect(() => {
     if (!rideId || rideId === lastRideIdRef.current) return;
     lastRideIdRef.current = rideId;
-    setStatus('searching');
-    setSecondsLeft(SEARCH_LIMIT_SEC);
+
+    // ── Seed timer from actual createdAt so refreshes don't reset to 7:00 ──
+    const remaining = getSecondsRemaining(currentRide?.createdAt);
+    setSecondsLeft(remaining);
+    setStatus(remaining <= 0 ? 'timeout' : 'searching');
     setDriver(null);
-    didTimeoutRef.current = false;
+    didTimeoutRef.current = remaining <= 0;
   }, [rideId]);
 
   // ── Drive status from live ride ────────────────────────
@@ -100,22 +114,22 @@ export default function ConfirmationModal({
 
     clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
-      setSecondsLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timerRef.current);
-          timerRef.current = null;
-          if (!didTimeoutRef.current) {
-            didTimeoutRef.current = true;
-            setStatus('timeout');
-          }
-          return 0;
+      // ── Always recompute from createdAt so drift can't accumulate ──
+      const remaining = getSecondsRemaining(currentRide?.createdAt);
+      setSecondsLeft(remaining);
+
+      if (remaining <= 0) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+        if (!didTimeoutRef.current) {
+          didTimeoutRef.current = true;
+          setStatus('timeout');
         }
-        return prev - 1;
-      });
+      }
     }, 1000);
 
     return () => { clearInterval(timerRef.current); timerRef.current = null; };
-  }, [status]);
+  }, [status, currentRide?.createdAt]);
 
   // ── Mark timeout in Firestore ──────────────────────────
   useEffect(() => {
@@ -131,7 +145,7 @@ export default function ConfirmationModal({
     return () => clearTimeout(t);
   }, [status]);
 
-  // ── Derived display values (all from currentRide) ──────
+  // ── Derived display values ─────────────────────────────
   const minutes  = Math.floor(secondsLeft / 60);
   const seconds  = secondsLeft % 60;
   const progress = ((SEARCH_LIMIT_SEC - secondsLeft) / SEARCH_LIMIT_SEC) * 100;
@@ -146,6 +160,21 @@ export default function ConfirmationModal({
     const value = Number(currentRide?.tripDistanceMiles ?? 0);
     return Number.isFinite(value) ? value.toFixed(1) : '0.0';
   }, [currentRide]);
+
+  // ── Formatted createdAt timestamp ─────────────────────
+  const createdAtLabel = useMemo(() => {
+    const raw = currentRide?.createdAt;
+    if (!raw) return null;
+    const date = raw instanceof Date
+      ? raw
+      : raw?.toDate?.() ?? new Date(raw);
+    if (isNaN(date.getTime())) return null;
+    return date.toLocaleString('en-US', {
+      month: 'long', day: 'numeric', year: 'numeric',
+      hour: 'numeric', minute: '2-digit', second: '2-digit',
+      timeZoneName: 'shortOffset',
+    });
+  }, [currentRide?.createdAt]);
 
   const pickup    = currentRide?.pickup    ?? '—';
   const dropoff   = currentRide?.dropoff   ?? '—';
@@ -263,6 +292,12 @@ export default function ConfirmationModal({
                     borderRadius: '100px', transition: 'width 1s linear, background .5s ease',
                   }} />
                 </div>
+                {/* ── Booked at timestamp ── */}
+                {createdAtLabel && (
+                  <div style={{ marginTop: '10px', fontSize: '11px', color: T.textMuted, fontWeight: 500 }}>
+                    Booked {createdAtLabel}
+                  </div>
+                )}
               </div>
 
               <div style={{ background: '#FAFAFA', border: `1px solid ${T.border}`, borderRadius: '14px', padding: '12px 14px', marginBottom: '10px', textAlign: 'left' }}>

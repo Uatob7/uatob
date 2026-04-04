@@ -249,7 +249,7 @@ const handleAuth = async (e) => {
         </div>
 
         {/* Hero */}
-        {!tracking.isTracking && !bookingPayload && (
+        { (
           <div style={{ marginBottom: '32px', animation: mounted ? 'slideUp .65s ease-out .08s forwards' : 'none', opacity: 0 }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: T.accentLight, border: `1px solid ${T.accentBorder}`, borderRadius: '100px', padding: '5px 14px', fontSize: '11px', fontWeight: 700, color: T.accent, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '18px' }}>
               <Route size={12} />
