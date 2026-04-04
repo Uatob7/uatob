@@ -1,21 +1,52 @@
+import { useState, useEffect } from 'react';
 import { Zap, Check, X } from 'lucide-react';
 import { C, TYPE_COLOR, TYPE_LABEL } from '@/App/Drivers/constants.js';
 
-/**
- * Full-screen overlay shown when a new trip request arrives.
- *
- * Props:
- *   tripRequest   — Firestore ride object (null = hidden)
- *   requestTimer  — seconds remaining (1–15)
- *   onAccept      — callback
- *   onDecline     — callback
- */
-export default function TripRequestModal({ tripRequest, requestTimer, onAccept, onDecline }) {
+const FN_URL = "https://getdrivertopickup-ady2s2xhhq-uc.a.run.app";
+
+export default function TripRequestModal({ driver, tripRequest, requestTimer, onAccept, onDecline }) {
+  const [driverDistance, setDriverDistance] = useState(null); // "2.3 mi"
+  const [driverEta,      setDriverEta]      = useState(null); // "7 mins"
+  const [loadingGeo,     setLoadingGeo]     = useState(false);
+
+  useEffect(() => {
+    if (!tripRequest || !driver) return;
+
+    const fetchDriverDistance = async () => {
+      setLoadingGeo(true);
+      try {
+        const res = await fetch(FN_URL, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            driverLat:  driver.lat,
+            driverLng:  driver.lng,
+            pickupLat:  tripRequest.pickupLat,
+            pickupLng:  tripRequest.pickupLng,
+          }),
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          setDriverDistance(data.distanceText);   // "2.3 mi"
+          setDriverEta(data.etaText);             // "7 mins"
+        }
+      } catch (err) {
+        console.error("getDriverToPickup error:", err);
+      } finally {
+        setLoadingGeo(false);
+      }
+    };
+
+    fetchDriverDistance();
+  }, [tripRequest?.id]);  // re-run only if a new trip comes in
+
   if (!tripRequest) return null;
 
   const fare     = `$${tripRequest.fareTotal?.toFixed(2) ?? "0.00"}`;
-  const distance = `${tripRequest.tripDistanceMiles?.toFixed(1) ?? "—"} mi`;
-  const eta      = `${tripRequest.tripDurationMin ?? "—"} min`;
+  const distance = loadingGeo ? "…" : (driverDistance ?? `${tripRequest.tripDistanceMiles?.toFixed(1) ?? "—"} mi`);
+  const eta      = loadingGeo ? "…" : (driverEta      ?? `${tripRequest.tripDurationMin ?? "—"} min`);
 
   return (
     <div style={{
@@ -38,7 +69,7 @@ export default function TripRequestModal({ tripRequest, requestTimer, onAccept, 
         boxShadow: "0 -12px 60px rgba(0,0,0,.1)",
       }}>
 
-        {/* Header row — ride type label + countdown */}
+        {/* Header row */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
           <div>
             <div className="lbl" style={{ color: C.onlineGreen }}>Incoming Request</div>
@@ -115,7 +146,10 @@ export default function TripRequestModal({ tripRequest, requestTimer, onAccept, 
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 0.8 }}>
-            {[{ lbl: "Distance", val: distance }, { lbl: "ETA", val: eta }].map(m => (
+            {[
+              { lbl: "To Pickup", val: distance },
+              { lbl: "ETA",       val: eta },
+            ].map(m => (
               <div key={m.lbl} style={{
                 background: C.surfaceAlt,
                 border: `1px solid ${C.border}`,
@@ -123,7 +157,12 @@ export default function TripRequestModal({ tripRequest, requestTimer, onAccept, 
                 flex: 1, display: "flex", flexDirection: "column", justifyContent: "center",
               }}>
                 <div className="lbl">{m.lbl}</div>
-                <div className="mono" style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{m.val}</div>
+                <div className="mono" style={{
+                  fontSize: 15, fontWeight: 700,
+                  color: loadingGeo ? C.textMid : C.text,
+                }}>
+                  {m.val}
+                </div>
               </div>
             ))}
           </div>
@@ -154,7 +193,7 @@ export default function TripRequestModal({ tripRequest, requestTimer, onAccept, 
         <div style={{ display: "flex", gap: 10 }}>
           <button
             style={{ padding: "16px 18px", display: "flex", alignItems: "center", justifyContent: "center", background: C.surface, border: `1.5px solid ${C.border}`, borderRadius: 14, color: C.textMid, cursor: "pointer", boxShadow: `0 2px 8px ${C.shadow}`, transition: "all .2s" }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = C.red; e.currentTarget.style.color = C.red; }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = C.red;    e.currentTarget.style.color = C.red; }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textMid; }}
             onClick={onDecline}
           >

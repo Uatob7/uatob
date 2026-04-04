@@ -557,6 +557,7 @@ export default function UaTobDriverApp({ uid }) {
 
       <TripRequestModal
         tripRequest={tripRequest}
+        driver={driver}
         requestTimer={requestTimer}
         onAccept={handleAcceptTrip}
         onDecline={handleDeclineTrip}
