@@ -19,6 +19,7 @@ const { declineRide } = require("./drivers/declineRide");
 const { updateTripStatus } = require("./drivers/updateTripStatus");
 const { getTripButtonLabel } = require("./drivers/getTripButtonLabel");
 const { getDriverEarnings } = require("./drivers/getDriverEarnings");
+const { calcDriverDistance } = require("./drivers/calcDriverDistance");
 
 
 // Exports
@@ -36,3 +37,4 @@ exports.getTripButtonLabel = getTripButtonLabel;
 exports.createDriverProfile = createDriverProfile;
 exports.setDriverStatus = setDriverStatus;
 exports.getDriverEarnings = getDriverEarnings;
+exports.calcDriverDistance = calcDriverDistance;
