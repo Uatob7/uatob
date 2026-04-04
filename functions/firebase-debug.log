@@ -19,3 +19,29 @@
 [debug] [2026-04-04T18:33:37.926Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions [none]
 [debug] [2026-04-04T18:33:37.926Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions  x-goog-user-project=uatob-e7b4b
 [debug] [2026-04-04T18:33:37.926Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2026-04-04T18:33:38.144Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions 200
+[debug] [2026-04-04T18:33:38.144Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2026-04-04T18:33:38.144Z] Checked if tokens are valid: true, expires at: 1775331216912
+[debug] [2026-04-04T18:33:38.144Z] Checked if tokens are valid: true, expires at: 1775331216912
+[debug] [2026-04-04T18:33:38.144Z] >>> [apiv2][query] POST https://iam.googleapis.com/v1/projects/uatob-e7b4b/serviceAccounts/uatob-e7b4b@appspot.gserviceaccount.com:testIamPermissions [none]
+[debug] [2026-04-04T18:33:38.145Z] >>> [apiv2][body] POST https://iam.googleapis.com/v1/projects/uatob-e7b4b/serviceAccounts/uatob-e7b4b@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[debug] [2026-04-04T18:33:38.392Z] <<< [apiv2][status] POST https://iam.googleapis.com/v1/projects/uatob-e7b4b/serviceAccounts/uatob-e7b4b@appspot.gserviceaccount.com:testIamPermissions 200
+[debug] [2026-04-04T18:33:38.392Z] <<< [apiv2][body] POST https://iam.googleapis.com/v1/projects/uatob-e7b4b/serviceAccounts/uatob-e7b4b@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[info] 
+[info] === Deploying to 'uatob-e7b4b'...
+[info] 
+[info] i  deploying functions 
+[debug] [2026-04-04T18:33:38.397Z] Checked if tokens are valid: true, expires at: 1775331216912
+[debug] [2026-04-04T18:33:38.397Z] Checked if tokens are valid: true, expires at: 1775331216912
+[debug] [2026-04-04T18:33:38.397Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b [none]
+[debug] [2026-04-04T18:33:38.490Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b 200
+[debug] [2026-04-04T18:33:38.490Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b {"projectNumber":"714931905484","projectId":"uatob-e7b4b","lifecycleState":"ACTIVE","name":"Uatob","labels":{"firebase":"enabled","firebase-core":"disabled"},"createTime":"2026-03-29T14:39:16.148Z"}
+[info] i  functions: preparing codebase default for deployment 
+[info] i  functions: ensuring required API cloudfunctions.googleapis.com is enabled... 
+[info] i  functions: ensuring required API cloudbuild.googleapis.com is enabled... 
+[info] i  artifactregistry: ensuring required API artifactregistry.googleapis.com is enabled... 
+[debug] [2026-04-04T18:33:38.496Z] Checked if tokens are valid: true, expires at: 1775331216912
+[debug] [2026-04-04T18:33:38.496Z] Checked if tokens are valid: true, expires at: 1775331216912
+[debug] [2026-04-04T18:33:38.497Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/uatob-e7b4b/adminSdkConfig [none]
+[debug] [2026-04-04T18:33:38.749Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/uatob-e7b4b/adminSdkConfig 200
+[debug] [2026-04-04T18:33:38.750Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/uatob-e7b4b/adminSdkConfig {"projectId":"uatob-e7b4b","storageBucket":"uatob-e7b4b.firebasestorage.app"}
