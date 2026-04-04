@@ -70,17 +70,14 @@ export default function UaTobApp({ uid }) {
   }, [bookingPayload, pickupCoords, dropoffCoords, showPayment, selectedPayment]);
 
   // ── Derive ride state ──────────────────────────────────
-  // isSearching  → from rides  (paginated / full history hook)
-  // isTracking   → from active (real-time listener hook)
-  const activeRide  = rides?.find(
+  // isSearching / isTracking → from active (real-time listener hook)
+  const activeRide  = active?.find(
     (r) => r.paymentStatus === 'succeeded' && !DONE_STATUSES.includes(r.status)
   ) ?? null;
 
-  const activeTrackingRide = active?.find(
-    (r) => r.paymentStatus === 'succeeded' && !DONE_STATUSES.includes(r.status)
-  ) ?? null;
+  const activeTrackingRide = activeRide;
 
-  const isSearching = !!activeRide         && SEARCHING_STATUSES.includes(activeRide.status);
+  const isSearching = !!activeRide && SEARCHING_STATUSES.includes(activeRide.status);
   const isTracking  = !!activeTrackingRide && TRACKING_STATUSES.includes(activeTrackingRide.status);
 
   // ── Close payment modal once ride appears in Firestore ─

@@ -15,6 +15,7 @@ const db = getFirestore(firebase_app);
 
 // 🔹 Only active ride statuses
 const ACTIVE_STATUSES = [
+  'searching_driver',
   'driver_assigned',
   'driver_arriving',
   'arrived',
@@ -74,7 +75,7 @@ export function useActiveRides(uid) {
               ? 'Missing Firestore index. Create it in Firebase console.'
               : err.message || 'Failed to load active ride'
           );
-          setActive(null);
+          setActive([]);
           setLoading(false);
         }
       );
