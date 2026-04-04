@@ -44,7 +44,21 @@ async function fetchTripData(pickup, dropoff) {
     const m = (data.duration_text.match(/(\d+)\s*min/)  || [])[1] | 0;
     durationMin = h * 60 + m;
   }
-  return { pickup, dropoff, miles: round2(data.distance_miles || 0), durationMin: Math.max(1, durationMin), durationText: data.duration_text || '' };
+  return {
+    pickup,
+    dropoff,
+    miles:        round2(data.distance_miles ?? 0),
+    durationMin:  Math.max(1, durationMin ?? 0),
+    durationText: data.duration_text ?? '',
+    pickupCity:   data.pickupCity  ?? '',
+    pickupZip:    data.pickupZip   ?? '',
+    pickupLat:    data.pickupLat   ?? null,
+    pickupLng:    data.pickupLng   ?? null,
+    dropoffCity:  data.dropoffCity ?? '',
+    dropoffZip:   data.dropoffZip  ?? '',
+    dropoffLat:   data.dropoffLat  ?? null,
+    dropoffLng:   data.dropoffLng  ?? null,
+  };
 }
 
 async function fetchQuotesData(tripData) {
@@ -58,7 +72,7 @@ async function reverseGeocode(lat, lng) {
   const res  = await fetch(REVERSE_GEO_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat, lng }) });
   const data = await res.json();
   if (!res.ok || !data.address) throw new Error(data.error || 'Could not find your address.');
-  return data.address;
+  return { address: data.address };
 }
 
 function LocationAlert({ onAllow, onDeny, loading, error }) {
@@ -205,18 +219,12 @@ function PlaceInput({ label, icon: Icon, iconColor, placeholder, value, onChange
   );
 }
 
-// ── BREAKDOWN RENDERER ───────────────────────────────────
-// Renders receipt lines from the backend's `receipt` array.
-// Falls back to flat `breakdown` fields if receipt is unavailable.
 function BreakdownLines({ quote, tripData }) {
   const receipt = quote?.receipt;
   const bd      = quote?.breakdown || {};
-  const meta    = quote?.meta     || {};
+  const meta    = quote?.meta      || {};
 
-  // Use structured receipt lines if available
   if (Array.isArray(receipt) && receipt.length > 0) {
-    // Filter out zero-amount info-only lines for the running total,
-    // but still render them as a note row
     const chargeLines = receipt.filter(l => l.key !== 'minimumFareNote');
     const noteLines   = receipt.filter(l => l.key === 'minimumFareNote');
 
@@ -226,23 +234,19 @@ function BreakdownLines({ quote, tripData }) {
           <div key={line.key ?? i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
               <span style={{ fontSize: '12.5px', color: T.text, fontWeight: 600 }}>{line.label}</span>
-              {line.note && (
-                <span style={{ fontSize: '11px', color: T.textMuted, fontWeight: 500 }}>{line.note}</span>
-              )}
+              {line.note && <span style={{ fontSize: '11px', color: T.textMuted, fontWeight: 500 }}>{line.note}</span>}
             </div>
             <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '13px', fontWeight: 700, color: T.text }}>
               +${Number(line.amount || 0).toFixed(2)}
             </span>
           </div>
         ))}
-
         {noteLines.map((line, i) => (
           <div key={`note-${i}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(22,163,74,.07)', border: '1px solid rgba(22,163,74,.18)', borderRadius: '8px', padding: '7px 10px' }}>
             <Zap size={11} color={T.accent} />
             <span style={{ fontSize: '11.5px', color: T.accent, fontWeight: 700 }}>{line.note || line.label}</span>
           </div>
         ))}
-
         <div style={{ borderTop: `1px dashed ${T.accentBorder}`, paddingTop: '10px', display: 'flex', justifyContent: 'space-between' }}>
           <span style={{ fontSize: '13px', fontWeight: 800, color: T.text }}>Total</span>
           <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '15px', fontWeight: 700, color: T.accent }}>${quote.total}</span>
@@ -251,12 +255,11 @@ function BreakdownLines({ quote, tripData }) {
     );
   }
 
-  // Fallback — flat breakdown fields (old shape)
   const rows = [
-    { label: 'Base fee',                                                                        val: bd.base },
-    { label: `Distance (${tripData?.miles} mi × $${meta.perMile || 0}/mi)`,                    val: bd.distance },
-    { label: `Time (~${tripData?.durationMin} min × $${meta.perMin || 0}/min)`,                val: bd.time },
-    { label: 'Booking fee',                                                                     val: bd.bookingFee },
+    { label: 'Base fee',                                                                     val: bd.base },
+    { label: `Distance (${tripData?.miles} mi × $${meta.perMile || 0}/mi)`,                 val: bd.distance },
+    { label: `Time (~${tripData?.durationMin} min × $${meta.perMin || 0}/min)`,             val: bd.time },
+    { label: 'Booking fee',                                                                  val: bd.bookingFee },
     ...(safeNum(bd.surge, 0) > 0 ? [{ label: 'Surge', val: bd.surge, highlight: true }] : []),
   ].filter(r => r.val != null);
 
@@ -276,10 +279,10 @@ function BreakdownLines({ quote, tripData }) {
   );
 }
 
-// ── MAIN COMPONENT ───────────────────────────────────────
+// ── MAIN COMPONENT ────────────────────────────────────────
 export default function BookingPanel({ onBookNow, onPayloadChange }) {
   const { uid } = useAuthContext();
-  const saved   = loadBookingForm();
+  const saved   = useMemo(() => loadBookingForm(), []); // ✅ Load once, stable reference
 
   const [pickup,       setPickupRaw]    = useState(saved?.pickup       ?? '');
   const [dropoff,      setDropoffRaw]   = useState(saved?.dropoff      ?? '');
@@ -299,6 +302,9 @@ export default function BookingPanel({ onBookNow, onPayloadChange }) {
   const tripRequestRef  = useRef(0);
   const quoteRequestRef = useRef(0);
 
+  // ✅ Track what was last successfully fetched to deduplicate without stale closures
+  const lastFetchedTripRef = useRef(saved?.tripData ? `${saved.tripData.pickup}||${saved.tripData.dropoff}` : '');
+
   function setPickup(val)  { setPickupRaw(val);  saveBookingForm({ pickup: val, dropoff,      selectedRide, tripData, quotesData }); }
   function setDropoff(val) { setDropoffRaw(val); saveBookingForm({ pickup,      dropoff: val, selectedRide, tripData, quotesData }); }
 
@@ -307,31 +313,41 @@ export default function BookingPanel({ onBookNow, onPayloadChange }) {
     else clearBookingForm();
   }, [pickup, dropoff, selectedRide, tripData, quotesData]);
 
-  // ── Push live payload to parent whenever selection changes ──
+  // ✅ Memoized buildPayload — always has current selectedRide, no stale closure risk
+  const buildPayload = useCallback((trip, quote, quotes) => ({
+    pickup:            trip.pickup,
+    dropoff:           trip.dropoff,
+    pickupCity:        trip.pickupCity  || '',
+    pickupZip:         trip.pickupZip   || '',
+    pickupLat:         trip.pickupLat   ?? null,   // ✅ now included
+    pickupLng:         trip.pickupLng   ?? null,   // ✅ now included
+    dropoffCity:       trip.dropoffCity || '',
+    dropoffZip:        trip.dropoffZip  || '',
+    dropoffLat:        trip.dropoffLat  ?? null,   // ✅ now included
+    dropoffLng:        trip.dropoffLng  ?? null,   // ✅ now included
+    miles:             trip.miles,
+    durationMin:       trip.durationMin,
+    durationText:      trip.durationText,
+    tripDistanceMiles: trip.miles,
+    tripDurationMin:   trip.durationMin,
+    rideType:          selectedRide,
+    rideLabel:         quote.label,
+    fareEstimate:      quote.total,
+    breakdown:         quote.breakdown || {},
+    receipt:           quote.receipt   || [],
+    allQuotes:         quotes.rides    || {},
+    status:            'searching_driver',
+    createdAt:         new Date().toISOString(),
+  }), [selectedRide]);
+
+  // ✅ onPayloadChange included in deps
   useEffect(() => {
     if (!tripData || !quotesData) return;
     const quote = quotesData?.rides?.[selectedRide];
     if (!quote) return;
     if (typeof onPayloadChange !== 'function') return;
-
-    onPayloadChange({
-      pickup:            tripData.pickup,
-      dropoff:           tripData.dropoff,
-      miles:             tripData.miles,
-      durationMin:       tripData.durationMin,
-      durationText:      tripData.durationText,
-      tripDistanceMiles: tripData.miles,
-      tripDurationMin:   tripData.durationMin,
-      rideType:          selectedRide,
-      rideLabel:         quote.label,
-      fareEstimate:      quote.total,
-      breakdown:         quote.breakdown || {},
-      receipt:           quote.receipt   || [],
-      allQuotes:         quotesData.rides || {},
-      status:            'searching_driver',
-      createdAt:         new Date().toISOString(),
-    });
-  }, [selectedRide, quotesData, tripData]);
+    onPayloadChange(buildPayload(tripData, quote, quotesData));
+  }, [selectedRide, quotesData, tripData, buildPayload, onPayloadChange]);
 
   const handleLocationAllow = useCallback(async () => {
     setLocationError('');
@@ -340,8 +356,8 @@ export default function BookingPanel({ onBookNow, onPayloadChange }) {
       const pos = await new Promise((resolve, reject) =>
         navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 })
       );
-      const address = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
-      setPickup(address);
+      const geo = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
+      setPickup(geo.address);
       setShowLocationAlert(false);
       setLocationError('');
     } catch (err) {
@@ -352,7 +368,7 @@ export default function BookingPanel({ onBookNow, onPayloadChange }) {
     } finally {
       setLocationLoading(false);
     }
-  }, [dropoff, selectedRide, tripData, quotesData]);
+  }, []);
 
   const handleLocationDeny = useCallback(() => {
     setShowLocationAlert(false);
@@ -362,20 +378,34 @@ export default function BookingPanel({ onBookNow, onPayloadChange }) {
   // ── STEP 1: TRIP DATA ──────────────────────────────────
   useEffect(() => {
     const p = pickup.trim(), d = dropoff.trim();
-    if (!p || !d) { setTripData(null); setQuotesData(null); setError(''); setLoadingTrip(false); setLoadingQuotes(false); setShowBreakdown(false); return; }
-    if (saved?.tripData?.pickup === p && saved?.tripData?.dropoff === d && saved?.quotesData) return;
+    if (!p || !d) {
+      setTripData(null); setQuotesData(null); setError('');
+      setLoadingTrip(false); setLoadingQuotes(false); setShowBreakdown(false);
+      lastFetchedTripRef.current = '';
+      return;
+    }
+
+    // ✅ Use a ref (not stale `saved`) to skip duplicate fetches
+    const key = `${p}||${d}`;
+    if (lastFetchedTripRef.current === key && tripData && quotesData) return;
 
     const requestId = ++tripRequestRef.current;
     const timeout = setTimeout(async () => {
       try {
-        setLoadingTrip(true); setLoadingQuotes(false); setError(''); setTripData(null); setQuotesData(null); setShowBreakdown(false);
+        setLoadingTrip(true); setLoadingQuotes(false); setError('');
+        setTripData(null); setQuotesData(null); setShowBreakdown(false);
         const trip = await fetchTripData(p, d);
         if (tripRequestRef.current !== requestId) return;
+        lastFetchedTripRef.current = key;
         setTripData(trip);
       } catch (err) {
         if (tripRequestRef.current !== requestId) return;
-        setError(err.message || 'Failed to calculate route'); setTripData(null); setQuotesData(null);
-      } finally { if (tripRequestRef.current === requestId) setLoadingTrip(false); }
+        setError(err.message || 'Failed to calculate route');
+        setTripData(null); setQuotesData(null);
+        lastFetchedTripRef.current = '';
+      } finally {
+        if (tripRequestRef.current === requestId) setLoadingTrip(false);
+      }
     }, 700);
     return () => clearTimeout(timeout);
   }, [pickup, dropoff]);
@@ -383,7 +413,10 @@ export default function BookingPanel({ onBookNow, onPayloadChange }) {
   // ── STEP 2: PRICES ─────────────────────────────────────
   useEffect(() => {
     if (!tripData) return;
-    if (saved?.quotesData && saved?.tripData?.miles === tripData.miles) return;
+    // ✅ Skip only if we already have quotes for this exact trip data (use tripData identity)
+    // No stale `saved` check — quotesData state is the source of truth
+    if (quotesData) return;
+
     const requestId = ++quoteRequestRef.current;
     async function loadQuotes() {
       try {
@@ -395,8 +428,11 @@ export default function BookingPanel({ onBookNow, onPayloadChange }) {
         if (keys.length && !quotes.rides[selectedRide]) setSelectedRide(keys[0]);
       } catch (err) {
         if (quoteRequestRef.current !== requestId) return;
-        setError(err.message || 'Failed to calculate prices'); setQuotesData(null);
-      } finally { if (quoteRequestRef.current === requestId) setLoadingQuotes(false); }
+        setError(err.message || 'Failed to calculate prices');
+        setQuotesData(null);
+      } finally {
+        if (quoteRequestRef.current === requestId) setLoadingQuotes(false);
+      }
     }
     loadQuotes();
   }, [tripData]);
@@ -406,26 +442,10 @@ export default function BookingPanel({ onBookNow, onPayloadChange }) {
 
   const handleBookNow = useCallback(() => {
     if (!tripData || !quotesData || !selectedQuote) return;
-    const payload = {
-      pickup:            tripData.pickup,
-      dropoff:           tripData.dropoff,
-      miles:             tripData.miles,
-      durationMin:       tripData.durationMin,
-      durationText:      tripData.durationText,
-      tripDistanceMiles: tripData.miles,
-      tripDurationMin:   tripData.durationMin,
-      rideType:          selectedRide,
-      rideLabel:         selectedQuote.label,
-      fareEstimate:      selectedQuote.total,
-      breakdown:         selectedQuote.breakdown || {},
-      receipt:           selectedQuote.receipt   || [],
-      allQuotes:         quotesData.rides || {},
-      status:            'searching_driver',
-      createdAt:         new Date().toISOString(),
-    };
+    const payload = buildPayload(tripData, selectedQuote, quotesData);
     clearBookingForm();
     if (typeof onBookNow === 'function') onBookNow(payload);
-  }, [tripData, quotesData, selectedQuote, selectedRide, onBookNow]);
+  }, [tripData, quotesData, selectedQuote, buildPayload, onBookNow]);
 
   const isLoading = loadingTrip || loadingQuotes;
   const hasQuote  = !!tripData && !!quotesData && !!selectedQuote && !error && !isLoading;
@@ -474,8 +494,8 @@ export default function BookingPanel({ onBookNow, onPayloadChange }) {
             <div className="lbl">Choose Ride</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
               {rideOptions.map((ride) => {
-                const active    = selectedRide === ride.id;
-                const IconComp  = getRideIcon(ride.id);
+                const active   = selectedRide === ride.id;
+                const IconComp = getRideIcon(ride.id);
                 return (
                   <div key={ride.id} className={`ride-card ${active ? 'active' : ''}`}
                     onClick={() => { setSelectedRide(ride.id); setShowBreakdown(false); }}

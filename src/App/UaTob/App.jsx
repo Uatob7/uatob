@@ -35,6 +35,7 @@ export default function UaTobApp({ uid }) {
 
   // ── Booking ────────────────────────────────────────────
   const [bookingPayload,  setBookingPayload]  = useState(saved?.bookingPayload  ?? null);
+
   const [pickupCoords,    setPickupCoords]    = useState(saved?.pickupCoords    ?? null);
   const [dropoffCoords,   setDropoffCoords]   = useState(saved?.dropoffCoords   ?? null);
 

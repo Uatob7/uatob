@@ -51,6 +51,8 @@ exports.cashAppPayment = onRequest(
             tripDurationMin:   String(bookingPayload.tripDurationMin   ?? ""),
             pickup:            bookingPayload.pickup               ?? "",
             dropoff:           bookingPayload.dropoff              ?? "",
+            pickupCity:        bookingPayload.pickupCity           ?? "",
+            dropoffCity:       bookingPayload.dropoffCity          ?? "",
             platformFee:       String(platformFee),
             driverPayout:      String(driverPayout),
           },
@@ -60,10 +62,25 @@ exports.cashAppPayment = onRequest(
         const rideRef = db.collection("Rides").doc();
 
         await rideRef.set({
+          // ── Addresses ─────────────────────────────────────────
           pickup:            bookingPayload.pickup             ?? null,
           dropoff:           bookingPayload.dropoff            ?? null,
+
+          // ── Geo fields ────────────────────────────────────────
+          pickupCity:        bookingPayload.pickupCity         ?? null,
+          pickupZip:         bookingPayload.pickupZip          ?? null,
+          pickupLat:         bookingPayload.pickupLat          ?? null,
+          pickupLng:         bookingPayload.pickupLng          ?? null,
+          dropoffCity:       bookingPayload.dropoffCity        ?? null,
+          dropoffZip:        bookingPayload.dropoffZip         ?? null,
+          dropoffLat:        bookingPayload.dropoffLat         ?? null,
+          dropoffLng:        bookingPayload.dropoffLng         ?? null,
+
+          // ── Ride info ─────────────────────────────────────────
           rideType:          bookingPayload.rideType           ?? "standard",
           rideLabel:         bookingPayload.rideLabel          ?? null,
+
+          // ── Fare ──────────────────────────────────────────────
           fareTotal,
           platformFee,
           driverPayout,
@@ -72,9 +89,13 @@ exports.cashAppPayment = onRequest(
           tripDurationMin:   bookingPayload.tripDurationMin    ?? null,
           fareBreakdown:     bookingPayload.breakdown          ?? null,
           surgeMultiplier:   bookingPayload.surgeMultiplier    ?? 1,
+
+          // ── Payment ───────────────────────────────────────────
           paymentMethod:     "cashapp",
           paymentIntentId:   paymentIntent.id,
           paymentStatus:     "pending",
+
+          // ── Status & meta ─────────────────────────────────────
           status:            "pending_payment",
           uid:               bookingPayload.uid               ?? null,
           createdAt:         admin.firestore.FieldValue.serverTimestamp(),

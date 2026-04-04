@@ -41,6 +41,7 @@ const CARD_ELEMENT_OPTIONS = {
 
 /* ── Card Form ───────────────────────────────────────── */
 function CardForm({ bookingPayload, onSuccess, onError }) {
+ 
   const stripe   = useStripe();
   const elements = useElements();
 
@@ -154,6 +155,8 @@ function PaymentModalInner({
   onSuccess,
 }) {
   const stripe = useStripe();
+
+  
 
   const [cashLoading, setCashLoading] = useState(false);
   const [topError,    setTopError]    = useState('');
