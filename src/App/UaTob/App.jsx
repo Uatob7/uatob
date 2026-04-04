@@ -4,7 +4,6 @@ import { Route } from 'lucide-react';
 
 import { THEME as T } from '@/App/UaTob/pricing.js';
 import CSS from '@/App/UaTob/styles.js';
-import { useRideTracking } from '@/App/UaTob/useRideTracking.js';
 import { UaTobWordmark } from '@/App/UaTob/Brand.jsx';
 import MapView from '@/App/UaTob/MapView.jsx';
 import BookingPanel from '@/App/UaTob/BookingPanel.jsx';
@@ -17,24 +16,27 @@ import signIn from '@/firebase/auth/signin';
 import signUp from '@/firebase/auth/signup';
 import { useUserRides } from '@/App/UaTob/useUserRides';
 
-// ── localStorage helpers ───────────────────────────────
+// ── Status buckets ─────────────────────────────────────────
+const SEARCHING_STATUSES = ['searching_driver'];
+const TRACKING_STATUSES  = ['driver_assigned', 'driver_arriving', 'in_progress'];
+const DONE_STATUSES      = ['completed', 'cancelled'];
+
+// ── localStorage helpers ───────────────────────────────────
 const LS_KEY = 'uatob_session';
 
-function saveSession(data)  { try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch (_) {} }
-function loadSession()      { try { const raw = localStorage.getItem(LS_KEY); return raw ? JSON.parse(raw) : null; } catch (_) { return null; } }
-function clearSession()     { try { localStorage.removeItem(LS_KEY); } catch (_) {} }
+function saveSession(data) { try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch (_) {} }
+function loadSession()     { try { const raw = localStorage.getItem(LS_KEY); return raw ? JSON.parse(raw) : null; } catch (_) { return null; } }
+function clearSession()    { try { localStorage.removeItem(LS_KEY); } catch (_) {} }
 
 export default function UaTobApp({ uid }) {
 
   const { uid: authUid } = useAuthContext();
   const { rides, loading: ridesLoading } = useUserRides(authUid ?? uid);
 
-  // ── Restore session from localStorage ─────────────────
   const saved = loadSession();
 
   // ── Booking ────────────────────────────────────────────
   const [bookingPayload,  setBookingPayload]  = useState(saved?.bookingPayload  ?? null);
-
   const [pickupCoords,    setPickupCoords]    = useState(saved?.pickupCoords    ?? null);
   const [dropoffCoords,   setDropoffCoords]   = useState(saved?.dropoffCoords   ?? null);
 
@@ -51,131 +53,73 @@ export default function UaTobApp({ uid }) {
   const [showPayment,     setShowPayment]     = useState(saved?.showPayment     ?? false);
   const [selectedPayment, setSelectedPayment] = useState(saved?.selectedPayment ?? 'card');
 
-  // ── Confirmation ───────────────────────────────────────
-  const [showConfirm,     setShowConfirm]     = useState(saved?.showConfirm     ?? false);
-  const [confirmedRideId, setConfirmedRideId] = useState(saved?.confirmedRideId ?? null);
-
   // ── Mount animation ────────────────────────────────────
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  // ── Persist session whenever key state changes ─────────
+  // ── Persist session ────────────────────────────────────
   useEffect(() => {
     if (bookingPayload) {
-      saveSession({ bookingPayload, pickupCoords, dropoffCoords, showPayment, selectedPayment, showConfirm, confirmedRideId });
+      saveSession({ bookingPayload, pickupCoords, dropoffCoords, showPayment, selectedPayment });
     } else {
       clearSession();
     }
-  }, [bookingPayload, pickupCoords, dropoffCoords, showPayment, selectedPayment, showConfirm, confirmedRideId]);
+  }, [bookingPayload, pickupCoords, dropoffCoords, showPayment, selectedPayment]);
 
-  // ── Ride tracking ──────────────────────────────────────
-  const tracking = useRideTracking({
-    pickupCoords,
-    dropoffCoords,
-    selectedRide: bookingPayload?.rideType ?? 'standard',
-    fareData: bookingPayload
-      ? { total: bookingPayload.fareEstimate, breakdown: bookingPayload.breakdown || {}, surgeMultiplier: bookingPayload.surgeMultiplier || 1, allQuotes: bookingPayload.allQuotes || {}, rideType: bookingPayload.rideType }
-      : null,
-    tripData: bookingPayload
-      ? { miles: bookingPayload.tripDistanceMiles, durationMin: bookingPayload.tripDurationMin, pickup: bookingPayload.pickup, dropoff: bookingPayload.dropoff }
-      : null,
-    onComplete: () => {
-      setBookingPayload(null);
-      setPickupCoords(null);
-      setDropoffCoords(null);
-      setShowPayment(false);
-      setShowConfirm(false);
-      setConfirmedRideId(null);
-      clearSession();
-    },
-  });
+  // ── Derive ride state from Firestore ───────────────────
+  // The single source of truth — no manual modal state needed
+  const activeRide   = rides?.find(
+    (r) => r.paymentStatus === 'succeeded' && !DONE_STATUSES.includes(r.status)
+  ) ?? null;
 
-  // ── Reopen ConfirmationModal for unfinished rides ──────
+  const isSearching  = !!activeRide && SEARCHING_STATUSES.includes(activeRide.status);
+  const isTracking   = !!activeRide && TRACKING_STATUSES.includes(activeRide.status);
+
+  // ── Close payment modal once ride appears in Firestore ─
   useEffect(() => {
-    if (ridesLoading || rides.length === 0) return;
-    if (showConfirm || showPayment || tracking.isTracking) return;
-
-    const pending = rides.find(
-      (r) => r.paymentStatus === 'succeeded' && r.status !== 'completed' && r.status !== 'cancelled'
-    );
-
-    if (pending) {
-      setConfirmedRideId(pending.id);
-      setShowConfirm(true);
-
-      if (!bookingPayload) {
-        setBookingPayload({
-          pickup:            pending.pickup,
-          dropoff:           pending.dropoff,
-          fareEstimate:      pending.fareTotal,
-          breakdown:         pending.fareBreakdown   || {},
-          surgeMultiplier:   pending.surgeMultiplier || 1,
-          rideType:          pending.rideType,
-          rideLabel:         pending.rideLabel,
-          tripDistanceMiles: pending.tripDistanceMiles,
-          tripDurationMin:   pending.tripDurationMin,
-          allQuotes:         {},
-        });
-      }
-    }
-  }, [ridesLoading, rides]);
+    if (activeRide) setShowPayment(false);
+  }, [activeRide]);
 
   // ── Auth submit ────────────────────────────────────────
-// ── Auth submit ────────────────────────────────────────
-const handleAuth = async (e) => {
-  e.preventDefault();
-  setAuthLoading(true);
-  setAuthError('');
-  try {
-    const authResult = authMode === 'login'
-      ? await signIn(email, password)
-      : await signUp(email, password);
+  const handleAuth = async (e) => {
+    e.preventDefault();
+    setAuthLoading(true);
+    setAuthError('');
+    try {
+      const authResult = authMode === 'login'
+        ? await signIn(email, password)
+        : await signUp(email, password);
 
-    if (authResult.error) throw new Error(authResult.error.message || 'Authentication failed');
+      if (authResult.error) throw new Error(authResult.error.message || 'Authentication failed');
 
-    // ── Create account on backend (signup only) ────────
-   if (authMode === 'signup') {
-  const user = authResult.result?.user ?? authResult.user;
+      if (authMode === 'signup') {
+        const user = authResult.result?.user ?? authResult.user;
+        if (!user?.uid) throw new Error('Sign-up succeeded but UID is missing — cannot create account.');
+        await fetch('https://createaccount-ady2s2xhhq-uc.a.run.app', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uid: user.uid, email: user.email, name }),
+        });
+      }
 
-  if (!user?.uid) {
-    throw new Error('Sign-up succeeded but UID is missing — cannot create account.');
-  }
+      setShowAuth(false);
+      setShowPayment(true);
+    } catch (err) {
+      setAuthError(err.message || 'Authentication failed');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
 
-  await fetch('https://createaccount-ady2s2xhhq-uc.a.run.app', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      uid:   user.uid,
-      email: user.email,
-      name:  name,
-    }),
-  });
-}
-
-    setShowAuth(false);
-    setShowPayment(true);
-  } catch (err) {
-    setAuthError(err.message || 'Authentication failed');
-  } finally {
-    setAuthLoading(false);
-  }
-};
-
-
-  // ── Live payload sync — fires as user changes ride type/fare ──
+  // ── Live payload sync ──────────────────────────────────
   const handlePayloadChange = (payload) => {
     if (!payload) return;
-    setBookingPayload(prev => ({
-      ...prev,
-      ...payload,
-    }));
+    setBookingPayload(prev => ({ ...prev, ...payload }));
   };
 
   // ── Book Now ───────────────────────────────────────────
   const handleBookNow = (payload) => {
     if (!payload) return;
-
-    // Use latest payload state merged with what was just submitted
     const finalPayload = { ...bookingPayload, ...payload };
     setBookingPayload(finalPayload);
     setPickupCoords({ x: -81.37, y: 28.53 });
@@ -194,35 +138,13 @@ const handleAuth = async (e) => {
   };
 
   // ── Payment success ────────────────────────────────────
-  const handlePaymentSuccess = (result) => {
+  // Firestore will update status → searching_driver which auto-shows ConfirmationModal
+  const handlePaymentSuccess = () => {
     setShowPayment(false);
-    setConfirmedRideId(result.rideId);
-    setShowConfirm(true);
   };
 
-  // ── Confirmation closed → start tracking ──────────────
-  const handleConfirmClose = () => {
-    setShowConfirm(false);
-    setConfirmedRideId(null);
-    if (pickupCoords && dropoffCoords) {
-      tracking.initiateRide();
-    }
-  };
-
-  // ── Payment cancelled ──────────────────────────────────
-  const handlePaymentCancelled = () => {
-    setShowConfirm(false);
-    setConfirmedRideId(null);
-    setBookingPayload(null);
-    setPickupCoords(null);
-    setDropoffCoords(null);
-    clearSession();
-  };
-
-  // ── Retry ──────────────────────────────────────────────
-  const handleRetry = () => {
-    setShowConfirm(false);
-    setConfirmedRideId(null);
+  // ── Reset helpers ──────────────────────────────────────
+  const resetRide = () => {
     setBookingPayload(null);
     setPickupCoords(null);
     setDropoffCoords(null);
@@ -248,8 +170,8 @@ const handleAuth = async (e) => {
           </div>
         </div>
 
-        {/* Hero */}
-        { (
+        {/* Hero — only when fully idle */}
+        {!activeRide && !bookingPayload && (
           <div style={{ marginBottom: '32px', animation: mounted ? 'slideUp .65s ease-out .08s forwards' : 'none', opacity: 0 }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: T.accentLight, border: `1px solid ${T.accentBorder}`, borderRadius: '100px', padding: '5px 14px', fontSize: '11px', fontWeight: 700, color: T.accent, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '18px' }}>
               <Route size={12} />
@@ -269,17 +191,20 @@ const handleAuth = async (e) => {
           </div>
         )}
 
-        {/* Map */}
-        <div style={{ marginBottom: '14px', animation: mounted ? 'slideUp .65s ease-out .12s forwards' : 'none', opacity: 0 }}>
-          <MapView bookingPayload={bookingPayload} />
-        </div>
+        {/* Map — hidden when LiveTrackingPanel is showing (it has its own) */}
+        {!isTracking && (
+          <div style={{ marginBottom: '14px', animation: mounted ? 'slideUp .65s ease-out .12s forwards' : 'none', opacity: 0 }}>
+            <MapView bookingPayload={bookingPayload} />
+          </div>
+        )}
 
         {/* Main panel */}
         <div style={{ animation: mounted ? 'slideUp .65s ease-out .18s forwards' : 'none', opacity: 0 }}>
-          {tracking.isTracking ? (
+          {isTracking ? (
             <LiveTrackingPanel
               rides={rides}
               ridesLoading={ridesLoading}
+              onRideDone={resetRide}
             />
           ) : (
             <BookingPanel
@@ -288,6 +213,7 @@ const handleAuth = async (e) => {
             />
           )}
         </div>
+
       </div>
 
       {/* ── Auth Modal ───────────────────────────────────── */}
@@ -320,14 +246,14 @@ const handleAuth = async (e) => {
         />
       )}
 
-      {/* ── Confirmation Modal ───────────────────────────── */}
-      {showConfirm && rides && (
+      {/* ── Confirmation Modal — fires when status = searching_driver ── */}
+      {isSearching && (
         <ConfirmationModal
-          onClose={handleConfirmClose}
-          onPaymentCancelled={handlePaymentCancelled}
-          onRetry={handleRetry}
           rides={rides}
           ridesLoading={ridesLoading}
+          onClose={() => {}}
+          onPaymentCancelled={resetRide}
+          onRetry={resetRide}
         />
       )}
     </div>
