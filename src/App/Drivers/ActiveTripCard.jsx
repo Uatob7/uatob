@@ -18,6 +18,8 @@ export default function ActiveTripCard({
   onAdvance,
   advancePending,
 }) {
+
+  console.log(activeTrip)
   if (!activeTrip) return null;
 
   const stageConfig = {
@@ -318,7 +320,7 @@ export default function ActiveTripCard({
         <div className="atc-divider" />
         <div className="atc-stats">
           {[
-            { value: activeTrip.fareTotal, key: "Fare" },
+            { value: activeTrip.driverPayout, key: "Fare" },
             { value: `${activeTrip.tripDistanceMiles?.toFixed(1)} mi`, key: "Distance" },
             { value: `${activeTrip.tripDurationMin} min`, key: "Est. Time" },
           ].map((item, i) => (
