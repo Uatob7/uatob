@@ -256,7 +256,7 @@ function UploadBox({ label, hint, icon: Icon = Upload, uploaded, previewUrl, upl
         <input
           ref={inputRef}
           type="file"
-          accept="image/*,application/pdf"
+          accept=".jpg,.jpeg,.png,.webp,.pdf"
           style={{ display: "none" }}
           onChange={e => {
             const f = e.target.files?.[0];
@@ -526,6 +526,11 @@ function StepDocuments({ data, setData, errors, uid }) {
     setSlot(slot, { uploading: true, progress: 0, localPreview });
 
     try {
+      const allowedTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+      if (!allowedTypes.includes(file.type)) {
+        setSlot(slot, { uploading: false, progress: 0, localPreview: "" });
+        return;
+      }
       const ext  = file.name.split(".").pop();
       const path = `drivers/${uid}/documents/${slot}_${Date.now()}.${ext}`;
       const storageRef = ref(storage, path);
