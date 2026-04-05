@@ -257,6 +257,7 @@ function UploadBox({ label, hint, icon: Icon = Upload, uploaded, previewUrl, upl
           ref={inputRef}
           type="file"
           accept=".jpg,.jpeg,.png,.webp,.pdf"
+          capture={false}
           style={{ display: "none" }}
           onChange={e => {
             const f = e.target.files?.[0];
