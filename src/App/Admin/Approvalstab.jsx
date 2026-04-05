@@ -1,4 +1,54 @@
+0
+: 
+createdAt
+: 
+Timestamp {seconds: 1775337043, nanoseconds: 944000000}
+currentStep
+: 
+1
+email
+: 
+"tony200795@gmail.com"
+firstName
+: 
+"Anthony"
+id
+: 
+"3RjAcYUdDdVw6C59ejuQiqaWaI83"
+lastName
+: 
+"eugene"
+status
+: 
+"in_progress"
+uid
+: 
+"3RjAcYUdDdVw6C59ejuQiqaWaI83"
+updatedAt
+: 
+Timestamp {seconds: 1775337043, nanoseconds: 944000000}
+[[Prototype]]
+: 
+Object
+1
+: 
+{id: '5IUWVmreHsfcdANuAGiP3x1yOKj1', contact: {…}, uid: '5IUWVmreHsfcdANuAGiP3x1yOKj1', lastName: 'Herbert ', firstName: 'Jeffery ', …}
+2
+: 
+{id: 'Rwe7IjW5sRaZNb4dJkH9Vx2Uc2H3', email: 'Favored1now@outlook.com', currentStep: 1, createdAt: Timestamp, status: 'in_progress', …}
+3
+: 
+{id: 'zW6ixfoAC7bdHumBXEXAnQlKkIF2', uid: 'zW6ixfoAC7bdHumBXEXAnQlKkIF2', updatedAt: Timestamp, firstName: 'Fr', lastName: 'Fff', …}
+length
+: 
+4
+[[Prototype]]
+: 
+Array(0
+
+
 // src/App/UaTob/Admin/tabs/ApprovalsTab.jsx
+
 import { useState } from "react";
 import { Clock, CheckCircle, XCircle } from "lucide-react";
 import { C } from '@/App/Admin/Tokens';
@@ -17,7 +67,7 @@ const MOCK_PENDING = [
 
 export const MOCK_PENDING_COUNT = MOCK_PENDING.length;
 
-export function ApprovalsTab({ onToast }) {
+export function ApprovalsTab({approvals, onToast }) {
   const [items, setItems] = useState(MOCK_PENDING);
 
   const approve = id => {

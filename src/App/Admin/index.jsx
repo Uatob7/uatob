@@ -36,11 +36,11 @@ export default function UaTobAdminDashboard() {
   const toastRef = useRef(null);
 
   // 🔥 REAL DATA HOOK (you forgot to use it)
-  const { totalRides, loading: ridesLoading } = useTotalRides();
-
-
+    const { totalRides, loading: ridesLoading } = useTotalRides();
     const { fleet } = usePendingApprovals();
-    console.log(fleet);
+    const { approvals } = useApprovals();
+
+    console.log('approvals:', approvals);
 
 
   const { count, } = useActiveDrivers();
@@ -48,7 +48,6 @@ export default function UaTobAdminDashboard() {
 
    const { liveRides,  } = useLiveRides();
    const { drivers,  totalDrivers } = useFleetDrivers();
-  const { approvals,  totalApprovals } = useApprovals();
   const { analytics,  } = useAnalyticsData();
 
 
@@ -81,7 +80,7 @@ export default function UaTobAdminDashboard() {
       case "drivers":
         return <DriversTab fleet={fleet} onToast={showToast} />;
       case "approvals":
-        return <ApprovalsTab onToast={showToast} />;
+        return <ApprovalsTab approvals={approvals} onToast={showToast} />;
       case "analytics":
         return <AnalyticsTab totalRides={totalRides} />;
       default:

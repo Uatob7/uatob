@@ -16,7 +16,6 @@ export function useApprovals() {
     // 🔹 Adjust collection: could be "Drivers" or "Accounts"
     const approvalsQuery = query(
       collection(db, "Drivers"), // replace with "Accounts" if needed
-      where("status", "==", "pending")
     );
 
     const unsubscribe = onSnapshot(

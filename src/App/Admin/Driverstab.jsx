@@ -248,9 +248,3 @@ function DriverDetail({ driver: d, driverIdx, onBack, onToast }) {
     </div>
   );
 }
-Key changes:
-Data — MOCK_DRIVERS gone, everything reads from fleet prop. fullName() trims the padded strings from Firestore.
-Filter pills — now include in_progress (which is a real status in your data) and show live counts per filter.
-Driver card — shows email and timeAgo(createdAt) since you don't have rating/rides yet. Those slots are ready to populate once you start tracking them.
-Detail panel — three cards: info grid (email, phone, city, license), vehicle (make/model/color/plate/VIN), and a documents checklist showing each of the 4 required docs as ✓/✗.
-Actions — approve/reject now triggers on both pending and in_progress since your real data uses both for applicants.
