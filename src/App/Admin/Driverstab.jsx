@@ -1,148 +1,39 @@
-(4) [{…}, {…}, {…}, {…}]
-0
-: 
-{id: '3RjAcYUdDdVw6C59ejuQiqaWaI83', firstName: 'Anthony', currentStep: 1, lastName: 'eugene', createdAt: Timestamp, …}
-1
-: 
-contact
-: 
-{zip: '32832', address: '2456 lake Nona Dr ', city: 'Orlando ', state: 'FL', phone: '2392972761'}
-createdAt
-: 
-Timestamp {seconds: 1775337795, nanoseconds: 589000000}
-currentStep
-: 
-1
-documents
-: 
-{insurance: true, licenseFront: true, licenseNumber: 'H616423902610', profilePhoto: true, registration: true, …}
-email
-: 
-"j.c.herbert22@gmail.com"
-firstName
-: 
-"Jeffery "
-id
-: 
-"5IUWVmreHsfcdANuAGiP3x1yOKj1"
-lastName
-: 
-"Herbert "
-status
-: 
-"pending"
-uid
-: 
-"5IUWVmreHsfcdANuAGiP3x1yOKj1"
-updatedAt
-: 
-Timestamp {seconds: 1775337802, nanoseconds: 312000000}
-vehicle
-: 
-{plate: 'AJ58HN', color: 'Black ', model: 'Venza ', vin: 'JTEAAAAH5NJ118070', make: 'Toyota', …}
-[[Prototype]]
-: 
-Object
-2
-: 
-createdAt
-: 
-Timestamp {seconds: 1775336437, nanoseconds: 321000000}
-currentStep
-: 
-1
-email
-: 
-"Favored1now@outlook.com"
-firstName
-: 
-"Jose "
-id
-: 
-"Rwe7IjW5sRaZNb4dJkH9Vx2Uc2H3"
-lastName
-: 
-"Rios "
-status
-: 
-"in_progress"
-uid
-: 
-"Rwe7IjW5sRaZNb4dJkH9Vx2Uc2H3"
-updatedAt
-: 
-Timestamp {seconds: 1775336437, nanoseconds: 321000000}
-[[Prototype]]
-: 
-Object
-3
-: 
-createdAt
-: 
-Timestamp {seconds: 1775411103, nanoseconds: 584000000}
-currentStep
-: 
-1
-email
-: 
-"ff@live.com"
-firstName
-: 
-"Fr"
-id
-: 
-"zW6ixfoAC7bdHumBXEXAnQlKkIF2"
-lastName
-: 
-"Fff"
-status
-: 
-"in_progress"
-uid
-: 
-"zW6ixfoAC7bdHumBXEXAnQlKkIF2"
-updatedAt
-: 
-Timestamp {seconds: 1775411103, nanoseconds: 584000000}
-[[Prototype]]
-: 
-Object
-length
-: 
-4
-[[Prototype]]
-: 
-Array(0)
-
-
-
-// src/App/UaTob/Admin/tabs/DriversTab.jsx
 import { useState } from "react";
-import { Search, Bell, CheckCircle, XCircle, Ban, ChevronRight } from "lucide-react";
+import { Search, Bell, CheckCircle, XCircle, Ban, ChevronRight, FileText, Car } from "lucide-react";
 import { C, STATUS_CONFIG } from '@/App/Admin/Tokens';
-import { Avatar, StatusPill }  from '@/App/Admin/UI';
+import { Avatar, StatusPill } from '@/App/Admin/UI';
 
-// Replace with a useDrivers() Firestore hook when ready.
-// Firestore collection: `drivers`  (driver account docs)
-const MOCK_DRIVERS = [
-  { id:"d001", name:"Jerome T.",  rating:4.97, rides:312, status:"online",  earnings:148.20, joined:"Jan 2024" },
-  { id:"d002", name:"Leon A.",    rating:4.89, rides:204, status:"online",  earnings:94.80,  joined:"Mar 2024" },
-  { id:"d003", name:"Kira N.",    rating:4.95, rides:187, status:"offline", earnings:0,      joined:"Feb 2024" },
-  { id:"d004", name:"Tomás R.",   rating:4.82, rides:98,  status:"online",  earnings:76.40,  joined:"May 2024" },
-  { id:"d005", name:"Sam H.",     rating:4.91, rides:441, status:"offline", earnings:0,      joined:"Nov 2023" },
-  { id:"d006", name:"Aaliyah J.", rating:3.60, rides:23,  status:"pending", earnings:0,      joined:"Jun 2024" },
-];
+function timeAgo(ts) {
+  if (!ts) return "—";
+  const seconds = ts?.seconds ?? Math.floor(ts / 1000);
+  const diff = Math.floor(Date.now() / 1000) - seconds;
+  if (diff < 60)   return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
 
-export function DriversTab({ fleet, onToast }) {
+function fullName(d) {
+  return `${d.firstName?.trim() ?? ""} ${d.lastName?.trim() ?? ""}`.trim() || "Unknown";
+}
 
-  console.log(fleet);
+function docsComplete(documents = {}) {
+  const required = ["insurance", "licenseFront", "profilePhoto", "registration"];
+  const done = required.filter(k => documents[k] === true).length;
+  return `${done}/${required.length} docs`;
+}
+
+export function DriversTab({ fleet = [], onToast }) {
   const [search,   setSearch]   = useState("");
   const [filter,   setFilter]   = useState("all");
   const [selected, setSelected] = useState(null);
 
-  const filters  = ["all","online","offline","pending"];
-  const filtered = MOCK_DRIVERS.filter(d => {
-    const matchSearch = d.name.toLowerCase().includes(search.toLowerCase());
+  const filters  = ["all", "online", "offline", "pending", "in_progress"];
+
+  const filtered = fleet.filter(d => {
+    const name = fullName(d).toLowerCase();
+    const matchSearch = name.includes(search.toLowerCase()) ||
+                        d.email?.toLowerCase().includes(search.toLowerCase());
     const matchFilter = filter === "all" || d.status === filter;
     return matchSearch && matchFilter;
   });
@@ -151,7 +42,7 @@ export function DriversTab({ fleet, onToast }) {
     return (
       <DriverDetail
         driver={selected}
-        driverIdx={MOCK_DRIVERS.indexOf(selected)}
+        driverIdx={fleet.indexOf(selected)}
         onBack={() => setSelected(null)}
         onToast={onToast}
       />
@@ -185,13 +76,25 @@ export function DriversTab({ fleet, onToast }) {
               cursor: "pointer", whiteSpace: "nowrap", transition: "all .15s",
             }}
           >
-            {f.charAt(0).toUpperCase() + f.slice(1)}
+            {f === "in_progress" ? "In Progress" : f.charAt(0).toUpperCase() + f.slice(1)}
+            {/* count badge */}
+            <span style={{
+              marginLeft: 5, background: C.border, borderRadius: 100,
+              padding: "1px 6px", fontSize: 10,
+            }}>
+              {f === "all" ? fleet.length : fleet.filter(d => d.status === f).length}
+            </span>
           </button>
         ))}
       </div>
 
       {/* Driver list */}
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {filtered.length === 0 && (
+          <div style={{ textAlign: "center", padding: "32px 0", color: C.textMuted, fontSize: 13 }}>
+            No drivers found
+          </div>
+        )}
         {filtered.map((driver, i) => (
           <div
             key={driver.id}
@@ -201,7 +104,7 @@ export function DriversTab({ fleet, onToast }) {
           >
             <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ position: "relative" }}>
-                <Avatar name={driver.name} size={40} colorIdx={i} />
+                <Avatar name={fullName(driver)} size={40} colorIdx={i} />
                 <div style={{
                   position: "absolute", bottom: 0, right: 0,
                   width: 11, height: 11, borderRadius: "50%",
@@ -210,17 +113,14 @@ export function DriversTab({ fleet, onToast }) {
                 }} />
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 3 }}>{driver.name}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 3 }}>{fullName(driver)}</div>
                 <div style={{ display: "flex", gap: 10 }}>
-                  <span style={{ fontSize: 11, color: C.textMuted }}>★ {driver.rating}</span>
-                  <span style={{ fontSize: 11, color: C.textMuted }}>{driver.rides} rides</span>
+                  <span style={{ fontSize: 11, color: C.textMuted }}>{driver.email}</span>
                 </div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5 }}>
                 <StatusPill status={driver.status} />
-                {driver.earnings > 0 && (
-                  <span className="mono" style={{ fontSize: 11, color: C.green }}>${driver.earnings}</span>
-                )}
+                <span style={{ fontSize: 10, color: C.textMuted }}>{timeAgo(driver.createdAt)}</span>
               </div>
               <ChevronRight size={14} color={C.textDim} />
             </div>
@@ -233,6 +133,18 @@ export function DriversTab({ fleet, onToast }) {
 
 // ── Driver detail panel ───────────────────────────────────────────────
 function DriverDetail({ driver: d, driverIdx, onBack, onToast }) {
+  const name = fullName(d);
+  const docs = d.documents ?? {};
+  const vehicle = d.vehicle ?? {};
+  const contact = d.contact ?? {};
+
+  const docItems = [
+    { label: "Profile Photo",  done: docs.profilePhoto },
+    { label: "License Front",  done: docs.licenseFront },
+    { label: "Insurance",      done: docs.insurance },
+    { label: "Registration",   done: docs.registration },
+  ];
+
   return (
     <div style={{ padding: "0 16px 16px" }}>
       <button className="btn-ghost" onClick={onBack} style={{ marginBottom: 16, padding: "8px 14px" }}>
@@ -242,26 +154,71 @@ function DriverDetail({ driver: d, driverIdx, onBack, onToast }) {
       {/* Profile card */}
       <div className="card" style={{ padding: "20px", marginBottom: 14, boxShadow: "0 2px 12px rgba(0,0,0,.06)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
-          <Avatar name={d.name} size={52} colorIdx={driverIdx} />
+          <Avatar name={name} size={52} colorIdx={driverIdx} />
           <div>
-            <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 5 }}>{d.name}</div>
+            <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 5 }}>{name}</div>
             <StatusPill status={d.status} />
           </div>
         </div>
 
-        {/* Stats grid */}
+        {/* Info grid */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           {[
-            { label: "Rating",   value: `★ ${d.rating}` },
-            { label: "Rides",    value: d.rides },
-            { label: "Earnings", value: d.earnings > 0 ? `$${d.earnings}` : "—" },
-            { label: "Joined",   value: d.joined },
+            { label: "Email",   value: d.email ?? "—" },
+            { label: "Phone",   value: contact.phone ?? "—" },
+            { label: "City",    value: contact.city ? `${contact.city.trim()}, ${contact.state}` : "—" },
+            { label: "Joined",  value: timeAgo(d.createdAt) },
+            { label: "Docs",    value: docsComplete(docs) },
+            { label: "License", value: docs.licenseNumber ?? "—" },
           ].map(({ label, value }) => (
             <div key={label} style={{ background: C.surfaceHigh, borderRadius: 10, padding: "10px 12px", border: `1px solid ${C.border}` }}>
               <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 700, letterSpacing: ".5px", marginBottom: 3 }}>
                 {label.toUpperCase()}
               </div>
-              <div className="mono" style={{ fontSize: 15, fontWeight: 600 }}>{value}</div>
+              <div className="mono" style={{ fontSize: 13, fontWeight: 600, wordBreak: "break-all" }}>{value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Vehicle card */}
+      {vehicle.make && (
+        <div className="card" style={{ padding: "16px", marginBottom: 14, boxShadow: "0 1px 6px rgba(0,0,0,.05)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+            <Car size={14} color={C.green} />
+            <span style={{ fontSize: 13, fontWeight: 700 }}>Vehicle</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {[
+              { label: "Make",  value: vehicle.make },
+              { label: "Model", value: vehicle.model?.trim() },
+              { label: "Color", value: vehicle.color?.trim() },
+              { label: "Plate", value: vehicle.plate },
+              { label: "Year",  value: vehicle.year ?? "—" },
+              { label: "VIN",   value: vehicle.vin ?? "—" },
+            ].map(({ label, value }) => (
+              <div key={label} style={{ background: C.surfaceHigh, borderRadius: 8, padding: "8px 10px", border: `1px solid ${C.border}` }}>
+                <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 700, letterSpacing: ".5px", marginBottom: 2 }}>{label}</div>
+                <div style={{ fontSize: 12, fontWeight: 600 }}>{value ?? "—"}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Documents checklist */}
+      <div className="card" style={{ padding: "16px", marginBottom: 14, boxShadow: "0 1px 6px rgba(0,0,0,.05)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <FileText size={14} color={C.green} />
+          <span style={{ fontSize: 13, fontWeight: 700 }}>Documents</span>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {docItems.map(({ label, done }) => (
+            <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 13 }}>{label}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: done ? C.green : C.red }}>
+                {done ? "✓ Uploaded" : "✗ Missing"}
+              </span>
             </div>
           ))}
         </div>
@@ -269,12 +226,12 @@ function DriverDetail({ driver: d, driverIdx, onBack, onToast }) {
 
       {/* Actions */}
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {d.status === "pending" && (
+        {(d.status === "pending" || d.status === "in_progress") && (
           <>
-            <button className="btn-success" onClick={() => { onToast(`✅ ${d.name} approved`); onBack(); }}>
+            <button className="btn-success" onClick={() => { onToast(`✅ ${name} approved`); onBack(); }}>
               <CheckCircle size={15} /> Approve Driver
             </button>
-            <button className="btn-danger" onClick={() => { onToast(`❌ ${d.name} rejected`); onBack(); }}>
+            <button className="btn-danger" onClick={() => { onToast(`❌ ${name} rejected`); onBack(); }}>
               <XCircle size={15} /> Reject Application
             </button>
           </>
@@ -282,8 +239,8 @@ function DriverDetail({ driver: d, driverIdx, onBack, onToast }) {
         <button className="btn-ghost" onClick={() => onToast("Message sent")}>
           <Bell size={14} /> Send Notification
         </button>
-        {d.status !== "pending" && (
-          <button className="btn-danger" onClick={() => { onToast(`🚫 ${d.name} suspended`); onBack(); }}>
+        {d.status !== "pending" && d.status !== "in_progress" && (
+          <button className="btn-danger" onClick={() => { onToast(`🚫 ${name} suspended`); onBack(); }}>
             <Ban size={14} /> Suspend Driver
           </button>
         )}
@@ -291,3 +248,9 @@ function DriverDetail({ driver: d, driverIdx, onBack, onToast }) {
     </div>
   );
 }
+Key changes:
+Data — MOCK_DRIVERS gone, everything reads from fleet prop. fullName() trims the padded strings from Firestore.
+Filter pills — now include in_progress (which is a real status in your data) and show live counts per filter.
+Driver card — shows email and timeAgo(createdAt) since you don't have rating/rides yet. Those slots are ready to populate once you start tracking them.
+Detail panel — three cards: info grid (email, phone, city, license), vehicle (make/model/color/plate/VIN), and a documents checklist showing each of the 4 required docs as ✓/✗.
+Actions — approve/reject now triggers on both pending and in_progress since your real data uses both for applicants.
