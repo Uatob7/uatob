@@ -623,7 +623,7 @@ function OverviewTab({ account, uid, onTab }) {
         <div style={{ display: "flex", gap: 12 }}>
           {[
             { label: "Total Rides", value: completedRides.length, icon: Navigation },
-            { label: "Total Spent", value: `$${totalSpent.toFixed(0)}`, mono: true, icon: CreditCard },
+            { label: "Total Spent", value: `$${totalSpent.toFixed(2)}`, mono: true, icon: CreditCard },
             { label: "Status", value: "Active", color: T.green, icon: CheckCircle },
           ].map(({ label, value, mono, color, icon: Icon }) => (
             <div key={label} className="stat-chip">
