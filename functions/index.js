@@ -26,6 +26,7 @@ const { calcDriverDistance } = require("./drivers/calcDriverDistance");
 const { getDriverToPickup } = require("./drivers/getDriverToPickup");
 const { onDriverCreated } = require("./drivers/email/onDriverCreated");
 const { onDriverApplicationSubmitted } = require("./drivers/email/onDriverApplicationSubmitted");
+const { ApplicationApproved } = require("./drivers/email/ApplicationApproved");
 
 
 // Admin functions
@@ -59,3 +60,4 @@ exports.onDriverApplicationSubmitted = onDriverApplicationSubmitted;
 exports.onAccountCreatedNotifyAdmin = onAccountCreatedNotifyAdmin;
 exports.onDriverCreatedNotifyAdmin = onDriverCreatedNotifyAdmin;
 exports.onRideCreatedNotifyAdmin = onRideCreatedNotifyAdmin;
+exports.ApplicationApproved = ApplicationApproved;
