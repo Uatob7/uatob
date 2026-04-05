@@ -6,7 +6,7 @@ import {
   CheckCircle, XCircle, Navigation, Repeat,
   User, ArrowUpRight, Zap, ChevronLeft, Loader, Home
 } from "lucide-react";
-import { useRideHistory } from '@/App/UaTob/useRideHistory';
+import { useRideHistory } from '@/App/UaTob/useRideHistorys';
 
 // ── Brand (inlined) ───────────────────────────────────────────────────
 function UaTobIcon({ size = 46 }) {
