@@ -4,7 +4,7 @@ import {
   MapPin, Clock, Star, ChevronRight, LogOut,
   CreditCard, Bell, Shield, HelpCircle,
   CheckCircle, XCircle, Navigation, Repeat,
-  User, ArrowUpRight, Zap, ChevronLeft, Loader
+  User, ArrowUpRight, Zap, ChevronLeft, Loader, Home
 } from "lucide-react";
 import { useRideHistory } from '@/App/UaTob/useRideHistory';
 
@@ -66,12 +66,6 @@ const T = {
   amberLight:   "rgba(245,158,11,0.08)",
   blue:         "#3B82F6",
   blueLight:    "rgba(59,130,246,0.08)",
-  purple:       "#8B5CF6",
-  purpleLight:  "rgba(139,92,246,0.08)",
-  pink:         "#EC4899",
-  pinkLight:    "rgba(236,72,153,0.08)",
-  indigo:       "#6366F1",
-  indigoLight:  "rgba(99,102,241,0.08)",
 };
 
 // ── CSS ───────────────────────────────────────────────────────────────
@@ -79,7 +73,7 @@ const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
   * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
-  body { background:${T.bg}; color:${T.text}; font-family:'Inter',system-ui,sans-serif; }
+  body { background:#FAFBFC; color:#0F172A; font-family:'Inter',system-ui,sans-serif; }
   ::-webkit-scrollbar { width:0; height:0; }
 
   @keyframes slideUp  { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
@@ -87,50 +81,41 @@ const CSS = `
   @keyframes popIn    { 0%{opacity:0;transform:scale(.95) translateY(10px)} 100%{opacity:1;transform:scale(1) translateY(0)} }
   @keyframes pulse    { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.7;transform:scale(1.05)} }
   @keyframes spin     { to{transform:rotate(360deg)} }
-  @keyframes shimmer  { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
-  @keyframes glow     { 0%,100%{box-shadow:0 0 20px rgba(16,185,129,.3)} 50%{box-shadow:0 0 40px rgba(16,185,129,.6)} }
-  @keyframes float    { 0%,100%{transform:translateY(0px)} 50%{transform:translateY(-8px)} }
+  @keyframes fabPop   { 0%{transform:translateY(-50%) scale(.85)} 60%{transform:translateY(-50%) scale(1.08)} 100%{transform:translateY(-50%) scale(1)} }
+  @keyframes tabIn    { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
 
   .slide-up { animation: slideUp .5s cubic-bezier(.25,.46,.45,.94) forwards; }
   .mono     { font-family:'JetBrains Mono',monospace; }
 
   .card {
-    background:${T.surface};
-    border:1px solid ${T.border};
+    background:#FFFFFF;
+    border:1px solid #E2E8F0;
     border-radius:20px;
     overflow:hidden;
-    box-shadow:0 1px 3px rgba(0,0,0,.05), 0 1px 2px rgba(0,0,0,.1);
-    transition: all .3s cubic-bezier(.4,0,.2,1);
+    box-shadow:0 1px 3px rgba(0,0,0,.05), 0 1px 2px rgba(0,0,0,.06);
+    transition: box-shadow .3s ease;
   }
-  .card:hover { box-shadow:0 4px 12px rgba(0,0,0,.08), 0 2px 4px rgba(0,0,0,.12); }
+  .card:hover { box-shadow:0 4px 12px rgba(0,0,0,.08); }
 
   .hero-card {
-    background: linear-gradient(135deg, ${T.surface} 0%, ${T.surfaceHigh} 100%);
-    border:1px solid ${T.border};
+    background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%);
+    border:1px solid #E2E8F0;
     border-radius:24px;
     overflow:hidden;
-    box-shadow:0 8px 32px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.06);
+    box-shadow:0 8px 32px rgba(0,0,0,.08);
     position:relative;
-  }
-  .hero-card::before {
-    content:'';
-    position:absolute;
-    top:0; left:0; right:0; bottom:0;
-    background: linear-gradient(135deg, rgba(16,185,129,.02) 0%, rgba(139,92,246,.02) 100%);
-    pointer-events:none;
   }
 
   .row-item {
     display:flex; align-items:center; gap:16px;
     padding:16px 20px;
-    border-bottom:1px solid ${T.borderLight};
-    cursor:pointer; background:${T.surface};
-    transition: all .2s ease;
-    position:relative;
+    border-bottom:1px solid #F1F5F9;
+    cursor:pointer; background:#FFFFFF;
+    transition: background .15s ease;
   }
   .row-item:last-child { border-bottom:none; }
-  .row-item:hover { background:${T.surfaceHigh}; transform:translateX(2px); }
-  .row-item:active { background:${T.surfaceHigh}; transform:translateX(0); }
+  .row-item:hover { background:#F8FAFC; }
+  .row-item:active { background:#F1F5F9; }
 
   .pill {
     display:inline-flex; align-items:center; gap:6px;
@@ -139,128 +124,173 @@ const CSS = `
     text-transform:uppercase;
   }
 
+  /* ── NEW TAB BAR ── */
+  .tab-bar-outer {
+    position:fixed; bottom:0; left:0; right:0;
+    display:flex; justify-content:center;
+    padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
+    z-index:100;
+    pointer-events:none;
+  }
+
+  .tab-bar-pill {
+    display:flex; align-items:center;
+    background:rgba(255,255,255,0.97);
+    backdrop-filter:blur(20px);
+    -webkit-backdrop-filter:blur(20px);
+    border:1px solid rgba(226,232,240,0.8);
+    border-radius:32px;
+    padding:6px;
+    gap:2px;
+    box-shadow:
+      0 8px 32px rgba(0,0,0,.12),
+      0 2px 8px rgba(0,0,0,.06),
+      inset 0 1px 0 rgba(255,255,255,.9);
+    pointer-events:all;
+    position:relative;
+  }
+
   .tab-btn {
-    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
-    background:transparent; border:none; padding:10px 8px;
-    font-family:'Inter',system-ui,sans-serif; font-weight:600; font-size:11px; letter-spacing:.4px;
-    cursor:pointer; border-radius:14px; color:${T.textDim};
-    transition: all .3s cubic-bezier(.4,0,.2,1); position:relative; overflow:hidden;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:3px; padding:8px 16px; min-width:64px;
+    border:none; background:transparent; cursor:pointer;
+    border-radius:26px;
+    font-family:'Inter',system-ui,sans-serif;
+    font-size:10px; font-weight:600; letter-spacing:.3px; text-transform:uppercase;
+    color:#94A3B8;
+    transition: color .25s ease, background .25s ease;
+    position:relative;
   }
-  .tab-btn::before {
-    content:''; position:absolute; bottom:0; left:0; right:0;
-    height:2px; background: linear-gradient(90deg, ${T.green} 0%, ${T.purple} 100%);
-    transform:scaleX(0); transform-origin:center;
-    transition: transform .3s cubic-bezier(.4,0,.2,1);
+  .tab-btn .tab-icon {
+    display:flex; align-items:center; justify-content:center;
+    width:32px; height:22px;
+    transition: transform .25s cubic-bezier(.34,1.56,.64,1);
   }
-  .tab-btn::after {
-    content:''; position:absolute; inset:0; border-radius:14px;
-    background: linear-gradient(135deg, ${T.green}08 0%, ${T.purple}08 100%);
-    opacity:0; transition:opacity .3s ease;
-  }
-  .tab-btn:hover {
-    color:${T.textMuted};
-  }
-  .tab-btn:hover::after { opacity:1; }
+  .tab-btn:hover { color:#64748B; }
+  .tab-btn:hover .tab-icon { transform:translateY(-1px); }
+
   .tab-btn.active {
-    color:${T.text}; font-weight:700;
+    background: linear-gradient(135deg, rgba(16,185,129,0.1) 0%, rgba(5,150,105,0.06) 100%);
+    color:#059669;
   }
-  .tab-btn.active::before { transform:scaleX(1); }
-  .tab-btn.active::after { opacity:1; }
+  .tab-btn.active .tab-icon {
+    transform:translateY(-2px) scale(1.1);
+  }
+  .tab-btn.active .tab-label {
+    opacity:1; transform:translateY(0);
+  }
+  .tab-label {
+    opacity:0; transform:translateY(2px);
+    transition: opacity .2s ease, transform .2s ease;
+    line-height:1;
+  }
+  .tab-btn.active .tab-label { opacity:1; transform:translateY(0); }
+
+  /* FAB */
+  .tab-fab {
+    position:relative;
+    width:52px; height:52px; border-radius:50%;
+    background:linear-gradient(145deg, #22C55E 0%, #16A34A 50%, #15803D 100%);
+    border:3px solid #fff;
+    box-shadow:
+      0 6px 20px rgba(16,185,129,.45),
+      0 2px 6px rgba(0,0,0,.12),
+      inset 0 1px 0 rgba(255,255,255,.25);
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    transform:translateY(-8px);
+    transition: transform .2s cubic-bezier(.34,1.56,.64,1), box-shadow .2s ease;
+    flex-shrink:0;
+    margin:0 4px;
+  }
+  .tab-fab:hover {
+    transform:translateY(-11px);
+    box-shadow:
+      0 10px 28px rgba(16,185,129,.55),
+      0 4px 8px rgba(0,0,0,.14),
+      inset 0 1px 0 rgba(255,255,255,.3);
+  }
+  .tab-fab:active {
+    transform:translateY(-6px);
+    box-shadow:
+      0 4px 14px rgba(16,185,129,.4),
+      0 2px 4px rgba(0,0,0,.1);
+  }
 
   .stat-chip {
-    flex:1; background:${T.surface};
-    border:1px solid ${T.border};
+    flex:1; background:#FFFFFF;
+    border:1px solid #E2E8F0;
     border-radius:16px; padding:16px 14px;
     text-align:center;
     box-shadow:0 1px 3px rgba(0,0,0,.05);
-    transition: all .3s cubic-bezier(.4,0,.2,1);
+    transition: transform .2s ease, box-shadow .2s ease;
     position:relative; overflow:hidden;
-  }
-  .stat-chip::before {
-    content:''; position:absolute; top:0; right:0; width:60px; height:60px;
-    background: linear-gradient(135deg, rgba(16,185,129,.05) 0%, rgba(139,92,246,.05) 100%);
-    border-radius:50%; transform:translate(20px,-20px);
   }
   .stat-chip:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,.08); }
 
   .action-btn {
     display:flex; flex-direction:column; align-items:center; gap:8px;
     padding:16px 12px; border-radius:18px;
-    border:1px solid ${T.border};
-    background:${T.surface};
+    border:1px solid #E2E8F0;
+    background:#FFFFFF;
     cursor:pointer; flex:1;
     box-shadow:0 1px 3px rgba(0,0,0,.05);
-    transition: all .3s cubic-bezier(.4,0,.2,1);
-    position:relative; overflow:hidden;
-  }
-  .action-btn::before {
-    content:''; position:absolute; top:0; left:0; right:0; bottom:0;
-    background: linear-gradient(135deg, rgba(16,185,129,.02) 0%, rgba(139,92,246,.02) 100%);
-    opacity:0; transition:opacity .3s ease;
+    transition: transform .2s ease, box-shadow .2s ease;
+    font-family:'Inter',system-ui,sans-serif;
   }
   .action-btn:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,0,0,.1); }
-  .action-btn:hover::before { opacity:1; }
   .action-btn:active { transform:translateY(-1px); }
 
   .back-btn {
     display:inline-flex; align-items:center; gap:8px;
-    background:${T.surface}; border:1px solid ${T.border};
+    background:#FFFFFF; border:1px solid #E2E8F0;
     border-radius:14px; padding:10px 16px;
     font-family:'Inter',system-ui,sans-serif;
-    font-size:14px; font-weight:600; color:${T.text};
+    font-size:14px; font-weight:600; color:#0F172A;
     cursor:pointer; margin-bottom:20px;
     box-shadow:0 1px 3px rgba(0,0,0,.05);
-    transition: all .25s ease;
+    transition: background .15s ease, transform .15s ease;
   }
-  .back-btn:hover { background:${T.surfaceHigh}; transform:translateX(-2px); }
-  .back-btn:active { background:${T.surfaceHigh}; transform:translateX(0); }
+  .back-btn:hover { background:#F8FAFC; transform:translateX(-2px); }
+  .back-btn:active { background:#F1F5F9; }
 
   .primary-btn {
     width:100%; padding:16px;
-    background: linear-gradient(135deg, ${T.green} 0%, #059669 50%, ${T.purple} 100%);
+    background:linear-gradient(135deg, #22C55E 0%, #16A34A 60%, #15803D 100%);
     color:#fff; border:none; border-radius:16px;
     font-family:'Inter',system-ui,sans-serif;
-    font-size:16px; font-weight:700;
+    font-size:15px; font-weight:700;
     cursor:pointer;
     box-shadow:0 4px 16px rgba(16,185,129,.3);
     display:flex; align-items:center; justify-content:center; gap:10px;
-    transition: all .3s cubic-bezier(.4,0,.2,1);
-    position:relative; overflow:hidden;
+    transition: transform .2s ease, box-shadow .2s ease;
   }
-  .primary-btn::before {
-    content:''; position:absolute; top:0; left:-100%; width:100%; height:100%;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,.2), transparent);
-    transition: left .5s ease;
-  }
-  .primary-btn:hover::before { left:100%; }
-  .primary-btn:hover { transform:translateY(-2px); box-shadow:0 8px 32px rgba(16,185,129,.4); }
+  .primary-btn:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(16,185,129,.4); }
   .primary-btn:active { transform:translateY(0); }
 
   .ghost-btn {
     width:100%; padding:14px;
-    background:${T.surface}; color:${T.text};
-    border:1px solid ${T.border}; border-radius:16px;
+    background:#FFFFFF; color:#0F172A;
+    border:1px solid #E2E8F0; border-radius:16px;
     font-family:'Inter',system-ui,sans-serif;
-    font-size:15px; font-weight:600;
+    font-size:14px; font-weight:600;
     cursor:pointer;
     display:flex; align-items:center; justify-content:center; gap:10px;
-    transition: all .25s ease;
+    transition: background .15s ease, box-shadow .15s ease;
   }
-  .ghost-btn:hover { background:${T.surfaceHigh}; transform:translateY(-1px); box-shadow:0 4px 12px rgba(0,0,0,.08); }
-  .ghost-btn:active { background:${T.surfaceHigh}; transform:translateY(0); }
+  .ghost-btn:hover { background:#F8FAFC; box-shadow:0 2px 8px rgba(0,0,0,.06); }
+  .ghost-btn:active { background:#F1F5F9; }
 
   .spinner {
     width:20px; height:20px;
-    border:2px solid ${T.border};
-    border-top-color:${T.green};
+    border:2px solid #E2E8F0;
+    border-top-color:#10B981;
     border-radius:50%;
     animation:spin .8s linear infinite;
   }
 `;
 
 // ── Helpers ───────────────────────────────────────────────────────────
-
-/** Derive initials from any name string */
 function getInitials(name) {
   if (!name) return "?";
   const parts = name.trim().split(/\s+/);
@@ -268,7 +298,6 @@ function getInitials(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-/** Format a Firestore Timestamp (or JS Date) as "Month YYYY" */
 function formatJoined(ts) {
   if (!ts) return "—";
   const date = ts.toDate ? ts.toDate() : new Date(ts);
@@ -362,181 +391,72 @@ function ActiveRideBanner({ ride, onPress }) {
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{
-            width: 8, height: 8, borderRadius: "50%", background: "#fff",
-            animation: "pulse 1.4s infinite",
-          }} />
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff", animation: "pulse 1.4s infinite" }} />
           <div>
-            <div style={{ fontSize: 11, color: "rgba(255,255,255,.75)", fontWeight: 700, letterSpacing: ".5px", textTransform: "uppercase" }}>
-              Active Ride
-            </div>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,.75)", fontWeight: 700, letterSpacing: ".5px", textTransform: "uppercase" }}>Active Ride</div>
             <div style={{ fontSize: 14, fontWeight: 800, color: "#fff" }}>{statusLabel}</div>
           </div>
         </div>
         <div style={{ textAlign: "right" }}>
-          <div className="mono" style={{ fontSize: 17, fontWeight: 700, color: "#fff" }}>
-            ${ride.fareTotal?.toFixed(2) ?? "—"}
-          </div>
+          <div className="mono" style={{ fontSize: 17, fontWeight: 700, color: "#fff" }}>${ride.fareTotal?.toFixed(2) ?? "—"}</div>
           <div style={{ fontSize: 11, color: "rgba(255,255,255,.7)" }}>{ride.rideLabel}</div>
         </div>
       </div>
       <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,.2)", fontSize: 12, color: "rgba(255,255,255,.85)", display: "flex", alignItems: "center", gap: 6 }}>
         <Navigation size={11} />
-        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {ride.dropoff ?? "—"}
-        </span>
+        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ride.dropoff ?? "—"}</span>
       </div>
     </div>
   );
 }
 
-// ── RIDE DETAIL VIEW ──────────────────────────────────────────────
+// ── RIDE DETAIL VIEW ──────────────────────────────────────────────────
 function RideDetail({ ride, onBack }) {
-  const formatTime = (minutes) => {
-    if (!minutes) return "—";
-    if (minutes < 60) return `${minutes}m`;
-    const hrs = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return `${hrs}h ${mins}m`;
-  };
-
-  const formatDate = (ts) => {
-    if (!ts) return "—";
-    const date = ts.toDate ? ts.toDate() : new Date(ts);
-    return date.toLocaleDateString("en-US", { 
-      weekday: "short", 
-      month: "short", 
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit"
-    });
-  };
-
   const fareTotal = ride.fareTotal ?? ride.fare ?? 0;
   const tripDistance = ride.tripDistanceMiles ?? (ride.miles ? parseFloat(ride.miles) : null);
   const tripDuration = ride.tripDurationMin ?? parseInt(ride.duration);
 
   return (
     <div style={{ padding: "0 18px 32px", animation: "popIn .3s cubic-bezier(.34,1.2,.64,1)" }}>
-      <button className="back-btn" onClick={onBack}>
-        <ChevronLeft size={15} /> Back to trips
-      </button>
+      <button className="back-btn" onClick={onBack}><ChevronLeft size={15} /> Back to trips</button>
 
-      {/* Header card with gradient */}
-      <div className="card" style={{ padding: "24px", marginBottom: 20, position: "relative", overflow: "hidden" }}>
-        <div style={{
-          position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-          background: `linear-gradient(135deg, ${ride.status === "completed" ? T.greenLight : T.redLight} 0%, ${T.surfaceHigh} 100%)`,
-          opacity: 0.5, pointerEvents: "none"
-        }} />
-        
-        <div style={{ position: "relative", zIndex: 1 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-            <div>
-              <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 700, letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 8 }}>
-                {formatDate(ride.createdAt || ride.date)}
-              </div>
-              <RideStatusPill status={ride.status} />
-              {ride.rideLabel && ride.rideLabel !== "—" && (
-                <span className="pill" style={{ background: T.surfaceHigh, color: T.textMuted, marginLeft: 8, marginTop: 8 }}>
-                  {ride.rideLabel}
-                </span>
-              )}
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 700, letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 4 }}>
-                Total Fare
-              </div>
-              <div className="mono" style={{ fontSize: 32, fontWeight: 800, color: ride.status === "completed" ? T.green : T.red }}>
-                ${fareTotal.toFixed(2)}
-              </div>
-            </div>
+      <div className="card" style={{ padding: "24px", marginBottom: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+          <div>
+            <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 700, letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 8 }}>{ride.date}</div>
+            <RideStatusPill status={ride.status} />
+            {ride.rideLabel && ride.rideLabel !== "—" && (
+              <span className="pill" style={{ background: T.surfaceHigh, color: T.textMuted, marginLeft: 8 }}>{ride.rideLabel}</span>
+            )}
           </div>
-
-          {/* Route visualization */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 12, height: 12, borderRadius: "50%", background: T.text, flexShrink: 0, boxShadow: `0 0 0 3px ${T.surfaceHigh}` }} />
-              <div style={{ fontSize: 15, fontWeight: 700, color: T.text, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {ride.pickup || ride.from}
-              </div>
-            </div>
-            <div style={{ width: 2, height: 28, background: `linear-gradient(180deg, ${T.border} 0%, transparent 100%)`, marginLeft: 5, marginTop: 6, marginBottom: 6, opacity: 0.6 }} />
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 12, height: 12, borderRadius: "50%", background: T.green, flexShrink: 0, boxShadow: `0 0 0 3px ${T.greenLight}` }} />
-              <div style={{ fontSize: 15, fontWeight: 700, color: T.text, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {ride.dropoff || ride.to}
-              </div>
-            </div>
+          <div className="mono" style={{ fontSize: 32, fontWeight: 800, color: ride.status === "completed" ? T.green : T.red }}>${fareTotal.toFixed(2)}</div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 12, height: 12, borderRadius: "50%", background: T.text, flexShrink: 0 }} />
+            <div style={{ fontSize: 15, fontWeight: 700 }}>{ride.pickup || ride.from}</div>
+          </div>
+          <div style={{ width: 2, height: 28, background: T.border, marginLeft: 5, marginTop: 4, marginBottom: 4 }} />
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 12, height: 12, borderRadius: "50%", background: T.green, flexShrink: 0 }} />
+            <div style={{ fontSize: 15, fontWeight: 700 }}>{ride.dropoff || ride.to}</div>
           </div>
         </div>
       </div>
 
-      {/* Trip details grid */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 20 }}>
         {[
           { label: "Distance", value: tripDistance ? `${tripDistance.toFixed(1)} mi` : "—" },
-          { label: "Duration", value: formatTime(tripDuration) },
-          { label: "Surge", value: ride.surgeMultiplier && ride.surgeMultiplier > 1 ? `${ride.surgeMultiplier}x` : "None" },
+          { label: "Duration", value: tripDuration ? `${tripDuration}m` : "—" },
+          { label: "Surge", value: ride.surgeMultiplier > 1 ? `${ride.surgeMultiplier}x` : "None" },
         ].map(({ label, value }) => (
           <div key={label} className="stat-chip">
             <div style={{ fontSize: 10, color: T.textMuted, fontWeight: 700, letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 6 }}>{label}</div>
-            <div className="mono" style={{ fontSize: 16, fontWeight: 700, color: T.text }}>
-              {value}
-            </div>
+            <div className="mono" style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{value}</div>
           </div>
         ))}
       </div>
 
-      {/* Fare breakdown */}
-      <div className="card" style={{ padding: "18px 20px", marginBottom: 20 }}>
-        <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 700, letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 14 }}>
-          Fare Breakdown
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {[
-            { label: "Base Fare", value: `$${(fareTotal - (ride.platformFee || 0)).toFixed(2)}`, color: T.text },
-            { label: "Platform Fee", value: `$${(ride.platformFee ?? 0).toFixed(2)}`, color: T.textMuted, size: 13 },
-            { label: "Total", value: `$${fareTotal.toFixed(2)}`, color: T.green, weight: 800, size: 16 },
-          ].map(({ label, value, color, weight, size }, i) => (
-            <div key={label} style={{
-              display: "flex", justifyContent: "space-between", alignItems: "center",
-              paddingBottom: i < 2 ? 10 : 0,
-              borderBottom: i < 2 ? `1px solid ${T.borderLight}` : "none"
-            }}>
-              <span style={{ fontSize: 13, color: T.textMuted, fontWeight: 600 }}>{label}</span>
-              <span className="mono" style={{ fontSize: size ?? 14, fontWeight: weight ?? 700, color }}>
-                {value}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Payment & location info */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
-        <div className="card" style={{ padding: "16px 18px" }}>
-          <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 700, letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 8 }}>
-            Payment Method
-          </div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: T.text, textTransform: "capitalize" }}>
-            {ride.paymentMethod ?? "—"}
-          </div>
-          <div style={{ fontSize: 11, color: T.textMuted, marginTop: 4 }}>
-            {ride.paymentStatus === "succeeded" ? "✓ Completed" : ride.paymentStatus ?? "—"}
-          </div>
-        </div>
-        <div className="card" style={{ padding: "16px 18px" }}>
-          <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 700, letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 8 }}>
-            Ride Type
-          </div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: T.text, textTransform: "capitalize" }}>
-            {ride.rideLabel ?? ride.rideType ?? "—"}
-          </div>
-        </div>
-      </div>
-
-      {/* Driver info */}
       {ride.driver !== "—" && (
         <div className="card" style={{ padding: "16px 18px", marginBottom: 20 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -554,16 +474,9 @@ function RideDetail({ ride, onBack }) {
         </div>
       )}
 
-      {/* Actions */}
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {ride.status === "completed" && (
-          <button className="primary-btn">
-            <Repeat size={15} /> Book Again
-          </button>
-        )}
-        <button className="ghost-btn">
-          <HelpCircle size={14} /> Get Help with This Trip
-        </button>
+        {ride.status === "completed" && <button className="primary-btn"><Repeat size={15} /> Book Again</button>}
+        <button className="ghost-btn"><HelpCircle size={14} /> Get Help with This Trip</button>
       </div>
     </div>
   );
@@ -578,64 +491,25 @@ function TripsTab({ uid, onBookRide }) {
 
   return (
     <div style={{ padding: "0 18px 32px" }}>
-      <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 700, letterSpacing: ".6px", textTransform: "uppercase", marginBottom: 12 }}>
-        Recent Trips
-      </div>
-
-      {loading && (
-        <div style={{ display: "flex", justifyContent: "center", padding: "40px 0" }}>
-          <div className="spinner" />
-        </div>
-      )}
-
-      {error && (
-        <div style={{ background: T.redLight, border: `1px solid rgba(220,38,38,.2)`, borderRadius: 14, padding: "14px 16px", fontSize: 13, color: T.red, fontWeight: 600 }}>
-          {error}
-        </div>
-      )}
-
+      <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 700, letterSpacing: ".6px", textTransform: "uppercase", marginBottom: 12 }}>Recent Trips</div>
+      {loading && <div style={{ display: "flex", justifyContent: "center", padding: "40px 0" }}><div className="spinner" /></div>}
+      {error && <div style={{ background: T.redLight, border: `1px solid rgba(220,38,38,.2)`, borderRadius: 14, padding: "14px 16px", fontSize: 13, color: T.red, fontWeight: 600 }}>{error}</div>}
       {!loading && !error && rides.length === 0 && (
-        <EmptyState
-          icon={Clock}
-          title="No trips yet"
-          sub="Your completed rides will appear here."
-          action={onBookRide}
-          actionLabel="Book Your First Ride"
-        />
+        <EmptyState icon={Clock} title="No trips yet" sub="Your completed rides will appear here." action={onBookRide} actionLabel="Book Your First Ride" />
       )}
-
       {!loading && rides.length > 0 && (
         <div className="card">
           {rides.map((ride, i) => (
-            <div
-              key={ride.id}
-              className="row-item"
-              onClick={() => setSelected(ride)}
-              style={{ borderBottom: i < rides.length - 1 ? `1px solid ${T.border}` : "none" }}
-            >
-              <div style={{
-                width: 38, height: 38, borderRadius: 11, flexShrink: 0,
-                background: ride.status === "completed" ? T.greenLight : T.redLight,
-                border: `1.5px solid ${ride.status === "completed" ? T.greenBorder : "rgba(220,38,38,.18)"}`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                {ride.status === "completed"
-                  ? <Navigation size={15} color={T.green} />
-                  : <XCircle size={15} color={T.red} />
-                }
+            <div key={ride.id} className="row-item" onClick={() => setSelected(ride)} style={{ borderBottom: i < rides.length - 1 ? `1px solid ${T.border}` : "none" }}>
+              <div style={{ width: 38, height: 38, borderRadius: 11, flexShrink: 0, background: ride.status === "completed" ? T.greenLight : T.redLight, border: `1.5px solid ${ride.status === "completed" ? T.greenBorder : "rgba(220,38,38,.18)"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {ride.status === "completed" ? <Navigation size={15} color={T.green} /> : <XCircle size={15} color={T.red} />}
               </div>
-
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {ride.from} → {ride.to}
-                </div>
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ride.from} → {ride.to}</div>
                 <div style={{ fontSize: 11, color: T.textMuted }}>{ride.date}</div>
               </div>
-
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
-                <span className="mono" style={{ fontSize: 13, fontWeight: 600, color: ride.status === "cancelled" ? T.textMuted : T.text }}>
-                  ${ride.fare.toFixed(2)}
-                </span>
+                <span className="mono" style={{ fontSize: 13, fontWeight: 600, color: ride.status === "cancelled" ? T.textMuted : T.text }}>${ride.fare.toFixed(2)}</span>
                 <ChevronRight size={13} color={T.textDim} />
               </div>
             </div>
@@ -650,9 +524,7 @@ function TripsTab({ uid, onBookRide }) {
 function PaymentTab({ onToast }) {
   return (
     <div style={{ padding: "0 18px 32px" }}>
-      <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 700, letterSpacing: ".6px", textTransform: "uppercase", marginBottom: 12 }}>
-        Saved Cards
-      </div>
+      <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 700, letterSpacing: ".6px", textTransform: "uppercase", marginBottom: 12 }}>Saved Cards</div>
       <div className="card" style={{ marginBottom: 20 }}>
         <EmptyState icon={CreditCard} title="No cards saved" sub="Add a card to pay for rides faster." />
       </div>
@@ -671,21 +543,15 @@ function SettingsTab({ account, onToast, onSignOut }) {
   const joined   = formatJoined(account?.createdAt);
 
   const sections = [
-    {
-      title: "Account",
-      rows: [
-        { icon: User,    label: "Edit Profile",       sub: "Name, phone, email"      },
-        { icon: Bell,    label: "Notifications",      sub: "Ride alerts, promotions"  },
-        { icon: Shield,  label: "Privacy & Security", sub: "Password, data"           },
-      ],
-    },
-    {
-      title: "Support",
-      rows: [
-        { icon: HelpCircle, label: "Help Center",  sub: "FAQs and support" },
-        { icon: Star,       label: "Rate the App", sub: "Leave a review"   },
-      ],
-    },
+    { title: "Account", rows: [
+      { icon: User,    label: "Edit Profile",       sub: "Name, phone, email"     },
+      { icon: Bell,    label: "Notifications",      sub: "Ride alerts, promotions" },
+      { icon: Shield,  label: "Privacy & Security", sub: "Password, data"          },
+    ]},
+    { title: "Support", rows: [
+      { icon: HelpCircle, label: "Help Center",  sub: "FAQs and support" },
+      { icon: Star,       label: "Rate the App", sub: "Leave a review"   },
+    ]},
   ];
 
   return (
@@ -698,25 +564,13 @@ function SettingsTab({ account, onToast, onSignOut }) {
           <div style={{ fontSize: 11, color: T.textDim, marginTop: 2 }}>Member since {joined}</div>
         </div>
       </div>
-
       {sections.map(({ title, rows }) => (
         <div key={title} style={{ marginBottom: 18 }}>
-          <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 700, letterSpacing: ".6px", textTransform: "uppercase", marginBottom: 10 }}>
-            {title}
-          </div>
+          <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 700, letterSpacing: ".6px", textTransform: "uppercase", marginBottom: 10 }}>{title}</div>
           <div className="card">
             {rows.map(({ icon: Icon, label, sub }, i) => (
-              <div
-                key={label}
-                className="row-item"
-                onClick={() => onToast(`${label} coming soon`)}
-                style={{ borderBottom: i < rows.length - 1 ? `1px solid ${T.border}` : "none" }}
-              >
-                <div style={{
-                  width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                  background: T.surfaceHigh, border: `1px solid ${T.border}`,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
+              <div key={label} className="row-item" onClick={() => onToast(`${label} coming soon`)} style={{ borderBottom: i < rows.length - 1 ? `1px solid ${T.border}` : "none" }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, background: T.surfaceHigh, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Icon size={16} color={T.textMuted} />
                 </div>
                 <div style={{ flex: 1 }}>
@@ -729,7 +583,6 @@ function SettingsTab({ account, onToast, onSignOut }) {
           </div>
         </div>
       ))}
-
       <button className="ghost-btn" onClick={onSignOut} style={{ color: T.red, borderColor: "rgba(220,38,38,.2)" }}>
         <LogOut size={15} /> Sign Out
       </button>
@@ -752,76 +605,49 @@ function OverviewTab({ account, uid, onTab }) {
 
   return (
     <div style={{ padding: "0 18px 32px" }}>
-
       {/* Hero card */}
-      <div className="hero-card" style={{ padding: "24px", marginBottom: 20, position: "relative" }}>
-        <div style={{
-          position: "absolute", top: 0, left: 0, right: 0, height: 6,
-          background: T.greenGradient,
-          borderRadius: "24px 24px 0 0",
-        }} />
-        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 22, position: "relative", zIndex: 1 }}>
+      <div className="hero-card" style={{ padding: "24px", marginBottom: 20 }}>
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 5, background: T.greenGradient, borderRadius: "24px 24px 0 0" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 22 }}>
           <div style={{ position: "relative" }}>
             <Avatar initials={initials} size={60} />
-            <div style={{
-              position: "absolute", bottom: 0, right: 0,
-              width: 18, height: 18, borderRadius: "50%",
-              background: T.green, border: `3px solid ${T.surface}`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              animation: "pulse 2s infinite",
-            }}>
+            <div style={{ position: "absolute", bottom: 0, right: 0, width: 18, height: 18, borderRadius: "50%", background: T.green, border: `3px solid ${T.surface}`, display: "flex", alignItems: "center", justifyContent: "center", animation: "pulse 2s infinite" }}>
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff" }} />
             </div>
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: "-0.5px", marginBottom: 4, color: T.text }}>
-              Welcome back, {firstName}!
-            </div>
-            <div style={{ fontSize: 13, color: T.textMuted, fontWeight: 500 }}>Rider since {joined}</div>
+            <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: "-0.5px", marginBottom: 4 }}>Welcome back, {firstName}!</div>
+            <div style={{ fontSize: 13, color: T.textMuted }}>Rider since {joined}</div>
           </div>
         </div>
-
-        <div style={{ display: "flex", gap: 12, position: "relative", zIndex: 1 }}>
+        <div style={{ display: "flex", gap: 12 }}>
           {[
-            { label: "Total Rides", value: completedRides.length, mono: false, icon: Navigation },
+            { label: "Total Rides", value: completedRides.length, icon: Navigation },
             { label: "Total Spent", value: `$${totalSpent.toFixed(0)}`, mono: true, icon: CreditCard },
-            { label: "Status", value: "Active Rider", mono: false, color: T.green, icon: CheckCircle },
+            { label: "Status", value: "Active", color: T.green, icon: CheckCircle },
           ].map(({ label, value, mono, color, icon: Icon }) => (
-            <div key={label} className="stat-chip" style={{ position: "relative", overflow: "hidden" }}>
-              <div style={{
-                position: "absolute", top: 0, right: 0, width: 40, height: 40,
-                background: `${color || T.green}08`, borderRadius: "50%",
-                transform: "translate(10px, -10px)"
-              }} />
-              <Icon size={16} color={color || T.green} style={{ marginBottom: 6, position: "relative", zIndex: 1 }} />
-              <div style={{ fontSize: 10, color: T.textMuted, fontWeight: 700, letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 6 }}>{label}</div>
-              <div className={mono ? "mono" : undefined} style={{ fontSize: 18, fontWeight: 800, color: color || T.text, letterSpacing: mono ? "-0.5px" : "-0.3px" }}>
-                {value}
-              </div>
+            <div key={label} className="stat-chip">
+              <Icon size={15} color={color || T.green} style={{ marginBottom: 5 }} />
+              <div style={{ fontSize: 10, color: T.textMuted, fontWeight: 700, letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 5 }}>{label}</div>
+              <div className={mono ? "mono" : undefined} style={{ fontSize: 17, fontWeight: 800, color: color || T.text }}>{value}</div>
             </div>
           ))}
         </div>
       </div>
 
       {/* Quick actions */}
-      <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 700, letterSpacing: ".8px", textTransform: "uppercase", marginBottom: 12 }}>
-        Quick Actions
-      </div>
+      <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 700, letterSpacing: ".8px", textTransform: "uppercase", marginBottom: 12 }}>Quick Actions</div>
       <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
         {[
           { icon: Navigation, label: "Book a Ride", color: T.green, bg: T.greenLight, action: () => onTab("book") },
-          { icon: Clock, label: "My Trips", color: T.blue, bg: T.blueLight, action: () => onTab("trips") },
-          { icon: CreditCard, label: "Payment", color: T.amber, bg: T.amberLight, action: () => onTab("payment") },
+          { icon: Clock,      label: "My Trips",    color: T.blue,  bg: T.blueLight,  action: () => onTab("trips") },
+          { icon: CreditCard, label: "Payment",     color: T.amber, bg: T.amberLight, action: () => onTab("payment") },
         ].map(({ icon: Icon, label, color, bg, action }) => (
           <button key={label} className="action-btn" onClick={action} style={{ minHeight: 80 }}>
-            <div style={{
-              width: 44, height: 44, borderRadius: 14, background: bg,
-              border: `2px solid ${color}20`, display: "flex", alignItems: "center", justifyContent: "center",
-              boxShadow: `0 2px 8px ${color}15`
-            }}>
+            <div style={{ width: 44, height: 44, borderRadius: 14, background: bg, border: `2px solid ${color}20`, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Icon size={20} color={color} />
             </div>
-            <span style={{ fontSize: 12, fontWeight: 700, color: T.text, textAlign: "center", lineHeight: 1.3 }}>{label}</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: T.text, textAlign: "center", lineHeight: 1.3 }}>{label}</span>
           </button>
         ))}
       </div>
@@ -829,37 +655,21 @@ function OverviewTab({ account, uid, onTab }) {
       {/* Last ride */}
       {lastRide && (
         <>
-          <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 700, letterSpacing: ".8px", textTransform: "uppercase", marginBottom: 12 }}>
-            Last Trip
-          </div>
-          <div className="card" style={{ padding: "20px", marginBottom: 24, cursor: "pointer", position: "relative", overflow: "hidden" }} onClick={() => onTab("trips")}>
-            <div style={{
-              position: "absolute", top: 0, right: 0, width: 60, height: 60,
-              background: T.greenLight, borderRadius: "50%",
-              transform: "translate(20px, -20px)", opacity: 0.6
-            }} />
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14, position: "relative", zIndex: 1 }}>
+          <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 700, letterSpacing: ".8px", textTransform: "uppercase", marginBottom: 12 }}>Last Trip</div>
+          <div className="card" style={{ padding: "20px", marginBottom: 24, cursor: "pointer" }} onClick={() => onTab("trips")}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
               <div style={{ flex: 1, minWidth: 0, marginRight: 16 }}>
                 <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lastRide.from}</div>
-                <div style={{ fontSize: 12, color: T.textMuted, display: "flex", alignItems: "center", gap: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  <ArrowUpRight size={12} color={T.green} />
-                  {lastRide.to}
+                <div style={{ fontSize: 12, color: T.textMuted, display: "flex", alignItems: "center", gap: 6 }}>
+                  <ArrowUpRight size={12} color={T.green} />{lastRide.to}
                 </div>
               </div>
-              <div className="mono" style={{ fontSize: 20, fontWeight: 700, color: T.green, flexShrink: 0 }}>${lastRide.fare.toFixed(2)}</div>
+              <div className="mono" style={{ fontSize: 20, fontWeight: 700, color: T.green }}>${lastRide.fare.toFixed(2)}</div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", zIndex: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <span style={{ fontSize: 12, color: T.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
-                  <Clock size={12} />
-                  {lastRide.duration}
-                </span>
-                {lastRide.driver !== "—" && (
-                  <span style={{ fontSize: 12, color: T.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
-                    <User size={12} />
-                    {lastRide.driver}
-                  </span>
-                )}
+                <span style={{ fontSize: 12, color: T.textMuted, display: "flex", alignItems: "center", gap: 4 }}><Clock size={12} />{lastRide.duration}</span>
+                {lastRide.driver !== "—" && <span style={{ fontSize: 12, color: T.textMuted, display: "flex", alignItems: "center", gap: 4 }}><User size={12} />{lastRide.driver}</span>}
               </div>
               <RideStatusPill status={lastRide.status} />
             </div>
@@ -871,59 +681,73 @@ function OverviewTab({ account, uid, onTab }) {
       {!loading && rides.length > 0 && (
         <>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-            <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 700, letterSpacing: ".8px", textTransform: "uppercase" }}>
-              Recent Trips
-            </div>
-            <button onClick={() => onTab("trips")} style={{
-              background: "none", border: "none", cursor: "pointer",
-              fontSize: 13, fontWeight: 700, color: T.green,
-              display: "flex", alignItems: "center", gap: 4,
-              padding: "4px 8px", borderRadius: 8,
-              transition: "all .2s ease"
-            }} onMouseEnter={e => e.target.style.background = T.greenLight} onMouseLeave={e => e.target.style.background = "none"}>
+            <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 700, letterSpacing: ".8px", textTransform: "uppercase" }}>Recent Trips</div>
+            <button onClick={() => onTab("trips")} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700, color: T.green, display: "flex", alignItems: "center", gap: 4, padding: "4px 8px", borderRadius: 8 }}>
               See all <ChevronRight size={14} />
             </button>
           </div>
-          <div className="card" style={{ overflow: "hidden" }}>
+          <div className="card">
             {rides.map((ride, i) => (
-              <div
-                key={ride.id}
-                className="row-item"
-                onClick={() => onTab("trips")}
-                style={{ borderBottom: i < rides.length - 1 ? `1px solid ${T.borderLight}` : "none" }}
-              >
-                <div style={{
-                  width: 40, height: 40, borderRadius: 12, flexShrink: 0,
-                  background: ride.status === "completed" ? T.greenLight : T.redLight,
-                  border: `2px solid ${ride.status === "completed" ? T.greenBorder : "rgba(220,38,38,.2)"}`,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  boxShadow: `0 2px 6px ${ride.status === "completed" ? T.green : T.red}20`
-                }}>
-                  {ride.status === "completed"
-                    ? <CheckCircle size={18} color={T.green} />
-                    : <XCircle size={18} color={T.red} />
-                  }
+              <div key={ride.id} className="row-item" onClick={() => onTab("trips")} style={{ borderBottom: i < rides.length - 1 ? `1px solid ${T.borderLight}` : "none" }}>
+                <div style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0, background: ride.status === "completed" ? T.greenLight : T.redLight, border: `2px solid ${ride.status === "completed" ? T.greenBorder : "rgba(220,38,38,.2)"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {ride.status === "completed" ? <CheckCircle size={18} color={T.green} /> : <XCircle size={18} color={T.red} />}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {ride.from} → {ride.to}
-                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ride.from} → {ride.to}</div>
                   <div style={{ fontSize: 12, color: T.textMuted }}>{ride.date}</div>
                 </div>
-                <div className="mono" style={{ fontSize: 15, fontWeight: 700, color: ride.status === "cancelled" ? T.textMuted : T.text, flexShrink: 0 }}>
-                  ${ride.fare.toFixed(2)}
-                </div>
+                <div className="mono" style={{ fontSize: 15, fontWeight: 700, color: ride.status === "cancelled" ? T.textMuted : T.text }}>${ride.fare.toFixed(2)}</div>
               </div>
             ))}
           </div>
         </>
       )}
-
       {!loading && rides.length === 0 && (
-        <div style={{ textAlign: "center", padding: "24px 0", color: T.textMuted, fontSize: 13 }}>
-          No trips yet — book your first ride!
-        </div>
+        <div style={{ textAlign: "center", padding: "24px 0", color: T.textMuted, fontSize: 13 }}>No trips yet — book your first ride!</div>
       )}
+    </div>
+  );
+}
+
+// ── FLOATING TAB BAR ─────────────────────────────────────────────────
+function TabBar({ tab, setTab, onBookRide }) {
+  const LEFT  = [
+    { id: "home",    label: "Home",    icon: Home       },
+    { id: "trips",   label: "Trips",   icon: Clock      },
+  ];
+  const RIGHT = [
+    { id: "payment", label: "Pay",     icon: CreditCard },
+    { id: "account", label: "Account", icon: User       },
+  ];
+
+  const TabBtn = ({ id, label, icon: Icon }) => (
+    <button
+      className={`tab-btn ${tab === id ? "active" : ""}`}
+      onClick={() => setTab(id)}
+    >
+      <div className="tab-icon">
+        <Icon size={19} strokeWidth={tab === id ? 2.5 : 1.8} />
+      </div>
+      <span className="tab-label">{label}</span>
+    </button>
+  );
+
+  return (
+    <div className="tab-bar-outer">
+      <div className="tab-bar-pill">
+        {LEFT.map(t => <TabBtn key={t.id} {...t} />)}
+
+        {/* Center FAB */}
+        <button
+          className="tab-fab"
+          onClick={() => onBookRide?.()}
+          aria-label="Book a ride"
+        >
+          <Navigation size={20} color="#fff" strokeWidth={2.5} />
+        </button>
+
+        {RIGHT.map(t => <TabBtn key={t.id} {...t} />)}
+      </div>
     </div>
   );
 }
@@ -950,16 +774,7 @@ export default function RiderDashboard({ uid, account, active, onBookRide, onSig
 
   const name      = account?.name ?? "Rider";
   const firstName = name.split(" ")[0];
-
-  // Active ride — first element of the active array (from useActiveRides)
   const activeRide = active?.[0] ?? null;
-
-  const tabs = [
-    { id: "home",    label: "Home",    icon: Zap        },
-    { id: "trips",   label: "Trips",   icon: Clock      },
-    { id: "payment", label: "Payment", icon: CreditCard },
-    { id: "account", label: "Account", icon: User       },
-  ];
 
   const headerTitle = {
     home:    `Hey, ${firstName} 👋`,
@@ -969,18 +784,12 @@ export default function RiderDashboard({ uid, account, active, onBookRide, onSig
   }[tab];
 
   return (
-    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Outfit',system-ui,sans-serif", color: T.text, position: "relative" }}>
+    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Inter',system-ui,sans-serif", color: T.text }}>
       <style>{CSS}</style>
 
       {/* Toast */}
       {toast && (
-        <div style={{
-          position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)",
-          background: T.text, color: "#fff", borderRadius: 12, padding: "11px 20px",
-          fontSize: 13, fontWeight: 600, zIndex: 999,
-          whiteSpace: "nowrap", boxShadow: "0 8px 24px rgba(0,0,0,.18)",
-          animation: "slideUp .3s ease",
-        }}>
+        <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", background: T.text, color: "#fff", borderRadius: 12, padding: "11px 20px", fontSize: 13, fontWeight: 600, zIndex: 999, whiteSpace: "nowrap", boxShadow: "0 8px 24px rgba(0,0,0,.18)", animation: "slideUp .3s ease" }}>
           {toast}
         </div>
       )}
@@ -1001,34 +810,20 @@ export default function RiderDashboard({ uid, account, active, onBookRide, onSig
           <UaTobIcon size={30} />
           <div>
             <div style={{ fontSize: 9, fontWeight: 800, color: T.textMuted, letterSpacing: "1.3px", textTransform: "uppercase", lineHeight: 1 }}>My Account</div>
-            <div style={{ fontSize: 15, fontWeight: 900, letterSpacing: "-0.3px", lineHeight: 1, marginTop: 1 }}>
-              {headerTitle}
-            </div>
+            <div style={{ fontSize: 15, fontWeight: 900, letterSpacing: "-0.3px", lineHeight: 1, marginTop: 1 }}>{headerTitle}</div>
           </div>
         </div>
         <button
           onClick={() => onBookRide?.()}
-          style={{
-            display: "flex", alignItems: "center", gap: 6,
-            background: "linear-gradient(135deg,#22C55E,#16A34A)",
-            color: "#fff", border: "none", borderRadius: 12,
-            padding: "8px 14px",
-            fontSize: 12, fontWeight: 800,
-            cursor: "pointer",
-            boxShadow: "0 3px 10px rgba(22,163,74,.25)",
-          }}
+          style={{ display: "flex", alignItems: "center", gap: 6, background: "linear-gradient(135deg,#22C55E,#16A34A)", color: "#fff", border: "none", borderRadius: 12, padding: "8px 14px", fontSize: 12, fontWeight: 800, cursor: "pointer", boxShadow: "0 3px 10px rgba(22,163,74,.25)" }}
         >
           <Navigation size={12} /> Book
         </button>
       </div>
 
       {/* Content */}
-      <div style={{ maxWidth: 640, margin: "0 auto", paddingTop: 18, paddingBottom: 90 }}>
-
-        {/* Active ride banner — shown on all tabs */}
-        {activeRide && (
-          <ActiveRideBanner ride={activeRide} onPress={() => onBookRide?.()} />
-        )}
+      <div style={{ maxWidth: 640, margin: "0 auto", paddingTop: 18, paddingBottom: 110 }}>
+        {activeRide && <ActiveRideBanner ride={activeRide} onPress={() => onBookRide?.()} />}
 
         <div key={tab} style={{ animation: "slideUp .35s ease-out forwards", opacity: 0 }}>
           {tab === "home"    && <OverviewTab account={account} uid={uid} onTab={handleTab} />}
@@ -1038,28 +833,8 @@ export default function RiderDashboard({ uid, account, active, onBookRide, onSig
         </div>
       </div>
 
-      {/* Bottom tab bar */}
-      <div style={{
-        position: "fixed", bottom: 0, left: 0, right: 0,
-        background: "linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(255,255,255,1) 100%)",
-        backdropFilter: "blur(20px)",
-        borderTop: `1px solid ${T.border}`,
-        display: "flex",
-        paddingBottom: "env(safe-area-inset-bottom)",
-        boxShadow: "0 -4px 24px rgba(0,0,0,.08), 0 -1px 0px ${T.border}",
-        zIndex: 100,
-      }}>
-        {tabs.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            className={`tab-btn ${tab === id ? "active" : ""}`}
-            onClick={() => setTab(id)}
-          >
-            <Icon size={20} style={{ marginBottom: 2, strokeWidth: 2 }} />
-            {label}
-          </button>
-        ))}
-      </div>
+      {/* Floating pill tab bar */}
+      <TabBar tab={tab} setTab={setTab} onBookRide={onBookRide} />
     </div>
   );
 }
