@@ -168,6 +168,181 @@ const EXTRA_CSS = `
     color:#111827;
     box-shadow:0 1px 6px rgba(0,0,0,.1);
   }
+
+  /* ── Footer ── */
+  .uatob-footer {
+    border-top:1px solid #E5E7EB;
+    margin-top:64px;
+    padding:44px 20px 36px;
+    max-width:680px;
+    margin-left:auto;
+    margin-right:auto;
+    position:relative;
+    z-index:1;
+  }
+
+  .footer-grid {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:32px 20px;
+    margin-bottom:36px;
+  }
+  @media(min-width:480px){
+    .footer-grid { grid-template-columns:1.7fr 1fr 1fr; }
+  }
+
+  .footer-brand-col {
+    grid-column:1 / -1;
+  }
+  @media(min-width:480px){
+    .footer-brand-col { grid-column:auto; }
+  }
+
+  .footer-brand-blurb {
+    font-size:13px;
+    color:#6B7280;
+    font-weight:500;
+    line-height:1.7;
+    margin-top:12px;
+    margin-bottom:0;
+  }
+
+  .footer-driver-cta {
+    display:inline-flex;
+    align-items:center;
+    gap:7px;
+    background:#111827;
+    color:#fff;
+    border:none;
+    border-radius:100px;
+    padding:8px 16px 8px 13px;
+    font-family:'Outfit',system-ui,sans-serif;
+    font-size:12px;
+    font-weight:800;
+    cursor:pointer;
+    transition:opacity .15s, transform .15s, box-shadow .15s;
+    letter-spacing:.3px;
+    margin-top:16px;
+    text-decoration:none;
+    box-shadow:0 3px 12px rgba(17,24,39,.16);
+  }
+  .footer-driver-cta:hover {
+    opacity:.88;
+    transform:translateY(-2px);
+    box-shadow:0 6px 18px rgba(17,24,39,.22);
+  }
+
+  .footer-col-heading {
+    font-size:10px;
+    font-weight:800;
+    letter-spacing:1.4px;
+    text-transform:uppercase;
+    color:#9CA3AF;
+    margin-bottom:14px;
+  }
+
+  .footer-link {
+    display:block;
+    font-size:13px;
+    font-weight:600;
+    color:#374151;
+    text-decoration:none;
+    margin-bottom:10px;
+    transition:color .15s, transform .12s;
+    cursor:pointer;
+    background:none;
+    border:none;
+    padding:0;
+    font-family:'Outfit',system-ui,sans-serif;
+    text-align:left;
+  }
+  .footer-link:hover {
+    color:#16A34A;
+    transform:translateX(2px);
+  }
+
+  .footer-divider {
+    height:1px;
+    background:linear-gradient(to right, #E5E7EB, transparent);
+    margin-bottom:20px;
+  }
+
+  .footer-bottom {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:14px;
+  }
+
+  .footer-legal {
+    font-size:11px;
+    color:#9CA3AF;
+    font-weight:500;
+    line-height:1.6;
+  }
+
+  .footer-legal-links {
+    display:flex;
+    gap:14px;
+    margin-top:4px;
+  }
+
+  .footer-legal-link {
+    font-size:11px;
+    color:#9CA3AF;
+    font-weight:600;
+    text-decoration:none;
+    cursor:pointer;
+    background:none;
+    border:none;
+    padding:0;
+    font-family:'Outfit',system-ui,sans-serif;
+    transition:color .15s;
+  }
+  .footer-legal-link:hover { color:#374151; }
+
+  .footer-socials {
+    display:flex;
+    gap:8px;
+  }
+
+  .footer-social-btn {
+    width:34px;
+    height:34px;
+    border-radius:50%;
+    background:#F3F4F6;
+    border:none;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:#6B7280;
+    transition:background .15s, color .15s, transform .15s, box-shadow .15s;
+    text-decoration:none;
+  }
+  .footer-social-btn:hover {
+    background:#111827;
+    color:#fff;
+    transform:translateY(-3px);
+    box-shadow:0 4px 12px rgba(17,24,39,.2);
+  }
+
+  .footer-orlando-badge {
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    background:#F0FDF4;
+    border:1px solid #BBF7D0;
+    border-radius:100px;
+    padding:4px 10px;
+    font-size:10px;
+    font-weight:800;
+    color:#16A34A;
+    letter-spacing:.8px;
+    text-transform:uppercase;
+    margin-top:10px;
+  }
 `;
 
 // ── Inline Auth Modal ─────────────────────────────────────────────────
@@ -293,6 +468,132 @@ function InlineAuthModal({ onClose, onAuthSuccess }) {
 
       </div>
     </div>
+  );
+}
+
+// ── Footer ────────────────────────────────────────────────────────────
+function UaTobFooter({ onBookRideClick }) {
+  return (
+    <footer className="uatob-footer">
+      <div className="footer-grid">
+
+        {/* Brand column */}
+        <div className="footer-brand-col">
+          <UaTobWordmark iconSize={34} />
+          <p className="footer-brand-blurb">
+            Distance-based ride pricing built for Orlando.
+            <br />Fair fares for riders, better earnings for drivers.
+          </p>
+          <div className="footer-orlando-badge">
+            {/* Pin icon */}
+            <svg width="9" height="11" viewBox="0 0 10 13" fill="none">
+              <path d="M5 0C2.239 0 0 2.239 0 5c0 3.75 5 8 5 8s5-4.25 5-8c0-2.761-2.239-5-5-5zm0 7a2 2 0 110-4 2 2 0 010 4z" fill="#16A34A"/>
+            </svg>
+            Orlando, FL
+          </div>
+          <div style={{ marginTop:14 }}>
+            <a
+              className="footer-driver-cta"
+              href="https://uatob.com/drive"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Route size={12} />
+              Drive with UaTob
+            </a>
+          </div>
+        </div>
+
+        {/* Ride column */}
+        <div>
+          <div className="footer-col-heading">Ride</div>
+          <button className="footer-link" onClick={onBookRideClick}>Book a Ride</button>
+          <a className="footer-link" href="#pricing">Pricing</a>
+          <a className="footer-link" href="#safety">Safety</a>
+          <a className="footer-link" href="#faq">FAQ</a>
+        </div>
+
+        {/* Company column */}
+        <div>
+          <div className="footer-col-heading">Company</div>
+          <a className="footer-link" href="#about">About</a>
+          <a className="footer-link" href="#blog">Blog</a>
+          <a className="footer-link" href="#careers">Careers</a>
+          <a className="footer-link" href="mailto:support@uatob.com">Support</a>
+        </div>
+
+      </div>
+
+      <div className="footer-divider" />
+
+      {/* Bottom bar */}
+      <div className="footer-bottom">
+        <div>
+          <div className="footer-legal">
+            © {new Date().getFullYear()} UaTob · All rights reserved
+          </div>
+          <div className="footer-legal-links">
+            <a className="footer-legal-link" href="#privacy">Privacy Policy</a>
+            <a className="footer-legal-link" href="#terms">Terms of Service</a>
+            <a className="footer-legal-link" href="#accessibility">Accessibility</a>
+          </div>
+        </div>
+
+        {/* Social icons */}
+        <div className="footer-socials">
+          {/* Instagram */}
+          <a
+            className="footer-social-btn"
+            href="https://instagram.com/uatob"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Instagram"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+              <circle cx="12" cy="12" r="4"/>
+              <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/>
+            </svg>
+          </a>
+          {/* X / Twitter */}
+          <a
+            className="footer-social-btn"
+            href="https://twitter.com/uatob"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="X (Twitter)"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.747l7.73-8.835L1.254 2.25H8.08l4.259 5.63L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z"/>
+            </svg>
+          </a>
+          {/* Facebook */}
+          <a
+            className="footer-social-btn"
+            href="https://facebook.com/uatob"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Facebook"
+          >
+            <svg width="13" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.413c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.235 2.686.235v2.97h-1.513c-1.491 0-1.956.93-1.956 1.883v2.269h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
+            </svg>
+          </a>
+          {/* TikTok */}
+          <a
+            className="footer-social-btn"
+            href="https://tiktok.com/@uatob"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="TikTok"
+          >
+            <svg width="13" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.3 6.3 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.19 8.19 0 004.79 1.53V6.75a4.85 4.85 0 01-1.02-.06z"/>
+            </svg>
+          </a>
+        </div>
+      </div>
+    </footer>
   );
 }
 
@@ -451,7 +752,7 @@ export default function UaTobApp({ uid }) {
       <div style={{ position:'fixed', top:'-15%', right:'-8%', width:'550px', height:'550px', background:'radial-gradient(circle,rgba(22,163,74,.05) 0%,transparent 65%)', borderRadius:'50%', animation:'float 14s ease-in-out infinite', pointerEvents:'none', zIndex:0 }}/>
       <div style={{ position:'fixed', bottom:'-20%', left:'-12%', width:'700px', height:'700px', background:'radial-gradient(circle,rgba(17,24,39,.03) 0%,transparent 65%)', borderRadius:'50%', animation:'float 18s ease-in-out infinite reverse', pointerEvents:'none', zIndex:0 }}/>
 
-      <div style={{ maxWidth:'680px', margin:'0 auto', padding:'28px 20px 60px', position:'relative', zIndex:1 }}>
+      <div style={{ maxWidth:'680px', margin:'0 auto', padding:'28px 20px 0', position:'relative', zIndex:1 }}>
 
         {/* ── Header ── */}
         <div style={{
@@ -508,6 +809,19 @@ export default function UaTobApp({ uid }) {
         </div>
 
       </div>
+
+      {/* ── Footer ── */}
+      {!isTracking && (
+        <UaTobFooter
+          onBookRideClick={() => {
+            if (!resolvedUid) {
+              setShowAuthModal(true);
+            } else {
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+          }}
+        />
+      )}
 
       {/* ── Inline header auth modal (Login badge) ── */}
       {showAuthModal && !resolvedUid && (
