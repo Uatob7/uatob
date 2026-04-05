@@ -54,6 +54,8 @@ const DEFAULT_DOC = {
   profilePhoto:    false, profilePhotoUrl:    "",
 };
 
+console.log(DEFAULT_DOC)
+
 /* ─── UaTob SVG Icon ─────────────────────────── */
 function UaTobIcon({ size = 38 }) {
   return (
