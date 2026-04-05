@@ -8,7 +8,8 @@ import { firebase_app } from "@/firebase/config";
 
 const db = getFirestore(firebase_app);
 
-export function ApprovalsTab({ approvals = [], onToast }) {
+export function ApprovalsTab({ allApprovals = [], onToast }) {
+  console.log(allApprovals);
   // Data is owned by the parent dashboard (usePendingApprovals hook).
   // This component only handles approve/reject write actions.
 
@@ -66,7 +67,7 @@ export function ApprovalsTab({ approvals = [], onToast }) {
           </div>
           <div>
             <div style={{ fontSize: 20, fontWeight: 800 }}>
-              {approvals.length}{" "}
+              {allApprovals.length}{" "}
               <span style={{ fontSize: 13, color: C.textMuted, fontWeight: 500 }}>pending</span>
             </div>
             <div style={{ fontSize: 11, color: C.textMuted }}>Review required</div>
@@ -75,13 +76,13 @@ export function ApprovalsTab({ approvals = [], onToast }) {
       </div>
 
       {/* Empty state */}
-      {approvals.length === 0 && (
+      {allApprovals.length === 0 && (
         <EmptyState icon={CheckCircle} title="All caught up!" sub="No pending approvals" color={C.green} />
       )}
 
       {/* Approval cards */}
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {approvals.map((item, i) => (
+        {allApprovals.map((item, i) => (
           <div
             key={item.id}
             className="card fade-up"

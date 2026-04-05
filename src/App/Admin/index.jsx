@@ -48,7 +48,10 @@ export default function UaTobAdminDashboard() {
   // Home tab summary counts (e.g. badge on stat card)
   const { approvals: allApprovals } = useApprovals();
 
+  console.log(allApprovals);
+
   const { analytics }               = useAnalyticsData();
+  console.log(analytics);
   // ─────────────────────────────────────────────────────────────────────────
 
   const showToast = (msg) => {
@@ -89,7 +92,7 @@ export default function UaTobAdminDashboard() {
       case "approvals":
         return (
           <ApprovalsTab
-            approvals={approvals}
+            allApprovals={allApprovals}
             onToast={showToast}
           />
         );

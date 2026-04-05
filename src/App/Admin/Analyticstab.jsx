@@ -21,7 +21,7 @@ const METRICS = [
   { label: "Avg Fare",          value: "$16.80",  icon: DollarSign,   color: C.amber },
 ];
 
-export function AnalyticsTab() {
+export function AnalyticsTab(analytics) {
   return (
     <div style={{ padding: "0 16px 16px" }}>
       {/* Bar chart */}

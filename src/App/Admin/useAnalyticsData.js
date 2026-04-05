@@ -1,32 +1,56 @@
 // src/App/Admin/useAnalyticsData.js
 
-import { useTotalRides } from "./useTotalRides";
-import { useRevenueToday } from "./useRevenueToday";
-import { useActiveDrivers } from "./useActiveDrivers";
-import { useLiveRides } from "./useLiveRides";
-import { useApprovals } from "./useApprovals";
+import { useEffect, useState } from "react";
+import { getFirestore, collection, onSnapshot } from "firebase/firestore";
+import { firebase_app } from "@/firebase/config";
+
+const db = getFirestore(firebase_app);
 
 export function useAnalyticsData() {
-  const { totalRides, loading: loadingRides, error: errorRides } = useTotalRides();
-  const { revenue, rideCount: revenueRideCount, loading: loadingRevenue, error: errorRevenue } = useRevenueToday();
-  const { activeDrivers, count: activeDriverCount, loading: loadingDrivers, error: errorDrivers } = useActiveDrivers();
-  const { liveRides, count: liveRidesCount, loading: loadingLiveRides, error: errorLiveRides } = useLiveRides();
-  const { approvals, count: pendingApprovalsCount, loading: loadingApprovals, error: errorApprovals } = useApprovals();
+  const [analytics, setAnalytics] = useState({
+    totalRides: 0,
+    completedRides: 0,
+    totalRevenue: 0,
+    totalDriverPayout: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const loading = loadingRides || loadingRevenue || loadingDrivers || loadingLiveRides || loadingApprovals;
-  const error = errorRides || errorRevenue || errorDrivers || errorLiveRides || errorApprovals;
+  useEffect(() => {
+    const ridesRef = collection(db, "Rides");
 
-  return {
-    totalRides,
-    revenue,
-    revenueRideCount,
-    activeDrivers,
-    activeDriverCount,
-    liveRides,
-    liveRidesCount,
-    approvals,
-    pendingApprovalsCount,
-    loading,
-    error
-  };
+    const unsubscribe = onSnapshot(
+      ridesRef,
+      (snapshot) => {
+        let completed = 0;
+        let revenue = 0;
+        let driverPayout = 0;
+
+        snapshot.docs.forEach((doc) => {
+          const data = doc.data();
+          revenue += data.fareTotal || 0;
+          driverPayout += data.driverPayout || 0;
+          if (data.status === "completed") completed += 1;
+        });
+
+        setAnalytics({
+          totalRides: snapshot.size,
+          completedRides: completed,
+          totalRevenue: revenue,
+          totalDriverPayout: driverPayout,
+        });
+
+        setLoading(false);
+      },
+      (err) => {
+        console.error("useAnalyticsData error:", err);
+        setError(err);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  return { analytics, loading, error };
 }
