@@ -16,6 +16,7 @@ import signIn from '@/firebase/auth/signin';
 import signUp from '@/firebase/auth/signup';
 import { useUserRides } from '@/App/UaTob/useUserRides';
 import { useActiveRides } from '@/App/UaTob/useActiveRides';
+import { useUserAccount } from '@/App/UaTob/useUserAccount';
 
 // ── Status buckets ─────────────────────────────────────────────────────
 const SEARCHING_STATUSES = ['searching_driver'];
@@ -604,7 +605,10 @@ export default function UaTobApp({ uid }) {
   const resolvedUid = authUid ?? uid;
 
   const { rides, loading: ridesLoading } = useUserRides(resolvedUid);
-  const { active }                       = useActiveRides(resolvedUid);
+  const { active } = useActiveRides(resolvedUid);
+  const { account, loading: accountLoading } = useUserAccount(resolvedUid);
+
+  console.log(account);
 
   const saved = loadSession();
 
@@ -906,6 +910,8 @@ export default function UaTobApp({ uid }) {
           </div>
 
           <RiderDashboard
+            account={account}
+            active={active}
             uid={resolvedUid}
             onBookRide={() => setShowDashboard(false)}
             onSignOut={() => setShowDashboard(false)}
