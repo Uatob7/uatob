@@ -1,8 +1,3 @@
-
-HomeTab props: {liveRides: Array(1), totalRides: undefined, activeDrivers: Array(4), revenue: 3.21, approvals: Array(4)}activeDrivers: Array(4)0: {id: '3RjAcYUdDdVw6C59ejuQiqaWaI83', lastName: 'eugene', firstName: 'Anthony', email: 'tony200795@gmail.com', createdAt: Timestamp, …}1: {id: '5IUWVmreHsfcdANuAGiP3x1yOKj1', contact: {…}, firstName: 'Jeffery ', email: 'j.c.herbert22@gmail.com', createdAt: Timestamp, …}2: {id: 'Rwe7IjW5sRaZNb4dJkH9Vx2Uc2H3', firstName: 'Jose ', email: 'Favored1now@outlook.com', createdAt: Timestamp, lastName: 'Rios ', …}3: {id: 'zW6ixfoAC7bdHumBXEXAnQlKkIF2', uid: 'zW6ixfoAC7bdHumBXEXAnQlKkIF2', status: 'in_progress', updatedAt: Timestamp, currentStep: 1, …}length: 4[[Prototype]]: Array(0)approvals: Array(4)0: {id: '3RjAcYUdDdVw6C59ejuQiqaWaI83', lastName: 'eugene', firstName: 'Anthony', email: 'tony200795@gmail.com', createdAt: Timestamp, …}1: {id: '5IUWVmreHsfcdANuAGiP3x1yOKj1', contact: {…}, firstName: 'Jeffery ', email: 'j.c.herbert22@gmail.com', createdAt: Timestamp, …}2: {id: 'Rwe7IjW5sRaZNb4dJkH9Vx2Uc2H3', firstName: 'Jose ', email: 'Favored1now@outlook.com', createdAt: Timestamp, lastName: 'Rios ', …}3: {id: 'zW6ixfoAC7bdHumBXEXAnQlKkIF2', uid: 'zW6ixfoAC7bdHumBXEXAnQlKkIF2', status: 'in_progress', updatedAt: Timestamp, currentStep: 1, …}length: 4[[Prototype]]: Array(0)liveRides: Array(1)0: {id: '9lIb5VIfwKieH9Z0hKjZ', tripDistanceMiles: 6.22, uid: '6rIXzLa8kaQhxVdkVxPNVxMaWYV2', dropoffCity: 'Orlando', pickup: '3050 C.R. Smith St, Orlando, FL 32805, USA', …}length: 1[[Prototype]]: Array(0)revenue: 3.21totalRides: undefined[[Prototype]]: Object
-forward-logs-shared.ts:95 [Fast Refresh] done in 8ms
-
-
 import { useState } from "react";
 import {
   Activity, DollarSign, Car, Shield,
@@ -11,7 +6,6 @@ import {
 import { C } from '@/App/Admin/Tokens';
 import { StatCard, SectionHeader, Avatar, StatusPill } from '@/App/Admin/UI';
 
-// Converts a Firestore Timestamp (or plain seconds) to a relative "X ago" string
 function timeAgo(ts) {
   if (!ts) return "—";
   const seconds = ts?.seconds ?? Math.floor(ts / 1000);
@@ -21,23 +15,23 @@ function timeAgo(ts) {
   return `${Math.floor(diff / 3600)}h ago`;
 }
 
-// Shorten a full address to just the street name or first segment
 function shortAddress(addr = "") {
   return addr.split(",")[0] || addr;
 }
 
-export function HomeTab({ liveRides = [],totalRides,activeDrivers,revenue,approvals, onToast }) {
+export function HomeTab({ liveRides = [], totalRides, activeDrivers = [], revenue, approvals = [], onToast }) {
   const [refreshing, setRefreshing] = useState(false);
-
-  console.log("HomeTab props:", { liveRides, totalRides, activeDrivers, revenue, approvals });
 
   const handleRefresh = () => {
     setRefreshing(true);
-    setTimeout(() => { setRefreshing(false); onToast("Data refreshed"); }, 1100);
+    setTimeout(() => { setRefreshing(false); onToast?.("Data refreshed"); }, 1100);
   };
 
-  const activeCount  = liveRides.filter(r => ["in_progress", "arrived"].includes(r.status)).length;
-  const searchCount  = liveRides.filter(r => r.status === "searching_driver").length;
+  const activeCount = liveRides.filter(r => ["in_progress", "arrived"].includes(r.status)).length;
+  const searchCount = liveRides.filter(r => r.status === "searching_driver").length;
+
+  // Pending approvals = drivers whose status is not yet 'approved'
+  const pendingApprovals = approvals.filter(d => d.status !== "approved");
 
   return (
     <div style={{ padding: "0 16px 16px" }}>
@@ -64,17 +58,41 @@ export function HomeTab({ liveRides = [],totalRides,activeDrivers,revenue,approv
         </div>
       </div>
 
-      {/* Stats grid */}
+      {/* Stats grid — all values come from real props now */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
-        <StatCard label="Total Rides"    value={22} delta={12.4} icon={Activity}   color={C.blue}  delay={80}  />
-        <StatCard label="Active Drivers" value={47}   delta={3}    icon={Car}        color={C.green} delay={130} />
-        <StatCard label="Revenue Today"  value={9820} delta={8.1}  icon={DollarSign} color={C.amber} delay={180} />
-        <StatCard label="Approvals"      value={6}    delta={-2}   icon={Shield}     color={C.red}   delay={230} />
+        <StatCard
+          label="Total Rides"
+          value={totalRides ?? liveRides.length}
+          icon={Activity}
+          color={C.blue}
+          delay={80}
+        />
+        <StatCard
+          label="Active Drivers"
+          value={activeDrivers.length}
+          icon={Car}
+          color={C.green}
+          delay={130}
+        />
+        <StatCard
+          label="Revenue Today"
+          value={revenue != null ? `$${revenue.toFixed(2)}` : "—"}
+          icon={DollarSign}
+          color={C.amber}
+          delay={180}
+        />
+        <StatCard
+          label="Pending Approvals"
+          value={pendingApprovals.length}
+          icon={Shield}
+          color={C.red}
+          delay={230}
+        />
       </div>
 
       {/* Live rides list */}
       <SectionHeader
-        title={`Live Rides ${liveRides.length ? `(${liveRides.length})` : ""}`}
+        title={`Live Rides${liveRides.length ? ` (${liveRides.length})` : ""}`}
         action={
           <button className="btn-ghost" style={{ padding: "6px 12px", fontSize: 11 }}>
             <Filter size={11} /> Filter
@@ -97,7 +115,6 @@ export function HomeTab({ liveRides = [],totalRides,activeDrivers,revenue,approv
 }
 
 function RideCard({ ride, delay }) {
-  // uid is the only rider identifier we have from Firestore right now
   const riderLabel  = ride.riderName  ?? `Rider …${ride.uid?.slice(-4) ?? "?"}`;
   const driverLabel = ride.driverName ?? (ride.driverId ? `Driver …${ride.driverId.slice(-4)}` : "—");
 
@@ -134,7 +151,6 @@ function RideCard({ ride, delay }) {
         <div style={{ fontSize: 10, color: "#9CA3AF" }}>{timeAgo(ride.createdAt)}</div>
       </div>
 
-      {/* Payment badge */}
       <div style={{ marginTop: 8, display: "flex", gap: 6 }}>
         <span style={{
           fontSize: 10, fontWeight: 700, letterSpacing: ".4px", textTransform: "uppercase",
