@@ -12,7 +12,6 @@ import { firebase_app } from "@/firebase/config";
 
 const db = getFirestore(firebase_app);
 
-
 const CLOUD_FUNCTION_URL = "https://createdriverprofile-ady2s2xhhq-uc.a.run.app";
 
 /* ─── localStorage helpers ───────────────────── */
@@ -30,9 +29,7 @@ function lsGet(key, fallback) {
   try {
     const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
-  }
+  } catch { return fallback; }
 }
 
 function lsSet(key, value) {
@@ -53,15 +50,9 @@ function UaTobIcon({ size = 38 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
       <defs>
-        <linearGradient id="si-bg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#FFFFFF"/><stop offset="100%" stopColor="#F3F4F6"/>
-        </linearGradient>
-        <linearGradient id="si-road" x1="0" y1="0" x2="64" y2="0" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#111827"/><stop offset="100%" stopColor="#16A34A"/>
-        </linearGradient>
-        <linearGradient id="si-car" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#16A34A"/><stop offset="100%" stopColor="#15803D"/>
-        </linearGradient>
+        <linearGradient id="si-bg"   x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse"><stop offset="0%" stopColor="#FFFFFF"/><stop offset="100%" stopColor="#F3F4F6"/></linearGradient>
+        <linearGradient id="si-road" x1="0" y1="0" x2="64" y2="0"  gradientUnits="userSpaceOnUse"><stop offset="0%" stopColor="#111827"/><stop offset="100%" stopColor="#16A34A"/></linearGradient>
+        <linearGradient id="si-car"  x1="0" y1="0" x2="1"  y2="1"><stop offset="0%" stopColor="#16A34A"/><stop offset="100%" stopColor="#15803D"/></linearGradient>
       </defs>
       <rect width="64" height="64" rx="14" fill="url(#si-bg)"/>
       <rect x="0.5" y="0.5" width="63" height="63" rx="13.5" stroke="#E5E7EB" strokeWidth="1"/>
@@ -103,38 +94,38 @@ const STEPS = [
 
 const ALL_STATES = [
   { value: "",   label: "Select state…" },
-  { value: "AL", label: "Alabama" },       { value: "AK", label: "Alaska" },
-  { value: "AZ", label: "Arizona" },       { value: "AR", label: "Arkansas" },
-  { value: "CA", label: "California" },    { value: "CO", label: "Colorado" },
-  { value: "CT", label: "Connecticut" },   { value: "DE", label: "Delaware" },
-  { value: "FL", label: "Florida" },       { value: "GA", label: "Georgia" },
-  { value: "HI", label: "Hawaii" },        { value: "ID", label: "Idaho" },
-  { value: "IL", label: "Illinois" },      { value: "IN", label: "Indiana" },
-  { value: "IA", label: "Iowa" },          { value: "KS", label: "Kansas" },
-  { value: "KY", label: "Kentucky" },      { value: "LA", label: "Louisiana" },
-  { value: "ME", label: "Maine" },         { value: "MD", label: "Maryland" },
-  { value: "MA", label: "Massachusetts" }, { value: "MI", label: "Michigan" },
-  { value: "MN", label: "Minnesota" },     { value: "MS", label: "Mississippi" },
-  { value: "MO", label: "Missouri" },      { value: "MT", label: "Montana" },
-  { value: "NE", label: "Nebraska" },      { value: "NV", label: "Nevada" },
-  { value: "NH", label: "New Hampshire" }, { value: "NJ", label: "New Jersey" },
-  { value: "NM", label: "New Mexico" },    { value: "NY", label: "New York" },
-  { value: "NC", label: "North Carolina" },{ value: "ND", label: "North Dakota" },
-  { value: "OH", label: "Ohio" },          { value: "OK", label: "Oklahoma" },
-  { value: "OR", label: "Oregon" },        { value: "PA", label: "Pennsylvania" },
-  { value: "RI", label: "Rhode Island" },  { value: "SC", label: "South Carolina" },
-  { value: "SD", label: "South Dakota" },  { value: "TN", label: "Tennessee" },
-  { value: "TX", label: "Texas" },         { value: "UT", label: "Utah" },
-  { value: "VT", label: "Vermont" },       { value: "VA", label: "Virginia" },
-  { value: "WA", label: "Washington" },    { value: "WV", label: "West Virginia" },
-  { value: "WI", label: "Wisconsin" },     { value: "WY", label: "Wyoming" },
+  { value: "AL", label: "Alabama" },        { value: "AK", label: "Alaska" },
+  { value: "AZ", label: "Arizona" },        { value: "AR", label: "Arkansas" },
+  { value: "CA", label: "California" },     { value: "CO", label: "Colorado" },
+  { value: "CT", label: "Connecticut" },    { value: "DE", label: "Delaware" },
+  { value: "FL", label: "Florida" },        { value: "GA", label: "Georgia" },
+  { value: "HI", label: "Hawaii" },         { value: "ID", label: "Idaho" },
+  { value: "IL", label: "Illinois" },       { value: "IN", label: "Indiana" },
+  { value: "IA", label: "Iowa" },           { value: "KS", label: "Kansas" },
+  { value: "KY", label: "Kentucky" },       { value: "LA", label: "Louisiana" },
+  { value: "ME", label: "Maine" },          { value: "MD", label: "Maryland" },
+  { value: "MA", label: "Massachusetts" },  { value: "MI", label: "Michigan" },
+  { value: "MN", label: "Minnesota" },      { value: "MS", label: "Mississippi" },
+  { value: "MO", label: "Missouri" },       { value: "MT", label: "Montana" },
+  { value: "NE", label: "Nebraska" },       { value: "NV", label: "Nevada" },
+  { value: "NH", label: "New Hampshire" },  { value: "NJ", label: "New Jersey" },
+  { value: "NM", label: "New Mexico" },     { value: "NY", label: "New York" },
+  { value: "NC", label: "North Carolina" }, { value: "ND", label: "North Dakota" },
+  { value: "OH", label: "Ohio" },           { value: "OK", label: "Oklahoma" },
+  { value: "OR", label: "Oregon" },         { value: "PA", label: "Pennsylvania" },
+  { value: "RI", label: "Rhode Island" },   { value: "SC", label: "South Carolina" },
+  { value: "SD", label: "South Dakota" },   { value: "TN", label: "Tennessee" },
+  { value: "TX", label: "Texas" },          { value: "UT", label: "Utah" },
+  { value: "VT", label: "Vermont" },        { value: "VA", label: "Virginia" },
+  { value: "WA", label: "Washington" },     { value: "WV", label: "West Virginia" },
+  { value: "WI", label: "Wisconsin" },      { value: "WY", label: "Wyoming" },
 ];
 
 /* ─── FIELD COMPONENTS ───────────────────────── */
 
 function InputField({ label, placeholder, type = "text", icon: Icon, value, onChange, error, hint, suffix }) {
   const [focused, setFocused] = useState(false);
-  const [showPw, setShowPw] = useState(false);
+  const [showPw,  setShowPw]  = useState(false);
   const isPw = type === "password";
   return (
     <div style={{ marginBottom: 16 }}>
@@ -258,33 +249,57 @@ function UploadBox({ label, hint, icon: Icon = Upload, uploaded, onUpload }) {
 function StepAccount({ data, setData, errors, isExistingUser }) {
   return (
     <div>
+      {/* Name row */}
       <div style={{ display: "flex", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <InputField label="First Name" placeholder="Marcus" icon={User} value={data.firstName} onChange={v => setData(d => ({...d, firstName: v}))} error={errors.firstName} />
+          <InputField
+            label="First Name" placeholder="Marcus" icon={User}
+            value={data.firstName} onChange={v => setData(d => ({ ...d, firstName: v }))}
+            error={errors.firstName}
+          />
         </div>
         <div style={{ flex: 1 }}>
-          <InputField label="Last Name" placeholder="Johnson" value={data.lastName} onChange={v => setData(d => ({...d, lastName: v}))} error={errors.lastName} />
+          <InputField
+            label="Last Name" placeholder="Johnson"
+            value={data.lastName} onChange={v => setData(d => ({ ...d, lastName: v }))}
+            error={errors.lastName}
+          />
         </div>
       </div>
-      <InputField label="Email Address" placeholder="marcus@example.com" type="email" icon={Mail} value={data.email} onChange={v => setData(d => ({...d, email: v}))} error={errors.email} />
 
-      {/* Only show password fields if this is a brand-new signup (no pre-existing uid) */}
-      {!isExistingUser && (
-        <>
-          <InputField label="Password" placeholder="Min. 8 characters" type="password" icon={Lock} value={data.password} onChange={v => setData(d => ({...d, password: v}))} error={errors.password} hint="Use uppercase, lowercase, numbers, and symbols." />
-          <InputField label="Confirm Password" placeholder="Re-enter password" type="password" icon={Lock} value={data.confirmPassword} onChange={v => setData(d => ({...d, confirmPassword: v}))} error={errors.confirmPassword} />
-        </>
-      )}
+      {/* Email */}
+      <InputField
+        label="Email Address" placeholder="marcus@example.com" type="email" icon={Mail}
+        value={data.email} onChange={v => setData(d => ({ ...d, email: v }))}
+        error={errors.email}
+      />
 
+      {/* Password — always shown; skipped during goNext only when isExistingUser */}
+      <InputField
+        label="Password" placeholder="Min. 8 characters" type="password" icon={Lock}
+        value={data.password} onChange={v => setData(d => ({ ...d, password: v }))}
+        error={errors.password}
+        hint="Use uppercase, lowercase, numbers, and symbols."
+      />
+      <InputField
+        label="Confirm Password" placeholder="Re-enter password" type="password" icon={Lock}
+        value={data.confirmPassword} onChange={v => setData(d => ({ ...d, confirmPassword: v }))}
+        error={errors.confirmPassword}
+      />
+
+      {/* Terms */}
       <div style={{ background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", display: "flex", gap: 12, alignItems: "flex-start" }}>
         <div
-          onClick={() => setData(d => ({...d, terms: !d.terms}))}
+          onClick={() => setData(d => ({ ...d, terms: !d.terms }))}
           style={{ width: 20, height: 20, borderRadius: 6, border: `1.5px solid ${data.terms ? C.accent : C.border}`, background: data.terms ? C.accentGlow : "transparent", flexShrink: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", marginTop: 1, transition: "all .2s" }}
         >
           {data.terms && <Check size={12} color={C.accent} />}
         </div>
         <div style={{ fontSize: 12.5, color: C.textMid, fontWeight: 500, lineHeight: 1.6 }}>
-          I agree to UaTob's <span style={{ color: C.accent, cursor: "pointer" }}>Driver Terms of Service</span> and <span style={{ color: C.accent, cursor: "pointer" }}>Privacy Policy</span>
+          I agree to UaTob's{" "}
+          <span style={{ color: C.accent, cursor: "pointer" }}>Driver Terms of Service</span>
+          {" "}and{" "}
+          <span style={{ color: C.accent, cursor: "pointer" }}>Privacy Policy</span>
         </div>
       </div>
       {errors.terms && (
@@ -299,17 +314,25 @@ function StepAccount({ data, setData, errors, isExistingUser }) {
 function StepContact({ data, setData, errors }) {
   return (
     <div>
-      <InputField label="Mobile Number" placeholder="+1 (555) 000-0000" type="tel" icon={Phone} value={data.phone} onChange={v => setData(d => ({...d, phone: v}))} error={errors.phone} hint="We'll send a verification code to this number." />
-      <InputField label="Street Address" placeholder="123 Main Street, Apt 4B" icon={MapPin} value={data.address} onChange={v => setData(d => ({...d, address: v}))} error={errors.address} />
+      <InputField
+        label="Mobile Number" placeholder="+1 (555) 000-0000" type="tel" icon={Phone}
+        value={data.phone} onChange={v => setData(d => ({ ...d, phone: v }))}
+        error={errors.phone} hint="We'll send a verification code to this number."
+      />
+      <InputField
+        label="Street Address" placeholder="123 Main Street, Apt 4B" icon={MapPin}
+        value={data.address} onChange={v => setData(d => ({ ...d, address: v }))}
+        error={errors.address}
+      />
       <div style={{ display: "flex", gap: 12 }}>
         <div style={{ flex: 1.2 }}>
-          <InputField label="City" placeholder="Orlando" value={data.city} onChange={v => setData(d => ({...d, city: v}))} error={errors.city} />
+          <InputField label="City" placeholder="Orlando" value={data.city} onChange={v => setData(d => ({ ...d, city: v }))} error={errors.city} />
         </div>
         <div style={{ flex: 0.8 }}>
-          <InputField label="ZIP Code" placeholder="32801" value={data.zip} onChange={v => setData(d => ({...d, zip: v}))} error={errors.zip} />
+          <InputField label="ZIP Code" placeholder="32801" value={data.zip} onChange={v => setData(d => ({ ...d, zip: v }))} error={errors.zip} />
         </div>
       </div>
-      <SelectField label="State" icon={MapPin} value={data.state} onChange={v => setData(d => ({...d, state: v}))} options={ALL_STATES} />
+      <SelectField label="State" icon={MapPin} value={data.state} onChange={v => setData(d => ({ ...d, state: v }))} options={ALL_STATES} />
       <div style={{ background: "rgba(22,163,74,.04)", border: "1px solid rgba(22,163,74,.2)", borderRadius: 14, padding: "14px 16px", display: "flex", gap: 12, alignItems: "center" }}>
         <div style={{ width: 34, height: 34, background: C.accentGlow, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <Phone size={14} color={C.accent} />
@@ -328,27 +351,31 @@ function StepVehicle({ data, setData, errors }) {
     <div>
       <div style={{ display: "flex", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <SelectField label="Make" icon={Car} value={data.make} onChange={v => setData(d => ({...d, make: v}))} options={[
-            {value:"",label:"Select…"},{value:"Toyota",label:"Toyota"},{value:"Honda",label:"Honda"},
-            {value:"Ford",label:"Ford"},{value:"Chevrolet",label:"Chevrolet"},{value:"Tesla",label:"Tesla"},
-            {value:"BMW",label:"BMW"},{value:"Mercedes",label:"Mercedes"},{value:"Hyundai",label:"Hyundai"},
-            {value:"Kia",label:"Kia"},{value:"Nissan",label:"Nissan"},{value:"Subaru",label:"Subaru"},
-            {value:"Volkswagen",label:"Volkswagen"},{value:"Jeep",label:"Jeep"},{value:"Other",label:"Other"},
+          <SelectField label="Make" icon={Car} value={data.make} onChange={v => setData(d => ({ ...d, make: v }))} options={[
+            { value: "", label: "Select…" }, { value: "Toyota", label: "Toyota" }, { value: "Honda", label: "Honda" },
+            { value: "Ford", label: "Ford" }, { value: "Chevrolet", label: "Chevrolet" }, { value: "Tesla", label: "Tesla" },
+            { value: "BMW", label: "BMW" }, { value: "Mercedes", label: "Mercedes" }, { value: "Hyundai", label: "Hyundai" },
+            { value: "Kia", label: "Kia" }, { value: "Nissan", label: "Nissan" }, { value: "Subaru", label: "Subaru" },
+            { value: "Volkswagen", label: "Volkswagen" }, { value: "Jeep", label: "Jeep" }, { value: "Other", label: "Other" },
           ]} />
         </div>
         <div style={{ flex: 1 }}>
-          <InputField label="Model" placeholder="Camry, Civic…" value={data.model} onChange={v => setData(d => ({...d, model: v}))} error={errors.model} />
+          <InputField label="Model" placeholder="Camry, Civic…" value={data.model} onChange={v => setData(d => ({ ...d, model: v }))} error={errors.model} />
         </div>
       </div>
       <div style={{ display: "flex", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <InputField label="Year" placeholder="2020" type="number" icon={Calendar} value={data.year} onChange={v => setData(d => ({...d, year: v}))} error={errors.year} />
+          <InputField label="Year" placeholder="2020" type="number" icon={Calendar} value={data.year} onChange={v => setData(d => ({ ...d, year: v }))} error={errors.year} />
         </div>
         <div style={{ flex: 1 }}>
-          <InputField label="Color" placeholder="Pearl White" value={data.color} onChange={v => setData(d => ({...d, color: v}))} error={errors.color} />
+          <InputField label="Color" placeholder="Pearl White" value={data.color} onChange={v => setData(d => ({ ...d, color: v }))} error={errors.color} />
         </div>
       </div>
-      <InputField label="License Plate" placeholder="ABC-1234" icon={CreditCard} value={data.plate} onChange={v => setData(d => ({...d, plate: v}))} error={errors.plate} hint="Enter as shown on your registration." />
+      <InputField
+        label="License Plate" placeholder="ABC-1234" icon={CreditCard}
+        value={data.plate} onChange={v => setData(d => ({ ...d, plate: v }))}
+        error={errors.plate} hint="Enter as shown on your registration."
+      />
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, marginBottom: 10, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>
           Ride Types You Can Offer
@@ -387,7 +414,7 @@ function StepVehicle({ data, setData, errors }) {
           </div>
         )}
       </div>
-      <InputField label="Vehicle VIN" placeholder="1HGBH41JXMN109186" value={data.vin} onChange={v => setData(d => ({...d, vin: v}))} hint="17-character Vehicle Identification Number (optional)" />
+      <InputField label="Vehicle VIN" placeholder="1HGBH41JXMN109186" value={data.vin} onChange={v => setData(d => ({ ...d, vin: v }))} hint="17-character Vehicle Identification Number (optional)" />
     </div>
   );
 }
@@ -403,27 +430,30 @@ function StepDocuments({ data, setData, errors }) {
           All documents are <strong style={{ color: C.text }}>encrypted and stored securely</strong>. We only use them for driver verification.
         </div>
       </div>
+
       <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, marginBottom: 12, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>Driver's License</div>
       <div style={{ display: "flex", gap: 10, marginBottom: 4 }}>
         <div style={{ flex: 1 }}>
-          <UploadBox label="Front Side" hint="Tap to upload photo" icon={Camera} uploaded={data.licenseFront} onUpload={v => setData(d => ({...d, licenseFront: v}))} />
+          <UploadBox label="Front Side" hint="Tap to upload photo" icon={Camera} uploaded={data.licenseFront} onUpload={v => setData(d => ({ ...d, licenseFront: v }))} />
           {errors?.licenseFront && <div style={{ fontSize: 11.5, color: C.red, marginTop: 4, paddingLeft: 2 }}>{errors.licenseFront}</div>}
         </div>
         <div style={{ flex: 1 }}>
-          <UploadBox label="Back Side" hint="Tap to upload photo" icon={Camera} uploaded={data.licenseBack} onUpload={v => setData(d => ({...d, licenseBack: v}))} />
+          <UploadBox label="Back Side" hint="Tap to upload photo" icon={Camera} uploaded={data.licenseBack} onUpload={v => setData(d => ({ ...d, licenseBack: v }))} />
           {errors?.licenseBack && <div style={{ fontSize: 11.5, color: C.red, marginTop: 4, paddingLeft: 2 }}>{errors.licenseBack}</div>}
         </div>
       </div>
-      <InputField label="License Number" placeholder="D1234567" icon={FileText} value={data.licenseNumber} onChange={v => setData(d => ({...d, licenseNumber: v}))} hint="As shown on your license" error={errors?.licenseNumber} />
+      <InputField label="License Number" placeholder="D1234567" icon={FileText} value={data.licenseNumber} onChange={v => setData(d => ({ ...d, licenseNumber: v }))} hint="As shown on your license" error={errors?.licenseNumber} />
+
       <div style={{ height: 1, background: C.border, margin: "4px 0 18px" }} />
       <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, marginBottom: 12, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>Vehicle Registration & Insurance</div>
-      <UploadBox label="Vehicle Registration" hint="Photo or PDF accepted" icon={FileText} uploaded={data.registration} onUpload={v => setData(d => ({...d, registration: v}))} />
+      <UploadBox label="Vehicle Registration" hint="Photo or PDF accepted" icon={FileText} uploaded={data.registration} onUpload={v => setData(d => ({ ...d, registration: v }))} />
       {errors?.registration && <div style={{ fontSize: 11.5, color: C.red, marginBottom: 8, paddingLeft: 2 }}>{errors.registration}</div>}
-      <UploadBox label="Proof of Insurance" hint="Must be current & valid" icon={Shield} uploaded={data.insurance} onUpload={v => setData(d => ({...d, insurance: v}))} />
+      <UploadBox label="Proof of Insurance" hint="Must be current & valid" icon={Shield} uploaded={data.insurance} onUpload={v => setData(d => ({ ...d, insurance: v }))} />
       {errors?.insurance && <div style={{ fontSize: 11.5, color: C.red, marginBottom: 8, paddingLeft: 2 }}>{errors.insurance}</div>}
+
       <div style={{ height: 1, background: C.border, margin: "4px 0 18px" }} />
       <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, marginBottom: 12, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>Profile Photo</div>
-      <UploadBox label="Your Photo" hint="Clear, recent headshot • No sunglasses" icon={Camera} uploaded={data.profilePhoto} onUpload={v => setData(d => ({...d, profilePhoto: v}))} />
+      <UploadBox label="Your Photo" hint="Clear, recent headshot • No sunglasses" icon={Camera} uploaded={data.profilePhoto} onUpload={v => setData(d => ({ ...d, profilePhoto: v }))} />
       {errors?.profilePhoto && <div style={{ fontSize: 11.5, color: C.red, marginTop: 4, paddingLeft: 2 }}>{errors.profilePhoto}</div>}
     </div>
   );
@@ -431,6 +461,7 @@ function StepDocuments({ data, setData, errors }) {
 
 function StepVerify({ accountData, contactData, vehicleData, docData }) {
   const allDocs = docData.licenseFront && docData.licenseBack && docData.registration && docData.insurance && docData.profilePhoto;
+
   const Section = ({ title, items }) => (
     <div style={{ marginBottom: 18 }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, marginBottom: 12, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>{title}</div>
@@ -444,6 +475,7 @@ function StepVerify({ accountData, contactData, vehicleData, docData }) {
       </div>
     </div>
   );
+
   return (
     <div>
       <div style={{ background: allDocs ? "rgba(22,163,74,.05)" : "rgba(22,163,74,.04)", border: `1px solid ${allDocs ? "rgba(22,163,74,.25)" : "rgba(22,163,74,.18)"}`, borderRadius: 16, padding: "16px 18px", marginBottom: 22, display: "flex", gap: 12, alignItems: "center" }}>
@@ -455,15 +487,28 @@ function StepVerify({ accountData, contactData, vehicleData, docData }) {
           <div style={{ fontSize: 11.5, color: C.textMid }}>{allDocs ? "Your application is ready to submit for review." : "You can still submit — upload remaining docs later."}</div>
         </div>
       </div>
-      <Section title="Account" items={[{ label: "Name", val: `${accountData.firstName} ${accountData.lastName}` }, { label: "Email", val: accountData.email }]} />
-      <Section title="Contact" items={[{ label: "Phone", val: contactData.phone }, { label: "Address", val: contactData.address }, { label: "City / State", val: contactData.city && contactData.state ? `${contactData.city}, ${contactData.state} ${contactData.zip}` : "" }]} />
-      <Section title="Vehicle" items={[{ label: "Vehicle", val: vehicleData.make && vehicleData.model ? `${vehicleData.year} ${vehicleData.make} ${vehicleData.model}` : "" }, { label: "Plate", val: vehicleData.plate }, { label: "Ride Types", val: vehicleData.rideTypes?.join(", ") }]} />
+
+      <Section title="Account" items={[
+        { label: "Name",  val: `${accountData.firstName} ${accountData.lastName}` },
+        { label: "Email", val: accountData.email },
+      ]} />
+      <Section title="Contact" items={[
+        { label: "Phone",        val: contactData.phone },
+        { label: "Address",      val: contactData.address },
+        { label: "City / State", val: contactData.city && contactData.state ? `${contactData.city}, ${contactData.state} ${contactData.zip}` : "" },
+      ]} />
+      <Section title="Vehicle" items={[
+        { label: "Vehicle",    val: vehicleData.make && vehicleData.model ? `${vehicleData.year} ${vehicleData.make} ${vehicleData.model}` : "" },
+        { label: "Plate",      val: vehicleData.plate },
+        { label: "Ride Types", val: vehicleData.rideTypes?.join(", ") },
+      ]} />
       <Section title="Documents" items={[
         { label: "Driver's License", val: (docData.licenseFront && docData.licenseBack) ? "✓ Uploaded" : "Pending" },
         { label: "Registration",     val: docData.registration ? "✓ Uploaded" : "Pending" },
         { label: "Insurance",        val: docData.insurance    ? "✓ Uploaded" : "Pending" },
         { label: "Profile Photo",    val: docData.profilePhoto ? "✓ Uploaded" : "Pending" },
       ]} />
+
       <div style={{ background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", marginTop: 4, display: "flex", gap: 10, alignItems: "flex-start" }}>
         <Zap size={14} color={C.accent} style={{ flexShrink: 0, marginTop: 1 }} />
         <div style={{ fontSize: 12, color: C.textMid, lineHeight: 1.6 }}>
@@ -482,9 +527,9 @@ function PendingScreen({ firstName, email }) {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800;900&family=Barlow+Condensed:wght@500;600;700;800;900&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        @keyframes scaleIn  { from { opacity: 0; transform: scale(.85) } to { opacity: 1; transform: scale(1) } }
-        @keyframes fadeUp   { from { opacity: 0; transform: translateY(20px) } to { opacity: 1; transform: translateY(0) } }
-        @keyframes pulse    { 0%,100% { opacity: 1 } 50% { opacity: .5 } }
+        @keyframes scaleIn { from { opacity: 0; transform: scale(.85) } to { opacity: 1; transform: scale(1) } }
+        @keyframes fadeUp  { from { opacity: 0; transform: translateY(20px) } to { opacity: 1; transform: translateY(0) } }
+        @keyframes pulse   { 0%,100% { opacity: 1 } 50% { opacity: .5 } }
       `}</style>
       <div style={{ textAlign: "center", maxWidth: 420, width: "100%", animation: "scaleIn .6s cubic-bezier(.34,1.56,.64,1)" }}>
         <div style={{ width: 90, height: 90, background: "rgba(22,163,74,.08)", border: "2px solid rgba(22,163,74,.25)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 28px", boxShadow: "0 0 0 12px rgba(22,163,74,.04)" }}>
@@ -530,34 +575,33 @@ function PendingScreen({ firstName, email }) {
 export default function UaTobDriverSignup({ uid }) {
   const { driverSignUp } = useDriverSignUp(uid);
 
-  // ── uid prop means the driver is already authenticated (logged in).
-  // Treat any truthy uid as an existing user — no need to re-run Firebase Auth signup.
+  // uid prop = driver already authenticated (e.g. resumed via magic link)
   const isExistingUser = Boolean(uid);
 
-  // ── submitted flag: fast-path from localStorage, then synced from Firestore ──
+  // submitted: fast-path from localStorage, then confirmed by Firestore
   const [submitted, setSubmitted] = useState(() => lsGet(LS_KEYS.submitted, false));
 
-  // ── When Firestore confirms status === 'pending', lock in the submitted state.
+  // Lock in submitted state when Firestore confirms pending/approved
   useEffect(() => {
-    if (driverSignUp?.status === 'pending' || driverSignUp?.status === 'approved') {
+    if (driverSignUp?.status === "pending" || driverSignUp?.status === "approved") {
       setSubmitted(true);
       lsSet(LS_KEYS.submitted, true);
     }
   }, [driverSignUp?.status]);
 
-  // ── Redirect approved drivers ────────────────────────────────────────
+  // Redirect fully-approved drivers to the driver app
   useEffect(() => {
     if (driverSignUp?.status === "approved") {
       window.location.href = "https://uatob.com/driver";
     }
   }, [driverSignUp?.status]);
 
-  // ── Rehydrate from localStorage on first mount.
-  // If uid is already known, seed createdUid from it immediately.
+  // Form state — rehydrate from localStorage on first mount
   const [step,        setStep]        = useState(() => lsGet(LS_KEYS.step, 1));
   const [createdUid,  setCreatedUid]  = useState(() => uid || lsGet(LS_KEYS.uid, null));
   const [accountData, setAccountData] = useState(() => {
     const saved = lsGet(LS_KEYS.account, DEFAULT_ACCOUNT);
+    // Never persist passwords to localStorage
     return { ...DEFAULT_ACCOUNT, ...saved, password: "", confirmPassword: "" };
   });
   const [contactData, setContactData] = useState(() => lsGet(LS_KEYS.contact, DEFAULT_CONTACT));
@@ -572,48 +616,33 @@ export default function UaTobDriverSignup({ uid }) {
   const [showResumeBanner, setShowResumeBanner] = useState(() => lsGet(LS_KEYS.step, 1) > 1);
   const scrollRef = useRef(null);
 
-  // ── One-time hydration from Firestore.
-  // Runs when driverSignUp loads. Takes Firestore data as source of truth
-  // and advances the step to wherever the driver left off (using the
-  // furthest of what's in localStorage vs what's in Firestore).
+  // One-time hydration from Firestore — takes Firestore as source of truth
   const firestoreHydrated = useRef(false);
-
   useEffect(() => {
     if (!driverSignUp || firestoreHydrated.current) return;
     firestoreHydrated.current = true;
 
-    // Resume from the furthest step recorded
     const savedStep = driverSignUp.currentStep ?? 1;
     if (savedStep > 1) {
       setStep(s => Math.max(s, savedStep));
       setShowResumeBanner(true);
     }
-
-    // Hydrate account fields (firstName / lastName / email are top-level on the doc)
     if (driverSignUp.firstName || driverSignUp.lastName || driverSignUp.email) {
       setAccountData(d => ({
         ...d,
         firstName: driverSignUp.firstName || d.firstName,
         lastName:  driverSignUp.lastName  || d.lastName,
         email:     driverSignUp.email     || d.email,
-        // Terms must be re-agreed to for legal reasons — don't hydrate it
+        // Terms must always be re-agreed to — never hydrate
       }));
     }
-
-    // Hydrate nested sub-documents if they exist
-    if (driverSignUp.contactData) {
-      setContactData(d => ({ ...d, ...driverSignUp.contactData }));
-    }
-    if (driverSignUp.vehicleData) {
-      setVehicleData(d => ({ ...d, ...driverSignUp.vehicleData }));
-    }
-    if (driverSignUp.docData) {
-      setDocData(d => ({ ...d, ...driverSignUp.docData }));
-    }
+    if (driverSignUp.contactData) setContactData(d => ({ ...d, ...driverSignUp.contactData }));
+    if (driverSignUp.vehicleData) setVehicleData(d => ({ ...d, ...driverSignUp.vehicleData }));
+    if (driverSignUp.docData)     setDocData(d => ({ ...d, ...driverSignUp.docData }));
   }, [driverSignUp]);
 
-  // ── Persist to localStorage ──────────────────────────────────────────
-  useEffect(() => { lsSet(LS_KEYS.step, step); },       [step]);
+  // Persist to localStorage (passwords are intentionally excluded)
+  useEffect(() => { lsSet(LS_KEYS.step, step); }, [step]);
   useEffect(() => { lsSet(LS_KEYS.uid,  createdUid); }, [createdUid]);
   useEffect(() => {
     const { password, confirmPassword, ...safe } = accountData;
@@ -660,57 +689,54 @@ export default function UaTobDriverSignup({ uid }) {
 
   const createDriverProfile = async (uid, data) => {
     const res = await fetch(CLOUD_FUNCTION_URL, {
-      method: "POST", headers: { "Content-Type": "application/json" },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         uid,
         accountData: { firstName: data.firstName, lastName: data.lastName, email: data.email },
       }),
     });
-    if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error || "Failed to create driver profile"); }
+    if (!res.ok) {
+      const b = await res.json().catch(() => ({}));
+      throw new Error(b.error || "Failed to create driver profile");
+    }
     return res.json();
   };
 
-  // saveProgress writes the current step's data to Firestore without finalising
-  // the application. The Cloud Function must use merge: true so each call is
-  // additive rather than overwriting the whole document.
   const saveProgress = async (nextStep, overrideUid) => {
     const id = overrideUid ?? createdUid;
     if (!id) return;
-
     const res = await fetch(CLOUD_FUNCTION_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         uid: id,
         currentStep: nextStep,
-        accountData: {
-          firstName: accountData.firstName,
-          lastName:  accountData.lastName,
-          email:     accountData.email,
-        },
+        accountData: { firstName: accountData.firstName, lastName: accountData.lastName, email: accountData.email },
         contactData,
         vehicleData,
         docData,
       }),
     });
-    // Non-fatal — we don't block the UI for a progress-save failure
-    if (!res.ok) {
-      console.warn("⚠️ saveProgress failed silently:", await res.text().catch(() => ""));
-    }
+    if (!res.ok) console.warn("⚠️ saveProgress failed silently:", await res.text().catch(() => ""));
   };
 
   const submitDriverData = async (uid) => {
     const res = await fetch(CLOUD_FUNCTION_URL, {
-      method: "POST", headers: { "Content-Type": "application/json" },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         uid,
-        submit: true,   // signal to the Cloud Function to mark status: 'pending'
+        submit: true,
         contactData: { phone: contactData.phone, address: contactData.address, city: contactData.city, state: contactData.state, zip: contactData.zip },
         vehicleData: { make: vehicleData.make, model: vehicleData.model, year: vehicleData.year, color: vehicleData.color, plate: vehicleData.plate, vin: vehicleData.vin, rideTypes: vehicleData.rideTypes },
         docData:     { licenseFront: docData.licenseFront, licenseBack: docData.licenseBack, licenseNumber: docData.licenseNumber, registration: docData.registration, insurance: docData.insurance, profilePhoto: docData.profilePhoto },
       }),
     });
-    if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error || "Failed to submit application"); }
+    if (!res.ok) {
+      const b = await res.json().catch(() => ({}));
+      throw new Error(b.error || "Failed to submit application");
+    }
     return res.json();
   };
 
@@ -722,11 +748,9 @@ export default function UaTobDriverSignup({ uid }) {
       if (!accountData.firstName.trim()) e.firstName = "Required";
       if (!accountData.lastName.trim())  e.lastName  = "Required";
       if (!accountData.email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) e.email = "Enter a valid email address";
-      // Only validate password fields for brand-new accounts
-      if (!isExistingUser) {
-        if (accountData.password.length < 8) e.password = "Password must be at least 8 characters";
-        if (accountData.password !== accountData.confirmPassword) e.confirmPassword = "Passwords don't match";
-      }
+      // Always validate password fields — they're always visible on step 1
+      if (accountData.password.length < 8) e.password = "Password must be at least 8 characters";
+      if (accountData.password !== accountData.confirmPassword) e.confirmPassword = "Passwords don't match";
       if (!accountData.terms) e.terms = "You must agree to continue";
     }
     if (step === 2) {
@@ -757,10 +781,10 @@ export default function UaTobDriverSignup({ uid }) {
 
       if (step === 1) {
         if (isExistingUser) {
-          // Driver is already authenticated — just update their profile data
+          // Already authenticated — just save profile data
           await saveProgress(2, uid);
         } else if (!createdUid) {
-          // Brand-new driver — create Firebase Auth account first
+          // Brand-new driver — create Firebase Auth account
           const { result, error: signUpError } = await signUp(
             accountData.email.trim().toLowerCase(),
             accountData.password
@@ -768,15 +792,13 @@ export default function UaTobDriverSignup({ uid }) {
           if (signUpError) throw signUpError;
           const newUid = result.user.uid;
           setCreatedUid(newUid);
-          // Create the Firestore doc, then immediately save step-1 progress
           await createDriverProfile(newUid, accountData);
           await saveProgress(2, newUid);
         } else {
-          // Returning new driver who already created an account but didn't finish
+          // Returning driver who already created an account
           await saveProgress(2);
         }
       } else if (step === 5) {
-        // Final submission
         const id = createdUid;
         if (!id) throw new Error("Missing user ID — please restart signup.");
         await submitDriverData(id);
@@ -785,7 +807,6 @@ export default function UaTobDriverSignup({ uid }) {
         setSubmitted(true);
         return;
       } else {
-        // Steps 2, 3, 4 — save progress to Firestore then advance
         await saveProgress(step + 1);
       }
 
@@ -826,7 +847,6 @@ export default function UaTobDriverSignup({ uid }) {
   const restartForm = () => {
     lsClear();
     setStep(1);
-    // If there's a pre-existing uid we keep it — we just wipe the form data
     setCreatedUid(uid || null);
     setAccountData(DEFAULT_ACCOUNT);
     setContactData(DEFAULT_CONTACT);
@@ -845,7 +865,6 @@ export default function UaTobDriverSignup({ uid }) {
 
   if (driverSignUp?.status === "approved") return null;
 
-  // PendingScreen: prefer Firestore data when available, fall back to local state
   if (submitted) {
     return (
       <PendingScreen
