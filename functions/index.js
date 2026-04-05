@@ -7,6 +7,7 @@ const { ATOB } = require("./ride/ATOB");
 const { Price } = require("./ride/Price"); 
 const { Autocomplete } = require("./ride/Autocomplete"); 
 const { Geo } = require("./ride/Geo"); 
+
 // Payment functions
 const { cardPayment } = require("./payments/cardPayment");
 const { cashAppPayment } = require("./payments/cashAppPayment");
@@ -21,6 +22,8 @@ const { getTripButtonLabel } = require("./drivers/getTripButtonLabel");
 const { getDriverEarnings } = require("./drivers/getDriverEarnings");
 const { calcDriverDistance } = require("./drivers/calcDriverDistance");
 const { getDriverToPickup } = require("./drivers/getDriverToPickup");
+const { onDriverCreated } = require("./drivers/email/onDriverCreated");
+const { onDriverApplicationSubmitted } = require("./drivers/email/onDriverApplicationSubmitted");
 
 
 // Exports
@@ -40,3 +43,5 @@ exports.setDriverStatus = setDriverStatus;
 exports.getDriverEarnings = getDriverEarnings;
 exports.calcDriverDistance = calcDriverDistance;
 exports.getDriverToPickup = getDriverToPickup;
+exports.onDriverCreated = onDriverCreated;
+exports.onDriverApplicationSubmitted = onDriverApplicationSubmitted;
