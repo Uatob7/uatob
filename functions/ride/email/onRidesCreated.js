@@ -4,7 +4,7 @@ const sgMail = require("@sendgrid/mail");
 
 const db = getFirestore();
 
-exports.onRideCreated = onDocumentCreated(
+exports.onRidesCreated = onDocumentCreated(
   {
     document: "Rides/{rideId}",
     region: "us-central1",

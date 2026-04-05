@@ -8,7 +8,7 @@ const { Price } = require("./ride/Price");
 const { Autocomplete } = require("./ride/Autocomplete"); 
 const { Geo } = require("./ride/Geo"); 
 const { onAccountCreated } = require("./ride/email/onAccountCreated");
-const { onRideCreated } = require("./ride/email/onRideCreated");
+const { onRidesCreated } = require("./ride/email/onRidesCreated");
 
 // Payment functions
 const { cardPayment } = require("./payments/cardPayment");
@@ -37,7 +37,7 @@ const { onRideCreatedNotifyAdmin } = require("./admin/email/onRideCreatedNotifyA
 // Exports
 exports.createAccount = createAccount;
 exports.onAccountCreated = onAccountCreated;
-exports.onRideCreated = onRideCreated;
+exports.onRidesCreated = onRidesCreated;
 exports.ATOB = ATOB;
 exports.Autocomplete = Autocomplete;
 exports.Price = Price;
