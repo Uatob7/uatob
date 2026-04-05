@@ -530,22 +530,14 @@ export default function UaTobDriverSignup({ uid }) {
 
   // ── submitted flag: fast-path from localStorage, then synced from Firestore ──
   const [submitted, setSubmitted] = useState(() => lsGet(LS_KEYS.submitted, false));
-  const justSubmittedRef = useRef(false);
 
-  // ── When Firestore confirms status === 'pending' or 'approved', lock in the submitted state.
+  // ── When Firestore confirms status === 'pending', lock in the submitted state.
   useEffect(() => {
     if (driverSignUp?.status === 'pending' || driverSignUp?.status === 'approved') {
-      if (!submitted) {
-        setSubmitted(true);
-        lsSet(LS_KEYS.submitted, true);
-      }
-      justSubmittedRef.current = false;
-    } else if (driverSignUp?.status === 'in_progress' && submitted && !justSubmittedRef.current) {
-      // If Firestore shows in_progress and we haven't just submitted locally, clear submitted.
-      setSubmitted(false);
-      lsSet(LS_KEYS.submitted, false);
+      setSubmitted(true);
+      lsSet(LS_KEYS.submitted, true);
     }
-  }, [driverSignUp?.status, submitted]);
+  }, [driverSignUp?.status]);
 
   // ── Redirect approved drivers ────────────────────────────────────────
   useEffect(() => {
@@ -751,7 +743,6 @@ export default function UaTobDriverSignup({ uid }) {
         await submitDriverData(id);
         lsClear();
         lsSet(LS_KEYS.submitted, true);
-        justSubmittedRef.current = true;
         setSubmitted(true);
         return;
       } else {
@@ -805,7 +796,6 @@ export default function UaTobDriverSignup({ uid }) {
     setErrors({});
     setSubmitError(null);
     setSubmitted(false);
-    justSubmittedRef.current = false;
     setShowResumeBanner(false);
     firestoreHydrated.current = false;
   };
