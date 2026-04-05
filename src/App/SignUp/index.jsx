@@ -6,7 +6,11 @@ import {
   CheckCircle, Clock, ArrowRight
 } from "lucide-react";
 import signUp from '@/firebase/auth/signup';
-import { useDriverSignUp } from "@/App/SignUp/useDriverSignUp";
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { getFirestore, doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { firebase_app } from "@/firebase/config";
+
+const db = getFirestore(firebase_app);
 
 
 const CLOUD_FUNCTION_URL = "https://createdriverprofile-ady2s2xhhq-uc.a.run.app";
@@ -389,6 +393,8 @@ function StepVehicle({ data, setData, errors }) {
 }
 
 function StepDocuments({ data, setData, errors }) {
+
+  console.log(data);
   return (
     <div>
       <div style={{ background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 16, padding: "14px 16px", marginBottom: 20, display: "flex", gap: 12, alignItems: "center" }}>
@@ -616,6 +622,39 @@ export default function UaTobDriverSignup({ uid }) {
   useEffect(() => { lsSet(LS_KEYS.contact, contactData); }, [contactData]);
   useEffect(() => { lsSet(LS_KEYS.vehicle, vehicleData); }, [vehicleData]);
   useEffect(() => { lsSet(LS_KEYS.doc,     docData); },     [docData]);
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+
+    const reader = new FileReader();
+    reader.onload = (ev) => setPhoto(ev.target.result);
+    reader.readAsDataURL(file);
+
+    try {
+      const storageRef = ref(storage, `user_photos/${uid}/${file.name}`);
+      const uploadTask = uploadBytesResumable(storageRef, file);
+
+      await new Promise((resolve, reject) => {
+        uploadTask.on("state_changed", null, reject, resolve);
+      });
+
+      const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+
+      await updateDoc(doc(db, "Accounts", uid), {
+        photo: downloadURL,
+        updatedAt: serverTimestamp(),
+      });
+
+      setPhoto(downloadURL);
+    } catch (err) {
+      console.error("Photo upload error:", err);
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   /* ── API helpers ── */
 
