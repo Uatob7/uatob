@@ -1,3 +1,8 @@
+
+HomeTab props: {liveRides: Array(1), totalRides: undefined, activeDrivers: Array(4), revenue: 3.21, approvals: Array(4)}activeDrivers: Array(4)0: {id: '3RjAcYUdDdVw6C59ejuQiqaWaI83', lastName: 'eugene', firstName: 'Anthony', email: 'tony200795@gmail.com', createdAt: Timestamp, …}1: {id: '5IUWVmreHsfcdANuAGiP3x1yOKj1', contact: {…}, firstName: 'Jeffery ', email: 'j.c.herbert22@gmail.com', createdAt: Timestamp, …}2: {id: 'Rwe7IjW5sRaZNb4dJkH9Vx2Uc2H3', firstName: 'Jose ', email: 'Favored1now@outlook.com', createdAt: Timestamp, lastName: 'Rios ', …}3: {id: 'zW6ixfoAC7bdHumBXEXAnQlKkIF2', uid: 'zW6ixfoAC7bdHumBXEXAnQlKkIF2', status: 'in_progress', updatedAt: Timestamp, currentStep: 1, …}length: 4[[Prototype]]: Array(0)approvals: Array(4)0: {id: '3RjAcYUdDdVw6C59ejuQiqaWaI83', lastName: 'eugene', firstName: 'Anthony', email: 'tony200795@gmail.com', createdAt: Timestamp, …}1: {id: '5IUWVmreHsfcdANuAGiP3x1yOKj1', contact: {…}, firstName: 'Jeffery ', email: 'j.c.herbert22@gmail.com', createdAt: Timestamp, …}2: {id: 'Rwe7IjW5sRaZNb4dJkH9Vx2Uc2H3', firstName: 'Jose ', email: 'Favored1now@outlook.com', createdAt: Timestamp, lastName: 'Rios ', …}3: {id: 'zW6ixfoAC7bdHumBXEXAnQlKkIF2', uid: 'zW6ixfoAC7bdHumBXEXAnQlKkIF2', status: 'in_progress', updatedAt: Timestamp, currentStep: 1, …}length: 4[[Prototype]]: Array(0)liveRides: Array(1)0: {id: '9lIb5VIfwKieH9Z0hKjZ', tripDistanceMiles: 6.22, uid: '6rIXzLa8kaQhxVdkVxPNVxMaWYV2', dropoffCity: 'Orlando', pickup: '3050 C.R. Smith St, Orlando, FL 32805, USA', …}length: 1[[Prototype]]: Array(0)revenue: 3.21totalRides: undefined[[Prototype]]: Object
+forward-logs-shared.ts:95 [Fast Refresh] done in 8ms
+
+
 import { useState } from "react";
 import {
   Activity, DollarSign, Car, Shield,
@@ -21,8 +26,10 @@ function shortAddress(addr = "") {
   return addr.split(",")[0] || addr;
 }
 
-export function HomeTab({ liveRides = [],totalRides, onToast }) {
+export function HomeTab({ liveRides = [],totalRides,activeDrivers,revenue,approvals, onToast }) {
   const [refreshing, setRefreshing] = useState(false);
+
+  console.log("HomeTab props:", { liveRides, totalRides, activeDrivers, revenue, approvals });
 
   const handleRefresh = () => {
     setRefreshing(true);
