@@ -21,7 +21,7 @@ function shortAddress(addr = "") {
   return addr.split(",")[0] || addr;
 }
 
-export function HomeTab({ liveRides = [], onToast }) {
+export function HomeTab({ liveRides = [],totalRides, onToast }) {
   const [refreshing, setRefreshing] = useState(false);
 
   const handleRefresh = () => {
@@ -59,7 +59,7 @@ export function HomeTab({ liveRides = [], onToast }) {
 
       {/* Stats grid */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
-        <StatCard label="Total Rides"    value={1284} delta={12.4} icon={Activity}   color={C.blue}  delay={80}  />
+        <StatCard label="Total Rides"    value={22} delta={12.4} icon={Activity}   color={C.blue}  delay={80}  />
         <StatCard label="Active Drivers" value={47}   delta={3}    icon={Car}        color={C.green} delay={130} />
         <StatCard label="Revenue Today"  value={9820} delta={8.1}  icon={DollarSign} color={C.amber} delay={180} />
         <StatCard label="Approvals"      value={6}    delta={-2}   icon={Shield}     color={C.red}   delay={230} />

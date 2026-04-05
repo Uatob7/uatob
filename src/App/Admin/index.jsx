@@ -8,7 +8,7 @@ import { TabBar } from '@/App/Admin/TabBar';
 
 import { HomeTab } from '@/App/Admin/HomeTab';
 import { DriversTab } from '@/App/Admin/Driverstab';
-import { ApprovalsTab, MOCK_PENDING_COUNT } from '@/App/Admin/Approvalstab';
+ import { ApprovalsTab } from '@/App/Admin/Approvalstab';
 import { AnalyticsTab } from '@/App/Admin/Analyticstab';
 
 import { useTotalRides } from "@/App/Admin/useTotalRides";
@@ -36,19 +36,20 @@ export default function UaTobAdminDashboard() {
   const toastRef = useRef(null);
 
   // 🔥 REAL DATA HOOK (you forgot to use it)
-    const { totalRides, loading: ridesLoading } = useTotalRides();
-    const { fleet } = usePendingApprovals();
+    const { totalRides } = useTotalRides();
+    const { activeDrivers, } = useActiveDrivers();
+    const { revenue, loading } = useRevenueToday();
     const { approvals } = useApprovals();
+    const { liveRides,  } = useLiveRides();
 
-    console.log('approvals:', approvals);
+
+    const { fleet } = usePendingApprovals();
 
 
-  const { count, } = useActiveDrivers();
-  const { revenue, loading } = useRevenueToday();
-
-   const { liveRides,  } = useLiveRides();
    const { drivers,  totalDrivers } = useFleetDrivers();
   const { analytics,  } = useAnalyticsData();
+
+  console.log("Analytics data:", analytics);
 
 
 
@@ -76,17 +77,17 @@ export default function UaTobAdminDashboard() {
   const CurrentTab = useMemo(() => {
     switch (activeTab) {
       case "home":
-        return <HomeTab onToast={showToast} liveRides={liveRides} />;
+        return <HomeTab onToast={showToast} liveRides={liveRides} activeDrivers={activeDrivers} revenue={revenue} approvals={approvals} />;
       case "drivers":
         return <DriversTab fleet={fleet} onToast={showToast} />;
       case "approvals":
         return <ApprovalsTab approvals={approvals} onToast={showToast} />;
       case "analytics":
-        return <AnalyticsTab totalRides={totalRides} />;
+        return <AnalyticsTab analytics={analytics}   />;
       default:
         return null;
     }
-  }, [activeTab, totalRides, ridesLoading]);
+  }, [activeTab, totalRides]);
 
   return (
     <div
@@ -127,7 +128,6 @@ export default function UaTobAdminDashboard() {
       <TabBar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        pendingCount={MOCK_PENDING_COUNT}
       />
     </div>
   );
