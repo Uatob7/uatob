@@ -7,27 +7,25 @@ import { firebase_app } from "@/firebase/config";
 const db = getFirestore(firebase_app);
 
 export function usePendingApprovals() {
-  const [pendingApprovals, setPendingApprovals] = useState([]);
+  const [fleet, setFleet] = useState([]);       // renamed from pendingApprovals
   const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // 🔹 Adjust the collection for your approvals (Drivers / Accounts)
     const approvalsQuery = query(
       collection(db, "Drivers"), // or "Accounts"
-      where("status", "==", "pending")
     );
 
     const unsubscribe = onSnapshot(
       approvalsQuery,
       (snapshot) => {
-        const approvals = snapshot.docs.map(doc => ({
+        const fleetData = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         }));
 
-        setPendingApprovals(approvals);
+        setFleet(fleetData);
         setCount(snapshot.size);
         setLoading(false);
       },
@@ -41,10 +39,5 @@ export function usePendingApprovals() {
     return () => unsubscribe();
   }, []);
 
-  return {
-    pendingApprovals,
-    count,
-    loading,
-    error
-  };
+  return { fleet, count, loading, error };
 }

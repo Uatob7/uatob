@@ -1,3 +1,121 @@
+(4) [{…}, {…}, {…}, {…}]
+0
+: 
+{id: '3RjAcYUdDdVw6C59ejuQiqaWaI83', firstName: 'Anthony', currentStep: 1, lastName: 'eugene', createdAt: Timestamp, …}
+1
+: 
+contact
+: 
+{zip: '32832', address: '2456 lake Nona Dr ', city: 'Orlando ', state: 'FL', phone: '2392972761'}
+createdAt
+: 
+Timestamp {seconds: 1775337795, nanoseconds: 589000000}
+currentStep
+: 
+1
+documents
+: 
+{insurance: true, licenseFront: true, licenseNumber: 'H616423902610', profilePhoto: true, registration: true, …}
+email
+: 
+"j.c.herbert22@gmail.com"
+firstName
+: 
+"Jeffery "
+id
+: 
+"5IUWVmreHsfcdANuAGiP3x1yOKj1"
+lastName
+: 
+"Herbert "
+status
+: 
+"pending"
+uid
+: 
+"5IUWVmreHsfcdANuAGiP3x1yOKj1"
+updatedAt
+: 
+Timestamp {seconds: 1775337802, nanoseconds: 312000000}
+vehicle
+: 
+{plate: 'AJ58HN', color: 'Black ', model: 'Venza ', vin: 'JTEAAAAH5NJ118070', make: 'Toyota', …}
+[[Prototype]]
+: 
+Object
+2
+: 
+createdAt
+: 
+Timestamp {seconds: 1775336437, nanoseconds: 321000000}
+currentStep
+: 
+1
+email
+: 
+"Favored1now@outlook.com"
+firstName
+: 
+"Jose "
+id
+: 
+"Rwe7IjW5sRaZNb4dJkH9Vx2Uc2H3"
+lastName
+: 
+"Rios "
+status
+: 
+"in_progress"
+uid
+: 
+"Rwe7IjW5sRaZNb4dJkH9Vx2Uc2H3"
+updatedAt
+: 
+Timestamp {seconds: 1775336437, nanoseconds: 321000000}
+[[Prototype]]
+: 
+Object
+3
+: 
+createdAt
+: 
+Timestamp {seconds: 1775411103, nanoseconds: 584000000}
+currentStep
+: 
+1
+email
+: 
+"ff@live.com"
+firstName
+: 
+"Fr"
+id
+: 
+"zW6ixfoAC7bdHumBXEXAnQlKkIF2"
+lastName
+: 
+"Fff"
+status
+: 
+"in_progress"
+uid
+: 
+"zW6ixfoAC7bdHumBXEXAnQlKkIF2"
+updatedAt
+: 
+Timestamp {seconds: 1775411103, nanoseconds: 584000000}
+[[Prototype]]
+: 
+Object
+length
+: 
+4
+[[Prototype]]
+: 
+Array(0)
+
+
+
 // src/App/UaTob/Admin/tabs/DriversTab.jsx
 import { useState } from "react";
 import { Search, Bell, CheckCircle, XCircle, Ban, ChevronRight } from "lucide-react";
@@ -15,7 +133,9 @@ const MOCK_DRIVERS = [
   { id:"d006", name:"Aaliyah J.", rating:3.60, rides:23,  status:"pending", earnings:0,      joined:"Jun 2024" },
 ];
 
-export function DriversTab({ onToast }) {
+export function DriversTab({ fleet, onToast }) {
+
+  console.log(fleet);
   const [search,   setSearch]   = useState("");
   const [filter,   setFilter]   = useState("all");
   const [selected, setSelected] = useState(null);

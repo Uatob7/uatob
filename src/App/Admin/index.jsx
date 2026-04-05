@@ -37,15 +37,19 @@ export default function UaTobAdminDashboard() {
 
   // 🔥 REAL DATA HOOK (you forgot to use it)
   const { totalRides, loading: ridesLoading } = useTotalRides();
+
+
+    const { fleet } = usePendingApprovals();
+    console.log(fleet);
+
+
   const { count, } = useActiveDrivers();
   const { revenue, loading } = useRevenueToday();
-  const { count1, pendingApprovals  } = usePendingApprovals();
+
    const { liveRides,  } = useLiveRides();
    const { drivers,  totalDrivers } = useFleetDrivers();
   const { approvals,  totalApprovals } = useApprovals();
   const { analytics,  } = useAnalyticsData();
-
-  console.log(liveRides);
 
 
 
@@ -75,7 +79,7 @@ export default function UaTobAdminDashboard() {
       case "home":
         return <HomeTab onToast={showToast} liveRides={liveRides} />;
       case "drivers":
-        return <DriversTab onToast={showToast} />;
+        return <DriversTab fleet={fleet} onToast={showToast} />;
       case "approvals":
         return <ApprovalsTab onToast={showToast} />;
       case "analytics":
