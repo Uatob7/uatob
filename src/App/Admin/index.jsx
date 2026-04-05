@@ -6,88 +6,113 @@ import { TopBar } from '@/App/Admin/Topbar';
 import { Drawer } from '@/App/Admin/Drawer';
 import { TabBar } from '@/App/Admin/TabBar';
 
-import { HomeTab } from '@/App/Admin/HomeTab';
-import { DriversTab } from '@/App/Admin/Driverstab';
- import { ApprovalsTab } from '@/App/Admin/Approvalstab';
+import { HomeTab }      from '@/App/Admin/HomeTab';
+import { DriversTab }   from '@/App/Admin/Driverstab';
+import { ApprovalsTab } from '@/App/Admin/Approvalstab';
 import { AnalyticsTab } from '@/App/Admin/Analyticstab';
 
-import { useTotalRides } from "@/App/Admin/useTotalRides";
-import { useActiveDrivers } from "@/App/Admin/useActiveDrivers";
-import { useRevenueToday } from "@/App/Admin/useRevenueToday";
+import { useTotalRides }      from "@/App/Admin/useTotalRides";
+import { useActiveDrivers }   from "@/App/Admin/useActiveDrivers";
+import { useRevenueToday }    from "@/App/Admin/useRevenueToday";
 import { usePendingApprovals } from "@/App/Admin/usePendingApprovals";
-import { useLiveRides } from "@/App/Admin/useLiveRides";
-import { useFleetDrivers } from "@/App/Admin/useFleetDrivers";
-import { useApprovals } from "@/App/Admin/useApprovals";
-import { useAnalyticsData } from "@/App/Admin/useAnalyticsData";
-
+import { useLiveRides }       from "@/App/Admin/useLiveRides";
+import { useFleetDrivers }    from "@/App/Admin/useFleetDrivers";
+import { useApprovals }       from "@/App/Admin/useApprovals";
+import { useAnalyticsData }   from "@/App/Admin/useAnalyticsData";
 
 const TAB_TITLES = {
-  home: "Dashboard",
-  drivers: "Fleet",
+  home:      "Dashboard",
+  drivers:   "Fleet",
   approvals: "Approvals",
   analytics: "Analytics",
 };
 
 export default function UaTobAdminDashboard() {
-  const [activeTab, setActiveTab] = useState("home");
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [toast, setToast] = useState(null);
-
+  const [activeTab,   setActiveTab]   = useState("home");
+  const [drawerOpen,  setDrawerOpen]  = useState(false);
+  const [toast,       setToast]       = useState(null);
   const toastRef = useRef(null);
 
-  // 🔥 REAL DATA HOOK (you forgot to use it)
-    const { totalRides } = useTotalRides();
-    const { activeDrivers, } = useActiveDrivers();
-    const { revenue, loading } = useRevenueToday();
-    const { approvals } = useApprovals();
-    const { liveRides,  } = useLiveRides();
+  // ── Data hooks ────────────────────────────────────────────────────────────
+  const { totalRides }              = useTotalRides();
+  const { activeDrivers }           = useActiveDrivers();
+  const { revenue }                 = useRevenueToday();
+  const { liveRides }               = useLiveRides();
 
+  // Approvals tab — all pending driver applications
+  const { approvals }               = usePendingApprovals();
 
-    const { fleet } = usePendingApprovals();
+  // Fleet tab — fully onboarded / active drivers
+  const { drivers }                 = useFleetDrivers();
 
+  // Home tab summary counts (e.g. badge on stat card)
+  const { approvals: allApprovals } = useApprovals();
 
-   const { drivers,  totalDrivers } = useFleetDrivers();
-  const { analytics,  } = useAnalyticsData();
-
-  console.log("Analytics data:", analytics);
-
-
-
-
-
+  const { analytics }               = useAnalyticsData();
+  // ─────────────────────────────────────────────────────────────────────────
 
   const showToast = (msg) => {
     setToast(msg);
-
     if (toastRef.current) clearTimeout(toastRef.current);
-
-    toastRef.current = setTimeout(() => {
-      setToast(null);
-    }, 2500);
+    toastRef.current = setTimeout(() => setToast(null), 2500);
   };
 
-  // 🧼 Prevent memory leaks
+  // Prevent memory leaks on unmount
   useEffect(() => {
     return () => {
       if (toastRef.current) clearTimeout(toastRef.current);
     };
   }, []);
 
-  // 🔥 Centralized tab rendering (clean + scalable)
+  // All data vars that any tab consumes must live in this dep array,
+  // otherwise Firestore updates won't trigger a re-render.
   const CurrentTab = useMemo(() => {
     switch (activeTab) {
       case "home":
-        return <HomeTab onToast={showToast} liveRides={liveRides} activeDrivers={activeDrivers} revenue={revenue} approvals={approvals} />;
+        return (
+          <HomeTab
+            liveRides={liveRides}
+            totalRides={totalRides}
+            activeDrivers={activeDrivers}
+            revenue={revenue}
+            approvals={allApprovals}
+            onToast={showToast}
+          />
+        );
       case "drivers":
-        return <DriversTab fleet={fleet} onToast={showToast} />;
+        return (
+          <DriversTab
+            fleet={drivers}
+            onToast={showToast}
+          />
+        );
       case "approvals":
-        return <ApprovalsTab approvals={approvals} onToast={showToast} />;
+        return (
+          <ApprovalsTab
+            approvals={approvals}
+            onToast={showToast}
+          />
+        );
       case "analytics":
-        return <AnalyticsTab analytics={analytics}   />;
+        return (
+          <AnalyticsTab
+            analytics={analytics}
+          />
+        );
       default:
         return null;
     }
-  }, [activeTab, totalRides]);
+  }, [
+    activeTab,
+    liveRides,
+    totalRides,
+    activeDrivers,
+    revenue,
+    allApprovals,
+    approvals,
+    drivers,
+    analytics,
+  ]);
 
   return (
     <div
@@ -100,19 +125,15 @@ export default function UaTobAdminDashboard() {
     >
       <style>{CSS}</style>
 
-      {/* Toast */}
       <Toast msg={toast} />
 
-      {/* Drawer */}
       <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
 
-      {/* Top Navigation */}
       <TopBar
         title={TAB_TITLES[activeTab]}
         onMenuOpen={() => setDrawerOpen(true)}
       />
 
-      {/* Main Content */}
       <div
         style={{
           paddingBottom: 80,
@@ -124,7 +145,6 @@ export default function UaTobAdminDashboard() {
         {CurrentTab}
       </div>
 
-      {/* Bottom Tabs */}
       <TabBar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
