@@ -32,29 +32,11 @@ function clearSession()    { try { localStorage.removeItem(LS_KEY); } catch (_) 
 const EXTRA_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
 
-  @keyframes fadeIn    { from{opacity:0}                              to{opacity:1} }
-  @keyframes slideUp   { from{opacity:0;transform:translateY(14px)}   to{opacity:1;transform:translateY(0)} }
-  @keyframes modalIn   { from{opacity:0;transform:translateY(22px) scale(.97)} to{opacity:1;transform:translateY(0) scale(1)} }
-  @keyframes overlayIn { from{opacity:0}                              to{opacity:1} }
+  @keyframes fadeIn    { from{opacity:0}                                        to{opacity:1} }
+  @keyframes slideUp   { from{opacity:0;transform:translateY(14px)}             to{opacity:1;transform:translateY(0)} }
+  @keyframes modalIn   { from{opacity:0;transform:translateY(22px) scale(.97)}  to{opacity:1;transform:translateY(0) scale(1)} }
+  @keyframes overlayIn { from{opacity:0}                                        to{opacity:1} }
   @keyframes spinAnim  { to{transform:rotate(360deg)} }
-  @keyframes pulse2    { 0%,100%{opacity:1} 50%{opacity:.35} }
-
-  /* ── Header badges ── */
-  .live-badge-inner {
-    display:inline-flex; align-items:center; gap:6px;
-    background:rgba(22,163,74,0.09);
-    border:1px solid rgba(22,163,74,0.22);
-    border-radius:100px; padding:5px 13px;
-    font-family:'Outfit',system-ui,sans-serif;
-    font-size:11px; font-weight:800;
-    color:#16A34A; letter-spacing:.5px;
-    pointer-events:none;
-    user-select:none;
-  }
-  .live-dot-hdr {
-    width:6px; height:6px; border-radius:50%;
-    background:#16A34A; animation:pulse2 1.8s infinite;
-  }
 
   .login-badge {
     display:inline-flex; align-items:center; gap:7px;
@@ -109,9 +91,8 @@ const EXTRA_CSS = `
     .auth-sheet { border-radius:24px; max-height:none; }
   }
 
-  .auth-input-wrap {
-    position:relative; margin-bottom:12px;
-  }
+  .auth-input-wrap { position:relative; margin-bottom:12px; }
+
   .auth-input {
     width:100%; padding:13px 16px;
     background:#F9FAFB; border:1.5px solid #E5E7EB;
@@ -127,7 +108,7 @@ const EXTRA_CSS = `
     background:#fff;
   }
   .auth-input::placeholder { color:#9CA3AF; }
-  .auth-input.has-toggle { padding-right:46px; }
+  .auth-input.has-toggle   { padding-right:46px; }
 
   .auth-eye-btn {
     position:absolute; right:14px; top:50%;
@@ -149,14 +130,15 @@ const EXTRA_CSS = `
     display:flex; align-items:center; justify-content:center; gap:8px;
     transition:opacity .15s;
   }
-  .auth-submit:active { opacity:.85; }
+  .auth-submit:active   { opacity:.85; }
   .auth-submit:disabled { opacity:.6; cursor:not-allowed; }
 
   .auth-toggle-link {
     background:none; border:none; cursor:pointer;
     color:#16A34A; font-weight:700;
     font-family:'Outfit',system-ui,sans-serif;
-    font-size:13px; padding:0; text-decoration:underline;
+    font-size:13px; padding:0;
+    text-decoration:underline;
     text-underline-offset:2px;
   }
 
@@ -167,13 +149,6 @@ const EXTRA_CSS = `
     color:#DC2626; font-size:13px; font-weight:600;
     margin-bottom:12px; line-height:1.5;
   }
-
-  .auth-divider {
-    display:flex; align-items:center; gap:10px;
-    margin:16px 0;
-  }
-  .auth-divider-line { flex:1; height:1px; background:#E5E7EB; }
-  .auth-divider span { font-size:11px; color:#9CA3AF; font-weight:700; letter-spacing:.5px; }
 
   .mode-pill-row {
     display:flex; gap:6px;
@@ -197,13 +172,13 @@ const EXTRA_CSS = `
 
 // ── Inline Auth Modal ─────────────────────────────────────────────────
 function InlineAuthModal({ onClose, onAuthSuccess }) {
-  const [mode,        setMode]        = useState('login');
-  const [email,       setEmail]       = useState('');
-  const [password,    setPassword]    = useState('');
-  const [name,        setName]        = useState('');
-  const [showPw,      setShowPw]      = useState(false);
-  const [loading,     setLoading]     = useState(false);
-  const [error,       setError]       = useState('');
+  const [mode,     setMode]     = useState('login');
+  const [email,    setEmail]    = useState('');
+  const [password, setPassword] = useState('');
+  const [name,     setName]     = useState('');
+  const [showPw,   setShowPw]   = useState(false);
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -220,9 +195,9 @@ function InlineAuthModal({ onClose, onAuthSuccess }) {
         const user = result.result?.user ?? result.user;
         if (!user?.uid) throw new Error('Sign-up succeeded but UID is missing.');
         await fetch('https://createaccount-ady2s2xhhq-uc.a.run.app', {
-          method: 'POST',
+          method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ uid: user.uid, email: user.email, name }),
+          body:    JSON.stringify({ uid: user.uid, email: user.email, name }),
         });
       }
 
@@ -234,13 +209,8 @@ function InlineAuthModal({ onClose, onAuthSuccess }) {
     }
   };
 
-  // Close on backdrop click
-  const handleOverlayClick = (e) => {
-    if (e.target === e.currentTarget) onClose();
-  };
-
   return (
-    <div className="auth-overlay" onClick={handleOverlayClick}>
+    <div className="auth-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="auth-sheet">
 
         {/* Close */}
@@ -268,12 +238,8 @@ function InlineAuthModal({ onClose, onAuthSuccess }) {
 
         {/* Mode toggle */}
         <div className="mode-pill-row">
-          <button className={`mode-pill ${mode === 'login' ? 'active' : ''}`} onClick={() => { setMode('login'); setError(''); }}>
-            Sign In
-          </button>
-          <button className={`mode-pill ${mode === 'signup' ? 'active' : ''}`} onClick={() => { setMode('signup'); setError(''); }}>
-            Sign Up
-          </button>
+          <button className={`mode-pill ${mode === 'login'  ? 'active' : ''}`} onClick={() => { setMode('login');  setError(''); }}>Sign In</button>
+          <button className={`mode-pill ${mode === 'signup' ? 'active' : ''}`} onClick={() => { setMode('signup'); setError(''); }}>Sign Up</button>
         </div>
 
         {/* Error */}
@@ -283,33 +249,19 @@ function InlineAuthModal({ onClose, onAuthSuccess }) {
         <form onSubmit={handleSubmit}>
           {mode === 'signup' && (
             <div className="auth-input-wrap">
-              <input
-                className="auth-input"
-                type="text"
-                placeholder="Full name"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                required
-                autoComplete="name"
-              />
+              <input className="auth-input" type="text" placeholder="Full name"
+                value={name} onChange={e => setName(e.target.value)} required autoComplete="name" />
             </div>
           )}
 
           <div className="auth-input-wrap">
-            <input
-              className="auth-input"
-              type="email"
-              placeholder="Email address"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-            />
+            <input className="auth-input" type="email" placeholder="Email address"
+              value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" />
           </div>
 
           <div className="auth-input-wrap">
             <input
-              className={`auth-input has-toggle`}
+              className="auth-input has-toggle"
               type={showPw ? 'text' : 'password'}
               placeholder="Password"
               value={password}
@@ -333,10 +285,8 @@ function InlineAuthModal({ onClose, onAuthSuccess }) {
         {/* Bottom hint */}
         <div style={{ textAlign:'center', marginTop:16, fontSize:13, color:'#6B7280' }}>
           {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
-          <button
-            className="auth-toggle-link"
-            onClick={() => { setMode(m => m === 'login' ? 'signup' : 'login'); setError(''); }}
-          >
+          <button className="auth-toggle-link"
+            onClick={() => { setMode(m => m === 'login' ? 'signup' : 'login'); setError(''); }}>
             {mode === 'login' ? 'Sign up' : 'Sign in'}
           </button>
         </div>
@@ -357,30 +307,30 @@ export default function UaTobApp({ uid }) {
 
   const saved = loadSession();
 
-  // ── Booking state ──────────────────────────────────────
+  // ── Booking state ──────────────────────────────────────────────────
   const [bookingPayload,  setBookingPayload]  = useState(saved?.bookingPayload  ?? null);
   const [pickupCoords,    setPickupCoords]    = useState(saved?.pickupCoords    ?? null);
   const [dropoffCoords,   setDropoffCoords]   = useState(saved?.dropoffCoords   ?? null);
 
-  // ── UI state ───────────────────────────────────────────
+  // ── UI state ───────────────────────────────────────────────────────
   const [showPayment,     setShowPayment]     = useState(saved?.showPayment     ?? false);
   const [selectedPayment, setSelectedPayment] = useState(saved?.selectedPayment ?? 'card');
   const [mounted,         setMounted]         = useState(false);
 
-  // ── Header modals ──────────────────────────────────────
-  const [showAuthModal,    setShowAuthModal]    = useState(false);  // inline auth popup
-  const [showBookingAuth,  setShowBookingAuth]  = useState(false);  // original auth flow for booking
-  const [authMode,         setAuthMode]         = useState('login');
-  const [email,            setEmail]            = useState('');
-  const [password,         setPassword]         = useState('');
-  const [name,             setName]             = useState('');
-  const [authLoading,      setAuthLoading]      = useState(false);
-  const [authError,        setAuthError]        = useState('');
-  const [showDashboard,    setShowDashboard]    = useState(false);  // rider dashboard overlay
+  // ── Header / overlay state ─────────────────────────────────────────
+  const [showAuthModal,   setShowAuthModal]   = useState(false);
+  const [showBookingAuth, setShowBookingAuth] = useState(false);
+  const [authMode,        setAuthMode]        = useState('login');
+  const [email,           setEmail]           = useState('');
+  const [password,        setPassword]        = useState('');
+  const [name,            setName]            = useState('');
+  const [authLoading,     setAuthLoading]     = useState(false);
+  const [authError,       setAuthError]       = useState('');
+  const [showDashboard,   setShowDashboard]   = useState(false);
 
   useEffect(() => setMounted(true), []);
 
-  // ── Persist session ────────────────────────────────────
+  // ── Persist session ────────────────────────────────────────────────
   useEffect(() => {
     if (bookingPayload) {
       saveSession({ bookingPayload, pickupCoords, dropoffCoords, showPayment, selectedPayment });
@@ -389,7 +339,7 @@ export default function UaTobApp({ uid }) {
     }
   }, [bookingPayload, pickupCoords, dropoffCoords, showPayment, selectedPayment]);
 
-  // ── Derive ride state ──────────────────────────────────
+  // ── Derive ride state ──────────────────────────────────────────────
   const activeRide = active?.find(
     r => r.paymentStatus === 'succeeded' && !DONE_STATUSES.includes(r.status)
   ) ?? null;
@@ -401,7 +351,7 @@ export default function UaTobApp({ uid }) {
     if (activeRide) setShowPayment(false);
   }, [activeRide]);
 
-  // ── Booking auth submit (for book-now flow) ────────────
+  // ── Booking-flow auth submit ───────────────────────────────────────
   const handleBookingAuth = async (e) => {
     e.preventDefault();
     setAuthLoading(true);
@@ -417,9 +367,9 @@ export default function UaTobApp({ uid }) {
         const user = result.result?.user ?? result.user;
         if (!user?.uid) throw new Error('Sign-up succeeded but UID is missing.');
         await fetch('https://createaccount-ady2s2xhhq-uc.a.run.app', {
-          method: 'POST',
+          method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ uid: user.uid, email: user.email, name }),
+          body:    JSON.stringify({ uid: user.uid, email: user.email, name }),
         });
       }
 
@@ -432,7 +382,7 @@ export default function UaTobApp({ uid }) {
     }
   };
 
-  // ── Handlers ───────────────────────────────────────────
+  // ── Handlers ───────────────────────────────────────────────────────
   const handlePayloadChange = (payload) => {
     if (!payload) return;
     setBookingPayload(prev => ({ ...prev, ...payload }));
@@ -463,20 +413,9 @@ export default function UaTobApp({ uid }) {
     clearSession();
   };
 
-  // ── Header right slot ──────────────────────────────────
-  //
-  //  No uid  → "Login" pill  → opens InlineAuthModal
-  //  Has uid → person icon   → opens RiderDashboard overlay
-  //
+  // ── Header right — Login pill OR Account avatar ────────────────────
   const HeaderRight = () => (
-    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-      {/* Always-visible Live badge */}
-      <div className="live-badge-inner">
-        <div className="live-dot-hdr" />
-        Live
-      </div>
-
-      {/* Conditional auth/account button */}
+    <div style={{ display:'flex', alignItems:'center' }}>
       {!resolvedUid ? (
         <button
           className="login-badge"
@@ -498,6 +437,7 @@ export default function UaTobApp({ uid }) {
     </div>
   );
 
+  // ── Render ─────────────────────────────────────────────────────────
   return (
     <div style={{
       minHeight:'100vh', background:T.bg,
@@ -569,7 +509,7 @@ export default function UaTobApp({ uid }) {
 
       </div>
 
-      {/* ── Inline header auth modal (Login badge click) ── */}
+      {/* ── Inline header auth modal (Login badge) ── */}
       {showAuthModal && !resolvedUid && (
         <InlineAuthModal
           onClose={() => setShowAuthModal(false)}
@@ -577,7 +517,7 @@ export default function UaTobApp({ uid }) {
         />
       )}
 
-      {/* ── Booking-flow auth modal (original) ── */}
+      {/* ── Booking-flow auth modal ── */}
       {showBookingAuth && !resolvedUid && (
         <AuthModal
           authMode={authMode}
@@ -618,7 +558,7 @@ export default function UaTobApp({ uid }) {
         />
       )}
 
-      {/* ── Rider dashboard overlay (Account icon click) ── */}
+      {/* ── Rider dashboard overlay (Account icon) ── */}
       {showDashboard && resolvedUid && (
         <div style={{
           position:'fixed', inset:0, zIndex:400,
@@ -633,7 +573,7 @@ export default function UaTobApp({ uid }) {
             padding:'14px 18px',
             background:'rgba(242,245,242,.94)',
             backdropFilter:'blur(12px)',
-            borderBottom:`1px solid #DDE5DD`,
+            borderBottom:'1px solid #DDE5DD',
           }}>
             <button
               onClick={() => setShowDashboard(false)}
@@ -654,10 +594,7 @@ export default function UaTobApp({ uid }) {
           <RiderDashboard
             uid={resolvedUid}
             onBookRide={() => setShowDashboard(false)}
-            onSignOut={() => {
-              setShowDashboard(false);
-              // signOut() call goes here if you have a global signOut handler
-            }}
+            onSignOut={() => setShowDashboard(false)}
           />
         </div>
       )}
