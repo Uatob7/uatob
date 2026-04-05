@@ -1,102 +1,3 @@
-
-[{…}]
-0
-: 
-createdAt
-: 
-Timestamp {seconds: 1775401178, nanoseconds: 946000000}
-driverPayout
-: 
-9.62
-dropoff
-: 
-"2382 Locke Avenue, Orlando, FL, USA"
-dropoffCity
-: 
-"Orlando"
-dropoffLat
-: 
-28.5730545
-dropoffLng
-: 
--81.4696329
-dropoffZip
-: 
-"32818"
-fareBreakdown
-: 
-{distance: 7.46, time: 2.88, bookingFee: 0.99, baseFare: 1.5}
-fareTotal
-: 
-12.83
-id
-: 
-"9lIb5VIfwKieH9Z0hKjZ"
-paymentIntentId
-: 
-"pi_3TIs9GJhpOy6wtDq1ff5Lgvr"
-paymentMethod
-: 
-"cashapp"
-paymentStatus
-: 
-"succeeded"
-payoutStatus
-: 
-"pending"
-pickup
-: 
-"3050 C.R. Smith St, Orlando, FL 32805, USA"
-pickupCity
-: 
-"Orlando"
-pickupLat
-: 
-28.5335484
-pickupLng
-: 
--81.415593
-pickupZip
-: 
-"32805"
-platformFee
-: 
-3.21
-rideLabel
-: 
-"Economy"
-rideType
-: 
-"economy"
-status
-: 
-"completed"
-surgeMultiplier
-: 
-1
-tripDistanceMiles
-: 
-6.22
-tripDurationMin
-: 
-16
-uid
-: 
-"6rIXzLa8kaQhxVdkVxPNVxMaWYV2"
-updatedAt
-: 
-Timestamp {seconds: 1775401178, nanoseconds: 946000000}
-[[Prototype]]
-: 
-Object
-length
-: 
-1
-[[Prototype]]
-: 
-Array(0)
-
-
 import { useState } from "react";
 import {
   Activity, DollarSign, Car, Shield,
@@ -105,21 +6,22 @@ import {
 import { C } from '@/App/Admin/Tokens';
 import { StatCard, SectionHeader, Avatar, StatusPill } from '@/App/Admin/UI';
 
-// ── Live rides come from Firestore in production.
-// Shape mirrors the Firestore `rides` document:
-//   pickup, dropoff, fareTotal, status, rideLabel, uid, createdAt, …
-// For now we keep mock data here; swap for a useRides() hook later.
-const MOCK_RIDES = [
-  { id:"r001", rider:"Marcus W.",  driver:"Jerome T.", from:"Downtown",  to:"Airport",        fare:38.50, status:"in_progress",     time:"2m ago"  },
-  { id:"r002", rider:"Priya M.",   driver:"Leon A.",   from:"Westside",  to:"Midtown",        fare:14.20, status:"searching_driver", time:"1m ago"  },
-  { id:"r003", rider:"Carlos D.",  driver:"Kira N.",   from:"North Park",to:"Harbor",         fare:22.80, status:"completed",        time:"8m ago"  },
-  { id:"r004", rider:"Anya S.",    driver:"—",         from:"Oak Hills", to:"University",     fare:11.00, status:"searching_driver", time:"30s ago" },
-  { id:"r005", rider:"Derek F.",   driver:"Tomás R.",  from:"Eastgate",  to:"Convention Ctr", fare:19.60, status:"arrived",          time:"4m ago"  },
-];
+// Converts a Firestore Timestamp (or plain seconds) to a relative "X ago" string
+function timeAgo(ts) {
+  if (!ts) return "—";
+  const seconds = ts?.seconds ?? Math.floor(ts / 1000);
+  const diff = Math.floor(Date.now() / 1000) - seconds;
+  if (diff < 60)  return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  return `${Math.floor(diff / 3600)}h ago`;
+}
 
-export function HomeTab({ liveRides, onToast }) {
+// Shorten a full address to just the street name or first segment
+function shortAddress(addr = "") {
+  return addr.split(",")[0] || addr;
+}
 
-  console.log(liveRides)
+export function HomeTab({ liveRides = [], onToast }) {
   const [refreshing, setRefreshing] = useState(false);
 
   const handleRefresh = () => {
@@ -127,8 +29,8 @@ export function HomeTab({ liveRides, onToast }) {
     setTimeout(() => { setRefreshing(false); onToast("Data refreshed"); }, 1100);
   };
 
-  const activeCount = MOCK_RIDES.filter(r => ["in_progress","arrived"].includes(r.status)).length;
-  const searchCount = MOCK_RIDES.filter(r => r.status === "searching_driver").length;
+  const activeCount  = liveRides.filter(r => ["in_progress", "arrived"].includes(r.status)).length;
+  const searchCount  = liveRides.filter(r => r.status === "searching_driver").length;
 
   return (
     <div style={{ padding: "0 16px 16px" }}>
@@ -165,7 +67,7 @@ export function HomeTab({ liveRides, onToast }) {
 
       {/* Live rides list */}
       <SectionHeader
-        title="Live Rides"
+        title={`Live Rides ${liveRides.length ? `(${liveRides.length})` : ""}`}
         action={
           <button className="btn-ghost" style={{ padding: "6px 12px", fontSize: 11 }}>
             <Filter size={11} /> Filter
@@ -174,7 +76,12 @@ export function HomeTab({ liveRides, onToast }) {
       />
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {MOCK_RIDES.map((ride, i) => (
+        {liveRides.length === 0 && (
+          <div style={{ textAlign: "center", padding: "32px 0", color: C.textMuted, fontSize: 13 }}>
+            No rides yet
+          </div>
+        )}
+        {liveRides.map((ride, i) => (
           <RideCard key={ride.id} ride={ride} delay={280 + i * 55} />
         ))}
       </div>
@@ -183,6 +90,10 @@ export function HomeTab({ liveRides, onToast }) {
 }
 
 function RideCard({ ride, delay }) {
+  // uid is the only rider identifier we have from Firestore right now
+  const riderLabel  = ride.riderName  ?? `Rider …${ride.uid?.slice(-4) ?? "?"}`;
+  const driverLabel = ride.driverName ?? (ride.driverId ? `Driver …${ride.driverId.slice(-4)}` : "—");
+
   return (
     <div
       className="card fade-up"
@@ -190,23 +101,49 @@ function RideCard({ ride, delay }) {
     >
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Avatar name={ride.rider} size={34} colorIdx={1} />
+          <Avatar name={riderLabel} size={34} colorIdx={1} />
           <div>
-            <div style={{ fontSize: 13, fontWeight: 700 }}>{ride.rider}</div>
-            <div style={{ fontSize: 11, color: "#6B7280" }}>{ride.driver}</div>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>{riderLabel}</div>
+            <div style={{ fontSize: 11, color: "#6B7280" }}>{driverLabel}</div>
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5 }}>
           <StatusPill status={ride.status} />
-          <span className="mono" style={{ fontSize: 12, fontWeight: 600, color: "#16A34A" }}>${ride.fare.toFixed(2)}</span>
+          <span className="mono" style={{ fontSize: 12, fontWeight: 600, color: "#16A34A" }}>
+            ${ride.fareTotal?.toFixed(2) ?? "—"}
+          </span>
         </div>
       </div>
+
       <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#EEF1EE", borderRadius: 8, padding: "7px 10px" }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700, letterSpacing: ".5px", marginBottom: 2 }}>FROM → TO</div>
-          <div style={{ fontSize: 12, fontWeight: 600 }}>{ride.from} → {ride.to}</div>
+          <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700, letterSpacing: ".5px", marginBottom: 2 }}>
+            FROM → TO · {ride.rideLabel ?? ride.rideType}
+          </div>
+          <div style={{ fontSize: 12, fontWeight: 600 }}>
+            {shortAddress(ride.pickup)} → {shortAddress(ride.dropoff)}
+          </div>
         </div>
-        <div style={{ fontSize: 10, color: "#9CA3AF" }}>{ride.time}</div>
+        <div style={{ fontSize: 10, color: "#9CA3AF" }}>{timeAgo(ride.createdAt)}</div>
+      </div>
+
+      {/* Payment badge */}
+      <div style={{ marginTop: 8, display: "flex", gap: 6 }}>
+        <span style={{
+          fontSize: 10, fontWeight: 700, letterSpacing: ".4px", textTransform: "uppercase",
+          background: ride.paymentMethod === "cashapp" ? "#1A9141" : "#2563EB",
+          color: "#fff", padding: "2px 7px", borderRadius: 4
+        }}>
+          {ride.paymentMethod}
+        </span>
+        <span style={{
+          fontSize: 10, fontWeight: 700, letterSpacing: ".4px", textTransform: "uppercase",
+          background: ride.payoutStatus === "pending" ? "#F59E0B22" : "#16A34A22",
+          color: ride.payoutStatus === "pending" ? "#B45309" : "#15803D",
+          padding: "2px 7px", borderRadius: 4
+        }}>
+          payout: {ride.payoutStatus}
+        </span>
       </div>
     </div>
   );
