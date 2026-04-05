@@ -76,7 +76,7 @@ export function HomeTab({ liveRides = [], totalRides, activeDrivers = [], revenu
         />
         <StatCard
           label="Revenue Today"
-          value={revenue != null ? `$${revenue.toFixed(2)}` : "—"}
+          value={revenue != null ? `${revenue.toFixed(2)}` : "—"}
           icon={DollarSign}
           color={C.amber}
           delay={180}
