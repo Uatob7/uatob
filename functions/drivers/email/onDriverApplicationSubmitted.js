@@ -366,7 +366,7 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
               <!-- ── CTA ── -->
               ${!allDocsUploaded ? `
               <div style="text-align:center;margin:32px 0;">
-                <a href="https://uatob.com/driver-signup"
+                <a href="https://uatob.com/driver/signup"
                    style="display:inline-block;background-color:#D97706;
                           color:#ffffff;font-size:16px;font-weight:700;
                           text-decoration:none;padding:16px 36px;

@@ -446,7 +446,7 @@ exports.onDriverCreated = onDocumentCreated(
         to:      email,
         from:    "UaTob <noreply@uatob.com>",
         subject: `🚗 Welcome to UaTob, ${name}! Finish your application to start driving.`,
-        text:    `Hey ${name}! Welcome to UaTob — Orlando's rideshare platform. Finish your application at https://uatob.com/driver-signup and our team will review it within 24–48 hours. Once approved, you're ready to hit the road and start earning.`,
+        text:    `Hey ${name}! Welcome to UaTob — Orlando's rideshare platform. Finish your application at https://uatob.com/driver/signup and our team will review it within 24–48 hours. Once approved, you're ready to hit the road and start earning.`,
         html,
       };
 

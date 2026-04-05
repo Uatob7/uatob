@@ -1,0 +1,16 @@
+[debug] [2026-04-05T21:41:51.550Z] ----------------------------------------------------------------------
+[debug] [2026-04-05T21:41:51.553Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only functions
+[debug] [2026-04-05T21:41:51.553Z] CLI Version:   15.12.0
+[debug] [2026-04-05T21:41:51.554Z] Platform:      win32
+[debug] [2026-04-05T21:41:51.554Z] Node Version:  v24.14.0
+[debug] [2026-04-05T21:41:51.554Z] Time:          Sun Apr 05 2026 17:41:51 GMT-0400 (Eastern Daylight Time)
+[debug] [2026-04-05T21:41:51.554Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-04-05T21:41:53.329Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-04-05T21:41:53.329Z] > authorizing via signed-in user (support@calltelo.com)
+[debug] [2026-04-05T21:41:53.329Z] [iam] checking project uatob-e7b4b for permissions ["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]
+[debug] [2026-04-05T21:41:53.331Z] Checked if tokens are valid: true, expires at: 1775427641948
+[debug] [2026-04-05T21:41:53.331Z] Checked if tokens are valid: true, expires at: 1775427641948
+[debug] [2026-04-05T21:41:53.332Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions [none]
+[debug] [2026-04-05T21:41:53.332Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions  x-goog-user-project=uatob-e7b4b
+[debug] [2026-04-05T21:41:53.332Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}

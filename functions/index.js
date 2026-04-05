@@ -7,6 +7,8 @@ const { ATOB } = require("./ride/ATOB");
 const { Price } = require("./ride/Price"); 
 const { Autocomplete } = require("./ride/Autocomplete"); 
 const { Geo } = require("./ride/Geo"); 
+const { onAccountCreated } = require("./ride/email/onAccountCreated");
+const { onRideCreated } = require("./ride/email/onRideCreated");
 
 // Payment functions
 const { cardPayment } = require("./payments/cardPayment");
@@ -26,8 +28,16 @@ const { onDriverCreated } = require("./drivers/email/onDriverCreated");
 const { onDriverApplicationSubmitted } = require("./drivers/email/onDriverApplicationSubmitted");
 
 
+// Admin functions
+const { onAccountCreatedNotifyAdmin } = require("./admin/email/onAccountCreatedNotifyAdmin");
+const { onDriverCreatedNotifyAdmin } = require("./admin/email/onDriverCreatedNotifyAdmin");
+const { onRideCreatedNotifyAdmin } = require("./admin/email/onRideCreatedNotifyAdmin");
+
+
 // Exports
 exports.createAccount = createAccount;
+exports.onAccountCreated = onAccountCreated;
+exports.onRideCreated = onRideCreated;
 exports.ATOB = ATOB;
 exports.Autocomplete = Autocomplete;
 exports.Price = Price;
@@ -45,3 +55,7 @@ exports.calcDriverDistance = calcDriverDistance;
 exports.getDriverToPickup = getDriverToPickup;
 exports.onDriverCreated = onDriverCreated;
 exports.onDriverApplicationSubmitted = onDriverApplicationSubmitted;
+
+exports.onAccountCreatedNotifyAdmin = onAccountCreatedNotifyAdmin;
+exports.onDriverCreatedNotifyAdmin = onDriverCreatedNotifyAdmin;
+exports.onRideCreatedNotifyAdmin = onRideCreatedNotifyAdmin;
