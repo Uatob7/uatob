@@ -390,60 +390,155 @@ function ActiveRideBanner({ ride, onPress }) {
   );
 }
 
-// ── RIDE DETAIL VIEW ──────────────────────────────────────────────────
+// ── RIDE DETAIL VIEW ──────────────────────────────────────────────
 function RideDetail({ ride, onBack }) {
+  const formatTime = (minutes) => {
+    if (!minutes) return "—";
+    if (minutes < 60) return `${minutes}m`;
+    const hrs = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hrs}h ${mins}m`;
+  };
+
+  const formatDate = (ts) => {
+    if (!ts) return "—";
+    const date = ts.toDate ? ts.toDate() : new Date(ts);
+    return date.toLocaleDateString("en-US", { 
+      weekday: "short", 
+      month: "short", 
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  };
+
+  const fareTotal = ride.fareTotal ?? ride.fare ?? 0;
+  const tripDistance = ride.tripDistanceMiles ?? (ride.miles ? parseFloat(ride.miles) : null);
+  const tripDuration = ride.tripDurationMin ?? parseInt(ride.duration);
+
   return (
     <div style={{ padding: "0 18px 32px", animation: "popIn .3s cubic-bezier(.34,1.2,.64,1)" }}>
       <button className="back-btn" onClick={onBack}>
         <ChevronLeft size={15} /> Back to trips
       </button>
 
-      <div className="card" style={{ padding: "20px", marginBottom: 14 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18 }}>
-          <div>
-            <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 700, letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 4 }}>
-              {ride.date}
+      {/* Header card with gradient */}
+      <div className="card" style={{ padding: "24px", marginBottom: 20, position: "relative", overflow: "hidden" }}>
+        <div style={{
+          position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+          background: `linear-gradient(135deg, ${ride.status === "completed" ? T.greenLight : T.redLight} 0%, ${T.surfaceHigh} 100%)`,
+          opacity: 0.5, pointerEvents: "none"
+        }} />
+        
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+            <div>
+              <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 700, letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 8 }}>
+                {formatDate(ride.createdAt || ride.date)}
+              </div>
+              <RideStatusPill status={ride.status} />
+              {ride.rideLabel && ride.rideLabel !== "—" && (
+                <span className="pill" style={{ background: T.surfaceHigh, color: T.textMuted, marginLeft: 8, marginTop: 8 }}>
+                  {ride.rideLabel}
+                </span>
+              )}
             </div>
-            <RideStatusPill status={ride.status} />
-            {ride.rideLabel && ride.rideLabel !== "—" && (
-              <span className="pill" style={{ background: T.surfaceHigh, color: T.textMuted, marginLeft: 6 }}>
-                {ride.rideLabel}
-              </span>
-            )}
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 700, letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 4 }}>
+                Total Fare
+              </div>
+              <div className="mono" style={{ fontSize: 32, fontWeight: 800, color: ride.status === "completed" ? T.green : T.red }}>
+                ${fareTotal.toFixed(2)}
+              </div>
+            </div>
           </div>
-          <div className="mono" style={{ fontSize: 24, fontWeight: 600, color: T.green }}>
-            ${ride.fare.toFixed(2)}
-          </div>
-        </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 10, height: 10, borderRadius: "50%", background: T.text, flexShrink: 0 }} />
-            <div style={{ fontSize: 14, fontWeight: 700 }}>{ride.from}</div>
-          </div>
-          <div style={{ width: 1, height: 22, background: T.border, marginLeft: 4, marginTop: 3, marginBottom: 3 }} />
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 10, height: 10, borderRadius: "50%", background: T.green, flexShrink: 0 }} />
-            <div style={{ fontSize: 14, fontWeight: 700 }}>{ride.to}</div>
+          {/* Route visualization */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 12, height: 12, borderRadius: "50%", background: T.text, flexShrink: 0, boxShadow: `0 0 0 3px ${T.surfaceHigh}` }} />
+              <div style={{ fontSize: 15, fontWeight: 700, color: T.text, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {ride.pickup || ride.from}
+              </div>
+            </div>
+            <div style={{ width: 2, height: 28, background: `linear-gradient(180deg, ${T.border} 0%, transparent 100%)`, marginLeft: 5, marginTop: 6, marginBottom: 6, opacity: 0.6 }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 12, height: 12, borderRadius: "50%", background: T.green, flexShrink: 0, boxShadow: `0 0 0 3px ${T.greenLight}` }} />
+              <div style={{ fontSize: 15, fontWeight: 700, color: T.text, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {ride.dropoff || ride.to}
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
+      {/* Trip details grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 20 }}>
         {[
-          { label: "Duration", value: ride.duration },
-          { label: "Distance", value: ride.miles ? `${ride.miles} mi` : "—" },
-          { label: "Payment",  value: ride.paymentMethod ?? "—" },
+          { label: "Distance", value: tripDistance ? `${tripDistance.toFixed(1)} mi` : "—" },
+          { label: "Duration", value: formatTime(tripDuration) },
+          { label: "Surge", value: ride.surgeMultiplier && ride.surgeMultiplier > 1 ? `${ride.surgeMultiplier}x` : "None" },
         ].map(({ label, value }) => (
           <div key={label} className="stat-chip">
-            <div style={{ fontSize: 10, color: T.textMuted, fontWeight: 700, letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 5 }}>{label}</div>
-            <div className="mono" style={{ fontSize: 13, fontWeight: 600, color: T.text, textTransform: "capitalize" }}>{value}</div>
+            <div style={{ fontSize: 10, color: T.textMuted, fontWeight: 700, letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 6 }}>{label}</div>
+            <div className="mono" style={{ fontSize: 16, fontWeight: 700, color: T.text }}>
+              {value}
+            </div>
           </div>
         ))}
       </div>
 
+      {/* Fare breakdown */}
+      <div className="card" style={{ padding: "18px 20px", marginBottom: 20 }}>
+        <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 700, letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 14 }}>
+          Fare Breakdown
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {[
+            { label: "Base Fare", value: `$${(fareTotal - (ride.platformFee || 0)).toFixed(2)}`, color: T.text },
+            { label: "Platform Fee", value: `$${(ride.platformFee ?? 0).toFixed(2)}`, color: T.textMuted, size: 13 },
+            { label: "Total", value: `$${fareTotal.toFixed(2)}`, color: T.green, weight: 800, size: 16 },
+          ].map(({ label, value, color, weight, size }, i) => (
+            <div key={label} style={{
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+              paddingBottom: i < 2 ? 10 : 0,
+              borderBottom: i < 2 ? `1px solid ${T.borderLight}` : "none"
+            }}>
+              <span style={{ fontSize: 13, color: T.textMuted, fontWeight: 600 }}>{label}</span>
+              <span className="mono" style={{ fontSize: size ?? 14, fontWeight: weight ?? 700, color }}>
+                {value}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Payment & location info */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+        <div className="card" style={{ padding: "16px 18px" }}>
+          <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 700, letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 8 }}>
+            Payment Method
+          </div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: T.text, textTransform: "capitalize" }}>
+            {ride.paymentMethod ?? "—"}
+          </div>
+          <div style={{ fontSize: 11, color: T.textMuted, marginTop: 4 }}>
+            {ride.paymentStatus === "succeeded" ? "✓ Completed" : ride.paymentStatus ?? "—"}
+          </div>
+        </div>
+        <div className="card" style={{ padding: "16px 18px" }}>
+          <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 700, letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 8 }}>
+            Ride Type
+          </div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: T.text, textTransform: "capitalize" }}>
+            {ride.rideLabel ?? ride.rideType ?? "—"}
+          </div>
+        </div>
+      </div>
+
+      {/* Driver info */}
       {ride.driver !== "—" && (
-        <div className="card" style={{ padding: "16px 18px", marginBottom: 14 }}>
+        <div className="card" style={{ padding: "16px 18px", marginBottom: 20 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <Avatar initials={getInitials(ride.driver)} size={40} />
             <div style={{ flex: 1 }}>
@@ -459,6 +554,7 @@ function RideDetail({ ride, onBack }) {
         </div>
       )}
 
+      {/* Actions */}
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {ride.status === "completed" && (
           <button className="primary-btn">
