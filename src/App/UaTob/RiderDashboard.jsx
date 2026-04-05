@@ -747,7 +747,7 @@ function OverviewTab({ account, uid, onTab }) {
   const joined    = formatJoined(account?.createdAt);
 
   const completedRides = rides.filter(r => r.status === "completed");
-  const totalSpent     = completedRides.reduce((s, r) => s + r.fare, 0);
+  const totalSpent     = completedRides.reduce((s, r) => s + (r.fareTotal ?? r.fare ?? 0), 0);
   const lastRide       = completedRides[0] ?? null;
 
   return (
