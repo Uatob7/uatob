@@ -811,7 +811,7 @@ export default function UaTobApp({ uid }) {
       </div>
 
       {/* ── Footer ── */}
-      {!isTracking && (
+      {!isTracking && !bookingPayload && (
         <UaTobFooter
           onBookRideClick={() => {
             if (!resolvedUid) {
