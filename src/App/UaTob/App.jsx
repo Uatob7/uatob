@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Route } from 'lucide-react';
- 
+import { Route, User, LogIn, X, Eye, EyeOff, Loader2 } from 'lucide-react';
 
 import { THEME as T } from '@/App/UaTob/pricing.js';
 import CSS from '@/App/UaTob/styles.js';
@@ -11,54 +10,374 @@ import LiveTrackingPanel from '@/App/UaTob/LiveTrackingPanel.jsx';
 import AuthModal from '@/App/UaTob/AuthModal.jsx';
 import PaymentModal from '@/App/UaTob/PaymentModal.jsx';
 import ConfirmationModal from '@/App/UaTob/ConfirmationModal.jsx';
+import RiderDashboard from '@/App/UaTob/RiderDashboard.jsx';
 import { useAuthContext } from '@/context/AuthContext';
 import signIn from '@/firebase/auth/signin';
 import signUp from '@/firebase/auth/signup';
 import { useUserRides } from '@/App/UaTob/useUserRides';
 import { useActiveRides } from '@/App/UaTob/useActiveRides';
 
-// ── Status buckets ─────────────────────────────────────────
+// ── Status buckets ─────────────────────────────────────────────────────
 const SEARCHING_STATUSES = ['searching_driver'];
 const TRACKING_STATUSES  = ['driver_assigned', 'driver_arriving', 'arrived', 'in_progress'];
 const DONE_STATUSES      = ['completed', 'cancelled'];
 
-// ── localStorage helpers ───────────────────────────────────
+// ── localStorage helpers ───────────────────────────────────────────────
 const LS_KEY = 'uatob_session';
-
 function saveSession(data) { try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch (_) {} }
 function loadSession()     { try { const raw = localStorage.getItem(LS_KEY); return raw ? JSON.parse(raw) : null; } catch (_) { return null; } }
 function clearSession()    { try { localStorage.removeItem(LS_KEY); } catch (_) {} }
 
+// ── Inline CSS additions ───────────────────────────────────────────────
+const EXTRA_CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+
+  @keyframes fadeIn    { from{opacity:0}                              to{opacity:1} }
+  @keyframes slideUp   { from{opacity:0;transform:translateY(14px)}   to{opacity:1;transform:translateY(0)} }
+  @keyframes modalIn   { from{opacity:0;transform:translateY(22px) scale(.97)} to{opacity:1;transform:translateY(0) scale(1)} }
+  @keyframes overlayIn { from{opacity:0}                              to{opacity:1} }
+  @keyframes spinAnim  { to{transform:rotate(360deg)} }
+  @keyframes pulse2    { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+  /* ── Header badges ── */
+  .live-badge-inner {
+    display:inline-flex; align-items:center; gap:6px;
+    background:rgba(22,163,74,0.09);
+    border:1px solid rgba(22,163,74,0.22);
+    border-radius:100px; padding:5px 13px;
+    font-family:'Outfit',system-ui,sans-serif;
+    font-size:11px; font-weight:800;
+    color:#16A34A; letter-spacing:.5px;
+    pointer-events:none;
+    user-select:none;
+  }
+  .live-dot-hdr {
+    width:6px; height:6px; border-radius:50%;
+    background:#16A34A; animation:pulse2 1.8s infinite;
+  }
+
+  .login-badge {
+    display:inline-flex; align-items:center; gap:7px;
+    background:#111827;
+    border:none; border-radius:100px;
+    padding:7px 15px 7px 12px;
+    font-family:'Outfit',system-ui,sans-serif;
+    font-size:12px; font-weight:800;
+    color:#fff; letter-spacing:.3px;
+    cursor:pointer;
+    box-shadow:0 3px 12px rgba(17,24,39,.18);
+    transition:opacity .15s, transform .15s;
+  }
+  .login-badge:active { opacity:.85; transform:scale(.97); }
+
+  .account-btn {
+    width:36px; height:36px; border-radius:50%;
+    background:linear-gradient(135deg,#16A34A,#15803D);
+    border:none; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 3px 12px rgba(22,163,74,.3);
+    transition:opacity .15s, transform .15s;
+    flex-shrink:0;
+  }
+  .account-btn:active { opacity:.85; transform:scale(.95); }
+
+  /* ── Auth modal ── */
+  .auth-overlay {
+    position:fixed; inset:0; z-index:500;
+    background:rgba(0,0,0,.45);
+    backdrop-filter:blur(5px);
+    display:flex; align-items:flex-end; justify-content:center;
+    animation:overlayIn .2s ease;
+    padding:0;
+  }
+  @media(min-height:600px) {
+    .auth-overlay { align-items:center; padding:24px; }
+  }
+
+  .auth-sheet {
+    background:#fff;
+    border-radius:24px 24px 0 0;
+    width:100%; max-width:420px;
+    padding:28px 24px 40px;
+    box-shadow:0 -8px 48px rgba(0,0,0,.14);
+    animation:modalIn .32s cubic-bezier(.34,1.2,.64,1);
+    position:relative;
+    max-height:90vh;
+    overflow-y:auto;
+  }
+  @media(min-height:600px) {
+    .auth-sheet { border-radius:24px; max-height:none; }
+  }
+
+  .auth-input-wrap {
+    position:relative; margin-bottom:12px;
+  }
+  .auth-input {
+    width:100%; padding:13px 16px;
+    background:#F9FAFB; border:1.5px solid #E5E7EB;
+    border-radius:13px; outline:none;
+    font-family:'Outfit',system-ui,sans-serif;
+    font-size:14px; font-weight:500; color:#111827;
+    transition:border-color .15s, box-shadow .15s;
+    box-sizing:border-box;
+  }
+  .auth-input:focus {
+    border-color:#16A34A;
+    box-shadow:0 0 0 3px rgba(22,163,74,.12);
+    background:#fff;
+  }
+  .auth-input::placeholder { color:#9CA3AF; }
+  .auth-input.has-toggle { padding-right:46px; }
+
+  .auth-eye-btn {
+    position:absolute; right:14px; top:50%;
+    transform:translateY(-50%);
+    background:none; border:none; cursor:pointer;
+    color:#9CA3AF; display:flex; padding:0;
+    transition:color .15s;
+  }
+  .auth-eye-btn:hover { color:#6B7280; }
+
+  .auth-submit {
+    width:100%; padding:14px;
+    background:linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D);
+    color:#fff; border:none; border-radius:14px;
+    font-family:'Outfit',system-ui,sans-serif;
+    font-size:15px; font-weight:800;
+    cursor:pointer; margin-top:6px;
+    box-shadow:0 4px 16px rgba(22,163,74,.28);
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    transition:opacity .15s;
+  }
+  .auth-submit:active { opacity:.85; }
+  .auth-submit:disabled { opacity:.6; cursor:not-allowed; }
+
+  .auth-toggle-link {
+    background:none; border:none; cursor:pointer;
+    color:#16A34A; font-weight:700;
+    font-family:'Outfit',system-ui,sans-serif;
+    font-size:13px; padding:0; text-decoration:underline;
+    text-underline-offset:2px;
+  }
+
+  .auth-error {
+    background:rgba(220,38,38,.07);
+    border:1px solid rgba(220,38,38,.2);
+    border-radius:10px; padding:10px 14px;
+    color:#DC2626; font-size:13px; font-weight:600;
+    margin-bottom:12px; line-height:1.5;
+  }
+
+  .auth-divider {
+    display:flex; align-items:center; gap:10px;
+    margin:16px 0;
+  }
+  .auth-divider-line { flex:1; height:1px; background:#E5E7EB; }
+  .auth-divider span { font-size:11px; color:#9CA3AF; font-weight:700; letter-spacing:.5px; }
+
+  .mode-pill-row {
+    display:flex; gap:6px;
+    background:#F3F4F6; border-radius:12px;
+    padding:4px; margin-bottom:22px;
+  }
+  .mode-pill {
+    flex:1; padding:9px 0;
+    border:none; border-radius:9px;
+    font-family:'Outfit',system-ui,sans-serif;
+    font-size:13px; font-weight:700; cursor:pointer;
+    transition:background .15s, color .15s, box-shadow .15s;
+    background:transparent; color:#6B7280;
+  }
+  .mode-pill.active {
+    background:#fff;
+    color:#111827;
+    box-shadow:0 1px 6px rgba(0,0,0,.1);
+  }
+`;
+
+// ── Inline Auth Modal ─────────────────────────────────────────────────
+function InlineAuthModal({ onClose, onAuthSuccess }) {
+  const [mode,        setMode]        = useState('login');
+  const [email,       setEmail]       = useState('');
+  const [password,    setPassword]    = useState('');
+  const [name,        setName]        = useState('');
+  const [showPw,      setShowPw]      = useState(false);
+  const [loading,     setLoading]     = useState(false);
+  const [error,       setError]       = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    try {
+      const result = mode === 'login'
+        ? await signIn(email, password)
+        : await signUp(email, password);
+
+      if (result.error) throw new Error(result.error.message || 'Authentication failed');
+
+      if (mode === 'signup') {
+        const user = result.result?.user ?? result.user;
+        if (!user?.uid) throw new Error('Sign-up succeeded but UID is missing.');
+        await fetch('https://createaccount-ady2s2xhhq-uc.a.run.app', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uid: user.uid, email: user.email, name }),
+        });
+      }
+
+      onAuthSuccess();
+    } catch (err) {
+      setError(err.message || 'Authentication failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Close on backdrop click
+  const handleOverlayClick = (e) => {
+    if (e.target === e.currentTarget) onClose();
+  };
+
+  return (
+    <div className="auth-overlay" onClick={handleOverlayClick}>
+      <div className="auth-sheet">
+
+        {/* Close */}
+        <button onClick={onClose} style={{
+          position:'absolute', top:16, right:16,
+          width:32, height:32, borderRadius:'50%',
+          background:'#F3F4F6', border:'none', cursor:'pointer',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          color:'#6B7280',
+        }}>
+          <X size={16} />
+        </button>
+
+        {/* Heading */}
+        <div style={{ marginBottom:22 }}>
+          <div style={{ fontSize:22, fontWeight:900, letterSpacing:'-0.5px', color:'#111827', marginBottom:4 }}>
+            {mode === 'login' ? 'Welcome back' : 'Create account'}
+          </div>
+          <div style={{ fontSize:13, color:'#6B7280', fontWeight:500 }}>
+            {mode === 'login'
+              ? 'Sign in to book a ride with UaTob.'
+              : 'Join UaTob and get your first ride.'}
+          </div>
+        </div>
+
+        {/* Mode toggle */}
+        <div className="mode-pill-row">
+          <button className={`mode-pill ${mode === 'login' ? 'active' : ''}`} onClick={() => { setMode('login'); setError(''); }}>
+            Sign In
+          </button>
+          <button className={`mode-pill ${mode === 'signup' ? 'active' : ''}`} onClick={() => { setMode('signup'); setError(''); }}>
+            Sign Up
+          </button>
+        </div>
+
+        {/* Error */}
+        {error && <div className="auth-error">{error}</div>}
+
+        {/* Form */}
+        <form onSubmit={handleSubmit}>
+          {mode === 'signup' && (
+            <div className="auth-input-wrap">
+              <input
+                className="auth-input"
+                type="text"
+                placeholder="Full name"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                required
+                autoComplete="name"
+              />
+            </div>
+          )}
+
+          <div className="auth-input-wrap">
+            <input
+              className="auth-input"
+              type="email"
+              placeholder="Email address"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              required
+              autoComplete="email"
+            />
+          </div>
+
+          <div className="auth-input-wrap">
+            <input
+              className={`auth-input has-toggle`}
+              type={showPw ? 'text' : 'password'}
+              placeholder="Password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+            />
+            <button type="button" className="auth-eye-btn" onClick={() => setShowPw(p => !p)}>
+              {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+
+          <button className="auth-submit" type="submit" disabled={loading}>
+            {loading
+              ? <Loader2 size={16} style={{ animation:'spinAnim 1s linear infinite' }} />
+              : mode === 'login' ? 'Sign In' : 'Create Account'
+            }
+          </button>
+        </form>
+
+        {/* Bottom hint */}
+        <div style={{ textAlign:'center', marginTop:16, fontSize:13, color:'#6B7280' }}>
+          {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
+          <button
+            className="auth-toggle-link"
+            onClick={() => { setMode(m => m === 'login' ? 'signup' : 'login'); setError(''); }}
+          >
+            {mode === 'login' ? 'Sign up' : 'Sign in'}
+          </button>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+// ── MAIN APP ──────────────────────────────────────────────────────────
 export default function UaTobApp({ uid }) {
 
   const { uid: authUid } = useAuthContext();
-
   const resolvedUid = authUid ?? uid;
+
   const { rides, loading: ridesLoading } = useUserRides(resolvedUid);
-  const { active, loading } = useActiveRides(resolvedUid);
+  const { active }                       = useActiveRides(resolvedUid);
 
   const saved = loadSession();
 
-  // ── Booking ────────────────────────────────────────────
+  // ── Booking state ──────────────────────────────────────
   const [bookingPayload,  setBookingPayload]  = useState(saved?.bookingPayload  ?? null);
   const [pickupCoords,    setPickupCoords]    = useState(saved?.pickupCoords    ?? null);
   const [dropoffCoords,   setDropoffCoords]   = useState(saved?.dropoffCoords   ?? null);
 
-  // ── Auth ───────────────────────────────────────────────
-  const [showAuth,        setShowAuth]        = useState(false);
-  const [authMode,        setAuthMode]        = useState('login');
-  const [email,           setEmail]           = useState('');
-  const [password,        setPassword]        = useState('');
-  const [name,            setName]            = useState('');
-  const [authLoading,     setAuthLoading]     = useState(false);
-  const [authError,       setAuthError]       = useState('');
-
-  // ── Payment ────────────────────────────────────────────
+  // ── UI state ───────────────────────────────────────────
   const [showPayment,     setShowPayment]     = useState(saved?.showPayment     ?? false);
   const [selectedPayment, setSelectedPayment] = useState(saved?.selectedPayment ?? 'card');
+  const [mounted,         setMounted]         = useState(false);
 
-  // ── Mount animation ────────────────────────────────────
-  const [mounted, setMounted] = useState(false);
+  // ── Header modals ──────────────────────────────────────
+  const [showAuthModal,    setShowAuthModal]    = useState(false);  // inline auth popup
+  const [showBookingAuth,  setShowBookingAuth]  = useState(false);  // original auth flow for booking
+  const [authMode,         setAuthMode]         = useState('login');
+  const [email,            setEmail]            = useState('');
+  const [password,         setPassword]         = useState('');
+  const [name,             setName]             = useState('');
+  const [authLoading,      setAuthLoading]      = useState(false);
+  const [authError,        setAuthError]        = useState('');
+  const [showDashboard,    setShowDashboard]    = useState(false);  // rider dashboard overlay
+
   useEffect(() => setMounted(true), []);
 
   // ── Persist session ────────────────────────────────────
@@ -71,36 +390,32 @@ export default function UaTobApp({ uid }) {
   }, [bookingPayload, pickupCoords, dropoffCoords, showPayment, selectedPayment]);
 
   // ── Derive ride state ──────────────────────────────────
-  // isSearching / isTracking → from active (real-time listener hook)
-  const activeRide  = active?.find(
-    (r) => r.paymentStatus === 'succeeded' && !DONE_STATUSES.includes(r.status)
+  const activeRide = active?.find(
+    r => r.paymentStatus === 'succeeded' && !DONE_STATUSES.includes(r.status)
   ) ?? null;
 
-  const activeTrackingRide = activeRide;
-
   const isSearching = !!activeRide && SEARCHING_STATUSES.includes(activeRide.status);
-  const isTracking  = !!activeTrackingRide && TRACKING_STATUSES.includes(activeTrackingRide.status);
+  const isTracking  = !!activeRide && TRACKING_STATUSES.includes(activeRide.status);
 
-  // ── Close payment modal once ride appears in Firestore ─
   useEffect(() => {
     if (activeRide) setShowPayment(false);
   }, [activeRide]);
 
-  // ── Auth submit ────────────────────────────────────────
-  const handleAuth = async (e) => {
+  // ── Booking auth submit (for book-now flow) ────────────
+  const handleBookingAuth = async (e) => {
     e.preventDefault();
     setAuthLoading(true);
     setAuthError('');
     try {
-      const authResult = authMode === 'login'
+      const result = authMode === 'login'
         ? await signIn(email, password)
         : await signUp(email, password);
 
-      if (authResult.error) throw new Error(authResult.error.message || 'Authentication failed');
+      if (result.error) throw new Error(result.error.message || 'Authentication failed');
 
       if (authMode === 'signup') {
-        const user = authResult.result?.user ?? authResult.user;
-        if (!user?.uid) throw new Error('Sign-up succeeded but UID is missing — cannot create account.');
+        const user = result.result?.user ?? result.user;
+        if (!user?.uid) throw new Error('Sign-up succeeded but UID is missing.');
         await fetch('https://createaccount-ady2s2xhhq-uc.a.run.app', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -108,7 +423,7 @@ export default function UaTobApp({ uid }) {
         });
       }
 
-      setShowAuth(false);
+      setShowBookingAuth(false);
       setShowPayment(true);
     } catch (err) {
       setAuthError(err.message || 'Authentication failed');
@@ -117,13 +432,12 @@ export default function UaTobApp({ uid }) {
     }
   };
 
-  // ── Live payload sync ──────────────────────────────────
+  // ── Handlers ───────────────────────────────────────────
   const handlePayloadChange = (payload) => {
     if (!payload) return;
     setBookingPayload(prev => ({ ...prev, ...payload }));
   };
 
-  // ── Book Now ───────────────────────────────────────────
   const handleBookNow = (payload) => {
     if (!payload) return;
     const finalPayload = { ...bookingPayload, ...payload };
@@ -131,24 +445,17 @@ export default function UaTobApp({ uid }) {
     setPickupCoords({ x: -81.37, y: 28.53 });
     setDropoffCoords({ x: -81.30, y: 28.45 });
 
-    if (authUid) {
+    if (resolvedUid) {
       setShowPayment(true);
     } else {
-      setShowAuth(true);
+      setShowBookingAuth(true);
       setAuthMode('login');
-      setEmail('');
-      setPassword('');
-      setName('');
-      setAuthError('');
+      setEmail(''); setPassword(''); setName(''); setAuthError('');
     }
   };
 
-  // ── Payment success ────────────────────────────────────
-  const handlePaymentSuccess = () => {
-    setShowPayment(false);
-  };
+  const handlePaymentSuccess = () => setShowPayment(false);
 
-  // ── Reset helpers ──────────────────────────────────────
   const resetRide = () => {
     setBookingPayload(null);
     setPickupCoords(null);
@@ -156,72 +463,122 @@ export default function UaTobApp({ uid }) {
     clearSession();
   };
 
+  // ── Header right slot ──────────────────────────────────
+  //
+  //  No uid  → "Login" pill  → opens InlineAuthModal
+  //  Has uid → person icon   → opens RiderDashboard overlay
+  //
+  const HeaderRight = () => (
+    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+      {/* Always-visible Live badge */}
+      <div className="live-badge-inner">
+        <div className="live-dot-hdr" />
+        Live
+      </div>
+
+      {/* Conditional auth/account button */}
+      {!resolvedUid ? (
+        <button
+          className="login-badge"
+          onClick={() => setShowAuthModal(true)}
+          aria-label="Sign in"
+        >
+          <LogIn size={13} />
+          Login
+        </button>
+      ) : (
+        <button
+          className="account-btn"
+          onClick={() => setShowDashboard(true)}
+          aria-label="My account"
+        >
+          <User size={16} color="#fff" />
+        </button>
+      )}
+    </div>
+  );
+
   return (
-    <div style={{ minHeight: '100vh', background: T.bg, fontFamily: '"Outfit",system-ui,sans-serif', position: 'relative', overflow: 'hidden', color: T.text }}>
+    <div style={{
+      minHeight:'100vh', background:T.bg,
+      fontFamily:'"Outfit",system-ui,sans-serif',
+      position:'relative', overflow:'hidden', color:T.text,
+    }}>
       <style>{CSS}</style>
+      <style>{EXTRA_CSS}</style>
 
       {/* Ambient blobs */}
-      <div style={{ position: 'fixed', top: '-15%', right: '-8%', width: '550px', height: '550px', background: 'radial-gradient(circle,rgba(22,163,74,.05) 0%,transparent 65%)', borderRadius: '50%', animation: 'float 14s ease-in-out infinite', pointerEvents: 'none', zIndex: 0 }} />
-      <div style={{ position: 'fixed', bottom: '-20%', left: '-12%', width: '700px', height: '700px', background: 'radial-gradient(circle,rgba(17,24,39,.03) 0%,transparent 65%)', borderRadius: '50%', animation: 'float 18s ease-in-out infinite reverse', pointerEvents: 'none', zIndex: 0 }} />
+      <div style={{ position:'fixed', top:'-15%', right:'-8%', width:'550px', height:'550px', background:'radial-gradient(circle,rgba(22,163,74,.05) 0%,transparent 65%)', borderRadius:'50%', animation:'float 14s ease-in-out infinite', pointerEvents:'none', zIndex:0 }}/>
+      <div style={{ position:'fixed', bottom:'-20%', left:'-12%', width:'700px', height:'700px', background:'radial-gradient(circle,rgba(17,24,39,.03) 0%,transparent 65%)', borderRadius:'50%', animation:'float 18s ease-in-out infinite reverse', pointerEvents:'none', zIndex:0 }}/>
 
-      <div style={{ maxWidth: '680px', margin: '0 auto', padding: '28px 20px 60px', position: 'relative', zIndex: 1 }}>
+      <div style={{ maxWidth:'680px', margin:'0 auto', padding:'28px 20px 60px', position:'relative', zIndex:1 }}>
 
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '40px', animation: mounted ? 'slideUp .55s ease-out forwards' : 'none', opacity: 0 }}>
+        {/* ── Header ── */}
+        <div style={{
+          display:'flex', alignItems:'center', justifyContent:'space-between',
+          marginBottom:'40px',
+          animation: mounted ? 'slideUp .55s ease-out forwards' : 'none',
+          opacity:0,
+        }}>
           <UaTobWordmark iconSize={42} />
-          <div className="live-badge">
-            <div style={{ width: '6px', height: '6px', background: '#16A34A', borderRadius: '50%' }} />
-            Live
-          </div>
+          <HeaderRight />
         </div>
 
-        {/* Hero — only when fully idle */}
+        {/* ── Hero (idle only) ── */}
         {!activeRide && !bookingPayload && (
-          <div style={{ marginBottom: '32px', animation: mounted ? 'slideUp .65s ease-out .08s forwards' : 'none', opacity: 0 }}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: T.accentLight, border: `1px solid ${T.accentBorder}`, borderRadius: '100px', padding: '5px 14px', fontSize: '11px', fontWeight: 700, color: T.accent, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '18px' }}>
+          <div style={{ marginBottom:'32px', animation: mounted ? 'slideUp .65s ease-out .08s forwards' : 'none', opacity:0 }}>
+            <div style={{
+              display:'inline-flex', alignItems:'center', gap:'6px',
+              background:T.accentLight, border:`1px solid ${T.accentBorder}`,
+              borderRadius:'100px', padding:'5px 14px',
+              fontSize:'11px', fontWeight:700, color:T.accent,
+              letterSpacing:'1px', textTransform:'uppercase', marginBottom:'18px',
+            }}>
               <Route size={12} />
               Distance-Based Pricing
             </div>
-            <h1 style={{ fontSize: 'clamp(30px,6vw,52px)', fontWeight: 900, lineHeight: 1.02, letterSpacing: '-2px', marginBottom: '14px', color: T.text }}>
+            <h1 style={{ fontSize:'clamp(30px,6vw,52px)', fontWeight:900, lineHeight:1.02, letterSpacing:'-2px', marginBottom:'14px', color:T.text }}>
               Your destination,
               <br />
-              <span style={{ background: 'linear-gradient(135deg,#111827 0%,#16A34A 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+              <span style={{ background:'linear-gradient(135deg,#111827 0%,#16A34A 100%)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text' }}>
                 always waiting.
               </span>
             </h1>
-            <p style={{ fontSize: '15px', color: T.textMuted, fontWeight: 500, lineHeight: 1.65 }}>
+            <p style={{ fontSize:'15px', color:T.textMuted, fontWeight:500, lineHeight:1.65 }}>
               Fare is calculated live based on the actual
               <br />distance from A to B — no surprises.
             </p>
           </div>
         )}
 
-        {/* Map — hidden when LiveTrackingPanel is showing (it has its own) */}
+        {/* ── Map ── */}
         {!isTracking && (
-          <div style={{ marginBottom: '14px', animation: mounted ? 'slideUp .65s ease-out .12s forwards' : 'none', opacity: 0 }}>
+          <div style={{ marginBottom:'14px', animation: mounted ? 'slideUp .65s ease-out .12s forwards' : 'none', opacity:0 }}>
             <MapView bookingPayload={bookingPayload} />
           </div>
         )}
 
-        {/* Main panel */}
-        <div style={{ animation: mounted ? 'slideUp .65s ease-out .18s forwards' : 'none', opacity: 0 }}>
+        {/* ── Main panel ── */}
+        <div style={{ animation: mounted ? 'slideUp .65s ease-out .18s forwards' : 'none', opacity:0 }}>
           {isTracking ? (
-            <LiveTrackingPanel
-              active={active}
-              onRideDone={resetRide}
-            />
+            <LiveTrackingPanel active={active} onRideDone={resetRide} />
           ) : (
-            <BookingPanel
-              onBookNow={handleBookNow}
-              onPayloadChange={handlePayloadChange}
-            />
+            <BookingPanel onBookNow={handleBookNow} onPayloadChange={handlePayloadChange} />
           )}
         </div>
 
       </div>
 
-      {/* ── Auth Modal ───────────────────────────────────── */}
-      {showAuth && !authUid && (
+      {/* ── Inline header auth modal (Login badge click) ── */}
+      {showAuthModal && !resolvedUid && (
+        <InlineAuthModal
+          onClose={() => setShowAuthModal(false)}
+          onAuthSuccess={() => setShowAuthModal(false)}
+        />
+      )}
+
+      {/* ── Booking-flow auth modal (original) ── */}
+      {showBookingAuth && !resolvedUid && (
         <AuthModal
           authMode={authMode}
           setAuthMode={setAuthMode}
@@ -231,17 +588,17 @@ export default function UaTobApp({ uid }) {
           setPassword={setPassword}
           name={name}
           setName={setName}
-          onSubmit={handleAuth}
-          onClose={() => setShowAuth(false)}
+          onSubmit={handleBookingAuth}
+          onClose={() => setShowBookingAuth(false)}
           loading={authLoading}
           error={authError}
         />
       )}
 
-      {/* ── Payment Modal ────────────────────────────────── */}
+      {/* ── Payment modal ── */}
       {showPayment && bookingPayload && (
         <PaymentModal
-          uid={authUid}
+          uid={resolvedUid}
           bookingPayload={bookingPayload}
           selectedPayment={selectedPayment}
           setSelectedPayment={setSelectedPayment}
@@ -250,7 +607,7 @@ export default function UaTobApp({ uid }) {
         />
       )}
 
-      {/* ── Confirmation Modal — fires when status = searching_driver ── */}
+      {/* ── Confirmation modal ── */}
       {isSearching && (
         <ConfirmationModal
           rides={rides}
@@ -260,6 +617,51 @@ export default function UaTobApp({ uid }) {
           onRetry={resetRide}
         />
       )}
+
+      {/* ── Rider dashboard overlay (Account icon click) ── */}
+      {showDashboard && resolvedUid && (
+        <div style={{
+          position:'fixed', inset:0, zIndex:400,
+          background:T.bg,
+          animation:'fadeIn .22s ease',
+          overflowY:'auto',
+        }}>
+          {/* Close strip */}
+          <div style={{
+            position:'sticky', top:0, zIndex:10,
+            display:'flex', justifyContent:'flex-end',
+            padding:'14px 18px',
+            background:'rgba(242,245,242,.94)',
+            backdropFilter:'blur(12px)',
+            borderBottom:`1px solid #DDE5DD`,
+          }}>
+            <button
+              onClick={() => setShowDashboard(false)}
+              style={{
+                display:'flex', alignItems:'center', gap:6,
+                background:'#111827', color:'#fff',
+                border:'none', borderRadius:100,
+                padding:'7px 14px',
+                fontSize:12, fontWeight:800,
+                cursor:'pointer',
+                fontFamily:'"Outfit",system-ui,sans-serif',
+              }}
+            >
+              <X size={13} /> Close
+            </button>
+          </div>
+
+          <RiderDashboard
+            uid={resolvedUid}
+            onBookRide={() => setShowDashboard(false)}
+            onSignOut={() => {
+              setShowDashboard(false);
+              // signOut() call goes here if you have a global signOut handler
+            }}
+          />
+        </div>
+      )}
+
     </div>
   );
 }
