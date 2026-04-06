@@ -49,7 +49,8 @@ export default function App() {
 
   return (
     <div style={{
-      minHeight: "100vh",
+      position: "fixed",
+      inset: 0,
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
@@ -87,37 +88,33 @@ export default function App() {
       }}>
 
         {/* Icon + spinning ring */}
-        <div style={{ position: "relative", width: 72, height: 72 }}>
-          {/* Outer spinning arc */}
+        <div style={{ position: "relative", width: 96, height: 96, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {/* Outer spinning arc — fills the wrapper exactly */}
           <svg
             className="spin-ring"
-            width="72" height="72"
-            viewBox="0 0 72 72"
+            width="96" height="96"
+            viewBox="0 0 96 96"
             style={{ position: "absolute", top: 0, left: 0 }}
           >
             <circle
-              cx="36" cy="36" r="33"
+              cx="48" cy="48" r="44"
               fill="none"
               stroke="#E5E7EB"
               strokeWidth="3"
             />
             <circle
-              cx="36" cy="36" r="33"
+              cx="48" cy="48" r="44"
               fill="none"
               stroke="#16A34A"
               strokeWidth="3"
               strokeLinecap="round"
-              strokeDasharray="52 155"
+              strokeDasharray="70 207"
             />
           </svg>
 
-          {/* Icon centered inside ring */}
-          <div className="icon-pulse" style={{
-            position: "absolute",
-            top: "50%", left: "50%",
-            transform: "translate(-50%, -50%)",
-          }}>
-            <UaTobIcon size={46} />
+          {/* Icon — centered via flex on parent */}
+          <div className="icon-pulse" style={{ position: "relative", zIndex: 1, lineHeight: 0 }}>
+            <UaTobIcon size={56} />
           </div>
         </div>
 
