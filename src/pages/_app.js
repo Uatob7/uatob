@@ -1,6 +1,8 @@
 import "@/styles/globals.css";
 import Head from "next/head";
 import { Elements } from "@stripe/react-stripe-js";
+import { Analytics } from "@vercel/analytics/next"
+import { SpeedInsights } from "@vercel/speed-insights/next"
 import { loadStripe } from "@stripe/stripe-js";
 import { AuthContextProvider, useAuthContext } from "@/context/AuthContext";
 
