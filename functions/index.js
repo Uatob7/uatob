@@ -27,12 +27,14 @@ const { getDriverToPickup } = require("./drivers/getDriverToPickup");
 const { onDriverCreated } = require("./drivers/email/onDriverCreated");
 const { onDriverApplicationSubmitted } = require("./drivers/email/onDriverApplicationSubmitted");
 const { ApplicationApproved } = require("./drivers/email/ApplicationApproved");
+const { onRideCreatedNotifyOnlineDrivers } = require("./drivers/email/onRideCreatedNotifyOnlineDrivers");
 
 
 // Admin functions
 const { onAccountCreatedNotifyAdmin } = require("./admin/email/onAccountCreatedNotifyAdmin");
 const { onDriverCreatedNotifyAdmin } = require("./admin/email/onDriverCreatedNotifyAdmin");
 const { onRideCreatedNotifyAdmin } = require("./admin/email/onRideCreatedNotifyAdmin");
+const e = require("cors");
 
 
 // Exports
@@ -56,6 +58,7 @@ exports.calcDriverDistance = calcDriverDistance;
 exports.getDriverToPickup = getDriverToPickup;
 exports.onDriverCreated = onDriverCreated;
 exports.onDriverApplicationSubmitted = onDriverApplicationSubmitted;
+exports.onRideCreatedNotifyOnlineDrivers = onRideCreatedNotifyOnlineDrivers;
 
 exports.onAccountCreatedNotifyAdmin = onAccountCreatedNotifyAdmin;
 exports.onDriverCreatedNotifyAdmin = onDriverCreatedNotifyAdmin;
