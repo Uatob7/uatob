@@ -1,21 +1,27 @@
 // src/App/Admin/useApprovals.js
 
 import { useEffect, useState } from "react";
-import { getFirestore, collection, query, where, onSnapshot } from "firebase/firestore";
+import {
+  getFirestore,
+  collection,
+  query,
+  where,
+  onSnapshot,
+} from "firebase/firestore";
 import { firebase_app } from "@/firebase/config";
 
 const db = getFirestore(firebase_app);
 
 export function useApprovals() {
   const [approvals, setApprovals] = useState([]);
-  const [count, setCount]         = useState(0);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState(null);
+  const [count, setCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const approvalsQuery = query(
       collection(db, "Drivers"),
-      where("status", "!=", "approved"),
+      where("status", "not-in", ["approved", "online", "offline"])
     );
 
     const unsubscribe = onSnapshot(
