@@ -19,7 +19,6 @@ export default function ActiveTripCard({
   advancePending,
 }) {
 
-  console.log(activeTrip)
   if (!activeTrip) return null;
 
   const stageConfig = {
