@@ -8,22 +8,22 @@ const db = getFirestore(firebase_app);
 
 export function useApprovals() {
   const [approvals, setApprovals] = useState([]);
-  const [count, setCount] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [count, setCount]         = useState(0);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState(null);
 
   useEffect(() => {
-    // 🔹 Adjust collection: could be "Drivers" or "Accounts"
     const approvalsQuery = query(
-      collection(db, "Drivers"), // replace with "Accounts" if needed
+      collection(db, "Drivers"),
+      where("status", "!=", "approved"),
     );
 
     const unsubscribe = onSnapshot(
       approvalsQuery,
       (snapshot) => {
-        const pending = snapshot.docs.map(doc => ({
+        const pending = snapshot.docs.map((doc) => ({
           id: doc.id,
-          ...doc.data()
+          ...doc.data(),
         }));
 
         setApprovals(pending);

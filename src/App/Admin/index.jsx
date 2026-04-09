@@ -10,6 +10,7 @@ import { DriversTab }   from '@/App/Admin/Driverstab';
 import { ApprovalsTab } from '@/App/Admin/Approvalstab';
 import { AnalyticsTab } from '@/App/Admin/Analyticstab';
 
+import { useTotalAccounts } from "@/App/Admin/useTotalAccounts";
 import { useTotalRides }      from "@/App/Admin/useTotalRides";
 import { useActiveDrivers }   from "@/App/Admin/useActiveDrivers";
 import { useRevenueToday }    from "@/App/Admin/useRevenueToday";
@@ -33,9 +34,14 @@ export default function UaTobAdminDashboard() {
   const [activeTab,   setActiveTab]   = useState("home");
   const [drawerOpen,  setDrawerOpen]  = useState(false);
   const [toast,       setToast]       = useState(null);
-  const toastRef = useRef(null);
 
+  console.log(toast);
+
+
+  const toastRef = useRef(null);
+  
   // ── Data hooks ────────────────────────────────────────────────────────────
+  const { totalAccounts, loading } = useTotalAccounts();
   const { totalRides }              = useTotalRides();
   const { activeDrivers }           = useActiveDrivers();
   const { revenue }                 = useRevenueToday();
@@ -54,6 +60,7 @@ export default function UaTobAdminDashboard() {
 
   const { analytics }               = useAnalyticsData();
   console.log(analytics);
+  console.log("Total Accounts:", totalAccounts);
   // ─────────────────────────────────────────────────────────────────────────
 
   const showToast = (msg) => {

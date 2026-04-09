@@ -43,11 +43,19 @@ export function HomeTab({ liveRides = [], totalRides, activeDrivers = [], revenu
           <div style={{ display: "flex", gap: 20 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
               <div className="live-dot" />
+              <span style={{ fontSize: 12, fontWeight: 700 }}>{activeCount} accounts</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+              <div className="amber-dot" />
+              <span style={{ fontSize: 12, fontWeight: 700 }}>{searchCount} drivers</span>
+               <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+              <div className="live-dot" />
               <span style={{ fontSize: 12, fontWeight: 700 }}>{activeCount} active rides</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
               <div className="amber-dot" />
               <span style={{ fontSize: 12, fontWeight: 700 }}>{searchCount} searching</span>
+            </div>
             </div>
           </div>
           <button
