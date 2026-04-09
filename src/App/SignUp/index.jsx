@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import signUp from '@/firebase/auth/signup';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { getFirestore, doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { getFirestore } from "firebase/firestore";
 import { firebase_app } from "@/firebase/config";
 
 const db = getFirestore(firebase_app);
@@ -53,8 +53,6 @@ const DEFAULT_DOC = {
   insurance:       false, insuranceUrl:       "",
   profilePhoto:    false, profilePhotoUrl:    "",
 };
-
-console.log(DEFAULT_DOC)
 
 /* ─── UaTob SVG Icon ─────────────────────────── */
 function UaTobIcon({ size = 38 }) {
@@ -228,15 +226,6 @@ function SelectField({ label, value, onChange, options, icon: Icon }) {
 }
 
 /* ─── UPLOAD BOX ─────────────────────────────── */
-// slot:      string key (e.g. "licenseFront")
-// label:     display name
-// hint:      subtext
-// uploaded:  boolean — file exists in Firestore
-// previewUrl: local blob URL or Firestore download URL for thumbnail
-// uploading: boolean
-// progress:  0-100
-// error:     string | undefined
-// onFileSelect: (File) => void
 
 function UploadBox({ label, hint, icon: Icon = Upload, uploaded, previewUrl, uploading, progress = 0, error, onFileSelect, onRemove }) {
   const inputRef = useRef(null);
@@ -268,27 +257,17 @@ function UploadBox({ label, hint, icon: Icon = Upload, uploaded, previewUrl, upl
           }}
         />
 
-        {/* Image thumbnail preview */}
         {previewUrl && !isPdf && (
           <div style={{ width: "100%", position: "relative" }}>
             <img
               src={previewUrl}
               alt="preview"
-              style={{
-                width: "100%", maxHeight: 120, objectFit: "cover",
-                borderRadius: 10, display: "block",
-              }}
+              style={{ width: "100%", maxHeight: 120, objectFit: "cover", borderRadius: 10, display: "block" }}
             />
-            {/* Remove/replace button */}
             {!uploading && onRemove && (
               <button
                 onClick={e => { e.stopPropagation(); onRemove(); }}
-                style={{
-                  position: "absolute", top: 6, right: 6,
-                  width: 24, height: 24, borderRadius: "50%",
-                  background: "rgba(0,0,0,.55)", border: "none",
-                  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-                }}
+                style={{ position: "absolute", top: 6, right: 6, width: 24, height: 24, borderRadius: "50%", background: "rgba(0,0,0,.55)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
               >
                 <X size={12} color="#fff" />
               </button>
@@ -296,7 +275,6 @@ function UploadBox({ label, hint, icon: Icon = Upload, uploaded, previewUrl, upl
           </div>
         )}
 
-        {/* PDF indicator */}
         {isPdf && (
           <div style={{ width: "100%", background: "rgba(37,99,235,.07)", border: "1px solid rgba(37,99,235,.18)", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
             <FileText size={16} color={C.blue} />
@@ -312,7 +290,6 @@ function UploadBox({ label, hint, icon: Icon = Upload, uploaded, previewUrl, upl
           </div>
         )}
 
-        {/* Spinner / icon */}
         <div style={{
           width: 44, height: 44,
           background: uploaded ? "rgba(22,163,74,.12)" : uploading ? C.accentGlow : C.surfaceBright,
@@ -338,12 +315,7 @@ function UploadBox({ label, hint, icon: Icon = Upload, uploaded, previewUrl, upl
 
         <div>
           <div style={{ fontSize: 13.5, fontWeight: 700, color: uploading ? C.accent : uploaded ? C.green : C.text, marginBottom: 3 }}>
-            {uploading
-              ? `Uploading… ${progress}%`
-              : uploaded
-                ? `Uploaded ✓ — tap to replace`
-                : label
-            }
+            {uploading ? `Uploading… ${progress}%` : uploaded ? `Uploaded ✓ — tap to replace` : label}
           </div>
           <div style={{ fontSize: 11.5, color: C.textDim, fontWeight: 500 }}>{hint}</div>
         </div>
@@ -494,11 +466,8 @@ function StepVehicle({ data, setData, errors }) {
 }
 
 /* ─── STEP 4: DOCUMENTS ──────────────────────── */
-// All real Firebase Storage uploads. Per-slot upload state is local to this component.
 
 function StepDocuments({ data, setData, errors, uid }) {
-  // uploadState tracks: { uploading, progress, localPreview }
-  // The persistent preview URL lives in docData (data.licenseFrontUrl etc.)
   const [uploadState, setUploadState] = useState({
     licenseFront: { uploading: false, progress: 0, localPreview: "" },
     licenseBack:  { uploading: false, progress: 0, localPreview: "" },
@@ -517,12 +486,10 @@ function StepDocuments({ data, setData, errors, uid }) {
       return;
     }
 
-    // Local preview for images (instant feedback before upload finishes)
     let localPreview = "";
     if (file.type.startsWith("image/")) {
       localPreview = URL.createObjectURL(file);
     } else if (file.type === "application/pdf") {
-      // Use a sentinel so UploadBox knows it's a PDF
       localPreview = "data:application/pdf;placeholder";
     }
 
@@ -553,7 +520,6 @@ function StepDocuments({ data, setData, errors, uid }) {
 
       const downloadURL = await getDownloadURL(task.snapshot.ref);
 
-      // Persist URL + uploaded flag into parent docData
       setData(d => ({
         ...d,
         [slot]: true,
@@ -572,7 +538,6 @@ function StepDocuments({ data, setData, errors, uid }) {
     setSlot(slot, { uploading: false, progress: 0, localPreview: "" });
   }, [setData, setSlot]);
 
-  // Resolve preview: local blob takes priority, then Firestore URL
   const preview = (slot) =>
     uploadState[slot].localPreview || data[`${slot}Url`] || "";
 
@@ -588,7 +553,6 @@ function StepDocuments({ data, setData, errors, uid }) {
 
   return (
     <div>
-      {/* Security notice */}
       <div style={{ background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 16, padding: "14px 16px", marginBottom: 20, display: "flex", gap: 12, alignItems: "center" }}>
         <Shield size={15} color={C.blue} />
         <div style={{ fontSize: 12.5, color: C.textMid, lineHeight: 1.55 }}>
@@ -596,91 +560,27 @@ function StepDocuments({ data, setData, errors, uid }) {
         </div>
       </div>
 
-      {/* Driver's License */}
       <SectionLabel>Driver's License</SectionLabel>
       <div style={{ display: "flex", gap: 10 }}>
         <div style={{ flex: 1 }}>
-          <UploadBox
-            label="Front Side"
-            hint="Tap to upload photo"
-            icon={Camera}
-            uploaded={data.licenseFront}
-            previewUrl={preview("licenseFront")}
-            uploading={uploadState.licenseFront.uploading}
-            progress={uploadState.licenseFront.progress}
-            error={errors?.licenseFront}
-            onFileSelect={f => uploadFile("licenseFront", f)}
-            onRemove={() => removeSlot("licenseFront")}
-          />
+          <UploadBox label="Front Side" hint="Tap to upload photo" icon={Camera} uploaded={data.licenseFront} previewUrl={preview("licenseFront")} uploading={uploadState.licenseFront.uploading} progress={uploadState.licenseFront.progress} error={errors?.licenseFront} onFileSelect={f => uploadFile("licenseFront", f)} onRemove={() => removeSlot("licenseFront")} />
         </div>
         <div style={{ flex: 1 }}>
-          <UploadBox
-            label="Back Side"
-            hint="Tap to upload photo"
-            icon={Camera}
-            uploaded={data.licenseBack}
-            previewUrl={preview("licenseBack")}
-            uploading={uploadState.licenseBack.uploading}
-            progress={uploadState.licenseBack.progress}
-            error={errors?.licenseBack}
-            onFileSelect={f => uploadFile("licenseBack", f)}
-            onRemove={() => removeSlot("licenseBack")}
-          />
+          <UploadBox label="Back Side" hint="Tap to upload photo" icon={Camera} uploaded={data.licenseBack} previewUrl={preview("licenseBack")} uploading={uploadState.licenseBack.uploading} progress={uploadState.licenseBack.progress} error={errors?.licenseBack} onFileSelect={f => uploadFile("licenseBack", f)} onRemove={() => removeSlot("licenseBack")} />
         </div>
       </div>
-      <InputField
-        label="License Number" placeholder="D1234567" icon={FileText}
-        value={data.licenseNumber}
-        onChange={v => setData(d => ({ ...d, licenseNumber: v }))}
-        hint="As shown on your license"
-        error={errors?.licenseNumber}
-      />
+      <InputField label="License Number" placeholder="D1234567" icon={FileText} value={data.licenseNumber} onChange={v => setData(d => ({ ...d, licenseNumber: v }))} hint="As shown on your license" error={errors?.licenseNumber} />
 
       <Divider />
 
-      {/* Registration & Insurance */}
       <SectionLabel>Vehicle Registration &amp; Insurance</SectionLabel>
-      <UploadBox
-        label="Vehicle Registration"
-        hint="Photo or PDF accepted"
-        icon={FileText}
-        uploaded={data.registration}
-        previewUrl={preview("registration")}
-        uploading={uploadState.registration.uploading}
-        progress={uploadState.registration.progress}
-        error={errors?.registration}
-        onFileSelect={f => uploadFile("registration", f)}
-        onRemove={() => removeSlot("registration")}
-      />
-      <UploadBox
-        label="Proof of Insurance"
-        hint="Must be current &amp; valid"
-        icon={Shield}
-        uploaded={data.insurance}
-        previewUrl={preview("insurance")}
-        uploading={uploadState.insurance.uploading}
-        progress={uploadState.insurance.progress}
-        error={errors?.insurance}
-        onFileSelect={f => uploadFile("insurance", f)}
-        onRemove={() => removeSlot("insurance")}
-      />
+      <UploadBox label="Vehicle Registration" hint="Photo or PDF accepted" icon={FileText} uploaded={data.registration} previewUrl={preview("registration")} uploading={uploadState.registration.uploading} progress={uploadState.registration.progress} error={errors?.registration} onFileSelect={f => uploadFile("registration", f)} onRemove={() => removeSlot("registration")} />
+      <UploadBox label="Proof of Insurance" hint="Must be current &amp; valid" icon={Shield} uploaded={data.insurance} previewUrl={preview("insurance")} uploading={uploadState.insurance.uploading} progress={uploadState.insurance.progress} error={errors?.insurance} onFileSelect={f => uploadFile("insurance", f)} onRemove={() => removeSlot("insurance")} />
 
       <Divider />
 
-      {/* Profile Photo */}
       <SectionLabel>Profile Photo</SectionLabel>
-      <UploadBox
-        label="Your Photo"
-        hint="Clear, recent headshot · No sunglasses"
-        icon={Camera}
-        uploaded={data.profilePhoto}
-        previewUrl={preview("profilePhoto")}
-        uploading={uploadState.profilePhoto.uploading}
-        progress={uploadState.profilePhoto.progress}
-        error={errors?.profilePhoto}
-        onFileSelect={f => uploadFile("profilePhoto", f)}
-        onRemove={() => removeSlot("profilePhoto")}
-      />
+      <UploadBox label="Your Photo" hint="Clear, recent headshot · No sunglasses" icon={Camera} uploaded={data.profilePhoto} previewUrl={preview("profilePhoto")} uploading={uploadState.profilePhoto.uploading} progress={uploadState.profilePhoto.progress} error={errors?.profilePhoto} onFileSelect={f => uploadFile("profilePhoto", f)} onRemove={() => removeSlot("profilePhoto")} />
     </div>
   );
 }
@@ -737,7 +637,6 @@ function StepVerify({ accountData, contactData, vehicleData, docData }) {
         { label: "Profile Photo",    val: docData.profilePhoto ? "✓ Uploaded" : "Pending" },
       ]} />
 
-      {/* Document thumbnails row */}
       {(docData.licenseFrontUrl || docData.profilePhotoUrl) && (
         <div style={{ marginBottom: 18 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, marginBottom: 10, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>Document Previews</div>
@@ -773,13 +672,14 @@ function StepVerify({ accountData, contactData, vehicleData, docData }) {
 function PendingScreen({ firstName, email }) {
   return (
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: '"Barlow", system-ui, sans-serif', color: C.text, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-      <style>{`
+      {/* FIX: dangerouslySetInnerHTML prevents SSR encoding mismatch on quotes/ampersands */}
+      <style dangerouslySetInnerHTML={{ __html: `
         @import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800;900&family=Barlow+Condensed:wght@500;600;700;800;900&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
         @keyframes scaleIn { from { opacity: 0; transform: scale(.85) } to { opacity: 1; transform: scale(1) } }
         @keyframes fadeUp  { from { opacity: 0; transform: translateY(20px) } to { opacity: 1; transform: translateY(0) } }
         @keyframes pulse   { 0%,100% { opacity: 1 } 50% { opacity: .5 } }
-      `}</style>
+      `}} />
       <div style={{ textAlign: "center", maxWidth: 420, width: "100%", animation: "scaleIn .6s cubic-bezier(.34,1.56,.64,1)" }}>
         <div style={{ width: 90, height: 90, background: "rgba(22,163,74,.08)", border: "2px solid rgba(22,163,74,.25)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 28px", boxShadow: "0 0 0 12px rgba(22,163,74,.04)" }}>
           <Clock size={40} color={C.accent} />
@@ -895,11 +795,17 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
   const saveProgress = async (nextStep, overrideUid) => {
     const id = overrideUid ?? createdUid;
     if (!id) return;
+
+    // CF runs as admin — no Firestore rules apply, currentStep is written there
     const res = await fetch(CLOUD_FUNCTION_URL, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uid: id, currentStep: nextStep, accountData: { firstName: accountData.firstName, lastName: accountData.lastName, email: accountData.email }, contactData, vehicleData, docData }),
+      body: JSON.stringify({
+        uid: id, currentStep: nextStep,
+        accountData: { firstName: accountData.firstName, lastName: accountData.lastName, email: accountData.email },
+        contactData, vehicleData, docData,
+      }),
     });
-    if (!res.ok) console.warn("⚠️ saveProgress failed silently:", await res.text().catch(() => ""));
+    if (!res.ok) console.warn("⚠️ saveProgress CF failed silently:", await res.text().catch(() => ""));
   };
 
   const submitDriverData = async (uid) => {
@@ -1042,43 +948,46 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
 
   /* ── Main render ── */
 
+  const mainStyles = `
+    @import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800;900&family=Barlow+Condensed:wght@500;600;700;800;900&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    input::placeholder { color: ${C.textDim}; }
+    select option { background: ${C.surface}; color: ${C.text}; }
+    input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+    @keyframes slideForward { from { opacity: 0; transform: translateX(28px)  } to { opacity: 1; transform: translateX(0) } }
+    @keyframes slideBack    { from { opacity: 0; transform: translateX(-28px) } to { opacity: 1; transform: translateX(0) } }
+    @keyframes fadeOut      { to { opacity: 0 } }
+    @keyframes revealUp     { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
+    @keyframes greenPulse   { 0%,100% { box-shadow: 0 4px 18px rgba(22,163,74,.25) } 50% { box-shadow: 0 4px 28px rgba(22,163,74,.5) } }
+    @keyframes errorShake   { 0%,100% { transform: translateX(0) } 20%,60% { transform: translateX(-6px) } 40%,80% { transform: translateX(6px) } }
+    @keyframes slideDown    { from { opacity: 0; transform: translateY(-10px) } to { opacity: 1; transform: translateY(0) } }
+    @keyframes spin         { to { transform: rotate(360deg) } }
+    .green-btn {
+      background: linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D);
+      border: none; border-radius: 15px; color: #fff;
+      font-family: 'Barlow', sans-serif; font-weight: 800; font-size: 15px;
+      cursor: pointer; transition: all .22s; letter-spacing: .3px;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      animation: greenPulse 3s ease-in-out infinite;
+    }
+    .green-btn:hover    { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(22,163,74,.4) !important; }
+    .green-btn:disabled { opacity: .6; cursor: not-allowed; transform: none; animation: none; }
+    .ghost-btn {
+      background: ${C.surface}; border: 1.5px solid ${C.border};
+      border-radius: 15px; color: ${C.textMid}; font-family: 'Barlow', sans-serif;
+      font-weight: 700; font-size: 14px; cursor: pointer; transition: all .2s;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .ghost-btn:hover { border-color: ${C.accent}; color: ${C.accent}; }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: ${C.surfaceBright}; border-radius: 4px; }
+  `;
+
   return (
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: '"Barlow", system-ui, sans-serif', color: C.text }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800;900&family=Barlow+Condensed:wght@500;600;700;800;900&display=swap');
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        input::placeholder { color: ${C.textDim}; }
-        select option { background: ${C.surface}; color: ${C.text}; }
-        input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
-        @keyframes slideForward { from { opacity: 0; transform: translateX(28px)  } to { opacity: 1; transform: translateX(0) } }
-        @keyframes slideBack    { from { opacity: 0; transform: translateX(-28px) } to { opacity: 1; transform: translateX(0) } }
-        @keyframes fadeOut      { to { opacity: 0 } }
-        @keyframes revealUp     { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
-        @keyframes greenPulse   { 0%,100% { box-shadow: 0 4px 18px rgba(22,163,74,.25) } 50% { box-shadow: 0 4px 28px rgba(22,163,74,.5) } }
-        @keyframes errorShake   { 0%,100% { transform: translateX(0) } 20%,60% { transform: translateX(-6px) } 40%,80% { transform: translateX(6px) } }
-        @keyframes slideDown    { from { opacity: 0; transform: translateY(-10px) } to { opacity: 1; transform: translateY(0) } }
-        @keyframes spin         { to { transform: rotate(360deg) } }
-        .green-btn {
-          background: linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D);
-          border: none; border-radius: 15px; color: #fff;
-          font-family: 'Barlow', sans-serif; font-weight: 800; font-size: 15px;
-          cursor: pointer; transition: all .22s; letter-spacing: .3px;
-          display: flex; align-items: center; justify-content: center; gap: 8px;
-          animation: greenPulse 3s ease-in-out infinite;
-        }
-        .green-btn:hover    { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(22,163,74,.4) !important; }
-        .green-btn:disabled { opacity: .6; cursor: not-allowed; transform: none; animation: none; }
-        .ghost-btn {
-          background: ${C.surface}; border: 1.5px solid ${C.border};
-          border-radius: 15px; color: ${C.textMid}; font-family: 'Barlow', sans-serif;
-          font-weight: 700; font-size: 14px; cursor: pointer; transition: all .2s;
-          display: flex; align-items: center; justify-content: center; gap: 6px;
-        }
-        .ghost-btn:hover { border-color: ${C.accent}; color: ${C.accent}; }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: ${C.surfaceBright}; border-radius: 4px; }
-      `}</style>
+      {/* FIX: dangerouslySetInnerHTML prevents SSR encoding mismatch on quotes/ampersands */}
+      <style dangerouslySetInnerHTML={{ __html: mainStyles }} />
 
       <div style={{ maxWidth: 560, margin: "0 auto", padding: "0 16px 120px", minHeight: "100vh" }}>
 

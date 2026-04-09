@@ -7,7 +7,6 @@ const db = admin.firestore();
 exports.createDriverProfile = onRequest((req, res) => {
   cors(req, res, async () => {
     try {
-      // ── Only allow POST ──────────────────────────
       if (req.method !== "POST") {
         return res.status(405).json({ error: "Method not allowed" });
       }
@@ -22,13 +21,16 @@ exports.createDriverProfile = onRequest((req, res) => {
         currentStep,
       } = req.body || {};
 
-      // uid is required for all calls
       if (!uid) {
         return res.status(400).json({ error: "Missing uid" });
       }
 
-      // ── CALL 1: Step 1 — create initial driver profile ──────────────────
-      if (accountData) {
+      const driverRef = db.collection("Drivers").doc(uid);
+
+      // ── CALL 1: Initial profile creation (step 1, no existing doc) ───────
+      // Only treat this as a create if there's accountData AND no other step
+      // data — i.e. this is genuinely the first call, not a progress save.
+      if (accountData && !contactData && !vehicleData && !docData && !submit && (!currentStep || currentStep === 1)) {
         const { firstName, lastName, email } = accountData;
 
         if (!firstName || !lastName || !email) {
@@ -37,18 +39,31 @@ exports.createDriverProfile = onRequest((req, res) => {
           });
         }
 
-        await db.collection("Drivers").doc(uid).set({
-          uid,
-          firstName,
-          lastName,
-          email,
-          status:      "in_progress",
-          currentStep: 1,
-          createdAt:   admin.firestore.FieldValue.serverTimestamp(),
-          updatedAt:   admin.firestore.FieldValue.serverTimestamp(),
-        });
+        const snap = await driverRef.get();
 
-        console.log(`✅ Driver profile created for UID: ${uid}`);
+        if (!snap.exists) {
+          // Brand new profile — create it
+          await driverRef.set({
+            uid,
+            firstName,
+            lastName,
+            email,
+            status:      "in_progress",
+            currentStep: 1,
+            createdAt:   admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt:   admin.firestore.FieldValue.serverTimestamp(),
+          });
+          console.log(`✅ Driver profile created for UID: ${uid}`);
+        } else {
+          // Profile already exists — just update name/email in case they changed
+          await driverRef.update({
+            firstName,
+            lastName,
+            email,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          console.log(`✅ Driver profile refreshed for UID: ${uid}`);
+        }
 
         return res.status(200).json({
           success: true,
@@ -57,114 +72,101 @@ exports.createDriverProfile = onRequest((req, res) => {
         });
       }
 
-      // ── CALL 2: Progress saves (Steps 2–4) & final submit (Step 5) ──────
-      if (contactData || vehicleData || docData || currentStep || submit) {
-        const driverRef  = db.collection("Drivers").doc(uid);
-        const driverSnap = await driverRef.get();
+      // ── CALL 2: Progress saves (steps 2–4) & final submit (step 5) ───────
+      const snap = await driverRef.get();
 
-        if (!driverSnap.exists) {
-          return res.status(404).json({
-            error: "Driver profile not found. Complete step 1 first.",
-          });
-        }
-
-        const update = {
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        };
-
-        // Track which step the driver is on
-        if (currentStep) {
-          update.currentStep = currentStep;
-        }
-
-        // Mark as pending when the driver hits Submit
-        if (submit) {
-          update.status = "pending";
-          update.submittedAt = admin.firestore.FieldValue.serverTimestamp();
-        }
-
-        // ── Contact data (Step 2) ──
-        if (contactData) {
-          const { phone, address, city, state, zip } = contactData;
-
-          if (!phone || !address || !city || !state || !zip) {
-            return res.status(400).json({
-              error: "Missing required contact fields: phone, address, city, state, zip",
-            });
-          }
-
-          update.contact = { phone, address, city, state, zip };
-        }
-
-        // ── Vehicle data (Step 3) ──
-        if (vehicleData) {
-          const { make, model, year, color, plate, vin, rideTypes } = vehicleData;
-
-          if (!model || !year || !color || !plate) {
-            return res.status(400).json({
-              error: "Missing required vehicle fields: model, year, color, plate",
-            });
-          }
-
-          update.vehicle = {
-            make:      make      || null,
-            model,
-            year,
-            color,
-            plate,
-            vin:       vin       || null,
-            rideTypes: rideTypes || [],
-          };
-        }
-
-        // ── Document data (Step 4) — booleans + Firebase Storage URLs ──
-        if (docData) {
-          const {
-            licenseFront,    licenseFrontUrl,
-            licenseBack,     licenseBackUrl,
-            licenseNumber,
-            registration,    registrationUrl,
-            insurance,       insuranceUrl,
-            profilePhoto,    profilePhotoUrl,
-          } = docData;
-
-          update.documents = {
-            licenseFront:    licenseFront    || false,
-            licenseFrontUrl: licenseFrontUrl || null,
-
-            licenseBack:     licenseBack     || false,
-            licenseBackUrl:  licenseBackUrl  || null,
-
-            licenseNumber:   licenseNumber   || null,
-
-            registration:    registration    || false,
-            registrationUrl: registrationUrl || null,
-
-            insurance:       insurance       || false,
-            insuranceUrl:    insuranceUrl    || null,
-
-            profilePhoto:    profilePhoto    || false,
-            profilePhotoUrl: profilePhotoUrl || null,
-          };
-        }
-
-        await driverRef.update(update);
-
-        console.log(`✅ Driver data updated for UID: ${uid} | submit=${!!submit} | step=${currentStep ?? "—"}`);
-
-        return res.status(200).json({
-          success: true,
-          uid,
-          message: submit
-            ? "Application submitted successfully"
-            : "Progress saved successfully",
+      if (!snap.exists) {
+        return res.status(404).json({
+          error: "Driver profile not found. Complete step 1 first.",
         });
       }
 
-      // ── Nothing useful was sent ──────────────────────────────────────────
-      return res.status(400).json({
-        error:
-          "Missing data. Send accountData for step 1, or any of contactData / vehicleData / docData / currentStep / submit for subsequent steps.",
+      const update = {
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+
+      // Always write currentStep when provided and it's > 1
+      if (currentStep && currentStep > 1) {
+        update.currentStep = currentStep;
+      }
+
+      if (submit) {
+        update.status      = "pending";
+        update.submittedAt = admin.firestore.FieldValue.serverTimestamp();
+      }
+
+      // Sync name/email from accountData if included in a progress save
+      if (accountData) {
+        const { firstName, lastName, email } = accountData;
+        if (firstName) update.firstName = firstName;
+        if (lastName)  update.lastName  = lastName;
+        if (email)     update.email     = email;
+      }
+
+      // ── Contact data (step 2) ──
+      if (contactData) {
+        const { phone, address, city, state, zip } = contactData;
+        if (!phone || !address || !city || !state || !zip) {
+          return res.status(400).json({
+            error: "Missing required contact fields: phone, address, city, state, zip",
+          });
+        }
+        update.contact = { phone, address, city, state, zip };
+      }
+
+      // ── Vehicle data (step 3) ──
+      if (vehicleData) {
+        const { make, model, year, color, plate, vin, rideTypes } = vehicleData;
+        if (!model || !year || !color || !plate) {
+          return res.status(400).json({
+            error: "Missing required vehicle fields: model, year, color, plate",
+          });
+        }
+        update.vehicle = {
+          make:      make      || null,
+          model,
+          year,
+          color,
+          plate,
+          vin:       vin       || null,
+          rideTypes: rideTypes || [],
+        };
+      }
+
+      // ── Document data (step 4) ──
+      if (docData) {
+        const {
+          licenseFront,    licenseFrontUrl,
+          licenseBack,     licenseBackUrl,
+          licenseNumber,
+          registration,    registrationUrl,
+          insurance,       insuranceUrl,
+          profilePhoto,    profilePhotoUrl,
+        } = docData;
+
+        update.documents = {
+          licenseFront:    licenseFront    || false,
+          licenseFrontUrl: licenseFrontUrl || null,
+          licenseBack:     licenseBack     || false,
+          licenseBackUrl:  licenseBackUrl  || null,
+          licenseNumber:   licenseNumber   || null,
+          registration:    registration    || false,
+          registrationUrl: registrationUrl || null,
+          insurance:       insurance       || false,
+          insuranceUrl:    insuranceUrl    || null,
+          profilePhoto:    profilePhoto    || false,
+          profilePhotoUrl: profilePhotoUrl || null,
+        };
+      }
+
+      await driverRef.update(update);
+
+      console.log(`✅ Driver data updated for UID: ${uid} | submit=${!!submit} | step=${currentStep ?? "—"}`);
+
+      return res.status(200).json({
+        success: true,
+        uid,
+        message: submit ? "Application submitted successfully" : "Progress saved successfully",
       });
 
     } catch (err) {
