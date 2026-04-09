@@ -30,10 +30,12 @@ const { ApplicationApproved } = require("./drivers/email/ApplicationApproved");
 const { onRideCreatedNotifyOnlineDrivers } = require("./drivers/email/onRideCreatedNotifyOnlineDrivers");
 
 
+
 // Admin functions
 const { onAccountCreatedNotifyAdmin } = require("./admin/email/onAccountCreatedNotifyAdmin");
 const { onDriverCreatedNotifyAdmin } = require("./admin/email/onDriverCreatedNotifyAdmin");
 const { onRideCreatedNotifyAdmin } = require("./admin/email/onRideCreatedNotifyAdmin");
+const { onDriverStatusChanged } = require("./admin/email/onDriverStatusChanged");
 const e = require("cors");
 
 
@@ -59,6 +61,7 @@ exports.getDriverToPickup = getDriverToPickup;
 exports.onDriverCreated = onDriverCreated;
 exports.onDriverApplicationSubmitted = onDriverApplicationSubmitted;
 exports.onRideCreatedNotifyOnlineDrivers = onRideCreatedNotifyOnlineDrivers;
+exports.onDriverStatusChanged = onDriverStatusChanged;
 
 exports.onAccountCreatedNotifyAdmin = onAccountCreatedNotifyAdmin;
 exports.onDriverCreatedNotifyAdmin = onDriverCreatedNotifyAdmin;
