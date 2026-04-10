@@ -21,7 +21,7 @@ import { usePendingApprovals } from "@/App/Admin/usePendingApprovals";
 import { useLiveRides }       from "@/App/Admin/useLiveRides";
 import { useFleetDrivers }    from "@/App/Admin/useFleetDrivers";
 import { useApprovals }       from "@/App/Admin/useApprovals";
-import { useAnalyticsData }   from "@/App/Admin/useAnalyticsData";
+import { useRideAnalytics } from "@/App/Admin/useRideAnalytics";
 
 
 
@@ -50,7 +50,7 @@ export default function UaTobAdminDashboard() {
     activeRides,
     count,
     isEmpty,
-    loading,
+  
   } = useActiveRides();
 
   const {
@@ -68,6 +68,25 @@ console.log("searchingRides", searchingRides);
   const { revenue }                 = useRevenueToday();
   const { liveRides }               = useLiveRides();
 
+  const {
+    totalRides: analyticsTotal,
+    avgTripDuration = 0,
+    avgFare = 0,
+    acceptanceRate = 0,
+    cancellationRate = 0,
+    topDrivers = [],
+    loading: analyticsLoading,
+    error,
+  } = useRideAnalytics();
+
+  console.log("Analytics:", {
+    avgTripDuration,
+    avgFare,
+    acceptanceRate,
+    cancellationRate,
+    topDrivers,
+  });
+
   // Approvals tab — all pending driver applications
   const { approvals }               = usePendingApprovals();
 
@@ -76,11 +95,6 @@ console.log("searchingRides", searchingRides);
 
   // Home tab summary counts (e.g. badge on stat card)
   const { approvals: allApprovals } = useApprovals();
-
-  console.log(allApprovals);
-
-  const { analytics }               = useAnalyticsData();
-  console.log(analytics);
   console.log("Total Accounts:", totalAccounts);
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -133,7 +147,12 @@ console.log("searchingRides", searchingRides);
       case "analytics":
         return (
           <AnalyticsTab
-            analytics={analytics}
+            totalRides={analyticsTotal}
+            avgTripDuration={avgTripDuration}
+            avgFare={avgFare}
+            acceptanceRate={acceptanceRate}
+            cancellationRate={cancellationRate}
+            topDrivers={topDrivers}
           />
         );
       default:
@@ -148,7 +167,12 @@ console.log("searchingRides", searchingRides);
     allApprovals,
     approvals,
     drivers,
-    analytics,
+    avgTripDuration,
+    avgFare,
+    acceptanceRate,
+    cancellationRate,
+    topDrivers,
+    analyticsTotal,
   ]);
 
   return (

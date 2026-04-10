@@ -14,21 +14,30 @@ const DAYS     = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const RIDE_DATA = [82, 104, 93, 118, 137, 156, 142];
 const MAX_VAL  = Math.max(...RIDE_DATA);
 
-const METRICS = [
-  { label: "Avg Trip Duration", value: "18m 42s", icon: Clock,        color: C.blue  },
-  { label: "Acceptance Rate",   value: "87.4%",   icon: CheckCircle,  color: C.green },
-  { label: "Cancellation Rate", value: "4.2%",    icon: XCircle,      color: C.red   },
-  { label: "Avg Fare",          value: "$16.80",  icon: DollarSign,   color: C.amber },
-];
+export function AnalyticsTab({ avgTripDuration = 0, avgFare = 0, acceptanceRate = 0, cancellationRate = 0, topDrivers = [], totalRides = 0 }) {
+  // Format duration as "XXm YYs"
+  const formatDuration = (minutes) => {
+    const m = Math.floor(minutes);
+    const s = Math.round((minutes - m) * 60);
+    return `${m}m ${s}s`;
+  };
 
-export function AnalyticsTab(analytics) {
+  const metrics = [
+    { label: "Avg Trip Duration", value: formatDuration(avgTripDuration), icon: Clock,        color: C.blue  },
+    { label: "Acceptance Rate",   value: `${acceptanceRate}%`,   icon: CheckCircle,  color: C.green },
+    { label: "Cancellation Rate", value: `${cancellationRate}%`,    icon: XCircle,      color: C.red   },
+    { label: "Avg Fare",          value: `$${avgFare}`,  icon: DollarSign,   color: C.amber },
+  ];
+
+  const displayDrivers = topDrivers.length > 0 ? topDrivers : MOCK_DRIVERS_SORTED;
+  const totalRidesDisplay = RIDE_DATA.reduce((a, b) => a + b, 0);
   return (
     <div style={{ padding: "0 16px 16px" }}>
       {/* Bar chart */}
       <div className="card fade-up" style={{ padding: "18px", marginBottom: 16, animationDelay: "40ms", opacity: 0, boxShadow: "0 1px 8px rgba(0,0,0,.05)" }}>
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>Rides This Week</div>
-          <div style={{ fontSize: 11, color: C.textMuted }}>Total: 832 rides</div>
+          <div style={{ fontSize: 11, color: C.textMuted }}>Total: {totalRidesDisplay} rides</div>
         </div>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 100 }}>
           {RIDE_DATA.map((val, i) => (
@@ -52,7 +61,7 @@ export function AnalyticsTab(analytics) {
       {/* Key metrics */}
       <SectionHeader title="Key Metrics" />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
-        {METRICS.map(({ label, value, icon: Icon, color }, i) => (
+        {metrics.map(({ label, value, icon: Icon, color }, i) => (
           <div
             key={label}
             className="card fade-up"
@@ -70,11 +79,11 @@ export function AnalyticsTab(analytics) {
       {/* Top drivers */}
       <SectionHeader title="Top Drivers" />
       <div className="card" style={{ overflow: "hidden", boxShadow: "0 1px 6px rgba(0,0,0,.04)" }}>
-        {MOCK_DRIVERS_SORTED.map((d, i) => (
+        {displayDrivers.map((d, i) => (
           <div key={d.id} style={{
             display: "flex", alignItems: "center", gap: 12,
             padding: "12px 16px",
-            borderBottom: i < MOCK_DRIVERS_SORTED.length - 1 ? `1px solid ${C.border}` : "none",
+            borderBottom: i < displayDrivers.length - 1 ? `1px solid ${C.border}` : "none",
           }}>
             <div className="mono" style={{ fontSize: 12, fontWeight: 700, color: C.textDim, width: 16 }}>#{i + 1}</div>
             <Avatar name={d.name} size={32} colorIdx={d.colorIdx} />
