@@ -79,6 +79,103 @@ function playRequestChime() {
   }
 }
 
+// ── ACCOUNT SUSPENDED POPUP ──────────────────────────
+function SuspendedModal() {
+  return (
+    <div
+      style={{
+        position:        "fixed",
+        inset:           0,
+        zIndex:          1100,
+        background:      "rgba(0,0,0,.5)",
+        backdropFilter:  "blur(4px)",
+        display:         "flex",
+        alignItems:      "center",
+        justifyContent:  "center",
+        padding:         "24px",
+        animation:       "locFadeIn .2s ease",
+      }}
+    >
+      <style>{`
+        @keyframes locFadeIn  { from { opacity:0 }               to { opacity:1 } }
+        @keyframes locSlideUp { from { opacity:0; transform:translateY(18px) } to { opacity:1; transform:translateY(0) } }
+      `}</style>
+
+      {/* Card */}
+      <div
+        style={{
+          background:   "#fff",
+          borderRadius: "24px",
+          padding:      "32px 24px 28px",
+          width:        "100%",
+          maxWidth:     "380px",
+          boxShadow:    "0 24px 60px rgba(0,0,0,.2)",
+          animation:    "locSlideUp .28s cubic-bezier(.34,1.56,.64,1)",
+          textAlign:    "center",
+        }}
+      >
+        {/* Icon ring */}
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: "20px" }}>
+          <div style={{
+            width:          "72px",
+            height:         "72px",
+            borderRadius:   "50%",
+            background:     "rgba(220,38,38,.08)",
+            border:         "2px solid rgba(220,38,38,.25)",
+            display:        "flex",
+            alignItems:     "center",
+            justifyContent: "center",
+            boxShadow:      "0 0 0 8px rgba(220,38,38,.05)",
+          }}>
+            <AlertCircle size={32} color="#DC2626" />
+          </div>
+        </div>
+
+        {/* Heading */}
+        <div style={{ marginBottom: "12px" }}>
+          <div style={{
+            fontFamily:    "'Barlow Condensed', sans-serif",
+            fontSize:      "26px",
+            fontWeight:    "900",
+            color:         "#111827",
+            letterSpacing: "-0.3px",
+            marginBottom:  "8px",
+          }}>
+            Account Suspended
+          </div>
+          <div style={{ fontSize: "14px", color: "#6B7280", fontWeight: "500", lineHeight: "1.6" }}>
+            Your account has been suspended. For more information, please contact support.
+          </div>
+        </div>
+
+        {/* Button */}
+        <div style={{ marginTop: "24px" }}>
+          <a
+            href="mailto:support@uatob.com"
+            style={{
+              display:        "inline-block",
+              width:          "100%",
+              padding:        "14px",
+              borderRadius:   "12px",
+              border:         "none",
+              background:     "linear-gradient(135deg,#DC2626,#991B1B)",
+              color:          "#fff",
+              fontSize:       "15px",
+              fontWeight:     "800",
+              fontFamily:     "'Barlow', sans-serif",
+              cursor:         "pointer",
+              boxShadow:      "0 4px 14px rgba(220,38,38,.3)",
+              textDecoration: "none",
+            }}
+          >
+            Contact Support
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── LOCATION PERMISSION POPUP ─────────────────────────────────────────
 function LocationPopup({ onAllow, onDeny, loading, error }) {
   return (
@@ -582,6 +679,9 @@ export default function UaTobDriverApp({ uid }) {
       }}
     >
       <style>{CSS}</style>
+
+      {/* ── Suspended account modal ── */}
+      {driver?.status === "suspended" && <SuspendedModal />}
 
       {/* ── Location permission popup ── */}
       {showLocationPopup && (

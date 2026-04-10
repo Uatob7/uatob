@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Search, Bell, CheckCircle, XCircle, Ban, ChevronRight, FileText, Car } from "lucide-react";
 import { C, STATUS_CONFIG } from '@/App/Admin/Tokens';
 import { Avatar, StatusPill } from '@/App/Admin/UI';
+import { getFirestore, doc, updateDoc } from "firebase/firestore";
+import { firebase_app } from "@/firebase/config";
 
 function timeAgo(ts) {
   if (!ts) return "—";
@@ -133,6 +135,43 @@ export function DriversTab({ fleet = [], onToast }) {
 
 // ── Driver detail panel ───────────────────────────────────────────────
 function DriverDetail({ driver: d, driverIdx, onBack, onToast }) {
+  const db = getFirestore(firebase_app);
+
+  const handleSuspendDriver = async () => {
+    try {
+      const driverRef = doc(db, "Drivers", d.id);
+      await updateDoc(driverRef, { status: "suspended" });
+      onToast(`🚫 ${fullName(d)} suspended`);
+      onBack();
+    } catch (err) {
+      console.error("Error suspending driver:", err);
+      onToast("Failed to suspend driver");
+    }
+  };
+
+  const handleApproveDriver = async () => {
+    try {
+      const driverRef = doc(db, "Drivers", d.id);
+      await updateDoc(driverRef, { status: "approved" });
+      onToast(`✅ ${fullName(d)} approved`);
+      onBack();
+    } catch (err) {
+      console.error("Error approving driver:", err);
+      onToast("Failed to approve driver");
+    }
+  };
+
+  const handleRejectDriver = async () => {
+    try {
+      const driverRef = doc(db, "Drivers", d.id);
+      await updateDoc(driverRef, { status: "rejected" });
+      onToast(`❌ ${fullName(d)} rejected`);
+      onBack();
+    } catch (err) {
+      console.error("Error rejecting driver:", err);
+      onToast("Failed to reject driver");
+    }
+  };
   const name = fullName(d);
   const docs = d.documents ?? {};
   const vehicle = d.vehicle ?? {};
@@ -228,10 +267,10 @@ function DriverDetail({ driver: d, driverIdx, onBack, onToast }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {(d.status === "pending" || d.status === "in_progress") && (
           <>
-            <button className="btn-success" onClick={() => { onToast(`✅ ${name} approved`); onBack(); }}>
+            <button className="btn-success" onClick={handleApproveDriver}>
               <CheckCircle size={15} /> Approve Driver
             </button>
-            <button className="btn-danger" onClick={() => { onToast(`❌ ${name} rejected`); onBack(); }}>
+            <button className="btn-danger" onClick={handleRejectDriver}>
               <XCircle size={15} /> Reject Application
             </button>
           </>
@@ -240,7 +279,7 @@ function DriverDetail({ driver: d, driverIdx, onBack, onToast }) {
           <Bell size={14} /> Send Notification
         </button>
         {d.status !== "pending" && d.status !== "in_progress" && (
-          <button className="btn-danger" onClick={() => { onToast(`🚫 ${name} suspended`); onBack(); }}>
+          <button className="btn-danger" onClick={handleSuspendDriver}>
             <Ban size={14} /> Suspend Driver
           </button>
         )}

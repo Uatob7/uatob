@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getFirestore, doc, getDoc } from "firebase/firestore";
+import { getFirestore, doc, onSnapshot } from "firebase/firestore";
 import { firebase_app } from "@/firebase/config";
 
 const db = getFirestore(firebase_app);
@@ -10,28 +10,30 @@ export function useDriverAccount(uid) {
 
   useEffect(() => {
     if (!uid) {
+      setDriver(null);
       setLoading(false);
       return;
     }
 
-    async function fetchDriver() {
-      try {
-        const ref = doc(db, "Drivers", uid);
-        const snap = await getDoc(ref);
+    const ref = doc(db, "Drivers", uid);
 
+    const unsubscribe = onSnapshot(
+      ref,
+      (snap) => {
         if (snap.exists()) {
           setDriver({ id: snap.id, ...snap.data() });
         } else {
           setDriver(null);
         }
-      } catch (err) {
-        console.error("Error fetching driver:", err);
-      } finally {
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Error listening to driver:", error);
         setLoading(false);
       }
-    }
+    );
 
-    fetchDriver();
+    return () => unsubscribe();
   }, [uid]);
 
   return { driver, loading };
