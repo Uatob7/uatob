@@ -13,9 +13,13 @@ const { onRidesCreated } = require("./ride/email/onRidesCreated");
 // Payment functions
 const { cardPayment } = require("./payments/cardPayment");
 const { cashAppPayment } = require("./payments/cashAppPayment");
+const { cashAppChecker } = require("./payments/cashAppChecker");
+const { cashAppPoller } = require("./payments/cashAppPoller");
+const { setupDeposit } = require("./payments/setupDeposit");
 
 // driver functions
 const { createDriverProfile } = require("./drivers/createDriverProfile");
+const { checkDriverDeposit } = require("./drivers/checkDriverDeposit");
 const { setDriverStatus } = require("./drivers/setDriverStatus");
 const { acceptRide } = require("./drivers/acceptRide");
 const { declineRide } = require("./drivers/declineRide");
@@ -48,7 +52,11 @@ exports.Autocomplete = Autocomplete;
 exports.Price = Price;
 exports.Geo = Geo;
 exports.cardPayment = cardPayment;
+exports.checkDriverDeposit = checkDriverDeposit;
 exports.cashAppPayment = cashAppPayment;
+exports.cashAppChecker = cashAppChecker;
+exports.cashAppPoller = cashAppPoller;
+exports.setupDeposit = setupDeposit;
 exports.acceptRide = acceptRide;
 exports.declineRide = declineRide;
 exports.updateTripStatus = updateTripStatus;

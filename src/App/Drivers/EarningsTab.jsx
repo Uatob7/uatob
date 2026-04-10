@@ -1,22 +1,56 @@
-import { ArrowDownToLine } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowDownToLine, BadgeDollarSign } from 'lucide-react';
 import { C } from '@/App/Drivers/constants.js';
 
-export default function EarningsTab({ earnings, online }) {
+export default function EarningsTab({ earnings, online, driver }) {
+  const [isSettingUpDeposit, setIsSettingUpDeposit] = useState(false);
   const accentColor = online ? C.onlineGreen : C.offlineInk;
 
-  const weekEarnings    = earnings?.week?.earnings    ?? 0;
-  const weekTrips       = earnings?.week?.trips       ?? 0;
-  const monthEarnings   = earnings?.month?.earnings   ?? 0;
-  const monthTrips      = earnings?.month?.trips      ?? 0;
-  const changePercent   = earnings?.week?.changePercent ?? 0;
-  const dailyBreakdown  = earnings?.week?.dailyBreakdown ?? [];
-  const available       = monthEarnings.toFixed(2);
+  console.log(driver);
 
-  // Max amount across days that have data (exclude null future days)
+  const weekEarnings   = earnings?.week?.earnings      ?? 0;
+  const weekTrips      = earnings?.week?.trips         ?? 0;
+  const monthEarnings  = earnings?.month?.earnings     ?? 0;
+  const monthTrips     = earnings?.month?.trips        ?? 0;
+  const changePercent  = earnings?.week?.changePercent ?? 0;
+  const dailyBreakdown = earnings?.week?.dailyBreakdown ?? [];
+  const available      = monthEarnings.toFixed(2);
+
   const maxAmount = Math.max(
     ...dailyBreakdown.map(d => d.amount ?? 0),
-    1  // avoid divide-by-zero if all zero
+    1
   );
+
+  const handleSetupDeposit = async () => {
+    setIsSettingUpDeposit(true);
+    try {
+      const response = await fetch(
+        "https://setupdeposit-li6hx2r5xq-uc.a.run.app",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: driver.email,
+            uid:   driver.uid,
+          }),
+        }
+      );
+      const data = await response.json();
+      if (data.success && data.accountLink) {
+        window.location.href = data.accountLink;
+      } else {
+        alert("Failed to start Stripe onboarding.");
+        setIsSettingUpDeposit(false);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Stripe setup failed. Try again.");
+      setIsSettingUpDeposit(false);
+    }
+  };
+
+  // ── No accountId → show deposit setup gate ─────────────────
+  const showSetupGate = !driver?.accountId;
 
   return (
     <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14, animation: "slideUp .38s ease-out forwards" }}>
@@ -32,9 +66,9 @@ export default function EarningsTab({ earnings, online }) {
           </div>
           <div style={{
             fontSize: 11, fontWeight: 700,
-            color: changePercent >= 0 ? C.green : "#EF4444",
+            color:      changePercent >= 0 ? C.green : "#EF4444",
             background: changePercent >= 0 ? "rgba(22,163,74,.08)" : "rgba(239,68,68,.08)",
-            border: `1px solid ${changePercent >= 0 ? "rgba(22,163,74,.2)" : "rgba(239,68,68,.2)"}`,
+            border:     `1px solid ${changePercent >= 0 ? "rgba(22,163,74,.2)" : "rgba(239,68,68,.2)"}`,
             borderRadius: 100, padding: "3px 10px",
           }}>
             {changePercent >= 0 ? "+" : ""}{changePercent}% vs last week
@@ -43,18 +77,16 @@ export default function EarningsTab({ earnings, online }) {
 
         <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 110 }}>
           {dailyBreakdown.length > 0
-            ? dailyBreakdown.map((d, i) => {
+            ? dailyBreakdown.map((d) => {
                 const isFuture = d.amount === null;
                 const pct      = isFuture ? 0 : Math.max((d.amount / maxAmount) * 100, d.amount > 0 ? 6 : 0);
                 return (
                   <div key={d.day} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
-                    {/* Amount label — only show if bar is tall enough */}
                     {!isFuture && pct > 60 && (
                       <div className="mono" style={{ fontSize: 9, color: d.isToday ? accentColor : C.textDim, fontWeight: 700 }}>
                         ${d.amount}
                       </div>
                     )}
-                    {/* Bar */}
                     <div style={{
                       width:        "100%",
                       height:       `${isFuture ? 6 : Math.max(pct, 6)}px`,
@@ -73,75 +105,110 @@ export default function EarningsTab({ earnings, online }) {
                       opacity:    isFuture ? 0.35 : 1,
                       transition: "height .5s ease-out",
                     }}/>
-                    {/* Day label */}
                     <div className="condensed" style={{ fontSize: 10, fontWeight: 700, color: d.isToday ? accentColor : C.textDim, letterSpacing: ".5px" }}>
                       {d.day.toUpperCase()}
                     </div>
                   </div>
                 );
               })
-            : (
-              // Loading skeleton bars
-              Array.from({ length: 7 }).map((_, i) => (
+            : Array.from({ length: 7 }).map((_, i) => (
                 <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
                   <div style={{ width: "100%", height: 40, background: C.border, borderRadius: "5px 5px 3px 3px", opacity: 0.4 }}/>
                   <div style={{ width: 20, height: 8, background: C.border, borderRadius: 4, opacity: 0.4 }}/>
                 </div>
               ))
-            )
           }
         </div>
       </div>
 
-      {/* Withdrawal card */}
-      <div className="card" style={{ padding: "22px" }}>
-        <div className="condensed" style={{ fontSize: 13, fontWeight: 700, color: C.textMid, marginBottom: 16, letterSpacing: "1px", textTransform: "uppercase" }}>
-          Available to Withdraw
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-          <div>
-            <div className="mono condensed" style={{ fontSize: 38, fontWeight: 700, color: C.text, letterSpacing: "-1px", lineHeight: 1 }}>
-              ${available}
-            </div>
-            <div style={{ fontSize: 12, color: C.textDim, fontWeight: 600, marginTop: 4 }}>
-              Instant transfer · usually &lt; 30 min
-            </div>
-          </div>
+      {/* Withdrawal card OR Setup gate */}
+      {showSetupGate ? (
+        <div className="card" style={{ padding: "28px 22px", textAlign: "center" }}>
           <div style={{
-            width: 52, height: 52,
+            width: 56, height: 56,
             background: accentColor + "15",
             border: `1.5px solid ${accentColor}30`,
             borderRadius: "50%",
             display: "flex", alignItems: "center", justifyContent: "center",
-            flexShrink: 0,
+            margin: "0 auto 16px",
           }}>
-            <ArrowDownToLine size={22} color={accentColor} />
+            <BadgeDollarSign size={24} color={accentColor} />
           </div>
+          <div className="condensed" style={{ fontSize: 18, fontWeight: 800, color: C.text, marginBottom: 8 }}>
+            Set Up Your Deposit Account
+          </div>
+          <div style={{ fontSize: 13, color: C.textDim, fontWeight: 500, marginBottom: 22, lineHeight: 1.5 }}>
+            Connect your bank account via Stripe to start receiving payouts after each completed ride.
+          </div>
+          <button
+            onClick={handleSetupDeposit}
+            disabled={isSettingUpDeposit}
+            style={{
+              width: "100%", padding: "15px 20px",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
+              background: online
+                ? "linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D)"
+                : "linear-gradient(135deg,#374151,#111827)",
+              border: "none", borderRadius: 13, color: "#fff",
+              fontFamily: "'Barlow',sans-serif", fontWeight: 800, fontSize: 15,
+              letterSpacing: ".3px", cursor: isSettingUpDeposit ? "not-allowed" : "pointer",
+              opacity: isSettingUpDeposit ? 0.7 : 1,
+              boxShadow: online ? "0 4px 18px rgba(22,163,74,.28)" : "0 4px 18px rgba(0,0,0,.18)",
+              transition: "filter .15s, transform .1s",
+            }}
+          >
+            <BadgeDollarSign size={17} />
+            {isSettingUpDeposit ? "Redirecting to Stripe…" : "Set Up Deposit Account"}
+          </button>
         </div>
-
-        <button
-          style={{
-            width: "100%", padding: "15px 20px",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
-            background: online
-              ? "linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D)"
-              : "linear-gradient(135deg,#374151,#111827)",
-            border: "none", borderRadius: 13, color: "#fff",
-            fontFamily: "'Barlow',sans-serif", fontWeight: 800, fontSize: 15,
-            letterSpacing: ".3px", cursor: "pointer",
-            boxShadow: online ? "0 4px 18px rgba(22,163,74,.28)" : "0 4px 18px rgba(0,0,0,.18)",
-            transition: "filter .15s, transform .1s",
-          }}
-          onMouseEnter={e => { e.currentTarget.style.filter    = "brightness(1.08)"; }}
-          onMouseLeave={e => { e.currentTarget.style.filter    = ""; }}
-          onMouseDown={e  => { e.currentTarget.style.transform = "scale(.98)"; }}
-          onMouseUp={e    => { e.currentTarget.style.transform = ""; }}
-        >
-          <ArrowDownToLine size={17} />
-          Withdraw ${available}
-        </button>
-      </div>
+      ) : (
+        <div className="card" style={{ padding: "22px" }}>
+          <div className="condensed" style={{ fontSize: 13, fontWeight: 700, color: C.textMid, marginBottom: 16, letterSpacing: "1px", textTransform: "uppercase" }}>
+            Available to Withdraw
+          </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+            <div>
+              <div className="mono condensed" style={{ fontSize: 38, fontWeight: 700, color: C.text, letterSpacing: "-1px", lineHeight: 1 }}>
+                ${available}
+              </div>
+              <div style={{ fontSize: 12, color: C.textDim, fontWeight: 600, marginTop: 4 }}>
+                Instant transfer · usually &lt; 30 min
+              </div>
+            </div>
+            <div style={{
+              width: 52, height: 52,
+              background: accentColor + "15",
+              border: `1.5px solid ${accentColor}30`,
+              borderRadius: "50%",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              flexShrink: 0,
+            }}>
+              <ArrowDownToLine size={22} color={accentColor} />
+            </div>
+          </div>
+          <button
+            style={{
+              width: "100%", padding: "15px 20px",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
+              background: online
+                ? "linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D)"
+                : "linear-gradient(135deg,#374151,#111827)",
+              border: "none", borderRadius: 13, color: "#fff",
+              fontFamily: "'Barlow',sans-serif", fontWeight: 800, fontSize: 15,
+              letterSpacing: ".3px", cursor: "pointer",
+              boxShadow: online ? "0 4px 18px rgba(22,163,74,.28)" : "0 4px 18px rgba(0,0,0,.18)",
+              transition: "filter .15s, transform .1s",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.filter    = "brightness(1.08)"; }}
+            onMouseLeave={e => { e.currentTarget.style.filter    = ""; }}
+            onMouseDown={e  => { e.currentTarget.style.transform = "scale(.98)"; }}
+            onMouseUp={e    => { e.currentTarget.style.transform = ""; }}
+          >
+            <ArrowDownToLine size={17} />
+            Withdraw ${available}
+          </button>
+        </div>
+      )}
 
       {/* Summary tiles */}
       <div style={{ display: "flex", gap: 10 }}>

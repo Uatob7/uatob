@@ -747,7 +747,7 @@ export default function UaTobDriverApp({ uid }) {
             advancePending={advancePending}
           />
         )}
-        {activeTab === "earnings" && <EarningsTab earnings={earnings} online={online} />}
+        {activeTab === "earnings" && <EarningsTab earnings={earnings} driver={driver} online={online} />}
         {activeTab === "trips"    && <TripsTab    completedRides={completedRides} online={online} />}
         {activeTab === "profile"  && <ProfileTab  driver={driver} online={online} />}
       </div>
