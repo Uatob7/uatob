@@ -315,13 +315,7 @@ export default function UaTobDriverApp({ uid }) {
   const { rides, loading: ridesLoading } = useDriverRides();
   const { activeRides, loading }         = useActiveRides(uid);
   const { completedRides }              = useCompletedRides(uid);
-  console.log("Completed rides:", completedRides);
-
-  console.log(uid);
-
-  console.log("Driver account:", driver);
-  console.log("All rides:",    rides);
-  console.log("Active rides:", activeRides);
+  
 
   // ── Local state ───────────────────────────────────────
   const [mounted,        setMounted]        = useState(false);
