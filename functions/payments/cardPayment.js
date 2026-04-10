@@ -125,7 +125,7 @@ exports.cardPayment = onRequest(
           paymentStatus:     "succeeded",
 
           // ── Status & meta ─────────────────────────────────────
-         
+          status:            "searching_driver",
           uid:               uid,
           createdAt:         admin.firestore.FieldValue.serverTimestamp(),
           updatedAt:         admin.firestore.FieldValue.serverTimestamp(),

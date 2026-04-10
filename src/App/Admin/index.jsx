@@ -64,9 +64,7 @@ export default function UaTobAdminDashboard() {
   
 } = useSearchingRides();
 
-console.log("searchingRides", searchingRides);
 
- console.log("activeRides", activeRides);
 
 
   const { totalRides }              = useTotalRides();
@@ -85,19 +83,12 @@ console.log("searchingRides", searchingRides);
     error,
   } = useRideAnalytics();
 
-  console.log("Analytics:", {
-    avgTripDuration,
-    avgFare,
-    acceptanceRate,
-    cancellationRate,
-    topDrivers,
-  });
 
   // Approvals tab — all pending driver applications
   const { approvals }               = usePendingApprovals();
 
   // Fleet tab — fully onboarded / active drivers
-  const { drivers }                 = useFleetDrivers();
+  const { fleet }                 = useFleetDrivers();
 
   // Home tab summary counts (e.g. badge on stat card)
   const { approvals: allApprovals } = useApprovals();
@@ -132,14 +123,14 @@ console.log("searchingRides", searchingRides);
             totalRides={totalRides}
             activeDrivers={activeDrivers}
             revenue={revenue}
-            approvals={allApprovals}
+            approvals={approvals}
             onToast={showToast}
           />
         );
       case "drivers":
         return (
           <DriversTab
-            fleet={drivers}
+            fleet={fleet}
             onToast={showToast}
           />
         );
@@ -178,7 +169,7 @@ console.log("searchingRides", searchingRides);
     revenue,
     allApprovals,
     approvals,
-    drivers,
+    fleet,
     avgTripDuration,
     avgFare,
     acceptanceRate,
