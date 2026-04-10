@@ -14,11 +14,12 @@ export default function EarningsTab({ earnings, online, driver }) {
   const changePercent  = earnings?.week?.changePercent ?? 0;
   const dailyBreakdown = earnings?.week?.dailyBreakdown ?? [];
 
-  // Available = whatever is pending on the withdrawal map
-  const withdrawal      = driver?.withdrawal;
-  const available       = withdrawal?.totalPayout?.toFixed(2) ?? "0.00";
-  const alreadyPaid     = withdrawal?.status === "paid";
-  const nothingPending  = !withdrawal || withdrawal?.totalPayout === 0 || alreadyPaid;
+  // Available = pending totalPayout on driver.withdrawal
+  // nothingPending = no withdrawal map OR totalPayout is 0 (reset after paid)
+  const withdrawal     = driver?.withdrawal;
+  const totalPayout    = withdrawal?.totalPayout ?? 0;
+  const available      = totalPayout.toFixed(2);
+  const nothingPending = totalPayout === 0;
 
   const maxAmount = Math.max(
     ...dailyBreakdown.map(d => d.amount ?? 0),
@@ -200,8 +201,8 @@ export default function EarningsTab({ earnings, online, driver }) {
                 ${available}
               </div>
               <div style={{ fontSize: 12, color: C.textDim, fontWeight: 600, marginTop: 4 }}>
-                {alreadyPaid
-                  ? "Last withdrawal paid out"
+                {nothingPending
+                  ? "No pending payouts"
                   : `${withdrawal?.rideCount ?? 0} ride(s) · instant transfer`}
               </div>
             </div>
@@ -247,8 +248,8 @@ export default function EarningsTab({ earnings, online, driver }) {
             <ArrowDownToLine size={17} />
             {isWithdrawing
               ? "Processing…"
-              : alreadyPaid
-                ? "Already Paid Out"
+              : nothingPending
+                ? "Nothing to Withdraw"
                 : `Withdraw $${available}`}
           </button>
         </div>
