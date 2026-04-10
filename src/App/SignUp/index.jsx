@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useRouter } from "next/router";
 import {
   Car, User, FileText, Shield, Camera, Check, ChevronRight,
   ChevronLeft, Eye, EyeOff, Upload, Phone, Mail, Lock,
@@ -725,12 +726,24 @@ function PendingScreen({ firstName, email }) {
 /* ─── MAIN COMPONENT ─────────────────────────── */
 
 export default function UaTobDriverSignup({ uid, driverSignUp }) {
+  const router = useRouter();
   const { drivers} = useApplicationSubmitted(uid);
 
-  console.log("🚗 DriverSignUp state:", driverSignUp);
-  console.log("🚗 Drivers state:", drivers);
+
 
   const isExistingUser = Boolean(uid);
+
+  // ── Guard: Redirect approved/online drivers to driver dashboard ──────────────────
+  useEffect(() => {
+    const driverSignUpStatus = driverSignUp?.status;
+    const driversStatus = drivers?.[0]?.status;
+    const shouldRedirect = ["approved", "online"].includes(driverSignUpStatus) || ["approved", "online"].includes(driversStatus);
+    
+    if (shouldRedirect) {
+      router.push("/driver");
+      return;
+    }
+  }, [driverSignUp?.status, drivers, router]);
 
   // ── Guard: driver already completed signup ──────────────────
   // Return null for any status that means they're past the signup flow
