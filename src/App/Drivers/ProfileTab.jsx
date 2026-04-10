@@ -1,4 +1,5 @@
-import { Car, Star, Shield, DollarSign, Bell, Settings, LogOut, ChevronRight } from 'lucide-react';
+import { useState } from 'react';
+import { Car, Star, Shield, DollarSign, Bell, Settings, LogOut, ChevronRight, ArrowLeft } from 'lucide-react';
 import { C } from '@/App/Drivers/constants.js';
 
 function formatDate(ts) {
@@ -7,7 +8,64 @@ function formatDate(ts) {
   return date.toLocaleDateString([], { month: "short", year: "numeric" });
 }
 
+const DocumentsInsuranceSection = ({ driver, onBack }) => (
+  <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+      <button onClick={onBack} style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+        <ArrowLeft size={20} color={C.text} />
+      </button>
+      <div className="condensed" style={{ fontSize: 28, fontWeight: 900, color: C.text }}>Documents & Insurance</div>
+    </div>
+    <div className="card" style={{ padding: "22px", textAlign: "center", color: C.textMid }}>
+      Coming soon...
+    </div>
+  </div>
+);
+
+const PaymentPayoutsSection = ({ driver, onBack }) => (
+  <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+      <button onClick={onBack} style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+        <ArrowLeft size={20} color={C.text} />
+      </button>
+      <div className="condensed" style={{ fontSize: 28, fontWeight: 900, color: C.text }}>Payment & Payouts</div>
+    </div>
+    <div className="card" style={{ padding: "22px", textAlign: "center", color: C.textMid }}>
+      Coming soon...
+    </div>
+  </div>
+);
+
+const NotificationsSection = ({ driver, onBack }) => (
+  <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+      <button onClick={onBack} style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+        <ArrowLeft size={20} color={C.text} />
+      </button>
+      <div className="condensed" style={{ fontSize: 28, fontWeight: 900, color: C.text }}>Notifications</div>
+    </div>
+    <div className="card" style={{ padding: "22px", textAlign: "center", color: C.textMid }}>
+      Coming soon...
+    </div>
+  </div>
+);
+
+const AppSettingsSection = ({ driver, onBack }) => (
+  <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+      <button onClick={onBack} style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+        <ArrowLeft size={20} color={C.text} />
+      </button>
+      <div className="condensed" style={{ fontSize: 28, fontWeight: 900, color: C.text }}>App Settings</div>
+    </div>
+    <div className="card" style={{ padding: "22px", textAlign: "center", color: C.textMid }}>
+      Coming soon...
+    </div>
+  </div>
+);
+
 export default function ProfileTab({ driver, online }) {
+  const [activeSection, setActiveSection] = useState(null);
   const accentColor = online ? C.onlineGreen : C.offlineInk;
 
   const firstName   = driver?.firstName  ?? "";
@@ -23,6 +81,20 @@ export default function ProfileTab({ driver, online }) {
   const rideTypes   = Array.isArray(vehicle.rideTypes) && vehicle.rideTypes.length > 0
     ? vehicle.rideTypes.map(r => r.charAt(0).toUpperCase() + r.slice(1)).join(", ")
     : "—";
+
+  const settingsItems = [
+    { id: "documents",   icon: Shield,     label: "Documents & Insurance", c: C.blue      },
+    { id: "payments",    icon: DollarSign, label: "Payment & Payouts",     c: accentColor },
+    { id: "notifications", icon: Bell,     label: "Notifications",         c: C.textMid   },
+    { id: "settings",    icon: Settings,   label: "App Settings",          c: C.purple    },
+    { id: "signout",     icon: LogOut,     label: "Sign Out",              c: C.red       },
+  ];
+
+  // ── Render active section ──────────────────────────────────
+  if (activeSection === "documents") return <DocumentsInsuranceSection driver={driver} onBack={() => setActiveSection(null)} />;
+  if (activeSection === "payments") return <PaymentPayoutsSection driver={driver} onBack={() => setActiveSection(null)} />;
+  if (activeSection === "notifications") return <NotificationsSection driver={driver} onBack={() => setActiveSection(null)} />;
+  if (activeSection === "settings") return <AppSettingsSection driver={driver} onBack={() => setActiveSection(null)} />;
 
   return (
     <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14, animation: "slideUp .38s ease-out forwards" }}>
@@ -99,15 +171,18 @@ export default function ProfileTab({ driver, online }) {
 
       {/* Settings list */}
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        {[
-          { icon: Shield,     label: "Documents & Insurance", c: C.blue      },
-          { icon: DollarSign, label: "Payment & Payouts",     c: accentColor },
-          { icon: Bell,       label: "Notifications",         c: C.textMid   },
-          { icon: Settings,   label: "App Settings",          c: C.purple    },
-          { icon: LogOut,     label: "Sign Out",              c: C.red       },
-        ].map((item, i, arr) => (
+        {settingsItems.map((item, i, arr) => (
           <div
             key={item.label}
+            onClick={() => {
+              if (item.id === "signout") {
+                // Handle sign out
+                console.log("Sign out clicked");
+                // Add your sign out logic here
+              } else {
+                setActiveSection(item.id);
+              }
+            }}
             style={{
               padding:      "15px 20px",
               borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none",
@@ -123,7 +198,7 @@ export default function ProfileTab({ driver, online }) {
             <span style={{ flex: 1, fontSize: 14.5, fontWeight: 600, color: item.label === "Sign Out" ? C.red : C.text }}>
               {item.label}
             </span>
-            {item.label !== "Sign Out" && <ChevronRight size={14} color={C.textDim}/>}
+            {item.id !== "signout" && <ChevronRight size={14} color={C.textDim}/>}
           </div>
         ))}
       </div>
