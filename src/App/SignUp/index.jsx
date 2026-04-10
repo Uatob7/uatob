@@ -727,6 +727,9 @@ function PendingScreen({ firstName, email }) {
 export default function UaTobDriverSignup({ uid, driverSignUp }) {
   const { drivers} = useApplicationSubmitted(uid);
 
+  console.log("🚗 DriverSignUp state:", driverSignUp);
+  console.log("🚗 Drivers state:", drivers);
+
   const isExistingUser = Boolean(uid);
 
   // ── Guard: driver already completed signup ──────────────────
@@ -763,8 +766,80 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
   const scrollRef = useRef(null);
 
   const firestoreHydrated = useRef(false);
+  
+  // ── Hydrate from drivers data (Firestore) ──
   useEffect(() => {
-    if (!driverSignUp || firestoreHydrated.current) return;
+    if (!drivers?.length || firestoreHydrated.current) return;
+    firestoreHydrated.current = true;
+    
+    const driver = drivers[0];
+    const savedStep = driver.currentStep ?? 1;
+    
+    // Set step
+    if (savedStep > 1) { 
+      setStep(s => Math.max(s, savedStep)); 
+      setShowResumeBanner(true); 
+    }
+    
+    // Hydrate account data
+    if (driver.firstName || driver.lastName || driver.email) {
+      setAccountData(d => ({ 
+        ...d, 
+        firstName: driver.firstName || d.firstName, 
+        lastName: driver.lastName || d.lastName, 
+        email: driver.email || d.email 
+      }));
+    }
+    
+    // Hydrate contact data
+    if (driver.contact) {
+      setContactData(d => ({ 
+        ...d, 
+        phone: driver.contact.phone || d.phone,
+        address: driver.contact.address || d.address,
+        city: driver.contact.city || d.city,
+        state: driver.contact.state || d.state,
+        zip: driver.contact.zip || d.zip,
+      }));
+    }
+    
+    // Hydrate vehicle data
+    if (driver.vehicle) {
+      setVehicleData(d => ({ 
+        ...d, 
+        make: driver.vehicle.make || d.make,
+        model: driver.vehicle.model || d.model,
+        year: driver.vehicle.year || d.year,
+        color: driver.vehicle.color || d.color,
+        plate: driver.vehicle.plate || d.plate,
+        vin: driver.vehicle.vin || d.vin,
+        rideTypes: driver.vehicle.rideTypes || d.rideTypes,
+      }));
+    }
+    
+    // Hydrate document data
+    if (driver.documents) {
+      const docs = driver.documents;
+      setDocData(d => ({ 
+        ...d, 
+        licenseFront: docs.licenseFront || d.licenseFront,
+        licenseFrontUrl: docs.licenseFrontUrl || d.licenseFrontUrl,
+        licenseBack: docs.licenseBack || d.licenseBack,
+        licenseBackUrl: docs.licenseBackUrl || d.licenseBackUrl,
+        licenseNumber: docs.licenseNumber || d.licenseNumber,
+        registration: docs.registration || d.registration,
+        registrationUrl: docs.registrationUrl || d.registrationUrl,
+        insurance: docs.insurance || d.insurance,
+        insuranceUrl: docs.insuranceUrl || d.insuranceUrl,
+        profilePhoto: docs.profilePhoto || d.profilePhoto,
+        profilePhotoUrl: docs.profilePhotoUrl || d.profilePhotoUrl,
+      }));
+    }
+  }, [drivers]);
+  
+  // ── Fallback hydration from driverSignUp prop ──
+  useEffect(() => {
+    if (!driverSignUp || firestoreHydrated.current || drivers?.length) return;
     firestoreHydrated.current = true;
     const savedStep = driverSignUp.currentStep ?? 1;
     if (savedStep > 1) { setStep(s => Math.max(s, savedStep)); setShowResumeBanner(true); }
@@ -774,7 +849,7 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
     if (driverSignUp.contactData) setContactData(d => ({ ...d, ...driverSignUp.contactData }));
     if (driverSignUp.vehicleData) setVehicleData(d => ({ ...d, ...driverSignUp.vehicleData }));
     if (driverSignUp.docData)     setDocData(d => ({ ...d, ...driverSignUp.docData }));
-  }, [driverSignUp]);
+  }, [driverSignUp, drivers]);
 
   useEffect(() => { lsSet(LS_KEYS.step, step); }, [step]);
   useEffect(() => { lsSet(LS_KEYS.uid,  createdUid); }, [createdUid]);
