@@ -9,6 +9,7 @@ import signUp from '@/firebase/auth/signup';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { getFirestore } from "firebase/firestore";
 import { firebase_app } from "@/firebase/config";
+import { useApplicationSubmitted } from "@/App/SignUp/useApplicationSubmitted";
 
 const db = getFirestore(firebase_app);
 const storage = getStorage(firebase_app);
@@ -724,6 +725,7 @@ function PendingScreen({ firstName, email }) {
 /* ─── MAIN COMPONENT ─────────────────────────── */
 
 export default function UaTobDriverSignup({ uid, driverSignUp }) {
+  const { drivers} = useApplicationSubmitted(uid);
 
   const isExistingUser = Boolean(uid);
 
