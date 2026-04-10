@@ -4,9 +4,8 @@ import { C } from '@/App/Drivers/constants.js';
 
 export default function EarningsTab({ earnings, online, driver }) {
   const [isSettingUpDeposit, setIsSettingUpDeposit] = useState(false);
+  const [isWithdrawing,      setIsWithdrawing]      = useState(false);
   const accentColor = online ? C.onlineGreen : C.offlineInk;
-
-  console.log(driver);
 
   const weekEarnings   = earnings?.week?.earnings      ?? 0;
   const weekTrips      = earnings?.week?.trips         ?? 0;
@@ -14,25 +13,28 @@ export default function EarningsTab({ earnings, online, driver }) {
   const monthTrips     = earnings?.month?.trips        ?? 0;
   const changePercent  = earnings?.week?.changePercent ?? 0;
   const dailyBreakdown = earnings?.week?.dailyBreakdown ?? [];
-  const available      = monthEarnings.toFixed(2);
+
+  // Available = whatever is pending on the withdrawal map
+  const withdrawal      = driver?.withdrawal;
+  const available       = withdrawal?.totalPayout?.toFixed(2) ?? "0.00";
+  const alreadyPaid     = withdrawal?.status === "paid";
+  const nothingPending  = !withdrawal || withdrawal?.totalPayout === 0 || alreadyPaid;
 
   const maxAmount = Math.max(
     ...dailyBreakdown.map(d => d.amount ?? 0),
     1
   );
 
+  // ── Stripe deposit setup ──────────────────────────────────────
   const handleSetupDeposit = async () => {
     setIsSettingUpDeposit(true);
     try {
       const response = await fetch(
         "https://setupdeposit-ady2s2xhhq-uc.a.run.app",
         {
-          method: "POST",
+          method:  "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: driver.email,
-            uid:   driver.uid,
-          }),
+          body:    JSON.stringify({ email: driver.email, uid: driver.uid }),
         }
       );
       const data = await response.json();
@@ -49,7 +51,33 @@ export default function EarningsTab({ earnings, online, driver }) {
     }
   };
 
-  // ── No accountId → show deposit setup gate ─────────────────
+  // ── Process withdrawal ────────────────────────────────────────
+  const handleWithdraw = async () => {
+    if (nothingPending || isWithdrawing) return;
+    setIsWithdrawing(true);
+    try {
+      const response = await fetch(
+        "https://processwithdrawal-ady2s2xhhq-uc.a.run.app",
+        {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ uid: driver.uid }),
+        }
+      );
+      const data = await response.json();
+      if (data.success) {
+        alert(`✅ $${data.totalPayout} paid out across ${data.rideCount} ride(s).`);
+      } else {
+        alert(`Withdrawal failed: ${data.error}`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Withdrawal failed. Try again.");
+    } finally {
+      setIsWithdrawing(false);
+    }
+  };
+
   const showSetupGate = !driver?.accountId;
 
   return (
@@ -172,7 +200,9 @@ export default function EarningsTab({ earnings, online, driver }) {
                 ${available}
               </div>
               <div style={{ fontSize: 12, color: C.textDim, fontWeight: 600, marginTop: 4 }}>
-                Instant transfer · usually &lt; 30 min
+                {alreadyPaid
+                  ? "Last withdrawal paid out"
+                  : `${withdrawal?.rideCount ?? 0} ride(s) · instant transfer`}
               </div>
             </div>
             <div style={{
@@ -187,25 +217,39 @@ export default function EarningsTab({ earnings, online, driver }) {
             </div>
           </div>
           <button
+            onClick={handleWithdraw}
+            disabled={nothingPending || isWithdrawing}
             style={{
               width: "100%", padding: "15px 20px",
               display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
-              background: online
-                ? "linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D)"
-                : "linear-gradient(135deg,#374151,#111827)",
-              border: "none", borderRadius: 13, color: "#fff",
+              background: nothingPending
+                ? C.border
+                : online
+                  ? "linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D)"
+                  : "linear-gradient(135deg,#374151,#111827)",
+              border: "none", borderRadius: 13, color: nothingPending ? C.textDim : "#fff",
               fontFamily: "'Barlow',sans-serif", fontWeight: 800, fontSize: 15,
-              letterSpacing: ".3px", cursor: "pointer",
-              boxShadow: online ? "0 4px 18px rgba(22,163,74,.28)" : "0 4px 18px rgba(0,0,0,.18)",
+              letterSpacing: ".3px",
+              cursor: nothingPending || isWithdrawing ? "not-allowed" : "pointer",
+              opacity: isWithdrawing ? 0.7 : 1,
+              boxShadow: nothingPending
+                ? "none"
+                : online
+                  ? "0 4px 18px rgba(22,163,74,.28)"
+                  : "0 4px 18px rgba(0,0,0,.18)",
               transition: "filter .15s, transform .1s",
             }}
-            onMouseEnter={e => { e.currentTarget.style.filter    = "brightness(1.08)"; }}
+            onMouseEnter={e => { if (!nothingPending) e.currentTarget.style.filter    = "brightness(1.08)"; }}
             onMouseLeave={e => { e.currentTarget.style.filter    = ""; }}
-            onMouseDown={e  => { e.currentTarget.style.transform = "scale(.98)"; }}
+            onMouseDown={e  => { if (!nothingPending) e.currentTarget.style.transform = "scale(.98)"; }}
             onMouseUp={e    => { e.currentTarget.style.transform = ""; }}
           >
             <ArrowDownToLine size={17} />
-            Withdraw ${available}
+            {isWithdrawing
+              ? "Processing…"
+              : alreadyPaid
+                ? "Already Paid Out"
+                : `Withdraw $${available}`}
           </button>
         </div>
       )}
