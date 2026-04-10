@@ -11,6 +11,9 @@ import { ApprovalsTab } from '@/App/Admin/Approvalstab';
 import { AnalyticsTab } from '@/App/Admin/Analyticstab';
 
 import { useTotalAccounts } from "@/App/Admin/useTotalAccounts";
+import { useDriverPresence }    from "@/App/Admin/useDriverPresence";
+import { useActiveRides }       from "@/App/Admin/useActiveRides";
+import { useSearchingRides }    from "@/App/Admin/useSearchingRides";
 import { useTotalRides }      from "@/App/Admin/useTotalRides";
 import { useActiveDrivers }   from "@/App/Admin/useActiveDrivers";
 import { useRevenueToday }    from "@/App/Admin/useRevenueToday";
@@ -41,7 +44,25 @@ export default function UaTobAdminDashboard() {
   const toastRef = useRef(null);
   
   // ── Data hooks ────────────────────────────────────────────────────────────
-  const { totalAccounts, loading } = useTotalAccounts();
+  const { totalAccounts } = useTotalAccounts();
+  const { uatobdrivers } = useDriverPresence();
+  const {
+    activeRides,
+    count,
+    isEmpty,
+    loading,
+  } = useActiveRides();
+
+  const {
+  searchingRides,
+  
+} = useSearchingRides();
+
+console.log("searchingRides", searchingRides);
+
+ console.log("activeRides", activeRides);
+
+
   const { totalRides }              = useTotalRides();
   const { activeDrivers }           = useActiveDrivers();
   const { revenue }                 = useRevenueToday();
@@ -83,6 +104,10 @@ export default function UaTobAdminDashboard() {
       case "home":
         return (
           <HomeTab
+            totalAccounts={totalAccounts}
+            uatobdrivers={uatobdrivers}
+            activeRides={activeRides}
+            searchingRides={searchingRides}
             liveRides={liveRides}
             totalRides={totalRides}
             activeDrivers={activeDrivers}

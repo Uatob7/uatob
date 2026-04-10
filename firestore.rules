@@ -19,13 +19,25 @@ service cloud.firestore {
 
     // 🔹 Drivers collection
     match /Drivers/{driverId} {
-      // Driver can only access their own document
-      allow read, write: if request.auth != null && request.auth.uid == driverId;
+      // Any logged-in user can read all drivers (for admin dashboard)
+      allow read: if request.auth != null;
+
+      // Driver can only write to their own document
+      allow write: if request.auth != null && request.auth.uid == driverId;
     }
 
     // 🔹 Users collection
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // 🔹 Accounts collection
+    match /Accounts/{accountId} {
+      // Any logged-in user can read all accounts
+      allow read: if request.auth != null;
+
+      // Allow updates for own account
+      allow write: if request.auth != null && request.auth.uid == accountId;
     }
 
     // ❌ Block everything else

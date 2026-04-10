@@ -20,7 +20,7 @@ function shortAddress(addr = "") {
   return addr.split(",")[0] || addr;
 }
 
-export function HomeTab({ liveRides = [], totalRides, activeDrivers = [], revenue, approvals = [], onToast }) {
+export function HomeTab({ liveRides = [], totalAccounts = 0, uatobdrivers = [], activeRides = [], searchingRides = [], totalRides = 0, activeDrivers = [], revenue = 0, approvals = [], onToast }) {
   const [refreshing, setRefreshing] = useState(false);
 
   const handleRefresh = () => {
@@ -43,19 +43,19 @@ export function HomeTab({ liveRides = [], totalRides, activeDrivers = [], revenu
           <div style={{ display: "flex", gap: 20 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
               <div className="live-dot" />
-              <span style={{ fontSize: 12, fontWeight: 700 }}>{activeCount} accounts</span>
+              <span style={{ fontSize: 12, fontWeight: 700 }}>{totalAccounts} accounts</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
               <div className="amber-dot" />
-              <span style={{ fontSize: 12, fontWeight: 700 }}>{searchCount} drivers</span>
-               <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+              <span style={{ fontSize: 12, fontWeight: 700 }}>{uatobdrivers.length} drivers</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
               <div className="live-dot" />
-              <span style={{ fontSize: 12, fontWeight: 700 }}>{activeCount} active rides</span>
+              <span style={{ fontSize: 12, fontWeight: 700 }}>{activeRides.length} active rides</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
               <div className="amber-dot" />
-              <span style={{ fontSize: 12, fontWeight: 700 }}>{searchCount} searching</span>
-            </div>
+              <span style={{ fontSize: 12, fontWeight: 700 }}>{searchingRides.length} searching</span>
             </div>
           </div>
           <button

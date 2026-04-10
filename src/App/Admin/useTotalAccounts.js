@@ -21,6 +21,7 @@ export function useTotalAccounts() {
           id: doc.id,
           ...doc.data(),
         }));
+        console.log("Fetched accounts:", allAccounts);
 
         setAccounts(allAccounts);
         setLoading(false);
