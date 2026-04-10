@@ -21,7 +21,7 @@ export function useApprovals() {
   useEffect(() => {
     const approvalsQuery = query(
       collection(db, "Drivers"),
-      where("status", "not-in", ["approved", "online", "offline"])
+      where("status", "==", "pending")
     );
 
     const unsubscribe = onSnapshot(
