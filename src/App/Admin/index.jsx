@@ -9,6 +9,9 @@ import { HomeTab }      from '@/App/Admin/HomeTab';
 import { DriversTab }   from '@/App/Admin/Driverstab';
 import { ApprovalsTab } from '@/App/Admin/Approvalstab';
 import { AnalyticsTab } from '@/App/Admin/Analyticstab';
+import { RidersTab }    from '@/App/Admin/RidersTab';
+import { ComplianceTab } from '@/App/Admin/ComplianceTab';
+import { SettingsTab }  from '@/App/Admin/SettingsTab';
 
 import { useTotalAccounts } from "@/App/Admin/useTotalAccounts";
 import { useDriverPresence }    from "@/App/Admin/useDriverPresence";
@@ -31,6 +34,9 @@ const TAB_TITLES = {
   drivers:   "Fleet",
   approvals: "Approvals",
   analytics: "Analytics",
+  riders:    "Riders",
+  compliance: "Compliance",
+  settings:  "Settings",
 };
 
 export default function UaTobAdminDashboard() {
@@ -155,6 +161,12 @@ console.log("searchingRides", searchingRides);
             topDrivers={topDrivers}
           />
         );
+      case "riders":
+        return <RidersTab onBack={() => setActiveTab("home")} />;
+      case "compliance":
+        return <ComplianceTab onBack={() => setActiveTab("home")} />;
+      case "settings":
+        return <SettingsTab onBack={() => setActiveTab("home")} />;
       default:
         return null;
     }
@@ -188,7 +200,7 @@ console.log("searchingRides", searchingRides);
 
       <Toast msg={toast} />
 
-      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} onNavigate={setActiveTab} />
 
       <TopBar
         title={TAB_TITLES[activeTab]}
@@ -206,10 +218,12 @@ console.log("searchingRides", searchingRides);
         {CurrentTab}
       </div>
 
-      <TabBar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-      />
+      {["home", "drivers", "approvals", "analytics"].includes(activeTab) && (
+        <TabBar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+        />
+      )}
     </div>
   );
 }
