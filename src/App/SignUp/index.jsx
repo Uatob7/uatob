@@ -54,6 +54,9 @@ const DEFAULT_DOC = {
   profilePhoto:    false, profilePhotoUrl:    "",
 };
 
+// Statuses that mean the driver has already completed signup
+const COMPLETED_STATUSES = ["approved", "online", "active", "suspended", "offline"];
+
 /* ─── UaTob SVG Icon ─────────────────────────── */
 function UaTobIcon({ size = 38 }) {
   return (
@@ -672,7 +675,6 @@ function StepVerify({ accountData, contactData, vehicleData, docData }) {
 function PendingScreen({ firstName, email }) {
   return (
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: '"Barlow", system-ui, sans-serif', color: C.text, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-      {/* FIX: dangerouslySetInnerHTML prevents SSR encoding mismatch on quotes/ampersands */}
       <style dangerouslySetInnerHTML={{ __html: `
         @import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800;900&family=Barlow+Condensed:wght@500;600;700;800;900&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -722,20 +724,21 @@ function PendingScreen({ firstName, email }) {
 /* ─── MAIN COMPONENT ─────────────────────────── */
 
 export default function UaTobDriverSignup({ uid, driverSignUp }) {
+
   const isExistingUser = Boolean(uid);
+
+  // ── Guard: driver already completed signup ──────────────────
+  // Return null for any status that means they're past the signup flow
+  if (driverSignUp && COMPLETED_STATUSES.includes(driverSignUp.status)) {
+    return null;
+  }
 
   const [submitted, setSubmitted] = useState(() => lsGet(LS_KEYS.submitted, false));
 
   useEffect(() => {
-    if (driverSignUp?.status === "pending" || driverSignUp?.status === "approved") {
+    if (driverSignUp?.status === "pending") {
       setSubmitted(true);
       lsSet(LS_KEYS.submitted, true);
-    }
-  }, [driverSignUp?.status]);
-
-  useEffect(() => {
-    if (driverSignUp?.status === "approved") {
-      window.location.href = "https://uatob.com/driver";
     }
   }, [driverSignUp?.status]);
 
@@ -795,8 +798,6 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
   const saveProgress = async (nextStep, overrideUid) => {
     const id = overrideUid ?? createdUid;
     if (!id) return;
-
-    // CF runs as admin — no Firestore rules apply, currentStep is written there
     const res = await fetch(CLOUD_FUNCTION_URL, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -935,8 +936,6 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
 
   const pct = ((step - 1) / (STEPS.length - 1)) * 100;
 
-  if (driverSignUp?.status === "approved") return null;
-
   if (submitted) {
     return (
       <PendingScreen
@@ -986,7 +985,6 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: '"Barlow", system-ui, sans-serif', color: C.text }}>
-      {/* FIX: dangerouslySetInnerHTML prevents SSR encoding mismatch on quotes/ampersands */}
       <style dangerouslySetInnerHTML={{ __html: mainStyles }} />
 
       <div style={{ maxWidth: 560, margin: "0 auto", padding: "0 16px 120px", minHeight: "100vh" }}>
