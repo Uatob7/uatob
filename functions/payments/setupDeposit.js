@@ -3,8 +3,8 @@ const cors = require("cors")({ origin: true });
 const admin = require("firebase-admin");
 const Stripe = require("stripe");
 
+if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
-
 
 exports.setupDeposit = onRequest(
   {
@@ -23,7 +23,7 @@ exports.setupDeposit = onRequest(
 
       const { email, uid } = req.body;
 
-      console.log(`[setupDeposit] Received request with email: ${email}, uid: ${uid}`);
+      console.log(`[setupDeposit] Received request — email: ${email} | uid: ${uid}`);
 
       if (!email || !uid) {
         return res.status(400).json({ error: "Missing required fields" });
@@ -43,9 +43,11 @@ exports.setupDeposit = onRequest(
         });
 
         const accountId = account.id;
+        console.log(`[setupDeposit] Stripe account created — accountId: ${accountId}`);
 
         // ── Write accountId to Drivers collection ──────────────
         await db.collection("Drivers").doc(uid).set({ accountId }, { merge: true });
+        console.log(`[setupDeposit] Firestore updated — uid: ${uid} | accountId: ${accountId}`);
 
         // ── Create onboarding link ─────────────────────────────
         const accountLink = await stripe.accountLinks.create({
@@ -55,7 +57,7 @@ exports.setupDeposit = onRequest(
           type:        "account_onboarding",
         });
 
-        console.log(`[setupDeposit] ✅ Stripe account created for uid: ${uid} | accountId: ${accountId}`);
+        console.log(`[setupDeposit] ✅ Onboarding link created — uid: ${uid} | accountId: ${accountId}`);
 
         return res.status(200).json({
           success:     true,
@@ -63,7 +65,11 @@ exports.setupDeposit = onRequest(
         });
 
       } catch (error) {
-        console.error("[setupDeposit] ❌ Stripe account creation failed:", error);
+        console.error("[setupDeposit] ❌ Failed:");
+        console.error("Message:", error.message);
+        console.error("Type:",    error.type);
+        console.error("Code:",    error.code);
+        console.error("Full:",    JSON.stringify(error, null, 2));
         return res.status(500).json({ error: "Internal Server Error" });
       }
     });

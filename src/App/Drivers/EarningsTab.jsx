@@ -25,7 +25,7 @@ export default function EarningsTab({ earnings, online, driver }) {
     setIsSettingUpDeposit(true);
     try {
       const response = await fetch(
-        "https://setupdeposit-li6hx2r5xq-uc.a.run.app",
+        "https://setupdeposit-ady2s2xhhq-uc.a.run.app",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
