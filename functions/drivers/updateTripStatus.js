@@ -6,9 +6,17 @@ const db = admin.firestore();
 
 // ─────────────────────────────────────────────────────────
 exports.updateTripStatus = onRequest(
-  { region: "us-central1" },
+  {
+    region: "us-central1",
+    invoker: "public", // ✅ makes it publicly accessible
+  },
   async (req, res) => {
     return cors(req, res, async () => {
+      // ✅ Handle preflight
+      if (req.method === "OPTIONS") {
+        return res.status(204).send("");
+      }
+
       if (req.method !== "POST") {
         return res.status(405).json({ success: false });
       }
@@ -45,23 +53,17 @@ exports.updateTripStatus = onRequest(
               throw new Error("Invalid transition to arrived");
             }
             newStatus = "arrived";
-          }
-
-          else if (action === "start") {
+          } else if (action === "start") {
             if (ride.status !== "arrived") {
               throw new Error("Invalid transition to in_progress");
             }
             newStatus = "in_progress";
-          }
-
-          else if (action === "complete") {
+          } else if (action === "complete") {
             if (ride.status !== "in_progress") {
               throw new Error("Invalid transition to completed");
             }
             newStatus = "completed";
-          }
-
-          else {
+          } else {
             throw new Error("Invalid action");
           }
 
@@ -87,7 +89,6 @@ exports.updateTripStatus = onRequest(
           success: true,
           message: `Trip updated: ${action}`,
         });
-
       } catch (err) {
         console.error("[updateTripStatus]", err);
         return res.status(500).json({

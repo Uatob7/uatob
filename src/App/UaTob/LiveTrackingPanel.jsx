@@ -1,28 +1,17 @@
 // src/App/UaTob/LiveTrackingPanel.jsx
 import React, { useMemo, useEffect, useState } from 'react';
-import { Car, Star, Check } from 'lucide-react';
+import { Car, Star, Check, Phone, MapPin, Navigation } from 'lucide-react';
 import { THEME as T } from '@/App/UaTob/pricing.js';
 import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
 import TrackingMap from '@/App/UaTob/TrackingMap.jsx';
 
-const RIDE_COLORS = {
-  economy:  '#16A34A',
-  standard: '#16A34A',
-  premium:  '#7C3AED',
-  xl:       '#F59E0B',
-};
-
-function getDriverColor(type) {
-  return RIDE_COLORS[type] || '#16A34A';
-}
-
-// ── Firestore status → progress steps ─────────────────────
+// ── Status → progress steps ────────────────────────────────
 const STEPS = [
-  { key: 'driver_assigned',  label: 'Assigned' },
-  { key: 'driver_arriving',  label: 'En Route' },
-  { key: 'arrived',          label: 'Arrived'  },
-  { key: 'in_progress',      label: 'Riding'   },
-  { key: 'completed',        label: 'Done'     },
+  { key: 'driver_assigned', label: 'Assigned'  },
+  { key: 'driver_arriving', label: 'En Route'  },
+  { key: 'arrived',         label: 'Arrived'   },
+  { key: 'in_progress',     label: 'Riding'    },
+  { key: 'completed',       label: 'Done'      },
 ];
 
 const STATUS_ORDER = [
@@ -34,18 +23,28 @@ const STATUS_ORDER = [
   'completed',
 ];
 
+const RIDE_COLORS = {
+  economy:  '#16A34A',
+  standard: '#16A34A',
+  premium:  '#7C3AED',
+  xl:       '#F59E0B',
+};
+
+function getDriverColor(type) {
+  return RIDE_COLORS[type] ?? '#16A34A';
+}
+
 function buildProgress(liveStatus) {
   const currentIndex = STATUS_ORDER.indexOf(liveStatus);
   return STEPS.map((step) => {
     const stepIndex = STATUS_ORDER.indexOf(step.key);
-    if (currentIndex === -1)        return { ...step, status: 'pending'   };
-    if (stepIndex < currentIndex)   return { ...step, status: 'completed' };
-    if (stepIndex === currentIndex) return { ...step, status: 'current'   };
+    if (currentIndex === -1)      return { ...step, status: 'pending'   };
+    if (stepIndex < currentIndex) return { ...step, status: 'completed' };
+    if (stepIndex === currentIndex) return { ...step, status: 'current' };
     return { ...step, status: 'pending' };
   });
 }
 
-// ── Status → human label ───────────────────────────────────
 function getStatusLabel(status, driverName) {
   const name = driverName || 'Your driver';
   return {
@@ -55,40 +54,134 @@ function getStatusLabel(status, driverName) {
     arrived:          `${name} has arrived!`,
     in_progress:      'On the way to your destination',
     completed:        'Ride complete 🎉',
-  }[status] || '';
+  }[status] ?? '';
 }
 
+// ── Initials avatar ────────────────────────────────────────
+function DriverAvatar({ firstName, lastName, size = 52, color }) {
+  const initials = [firstName?.[0], lastName?.[0]]
+    .filter(Boolean)
+    .join('')
+    .toUpperCase() || '?';
+
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: '14px',
+        background: color,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        fontFamily: '"JetBrains Mono", monospace',
+        fontSize: size * 0.32,
+        fontWeight: 700,
+        color: '#fff',
+        letterSpacing: '1px',
+      }}
+    >
+      {initials}
+    </div>
+  );
+}
+
+// ── Small pill badge ───────────────────────────────────────
+function Pill({ children, color = T.accent }) {
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '4px',
+        background: `${color}18`,
+        border: `1px solid ${color}30`,
+        borderRadius: '99px',
+        padding: '2px 9px',
+        fontSize: '11px',
+        fontWeight: 700,
+        color,
+        letterSpacing: '0.3px',
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+// ── Stat cell ──────────────────────────────────────────────
+function StatCell({ label, value, unit, accent = T.accent }) {
+  return (
+    <div style={{ textAlign: 'center' }}>
+      <div
+        style={{
+          fontSize: '11px',
+          fontWeight: 600,
+          color: T.textMuted,
+          letterSpacing: '0.6px',
+          textTransform: 'uppercase',
+          marginBottom: '6px',
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontFamily: '"JetBrains Mono", monospace',
+          fontSize: '34px',
+          fontWeight: 700,
+          letterSpacing: '-1.5px',
+          color: accent,
+          lineHeight: 1,
+        }}
+      >
+        {value}
+        {unit && (
+          <span
+            style={{
+              fontSize: '15px',
+              fontWeight: 400,
+              color: T.textMuted,
+              marginLeft: '3px',
+            }}
+          >
+            {unit}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ─────────────────────────────────────────
 export default function LiveTrackingPanel({ active, onRideDone }) {
   const [driverDoc, setDriverDoc] = useState(null);
 
-  // ── Derive current ride ────────────────────────────────
   const currentRide = useMemo(() => {
     if (!active?.length) return null;
-    return active.find(
-      (r) =>
-        r.paymentStatus === 'succeeded' &&
-        r.status !== 'completed' &&
-        r.status !== 'cancelled'
-    ) ?? null;
+    return (
+      active.find(
+        (r) =>
+          r.paymentStatus === 'succeeded' &&
+          r.status !== 'completed' &&
+          r.status !== 'cancelled'
+      ) ?? null
+    );
   }, [active]);
 
-  // ── driverUid sourced from the ride, not the array ─────
   const driverUid = currentRide?.driverUid;
 
-  // ── Live-listen to Drivers/{driverUid} ────────────────
   useEffect(() => {
     if (!driverUid) { setDriverDoc(null); return; }
-
     const db    = getFirestore();
     const ref   = doc(db, 'Drivers', driverUid);
     const unsub = onSnapshot(ref, (snap) => {
       setDriverDoc(snap.exists() ? snap.data() : null);
     });
-
     return () => unsub();
   }, [driverUid]);
 
-  // ── Call onRideDone when ride completes ────────────────
   useEffect(() => {
     if (currentRide?.status === 'completed') {
       const t = setTimeout(() => onRideDone?.(), 3000);
@@ -96,7 +189,7 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
     }
   }, [currentRide?.status]);
 
-  // ── Derived display values ─────────────────────────────
+  // ── Derived values ─────────────────────────────────────
   const liveStatus  = currentRide?.status ?? '';
   const pickup      = currentRide?.pickup  ?? 'Pickup location';
   const dropoff     = currentRide?.dropoff ?? 'Drop-off location';
@@ -113,38 +206,46 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
     return Number.isFinite(v) ? v.toFixed(1) : '0.0';
   }, [currentRide]);
 
-  // ── Driver info from live Drivers doc ─────────────────
-  const driverName = driverDoc
-    ? `${driverDoc.firstName} ${driverDoc.lastName}`.trim()
+  // ── Driver info ────────────────────────────────────────
+  const driverFirstName = driverDoc?.firstName ?? '';
+  const driverLastName  = driverDoc?.lastName  ?? '';
+  const driverName = driverFirstName || driverLastName
+    ? `${driverFirstName} ${driverLastName}`.trim()
     : null;
 
+  const vehicle    = driverDoc?.vehicle ?? null;
+  const driverPhone = driverDoc?.contact?.phone ?? null;
+  const driverRating = driverDoc?.rating ?? null;
+
+  // ── Live position ──────────────────────────────────────
   const driverLat = currentRide?.driverLat ?? null;
   const driverLng = currentRide?.driverLng ?? null;
+  const hasLiveLocation = driverLat !== null && driverLng !== null;
 
   const driverPos = useMemo(() => {
-    if (driverLat === null || driverLng === null) return null;
+    if (!hasLiveLocation) return null;
     const x = ((driverLng + 180) / 360) * 100;
     const y = ((90 - driverLat) / 180) * 100;
     return { x: +x.toFixed(1), y: +y.toFixed(1) };
-  }, [driverLat, driverLng]);
+  }, [driverLat, driverLng, hasLiveLocation]);
 
-  // ── Distance / ETA from ride doc (written by Cloud Fn) ─
+  // ── ETA / distance — both legs always available ────────
   const headingToPickup  = ['driver_assigned', 'driver_arriving'].includes(liveStatus);
   const headingToDropoff = ['arrived', 'in_progress'].includes(liveStatus);
 
-  const distanceMiles = headingToPickup
-    ? (currentRide?.driverDistanceMiles ?? null)
-    : headingToDropoff
-    ? (currentRide?.dropoffDistanceMiles ?? null)
-    : null;
+  // Leg 1: driver → pickup
+  const driverDistanceMiles = currentRide?.driverDistanceMiles ?? null;
+  const driverEtaMin        = currentRide?.driverEtaMin        ?? null;
 
-  const etaMin = headingToPickup
-    ? (currentRide?.driverEtaMin ?? null)
-    : headingToDropoff
-    ? (currentRide?.dropoffEtaMin ?? null)
-    : null;
+  // Leg 2: pickup → dropoff
+  const dropoffDistanceMiles = currentRide?.dropoffDistanceMiles ?? null;
+  const dropoffEtaMin        = currentRide?.dropoffEtaMin        ?? null;
 
-  // ── Loading state ──────────────────────────────────────
+  // Legacy single values (still used by map etc.)
+  const distanceMiles = headingToPickup  ? driverDistanceMiles  : dropoffDistanceMiles;
+  const etaMin        = headingToPickup  ? driverEtaMin         : dropoffEtaMin;
+
+  // ── Empty state ────────────────────────────────────────
   if (!currentRide) {
     return (
       <div
@@ -162,9 +263,19 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
     );
   }
 
-  return (
-    <div className="glass" style={{ padding: '26px' }}>
+  // ── Vehicle label ──────────────────────────────────────
+  const vehicleLabel = vehicle
+    ? `${vehicle.year} ${vehicle.make} ${vehicle.model}`.trim()
+    : null;
 
+  const vehicleColor = vehicle?.color
+    ? vehicle.color.charAt(0).toUpperCase() + vehicle.color.slice(1)
+    : null;
+
+  return (
+    <div className="glass" style={{ padding: '26px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+
+      {/* ── Map ── */}
       <TrackingMap
         bookingPayload={currentRide}
         rideStatus={liveStatus}
@@ -175,52 +286,43 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
         distToDropoff={distanceMiles}
       />
 
-      {/* ── Header ── */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: '10px',
-        }}
-      >
-        <h2
-          style={{
-            fontSize: '20px',
-            fontWeight: 800,
-            letterSpacing: '-0.4px',
-            color: T.text,
-          }}
-        >
-          Live Tracking
-        </h2>
-        {liveStatus === 'completed' && (
-          <div className="live-badge">Complete ✓</div>
-        )}
+      {/* ── Header row ── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <h2 style={{ fontSize: '20px', fontWeight: 800, letterSpacing: '-0.4px', color: T.text, margin: 0 }}>
+            Live Tracking
+          </h2>
+          {liveStatus && (
+            <div style={{ fontSize: '13px', fontWeight: 600, color: T.textMuted, marginTop: '4px' }}>
+              {getStatusLabel(liveStatus, driverName)}
+            </div>
+          )}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+          {liveStatus === 'completed' && (
+            <Pill color="#16A34A">Complete ✓</Pill>
+          )}
+          {hasLiveLocation && liveStatus !== 'completed' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <div
+                style={{
+                  width: '7px',
+                  height: '7px',
+                  background: '#16A34A',
+                  borderRadius: '50%',
+                  animation: 'pulse 1.5s ease-in-out infinite',
+                }}
+              />
+              <span style={{ fontSize: '10px', fontWeight: 700, color: T.textMuted, letterSpacing: '0.8px' }}>
+                LIVE GPS
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* ── Status label ── */}
-      {liveStatus && (
-        <div
-          style={{
-            fontSize: '13px',
-            fontWeight: 600,
-            color: T.textMuted,
-            marginBottom: '24px',
-          }}
-        >
-          {getStatusLabel(liveStatus, driverName)}
-        </div>
-      )}
-
-      {/* ── Progress Steps ── */}
-      <div
-        style={{
-          display: 'flex',
-          position: 'relative',
-          marginBottom: '28px',
-        }}
-      >
+      {/* ── Progress stepper ── */}
+      <div style={{ display: 'flex', position: 'relative' }}>
         {progress.map((step, i) => (
           <div
             key={i}
@@ -267,11 +369,7 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
                 justifyContent: 'center',
                 boxShadow:
                   step.status !== 'pending'
-                    ? `0 4px 14px ${
-                        step.status === 'completed'
-                          ? 'rgba(22,163,74,.28)'
-                          : 'rgba(17,24,39,.2)'
-                      }`
+                    ? `0 4px 14px ${step.status === 'completed' ? 'rgba(22,163,74,.28)' : 'rgba(17,24,39,.2)'}`
                     : 'none',
                 transition: 'all .4s',
               }}
@@ -289,14 +387,7 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
                   }}
                 />
               ) : (
-                <div
-                  style={{
-                    width: '6px',
-                    height: '6px',
-                    background: '#D1D5DB',
-                    borderRadius: '50%',
-                  }}
-                />
+                <div style={{ width: '6px', height: '6px', background: '#D1D5DB', borderRadius: '50%' }} />
               )}
             </div>
             <div
@@ -314,107 +405,205 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
         ))}
       </div>
 
-      {/* ── ETA / Distance card ── */}
-      {distanceMiles !== null && etaMin !== null && (
+      {/* ── Route Timeline — both legs always visible ── */}
+      {(driverDistanceMiles !== null || dropoffDistanceMiles !== null) && (
         <div
           style={{
-            background: 'linear-gradient(135deg,#F0FDF4,#DCFCE7)',
-            border: `1.5px solid ${T.accentBorder}`,
+            background: T.surfaceAlt,
+            border: `1.5px solid ${T.border}`,
             borderRadius: '16px',
-            padding: '18px',
-            display: 'flex',
-            justifyContent: 'space-around',
-            alignItems: 'center',
-            marginBottom: '14px',
-            animation: 'scaleIn .4s ease-out',
+            padding: '18px 20px',
           }}
         >
-          <div style={{ textAlign: 'center' }}>
-            <div className="lbl" style={{ marginBottom: '4px' }}>
-              {headingToPickup ? 'Driver Distance' : 'Distance Remaining'}
+          {/* Spine row */}
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '14px' }}>
+
+            {/* Driver dot */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+              <div
+                style={{
+                  width: '10px',
+                  height: '10px',
+                  borderRadius: '50%',
+                  background: headingToPickup ? driverColor : T.border,
+                  boxShadow: headingToPickup ? `0 0 0 3px ${driverColor}22` : 'none',
+                  transition: 'all .4s',
+                }}
+              />
             </div>
+
+            {/* Leg 1 line — driver → pickup */}
             <div
               style={{
-                fontFamily: '"JetBrains Mono",monospace',
-                fontSize: '32px',
-                fontWeight: 700,
-                letterSpacing: '-1px',
-                color: T.accent,
-                lineHeight: 1,
+                flex: 1,
+                height: '2px',
+                background: headingToPickup
+                  ? `linear-gradient(90deg,${driverColor},${driverColor}88)`
+                  : T.border,
+                transition: 'all .4s',
+                position: 'relative',
               }}
-            >
-              {distanceMiles}
-              <span
-                style={{
-                  fontSize: '16px',
-                  fontWeight: 400,
-                  color: T.textMuted,
-                  marginLeft: '3px',
-                }}
-              >
-                mi
-              </span>
-            </div>
+            />
+
+            {/* Pickup dot */}
+            <div
+              style={{
+                width: '12px',
+                height: '12px',
+                borderRadius: '50%',
+                background: T.ink,
+                border: `2px solid ${headingToPickup ? T.border : T.ink}`,
+                flexShrink: 0,
+                transition: 'all .4s',
+              }}
+            />
+
+            {/* Leg 2 line — pickup → dropoff */}
+            <div
+              style={{
+                flex: 1,
+                height: '2px',
+                background: headingToDropoff
+                  ? `linear-gradient(90deg,${T.accent},${T.accent}88)`
+                  : T.border,
+                transition: 'all .4s',
+              }}
+            />
+
+            {/* Dropoff diamond */}
+            <div
+              style={{
+                width: '10px',
+                height: '10px',
+                background: headingToDropoff ? T.accent : T.border,
+                borderRadius: '2px',
+                transform: 'rotate(45deg)',
+                flexShrink: 0,
+                transition: 'all .4s',
+              }}
+            />
           </div>
-          <div style={{ width: '1px', height: '40px', background: T.border }} />
-          <div style={{ textAlign: 'center' }}>
-            <div className="lbl" style={{ marginBottom: '4px' }}>ETA</div>
-            <div
-              style={{
-                fontFamily: '"JetBrains Mono",monospace',
-                fontSize: '32px',
-                fontWeight: 700,
-                letterSpacing: '-1px',
-                color: T.accent,
-                lineHeight: 1,
-              }}
-            >
-              {etaMin}
-              <span
+
+          {/* Labels row */}
+          <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+
+            {/* Leg 1 stat */}
+            <div style={{ flexShrink: 0, maxWidth: '80px' }}>
+              <div
                 style={{
-                  fontSize: '16px',
-                  fontWeight: 400,
-                  color: T.textMuted,
-                  marginLeft: '3px',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  color: headingToPickup ? driverColor : T.textMuted,
+                  letterSpacing: '0.5px',
+                  textTransform: 'uppercase',
+                  marginBottom: '3px',
+                  transition: 'color .4s',
                 }}
               >
-                min
-              </span>
+                Driver
+              </div>
+              {driverDistanceMiles !== null ? (
+                <>
+                  <div
+                    style={{
+                      fontFamily: '"JetBrains Mono", monospace',
+                      fontSize: headingToPickup ? '22px' : '15px',
+                      fontWeight: 700,
+                      color: headingToPickup ? driverColor : T.textMuted,
+                      lineHeight: 1,
+                      transition: 'all .4s',
+                    }}
+                  >
+                    {driverDistanceMiles}
+                    <span style={{ fontSize: '11px', fontWeight: 400, marginLeft: '2px' }}>mi</span>
+                  </div>
+                  {driverEtaMin !== null && (
+                    <div style={{ fontSize: '11px', color: headingToPickup ? driverColor : T.textMuted, marginTop: '2px', transition: 'color .4s' }}>
+                      {driverEtaMin} min away
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{ fontSize: '11px', color: T.textMuted }}>—</div>
+              )}
             </div>
+
+            {/* Pickup label — centered */}
+            <div style={{ flex: 1, textAlign: 'center', padding: '0 8px' }}>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: T.textMuted, letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '3px' }}>
+                Pickup
+              </div>
+              <div
+                style={{
+                  fontSize: '11px',
+                  color: T.textMuted,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {pickup.split(',')[0]}
+              </div>
+            </div>
+
+            {/* Leg 2 stat — right aligned */}
+            <div style={{ flexShrink: 0, maxWidth: '80px', textAlign: 'right' }}>
+              <div
+                style={{
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  color: headingToDropoff ? T.accent : T.textMuted,
+                  letterSpacing: '0.5px',
+                  textTransform: 'uppercase',
+                  marginBottom: '3px',
+                  transition: 'color .4s',
+                }}
+              >
+                Dropoff
+              </div>
+              {dropoffDistanceMiles !== null ? (
+                <>
+                  <div
+                    style={{
+                      fontFamily: '"JetBrains Mono", monospace',
+                      fontSize: headingToDropoff ? '22px' : '15px',
+                      fontWeight: 700,
+                      color: headingToDropoff ? T.accent : T.textMuted,
+                      lineHeight: 1,
+                      transition: 'all .4s',
+                    }}
+                  >
+                    {dropoffDistanceMiles}
+                    <span style={{ fontSize: '11px', fontWeight: 400, marginLeft: '2px' }}>mi</span>
+                  </div>
+                  {dropoffEtaMin !== null && (
+                    <div style={{ fontSize: '11px', color: headingToDropoff ? T.accent : T.textMuted, marginTop: '2px', transition: 'color .4s' }}>
+                      {dropoffEtaMin} min away
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{ fontSize: '11px', color: T.textMuted }}>—</div>
+              )}
+            </div>
+
           </div>
         </div>
       )}
 
-      {/* ── Route Summary ── */}
+      {/* ── Route card ── */}
       <div
         style={{
           background: T.surfaceAlt,
           border: `1px solid ${T.border}`,
           borderRadius: '16px',
           padding: '18px',
-          marginBottom: '14px',
         }}
       >
         <div style={{ display: 'flex', gap: '14px', alignItems: 'stretch' }}>
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '4px',
-            }}
-          >
-            <div
-              style={{
-                width: '10px',
-                height: '10px',
-                background: T.ink,
-                borderRadius: '50%',
-              }}
-            />
-            <div
-              style={{ width: '1.5px', flex: 1, background: T.border }}
-            />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+            <div style={{ width: '10px', height: '10px', background: T.ink, borderRadius: '50%' }} />
+            <div style={{ width: '1.5px', flex: 1, background: T.border }} />
             <div
               style={{
                 width: '10px',
@@ -425,25 +614,43 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
               }}
             />
           </div>
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ marginBottom: '14px' }}>
               <div className="lbl">From</div>
-              <div style={{ fontSize: '15px', fontWeight: 600, color: T.text }}>
+              <div
+                style={{
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: T.text,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
                 {pickup}
               </div>
             </div>
             <div>
               <div className="lbl">To</div>
-              <div style={{ fontSize: '15px', fontWeight: 600, color: T.text }}>
+              <div
+                style={{
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: T.text,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
                 {dropoff}
               </div>
             </div>
           </div>
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
-            <div className="lbl">Fare</div>
+            <div className="lbl">Trip</div>
             <div
               style={{
-                fontFamily: '"JetBrains Mono",monospace',
+                fontFamily: '"JetBrains Mono", monospace',
                 fontSize: '22px',
                 fontWeight: 700,
                 color: T.accent,
@@ -451,108 +658,164 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
             >
               ${total}
             </div>
-            <div
-              style={{ fontSize: '11px', color: T.textMuted, marginTop: '2px' }}
-            >
-              {miles} mi
-            </div>
+            <div style={{ fontSize: '11px', color: T.textMuted, marginTop: '2px' }}>{miles} mi</div>
           </div>
         </div>
       </div>
 
-      {/* ── Driver Card ── */}
+      {/* ── Driver card ── */}
       <div
         style={{
           background: T.surfaceAlt,
           border: `1.5px solid ${driverColor}25`,
           borderRadius: '16px',
           padding: '16px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '14px',
         }}
       >
-        <div
-          style={{
-            width: '50px',
-            height: '50px',
-            background: driverColor,
-            borderRadius: '14px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}
-        >
-          <Car size={24} color="#fff" />
-        </div>
-        <div style={{ flex: 1 }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              marginBottom: '3px',
-            }}
-          >
-            <span style={{ fontSize: '16px', fontWeight: 800, color: T.text }}>
-              {driverName || 'Finding driver…'}
-            </span>
-            {driverDoc?.rating && (
-              <span
+        {/* Top row: avatar + name + rating */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', marginBottom: vehicleLabel ? '14px' : 0 }}>
+          <DriverAvatar
+            firstName={driverFirstName}
+            lastName={driverLastName}
+            size={52}
+            color={driverColor}
+          />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '16px', fontWeight: 800, color: T.text }}>
+                {driverName || 'Finding driver…'}
+              </span>
+              {driverRating && (
+                <span
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '3px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: '#F59E0B',
+                  }}
+                >
+                  <Star size={11} fill="#F59E0B" />
+                  {driverRating}
+                </span>
+              )}
+              {currentRide?.rideLabel && (
+                <Pill color={driverColor}>{currentRide.rideLabel}</Pill>
+              )}
+            </div>
+
+            {/* Vehicle info */}
+            {vehicleLabel && (
+              <div
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '3px',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  color: '#F59E0B',
+                  gap: '5px',
+                  fontSize: '13px',
+                  color: T.textMuted,
+                  marginBottom: '3px',
                 }}
               >
-                <Star size={11} fill="#F59E0B" />
-                {driverDoc.rating}
-              </span>
+                <Car size={12} />
+                <span>
+                  {vehicleColor ? `${vehicleColor} ` : ''}{vehicleLabel}
+                </span>
+              </div>
+            )}
+
+            {/* Plate */}
+            {vehicle?.plate && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span
+                  style={{
+                    fontFamily: '"JetBrains Mono", monospace',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    letterSpacing: '2px',
+                    background: T.border,
+                    border: `1px solid ${T.border}`,
+                    borderRadius: '6px',
+                    padding: '2px 8px',
+                    color: T.text,
+                  }}
+                >
+                  {vehicle.plate.toUpperCase()}
+                </span>
+                {vehicle?.year && (
+                  <span style={{ fontSize: '11px', color: T.textMuted }}>{vehicle.year}</span>
+                )}
+              </div>
             )}
           </div>
-          <div style={{ fontSize: '13px', color: T.textMuted }}>
-            {driverDoc
-              ? `${driverDoc.city ?? ''} · ${driverDoc.zip ?? ''}`
-                  .trim()
-                  .replace(/^·\s*/, '')
-              : 'Driver details will appear here'}
+
+          {/* Phone CTA + live pip */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', flexShrink: 0 }}>
+            {driverPhone && (
+              <a
+                href={`tel:${driverPhone}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: `${driverColor}12`,
+                  border: `1.5px solid ${driverColor}30`,
+                  borderRadius: '10px',
+                  padding: '7px 12px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  color: driverColor,
+                  textDecoration: 'none',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <Phone size={12} />
+                Call
+              </a>
+            )}
+            {hasLiveLocation && liveStatus !== 'completed' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <div
+                  style={{
+                    width: '7px',
+                    height: '7px',
+                    background: '#16A34A',
+                    borderRadius: '50%',
+                    animation: 'pulse 1.5s ease-in-out infinite',
+                  }}
+                />
+                <span style={{ fontSize: '9px', fontWeight: 700, color: T.textMuted, letterSpacing: '0.6px' }}>
+                  LIVE
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Live location indicator */}
-        {driverLat && driverLng && (
+        {/* Bottom row: driver location */}
+        {driverDoc && (
           <div
             style={{
+              borderTop: `1px solid ${T.border}`,
+              paddingTop: '12px',
               display: 'flex',
-              flexDirection: 'column',
               alignItems: 'center',
-              gap: '4px',
-              flexShrink: 0,
+              gap: '6px',
+              fontSize: '12px',
+              color: T.textMuted,
             }}
           >
-            <div
-              style={{
-                width: '8px',
-                height: '8px',
-                background: '#16A34A',
-                borderRadius: '50%',
-                animation: 'pulse 1.5s ease-in-out infinite',
-              }}
-            />
-            <div
-              style={{
-                fontSize: '9px',
-                fontWeight: 700,
-                color: T.textMuted,
-                letterSpacing: '0.5px',
-              }}
-            >
-              LIVE
-            </div>
+            <MapPin size={12} />
+            <span>
+              {[driverDoc.city, driverDoc.zip].filter(Boolean).join(', ') || 'Orlando, FL'}
+            </span>
+            {hasLiveLocation && (
+              <>
+                <span style={{ color: T.border }}>·</span>
+                <Navigation size={11} />
+                <span>{driverLat?.toFixed(4)}, {driverLng?.toFixed(4)}</span>
+              </>
+            )}
           </div>
         )}
       </div>
