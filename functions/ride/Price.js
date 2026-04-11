@@ -1,4 +1,4 @@
-const functions = require("firebase-functions");
+const { onRequest } = require("firebase-functions/v2/https");
 const cors = require("cors")({ origin: true });
 
 // ── PRICING TABLE ────────────────────────────────────────
@@ -163,71 +163,75 @@ function validateTripInput(miles, minutes) {
 }
 
 // ── MAIN FUNCTION ────────────────────────────────────────
-const Price = functions.https.onRequest((req, res) => {
-  cors(req, res, async () => {
-    try {
-      if (req.method === "OPTIONS") {
-        return res.status(204).send("");
-      }
+exports.Price = onRequest(
+  {
+    region:   "us-central1",
+    invoker:  "public", // ✅ makes it publicly accessible
+  },
+  (req, res) => {
+    cors(req, res, async () => {
+      try {
+        if (req.method === "OPTIONS") {
+          return res.status(204).send("");
+        }
 
-      if (req.method !== "POST") {
-        return res.status(405).json({
+        if (req.method !== "POST") {
+          return res.status(405).json({
+            ok:    false,
+            error: "Method not allowed. Use POST.",
+          });
+        }
+
+        const tripData = req.body || {};
+
+        console.log("[Price] Received trip data:", tripData);
+
+        const miles       = tripData.miles;
+        const durationMin = tripData.durationMin;
+
+        console.log("Miles:", miles);
+        console.log("Duration (min):", durationMin);
+
+        const validationError = validateTripInput(miles, durationMin);
+        if (validationError) {
+          return res.status(400).json({
+            ok:    false,
+            error: validationError,
+          });
+        }
+
+        const cleanMiles   = clamp(round2(miles),       0, 300);
+        const cleanMinutes = clamp(round2(durationMin), 0, 600);
+
+        const rides = Object.fromEntries(
+          Object.entries(PRICING).map(([key, config]) => [
+            key,
+            calculateRidePrice(config, cleanMiles, cleanMinutes),
+          ])
+        );
+
+        console.log(
+          `[Price] ${cleanMiles}mi / ${cleanMinutes}min →`,
+          Object.fromEntries(
+            Object.entries(rides).map(([k, v]) => [k, `$${v.total}`])
+          )
+        );
+
+        return res.status(200).json({
+          ok:          true,
+          trip:        { miles: cleanMiles, minutes: cleanMinutes },
+          rides,
+          currency:    "USD",
+          generatedAt: new Date().toISOString(),
+        });
+
+      } catch (err) {
+        console.error("[Price] Error:", err);
+        return res.status(500).json({
           ok:    false,
-          error: "Method not allowed. Use POST.",
+          error: "Failed to calculate prices",
         });
       }
-
-      const tripData = req.body || {};
-
-      console.log("[Price] Received trip data:", tripData);
-
-      const miles       = tripData.miles;
-      const durationMin = tripData.durationMin;
-
-      console.log("Miles:", miles);
-      console.log("Duration (min):", durationMin);
-
-      const validationError = validateTripInput(miles, durationMin);
-      if (validationError) {
-        return res.status(400).json({
-          ok:    false,
-          error: validationError,
-        });
-      }
-
-      const cleanMiles   = clamp(round2(miles),       0, 300);
-      const cleanMinutes = clamp(round2(durationMin), 0, 600);
-
-      const rides = Object.fromEntries(
-        Object.entries(PRICING).map(([key, config]) => [
-          key,
-          calculateRidePrice(config, cleanMiles, cleanMinutes),
-        ])
-      );
-
-      console.log(
-        `[Price] ${cleanMiles}mi / ${cleanMinutes}min →`,
-        Object.fromEntries(
-          Object.entries(rides).map(([k, v]) => [k, `$${v.total}`])
-        )
-      );
-
-      return res.status(200).json({
-        ok:          true,
-        trip:        { miles: cleanMiles, minutes: cleanMinutes },
-        rides,
-        currency:    "USD",
-        generatedAt: new Date().toISOString(),
-      });
-
-    } catch (err) {
-      console.error("[Price] Error:", err);
-      return res.status(500).json({
-        ok:    false,
-        error: "Failed to calculate prices",
-      });
-    }
-  });
-});
-
-module.exports = { Price };
+    });
+  }
+);

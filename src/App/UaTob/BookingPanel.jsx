@@ -70,6 +70,14 @@ async function fetchQuotesData(tripData) {
   const res  = await fetch(PRICE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(tripData) });
   const data = await res.json();
   if (!res.ok || !data.ok) throw new Error(data.error || `Pricing error ${res.status}`);
+
+  // ✅ Normalize all totals to 2 decimal places (e.g. 12.8 → "12.80")
+  if (data.rides) {
+    Object.values(data.rides).forEach(ride => {
+      ride.total = Number(ride.total).toFixed(2);
+    });
+  }
+
   return data;
 }
 

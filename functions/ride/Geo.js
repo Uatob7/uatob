@@ -9,6 +9,7 @@ exports.Geo = onRequest(
   {
     region: "us-central1",
     secrets: [GOOGLE_MAPS_KEY],
+    invoker: "public", // ✅ makes it publicly accessible
   },
   async (req, res) => {
     return cors(req, res, async () => {
