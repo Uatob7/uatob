@@ -14,19 +14,20 @@ import { firebase_app } from "@/firebase/config";
 
 const db = getFirestore(firebase_app);
 
-export function useDriverRides() {
+export function useDriverRides(uid) {
   const [rides, setRides] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-
-
   useEffect(() => {
+    if (!uid) return;
+
     const q = query(
       collection(db, "Rides"),
       where("paymentStatus", "==", "succeeded"),
       where("status", "==", "searching_driver"),
-      orderBy("createdAt", "desc"), // ✅ important
+      where("currentDriverUid", "==", uid), // 🔥 KEY LINE
+      orderBy("createdAt", "desc"),
       limit(25)
     );
 
@@ -46,18 +47,16 @@ export function useDriverRides() {
 
         setRides(docs);
         setLoading(false);
-        setError(null);
       },
       (err) => {
         console.error("[useDriverRides]", err);
-        setError(err.message || "Failed to load rides");
-        setRides([]);
+        setError(err.message);
         setLoading(false);
       }
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [uid]);
 
   return { rides, loading, error };
 }

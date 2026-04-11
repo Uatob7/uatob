@@ -7,7 +7,7 @@ function extractLocationData(result) {
   let city = "";
   let zip = "";
 
-  const components = result.address_components;
+  const components = result.address_components || [];
 
   components.forEach((c) => {
     if (c.types.includes("locality")) {
@@ -26,41 +26,46 @@ function extractLocationData(result) {
   return {
     city,
     zip,
-    lat: result.geometry.location.lat,
-    lng: result.geometry.location.lng,
+    lat: result.geometry?.location?.lat || null,
+    lng: result.geometry?.location?.lng || null,
   };
 }
 
 // 🌍 Geocode (address → city, zip, lat, lng)
 async function geocodeAddress(address, apiKey) {
-  const res = await axios.get(
-    "https://maps.googleapis.com/maps/api/geocode/json",
-    {
-      params: {
-        address,
-        key: apiKey,
-      },
+  try {
+    const res = await axios.get(
+      "https://maps.googleapis.com/maps/api/geocode/json",
+      {
+        params: { address, key: apiKey },
+        timeout: 8000,
+      }
+    );
+
+    const data = res.data;
+
+    if (data.status !== "OK" || !data.results?.length) {
+      return { city: "", zip: "", lat: null, lng: null };
     }
-  );
 
-  const data = res.data;
-
-  if (data.status !== "OK" || !data.results?.length) {
+    return extractLocationData(data.results[0]);
+  } catch (err) {
+    console.error("Geocode error:", err.message);
     return { city: "", zip: "", lat: null, lng: null };
   }
-
-  return extractLocationData(data.results[0]);
 }
 
+// 🚀 MAIN FUNCTION
 exports.ATOB = onRequest(
   {
     region: "us-central1",
     secrets: ["GOOGLE_MAPS_KEY"],
+    invoker: "public", // ✅ makes it publicly accessible
   },
-  async (req, res) => {
-    return cors(req, res, async () => {
+  (req, res) => {
+    cors(req, res, async () => {
       try {
-        // ── Preflight ─────────────────────────────
+        // ✅ Handle preflight
         if (req.method === "OPTIONS") {
           return res.status(204).send("");
         }
@@ -69,10 +74,14 @@ exports.ATOB = onRequest(
           return res.status(405).json({ error: "Method Not Allowed" });
         }
 
-        const { origin, destination } = req.body;
+        const { origin, destination } = req.body || {};
+
+        console.log("📍 ATOB request:", { origin, destination });
 
         if (!origin || !destination) {
-          return res.status(400).json({ error: "Missing origin or destination" });
+          return res.status(400).json({
+            error: "Missing origin or destination",
+          });
         }
 
         const apiKey = process.env.GOOGLE_MAPS_KEY;
@@ -83,50 +92,55 @@ exports.ATOB = onRequest(
           });
         }
 
-        // ── Distance Matrix ───────────────────────
-        const googleMapsResponse = await axios.get(
-          "https://maps.googleapis.com/maps/api/distancematrix/json",
+        // ── 🧭 Routes API Call (FIXED BODY) ─────────────────────
+        const routeResponse = await axios.post(
+          "https://routes.googleapis.com/directions/v2:computeRoutes",
           {
-            params: {
-              origins: origin,
-              destinations: destination,
-              key: apiKey,
-              units: "imperial",
-              mode: "driving",
+            origin: {
+              address: origin, // ✅ FIXED
             },
+            destination: {
+              address: destination, // ✅ FIXED
+            },
+            travelMode: "DRIVE",
+            routingPreference: "TRAFFIC_AWARE",
+          },
+          {
+            headers: {
+              "Content-Type": "application/json",
+              "X-Goog-Api-Key": apiKey,
+              "X-Goog-FieldMask":
+                "routes.distanceMeters,routes.duration",
+            },
+            timeout: 10000,
           }
         );
 
-        const data = googleMapsResponse.data;
+        const routes = routeResponse.data?.routes;
 
-        if (data.status !== "OK") {
-          return res.status(500).json({
-            error: "Google Maps API error",
-            details: data.status,
-          });
-        }
-
-        const element = data?.rows?.[0]?.elements?.[0];
-
-        if (!element || element.status !== "OK") {
+        if (!routes?.length) {
           return res.status(400).json({
             error: "Route not found",
-            details: element?.status,
           });
         }
 
-        const miles = element.distance.value / 1609.34;
+        const route = routes[0];
 
-        // ── 🔥 Get FULL geo data for both ──────────
+        const miles = route.distanceMeters / 1609.34;
+
+        const seconds = Number(route.duration?.replace("s", "") || 0);
+        const minutes = Math.ceil(seconds / 60);
+
+        // ── 🔥 Geocode for city + zip ───────────────────
         const [pickupGeo, dropoffGeo] = await Promise.all([
           geocodeAddress(origin, apiKey),
           geocodeAddress(destination, apiKey),
         ]);
 
-        // ── Final response ────────────────────────
+        // ── ✅ Final Response ───────────────────────────
         return res.status(200).json({
           distance_miles: Number(miles.toFixed(2)),
-          duration_text: element.duration.text,
+          duration_minutes: minutes,
 
           pickupCity: pickupGeo.city,
           pickupZip: pickupGeo.zip,
@@ -138,15 +152,14 @@ exports.ATOB = onRequest(
           dropoffLat: dropoffGeo.lat,
           dropoffLng: dropoffGeo.lng,
         });
-
       } catch (error) {
         console.error(
-          "❌ Error calculating travel details:",
+          "❌ Routes API error:",
           error?.response?.data || error.message
         );
 
         return res.status(500).json({
-          error: "Error calculating travel details.",
+          error: "Error calculating route",
           details: error?.response?.data || error.message,
         });
       }

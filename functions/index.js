@@ -36,6 +36,8 @@ const { withdraw } = require("./drivers/withdraw");
 const { processWithdrawal } = require("./drivers/processWithdrawal");
 const { updateDriverPresence } = require("./drivers/updateDriverPresence");
 const { setDriverTripActive } = require("./drivers/setDriverTripActive");
+const { matchDriversToRides } = require("./drivers/matchDriversToRides");
+const { onRideCreated } = require("./drivers/onRideCreated");
 
 
 
@@ -72,6 +74,8 @@ exports.calcDriverDistance = calcDriverDistance;
 exports.getDriverToPickup = getDriverToPickup;
 exports.updateDriverPresence = updateDriverPresence;
 exports.setDriverTripActive = setDriverTripActive;
+exports.onRideCreated = onRideCreated;
+exports.matchDriversToRides = matchDriversToRides;
 exports.onDriverCreated = onDriverCreated;
 exports.onDriverApplicationSubmitted = onDriverApplicationSubmitted;
 exports.withdraw = withdraw;
