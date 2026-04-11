@@ -35,6 +35,7 @@ const { onRideCreatedNotifyOnlineDrivers } = require("./drivers/email/onRideCrea
 const { withdraw } = require("./drivers/withdraw");
 const { processWithdrawal } = require("./drivers/processWithdrawal");
 const { updateDriverPresence } = require("./drivers/updateDriverPresence");
+const { setDriverTripActive } = require("./drivers/setDriverTripActive");
 
 
 
@@ -43,7 +44,7 @@ const { onAccountCreatedNotifyAdmin } = require("./admin/email/onAccountCreatedN
 const { onDriverCreatedNotifyAdmin } = require("./admin/email/onDriverCreatedNotifyAdmin");
 const { onRideCreatedNotifyAdmin } = require("./admin/email/onRideCreatedNotifyAdmin");
 const { onDriverStatusChanged } = require("./admin/email/onDriverStatusChanged");
-const e = require("cors");
+
 
 
 // Exports
@@ -70,6 +71,7 @@ exports.getDriverEarnings = getDriverEarnings;
 exports.calcDriverDistance = calcDriverDistance;
 exports.getDriverToPickup = getDriverToPickup;
 exports.updateDriverPresence = updateDriverPresence;
+exports.setDriverTripActive = setDriverTripActive;
 exports.onDriverCreated = onDriverCreated;
 exports.onDriverApplicationSubmitted = onDriverApplicationSubmitted;
 exports.withdraw = withdraw;

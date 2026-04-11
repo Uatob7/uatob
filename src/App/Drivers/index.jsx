@@ -17,6 +17,7 @@ import { useDriverRides } from '@/App/Drivers/useDriverRides';
 import { useActiveRides } from "@/App/Drivers/useActiveRides";
 import { useDriverEarnings } from "@/App/Drivers/useDriverEarnings";
 import { useCompletedRides } from "@/App/Drivers/useCompletedRides";
+import { useIncomingRequest } from "@/App/Drivers/useIncomingRequest";
 
 
 // ── Cloud Function URLs ───────────────────────────────────────────────
@@ -309,45 +310,42 @@ function LocationPopup({ onAllow, onDeny, loading, error }) {
 // ── MAIN COMPONENT ────────────────────────────────────────────────────
 export default function UaTobDriverApp({ uid }) {
 
-
-
   const { driver } = useDriverAccount(uid);
   const { earnings, refetch } = useDriverEarnings(uid);
   const { rides, loading: ridesLoading } = useDriverRides();
-  const { activeRides, loading }         = useActiveRides(uid);
-  const { completedRides }              = useCompletedRides(uid);
-  
+  const { requests } = useIncomingRequest();
+
+  console.log("Incoming ride requests:", requests);
+  console.log("driver", driver);
+
+  const { activeRides, loading }  = useActiveRides(uid);
+  const { completedRides }        = useCompletedRides(uid);
 
   // ── Local state ───────────────────────────────────────
-  const [mounted,        setMounted]        = useState(false);
-  const [activeTab,      setActiveTab]      = useState("home");
-  const [online,         setOnline]         = useState(false);
-  const [activeTrip,     setActiveTrip]     = useState(null);
-  const [requestTimer,   setRequestTimer]   = useState(15);
-  const [notification,   setNotification]   = useState(null);
-  const [tripBtnLabel,   setTripBtnLabel]   = useState("");
-  const [dismissedRequests, setDismissedRequests] = useState(() => new Set());
-  const [acceptedRequestId, setAcceptedRequestId] = useState(null);
-  const [actionPending, setActionPending] = useState(false);
-  const [advancePending, setAdvancePending] = useState(false);
+  const [mounted,            setMounted]            = useState(false);
+  const [activeTab,          setActiveTab]          = useState("home");
+  const [online,             setOnline]             = useState(false);
+  const [activeTrip,         setActiveTrip]         = useState(null);
+  const [requestTimer,       setRequestTimer]       = useState(15);
+  const [notification,       setNotification]       = useState(null);
+  const [tripBtnLabel,       setTripBtnLabel]       = useState("");
+  const [dismissedRequests,  setDismissedRequests]  = useState(() => new Set());
+  const [acceptedRequestId,  setAcceptedRequestId]  = useState(null);
+  const [actionPending,      setActionPending]      = useState(false);
+  const [advancePending,     setAdvancePending]     = useState(false);
 
   // ── Location popup state ──────────────────────────────
   const [showLocationPopup, setShowLocationPopup] = useState(false);
   const [locationLoading,   setLocationLoading]   = useState(false);
-  const [locationError,     setLocationError]      = useState("");
+  const [locationError,     setLocationError]     = useState("");
 
   // ── Refs ──────────────────────────────────────────────
-  const timerRef           = useRef(null);
-  const prevRequestId      = useRef(null);
-  const locationPingRef    = useRef(null);
-  const onlineInitialized  = useRef(false);   // ← prevents re-sync on every driver update
+  const timerRef          = useRef(null);
+  const prevRequestId     = useRef(null);
+  const locationPingRef   = useRef(null);
+  const onlineInitialized = useRef(false);
 
   // ── Sync online state from Firestore on first load ────
-  //
-  //  Runs once when the driver doc first becomes available.
-  //  If the driver was online before refresh, the toggle snaps to true.
-  //  The ref guard stops Firestore real-time updates from fighting the toggle.
-  //
   useEffect(() => {
     if (!driver || onlineInitialized.current) return;
     onlineInitialized.current = true;
@@ -355,7 +353,7 @@ export default function UaTobDriverApp({ uid }) {
   }, [driver]);
 
   // ── Derived: trip request ─────────────────────────────
-  const tripRequest = online && !activeTrip && !ridesLoading
+  const tripRequest = online && !ridesLoading
     ? (rides.find(r =>
         r.status === "searching_driver" &&
         !dismissedRequests.has(r.id) &&
@@ -435,7 +433,6 @@ export default function UaTobDriverApp({ uid }) {
 
     return () => clearInterval(timerRef.current);
   }, [tripRequest?.id]);
-
 
   // ── 60-second location ping while online ─────────────
   useEffect(() => {
@@ -569,7 +566,7 @@ export default function UaTobDriverApp({ uid }) {
       const res = await fetch("https://acceptride-ady2s2xhhq-uc.a.run.app", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ rideId: tripRequest.id, driverUid: uid }),
+        body:    JSON.stringify({ rideId: tripRequest.id, uid }),
       });
       if (!res.ok) throw new Error("Accept failed");
 
@@ -597,7 +594,7 @@ export default function UaTobDriverApp({ uid }) {
       const res = await fetch("https://declineride-ady2s2xhhq-uc.a.run.app", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ rideId: tripRequest.id, driverUid: uid }),
+        body:    JSON.stringify({ rideId: tripRequest.id, uid }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -691,6 +688,8 @@ export default function UaTobDriverApp({ uid }) {
       {/* ── Other overlays ── */}
       <Notification notification={notification} />
 
+      {/* TripRequestModal shows whenever there's a valid request,
+          regardless of whether driver is on an active trip */}
       <TripRequestModal
         tripRequest={tripRequest}
         driver={driver}

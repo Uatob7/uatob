@@ -2,29 +2,33 @@ const { onRequest } = require("firebase-functions/v2/https");
 const cors = require("cors")({ origin: true });
 const admin = require("firebase-admin");
 
+admin.initializeApp();
+
 const db = admin.firestore();
+const { FieldValue } = require("firebase-admin/firestore");
 
 exports.acceptRide = onRequest(
   { region: "us-central1" },
   async (req, res) => {
-    return cors(req, res, async () => {
+    cors(req, res, async () => {
       if (req.method !== "POST") {
         return res.status(405).json({ success: false });
       }
 
       try {
-        const { rideId, driverUid } = req.body;
+        const { rideId, uid } = req.body;
 
-        if (!rideId || !driverUid) {
+        console.log(`[acceptRide] Attempting to accept ride ${rideId} for driver ${uid}`);
+
+        if (!rideId || !uid) {
           return res.status(400).json({
             success: false,
-            message: "Missing rideId or driverUid",
+            message: "Missing rideId or uid",
           });
         }
 
         const rideRef = db.collection("Rides").doc(rideId);
 
-        // 🔒 TRANSACTION = prevents double-accept
         await db.runTransaction(async (tx) => {
           const rideSnap = await tx.get(rideRef);
 
@@ -34,17 +38,15 @@ exports.acceptRide = onRequest(
 
           const ride = rideSnap.data();
 
-          // ❌ Already taken
           if (ride.status !== "searching_driver") {
             throw new Error("Ride already claimed");
           }
 
-          // ✅ Assign driver
           tx.update(rideRef, {
             status: "driver_assigned",
-            driverUid: driverUid,
-            acceptedAt: admin.firestore.FieldValue.serverTimestamp(),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            driverUid: uid,
+            acceptedAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
           });
         });
 
@@ -52,7 +54,6 @@ exports.acceptRide = onRequest(
           success: true,
           message: "Ride accepted",
         });
-
       } catch (err) {
         console.error("[acceptRide]", err);
         return res.status(500).json({

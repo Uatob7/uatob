@@ -13,19 +13,19 @@ exports.declineRide = onRequest(
       }
 
       try {
-        const { rideId, driverUid } = req.body;
+        const { rideId, uid } = req.body;
 
-        if (!rideId || !driverUid) {
+        if (!rideId || !uid) {
           return res.status(400).json({
             success: false,
-            message: "Missing rideId or driverUid",
+            message: "Missing rideId or uid",
           });
         }
 
         // Optional: store declines for analytics
         await db.collection("RideDeclines").add({
           rideId,
-          driverUid,
+          uid,
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
