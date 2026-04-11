@@ -5,16 +5,13 @@ const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 if (!getApps().length) initializeApp();
 const db = getFirestore();
 
-/**
- * Runs every 1 minute and updates driver presence
- */
 exports.updateDriverPresence = onSchedule(
   {
     schedule: "* * * * *", // every 1 minute
     region: "us-central1",
   },
   async () => {
-    const now = new Date();
+    const now = Date.now();
 
     const driversSnap = await db.collection("Drivers").get();
 
@@ -23,33 +20,28 @@ exports.updateDriverPresence = onSchedule(
     driversSnap.forEach((doc) => {
       const driver = doc.data();
 
-      let minutesSinceLastSeen = null;
+      if (!driver.lastSeenAt) return;
+
+      const lastSeen = driver.lastSeenAt.toDate().getTime();
+      const diffMs = now - lastSeen;
+      const minutesSinceLastSeen = Math.floor(diffMs / 60000);
+
       let status = "offline";
 
-      if (driver.lastSeenAt) {
-        const lastSeen = driver.lastSeenAt.toDate();
-        const diffMs = now - lastSeen;
-        minutesSinceLastSeen = Math.floor(diffMs / 60000);
-
-        // 🚦 presence rules
-        if (minutesSinceLastSeen <= 2) {
-          status = "online";
-        } else if (minutesSinceLastSeen <= 5) {
-          status = "idle";
-        } else {
-          status = "offline";
-        }
+      if (minutesSinceLastSeen <= 2) {
+        status = "online";
+      } else if (minutesSinceLastSeen <= 5) {
+        status = "idle";
       }
 
       batch.update(doc.ref, {
         minutesSinceLastSeen,
-        status,
         presenceUpdatedAt: FieldValue.serverTimestamp(),
       });
     });
 
     await batch.commit();
 
-    console.log(`✅ Driver presence updated for ${driversSnap.size} drivers`);
+    console.log(`✅ Driver presence updated`);
   }
 );
