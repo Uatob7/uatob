@@ -104,7 +104,7 @@ exports.createDriverProfile = onRequest((req, res) => {
       }
 
       // ── Contact data (step 2) ──
-      if (contactData) {
+      if (contactData && (contactData.phone || contactData.address || contactData.city || contactData.state || contactData.zip)) {
         const { phone, address, city, state, zip } = contactData;
         if (!phone || !address || !city || !state || !zip) {
           return res.status(400).json({
@@ -115,7 +115,7 @@ exports.createDriverProfile = onRequest((req, res) => {
       }
 
       // ── Vehicle data (step 3) ──
-      if (vehicleData) {
+      if (vehicleData && (vehicleData.make || vehicleData.model || vehicleData.year || vehicleData.color || vehicleData.plate)) {
         const { make, model, year, color, plate, vin, rideTypes } = vehicleData;
         if (!model || !year || !color || !plate) {
           return res.status(400).json({
@@ -134,7 +134,7 @@ exports.createDriverProfile = onRequest((req, res) => {
       }
 
       // ── Document data (step 4) ──
-      if (docData) {
+      if (docData && (docData.licenseFront || docData.licenseBack || docData.registration || docData.insurance || docData.profilePhoto)) {
         const {
           licenseFront,    licenseFrontUrl,
           licenseBack,     licenseBackUrl,
