@@ -89,7 +89,7 @@ exports.onRideCreated = onDocumentCreated(
         candidateDrivers: topDrivers,
         candidateDriverUids: topDrivers.map((d) => d.uid),
 
-        currentDriverUid: firstDriver,
+        uatobDriverUid: firstDriver,
         currentDriverIndex: 0,
 
         requestSentAt: FieldValue.serverTimestamp(),

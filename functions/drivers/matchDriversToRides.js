@@ -98,7 +98,7 @@ exports.matchDriversToRides = onSchedule(
         batch.update(rideDoc.ref, {
           candidateDrivers: ranked,
           candidateDriverUids: ranked.map((d) => d.uid),
-          currentDriverUid: firstDriver,
+          uatobDriverUid: firstDriver,
           currentDriverIndex: 0,
           matchedAt: FieldValue.serverTimestamp(),
         });
