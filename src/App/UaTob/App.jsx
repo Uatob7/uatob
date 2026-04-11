@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Route, User, LogIn, X, Eye, EyeOff, Loader2 } from 'lucide-react';
 
-
 import { THEME as T } from '@/App/UaTob/pricing.js';
 import CSS from '@/App/UaTob/styles.js';
 import { UaTobWordmark } from '@/App/UaTob/Brand.jsx';
@@ -12,6 +11,7 @@ import AuthModal from '@/App/UaTob/AuthModal.jsx';
 import PaymentModal from '@/App/UaTob/PaymentModal.jsx';
 import ConfirmationModal from '@/App/UaTob/ConfirmationModal.jsx';
 import RiderDashboard from '@/App/UaTob/RiderDashboard.jsx';
+import ReviewModal from '@/App/UaTob/ReviewModal.jsx';
 import { useAuthContext } from '@/context/AuthContext';
 import signIn from '@/firebase/auth/signin';
 import signUp from '@/firebase/auth/signup';
@@ -26,12 +26,16 @@ const TRACKING_STATUSES  = ['driver_assigned', 'driver_arriving', 'arrived', 'in
 const DONE_STATUSES      = ['completed', 'cancelled'];
 
 // ── localStorage helpers ───────────────────────────────────────────────
-const LS_KEY = 'uatob_session';
-function saveSession(data) { try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch (_) {} }
-function loadSession()     { try { const raw = localStorage.getItem(LS_KEY); return raw ? JSON.parse(raw) : null; } catch (_) { return null; } }
-function clearSession()    { try { localStorage.removeItem(LS_KEY); } catch (_) {} }
+const LS_KEY          = 'uatob_session';
+const LS_REVIEWED_KEY = 'uatob_reviewed';
 
-// ── Inline CSS additions ───────────────────────────────────────────────
+function saveSession(data)  { try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch (_) {} }
+function loadSession()      { try { const raw = localStorage.getItem(LS_KEY); return raw ? JSON.parse(raw) : null; } catch (_) { return null; } }
+function clearSession()     { try { localStorage.removeItem(LS_KEY); } catch (_) {} }
+function loadReviewed()     { try { return JSON.parse(localStorage.getItem(LS_REVIEWED_KEY) || '[]'); } catch { return []; } }
+function saveReviewed(ids)  { try { localStorage.setItem(LS_REVIEWED_KEY, JSON.stringify(ids)); } catch (_) {} }
+
+// ── Inline CSS ─────────────────────────────────────────────────────────
 const EXTRA_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
 
@@ -66,7 +70,6 @@ const EXTRA_CSS = `
   }
   .account-btn:active { opacity:.85; transform:scale(.95); }
 
-  /* ── Auth modal ── */
   .auth-overlay {
     position:fixed; inset:0; z-index:500;
     background:rgba(0,0,0,.45);
@@ -172,7 +175,6 @@ const EXTRA_CSS = `
     box-shadow:0 1px 6px rgba(0,0,0,.1);
   }
 
-  /* ── Footer ── */
   .uatob-footer {
     border-top:1px solid #E5E7EB;
     margin-top:64px;
@@ -194,75 +196,45 @@ const EXTRA_CSS = `
     .footer-grid { grid-template-columns:1.7fr 1fr 1fr; }
   }
 
-  .footer-brand-col {
-    grid-column:1 / -1;
-  }
+  .footer-brand-col { grid-column:1 / -1; }
   @media(min-width:480px){
     .footer-brand-col { grid-column:auto; }
   }
 
   .footer-brand-blurb {
-    font-size:13px;
-    color:#6B7280;
-    font-weight:500;
-    line-height:1.7;
-    margin-top:12px;
-    margin-bottom:0;
+    font-size:13px; color:#6B7280; font-weight:500;
+    line-height:1.7; margin-top:12px; margin-bottom:0;
   }
 
   .footer-driver-cta {
-    display:inline-flex;
-    align-items:center;
-    gap:7px;
-    background:#111827;
-    color:#fff;
-    border:none;
-    border-radius:100px;
-    padding:8px 16px 8px 13px;
+    display:inline-flex; align-items:center; gap:7px;
+    background:#111827; color:#fff; border:none;
+    border-radius:100px; padding:8px 16px 8px 13px;
     font-family:'Outfit',system-ui,sans-serif;
-    font-size:12px;
-    font-weight:800;
-    cursor:pointer;
+    font-size:12px; font-weight:800; cursor:pointer;
     transition:opacity .15s, transform .15s, box-shadow .15s;
-    letter-spacing:.3px;
-    margin-top:16px;
+    letter-spacing:.3px; margin-top:16px;
     text-decoration:none;
     box-shadow:0 3px 12px rgba(17,24,39,.16);
   }
   .footer-driver-cta:hover {
-    opacity:.88;
-    transform:translateY(-2px);
+    opacity:.88; transform:translateY(-2px);
     box-shadow:0 6px 18px rgba(17,24,39,.22);
   }
 
   .footer-col-heading {
-    font-size:10px;
-    font-weight:800;
-    letter-spacing:1.4px;
-    text-transform:uppercase;
-    color:#9CA3AF;
-    margin-bottom:14px;
+    font-size:10px; font-weight:800; letter-spacing:1.4px;
+    text-transform:uppercase; color:#9CA3AF; margin-bottom:14px;
   }
 
   .footer-link {
-    display:block;
-    font-size:13px;
-    font-weight:600;
-    color:#374151;
-    text-decoration:none;
-    margin-bottom:10px;
-    transition:color .15s, transform .12s;
-    cursor:pointer;
-    background:none;
-    border:none;
-    padding:0;
-    font-family:'Outfit',system-ui,sans-serif;
-    text-align:left;
+    display:block; font-size:13px; font-weight:600;
+    color:#374151; text-decoration:none; margin-bottom:10px;
+    transition:color .15s, transform .12s; cursor:pointer;
+    background:none; border:none; padding:0;
+    font-family:'Outfit',system-ui,sans-serif; text-align:left;
   }
-  .footer-link:hover {
-    color:#16A34A;
-    transform:translateX(2px);
-  }
+  .footer-link:hover { color:#16A34A; transform:translateX(2px); }
 
   .footer-divider {
     height:1px;
@@ -271,84 +243,48 @@ const EXTRA_CSS = `
   }
 
   .footer-bottom {
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    flex-wrap:wrap;
-    gap:14px;
+    display:flex; align-items:center;
+    justify-content:space-between; flex-wrap:wrap; gap:14px;
   }
 
-  .footer-legal {
-    font-size:11px;
-    color:#9CA3AF;
-    font-weight:500;
-    line-height:1.6;
-  }
+  .footer-legal { font-size:11px; color:#9CA3AF; font-weight:500; line-height:1.6; }
 
-  .footer-legal-links {
-    display:flex;
-    gap:14px;
-    margin-top:4px;
-  }
+  .footer-legal-links { display:flex; gap:14px; margin-top:4px; }
 
   .footer-legal-link {
-    font-size:11px;
-    color:#9CA3AF;
-    font-weight:600;
-    text-decoration:none;
-    cursor:pointer;
-    background:none;
-    border:none;
-    padding:0;
-    font-family:'Outfit',system-ui,sans-serif;
-    transition:color .15s;
+    font-size:11px; color:#9CA3AF; font-weight:600;
+    text-decoration:none; cursor:pointer;
+    background:none; border:none; padding:0;
+    font-family:'Outfit',system-ui,sans-serif; transition:color .15s;
   }
   .footer-legal-link:hover { color:#374151; }
 
-  .footer-socials {
-    display:flex;
-    gap:8px;
-  }
+  .footer-socials { display:flex; gap:8px; }
 
   .footer-social-btn {
-    width:34px;
-    height:34px;
-    border-radius:50%;
-    background:#F3F4F6;
-    border:none;
-    cursor:pointer;
-    display:flex;
-    align-items:center;
-    justify-content:center;
+    width:34px; height:34px; border-radius:50%;
+    background:#F3F4F6; border:none; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
     color:#6B7280;
     transition:background .15s, color .15s, transform .15s, box-shadow .15s;
     text-decoration:none;
   }
   .footer-social-btn:hover {
-    background:#111827;
-    color:#fff;
+    background:#111827; color:#fff;
     transform:translateY(-3px);
     box-shadow:0 4px 12px rgba(17,24,39,.2);
   }
 
   .footer-orlando-badge {
-    display:inline-flex;
-    align-items:center;
-    gap:5px;
-    background:#F0FDF4;
-    border:1px solid #BBF7D0;
-    border-radius:100px;
-    padding:4px 10px;
-    font-size:10px;
-    font-weight:800;
-    color:#16A34A;
-    letter-spacing:.8px;
-    text-transform:uppercase;
-    margin-top:10px;
+    display:inline-flex; align-items:center; gap:5px;
+    background:#F0FDF4; border:1px solid #BBF7D0;
+    border-radius:100px; padding:4px 10px;
+    font-size:10px; font-weight:800; color:#16A34A;
+    letter-spacing:.8px; text-transform:uppercase; margin-top:10px;
   }
 `;
 
-// ── Inline Auth Modal ─────────────────────────────────────────────────
+// ── Inline Auth Modal ──────────────────────────────────────────────────
 function InlineAuthModal({ onClose, onAuthSuccess }) {
   const [mode,     setMode]     = useState('login');
   const [email,    setEmail]    = useState('');
@@ -391,7 +327,6 @@ function InlineAuthModal({ onClose, onAuthSuccess }) {
     <div className="auth-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="auth-sheet">
 
-        {/* Close */}
         <button onClick={onClose} style={{
           position:'absolute', top:16, right:16,
           width:32, height:32, borderRadius:'50%',
@@ -402,7 +337,6 @@ function InlineAuthModal({ onClose, onAuthSuccess }) {
           <X size={16} />
         </button>
 
-        {/* Heading */}
         <div style={{ marginBottom:22 }}>
           <div style={{ fontSize:22, fontWeight:900, letterSpacing:'-0.5px', color:'#111827', marginBottom:4 }}>
             {mode === 'login' ? 'Welcome back' : 'Create account'}
@@ -414,16 +348,13 @@ function InlineAuthModal({ onClose, onAuthSuccess }) {
           </div>
         </div>
 
-        {/* Mode toggle */}
         <div className="mode-pill-row">
           <button className={`mode-pill ${mode === 'login'  ? 'active' : ''}`} onClick={() => { setMode('login');  setError(''); }}>Sign In</button>
           <button className={`mode-pill ${mode === 'signup' ? 'active' : ''}`} onClick={() => { setMode('signup'); setError(''); }}>Sign Up</button>
         </div>
 
-        {/* Error */}
         {error && <div className="auth-error">{error}</div>}
 
-        {/* Form */}
         <form onSubmit={handleSubmit}>
           {mode === 'signup' && (
             <div className="auth-input-wrap">
@@ -460,7 +391,6 @@ function InlineAuthModal({ onClose, onAuthSuccess }) {
           </button>
         </form>
 
-        {/* Bottom hint */}
         <div style={{ textAlign:'center', marginTop:16, fontSize:13, color:'#6B7280' }}>
           {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
           <button className="auth-toggle-link"
@@ -474,13 +404,12 @@ function InlineAuthModal({ onClose, onAuthSuccess }) {
   );
 }
 
-// ── Footer ────────────────────────────────────────────────────────────
+// ── Footer ─────────────────────────────────────────────────────────────
 function UaTobFooter({ onBookRideClick }) {
   return (
     <footer className="uatob-footer">
       <div className="footer-grid">
 
-        {/* Brand column */}
         <div className="footer-brand-col">
           <UaTobWordmark iconSize={34} />
           <p className="footer-brand-blurb">
@@ -488,7 +417,6 @@ function UaTobFooter({ onBookRideClick }) {
             <br />Fair fares for riders, better earnings for drivers.
           </p>
           <div className="footer-orlando-badge">
-            {/* Pin icon */}
             <svg width="9" height="11" viewBox="0 0 10 13" fill="none">
               <path d="M5 0C2.239 0 0 2.239 0 5c0 3.75 5 8 5 8s5-4.25 5-8c0-2.761-2.239-5-5-5zm0 7a2 2 0 110-4 2 2 0 010 4z" fill="#16A34A"/>
             </svg>
@@ -507,7 +435,6 @@ function UaTobFooter({ onBookRideClick }) {
           </div>
         </div>
 
-        {/* Ride column */}
         <div>
           <div className="footer-col-heading">Ride</div>
           <button className="footer-link" onClick={onBookRideClick}>Book a Ride</button>
@@ -516,7 +443,6 @@ function UaTobFooter({ onBookRideClick }) {
           <a className="footer-link" href="#faq">FAQ</a>
         </div>
 
-        {/* Company column */}
         <div>
           <div className="footer-col-heading">Company</div>
           <a className="footer-link" href="#about">About</a>
@@ -529,7 +455,6 @@ function UaTobFooter({ onBookRideClick }) {
 
       <div className="footer-divider" />
 
-      {/* Bottom bar */}
       <div className="footer-bottom">
         <div>
           <div className="footer-legal">
@@ -542,54 +467,25 @@ function UaTobFooter({ onBookRideClick }) {
           </div>
         </div>
 
-        {/* Social icons */}
         <div className="footer-socials">
-          {/* Instagram */}
-          <a
-            className="footer-social-btn"
-            href="https://instagram.com/uatob"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Instagram"
-          >
+          <a className="footer-social-btn" href="https://instagram.com/uatob" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
               <circle cx="12" cy="12" r="4"/>
               <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/>
             </svg>
           </a>
-          {/* X / Twitter */}
-          <a
-            className="footer-social-btn"
-            href="https://twitter.com/uatob"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="X (Twitter)"
-          >
+          <a className="footer-social-btn" href="https://twitter.com/uatob" target="_blank" rel="noopener noreferrer" aria-label="X (Twitter)">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
               <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.747l7.73-8.835L1.254 2.25H8.08l4.259 5.63L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z"/>
             </svg>
           </a>
-          {/* Facebook */}
-          <a
-            className="footer-social-btn"
-            href="https://facebook.com/uatob"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Facebook"
-          >
+          <a className="footer-social-btn" href="https://facebook.com/uatob" target="_blank" rel="noopener noreferrer" aria-label="Facebook">
             <svg width="13" height="14" viewBox="0 0 24 24" fill="currentColor">
               <path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.413c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.235 2.686.235v2.97h-1.513c-1.491 0-1.956.93-1.956 1.883v2.269h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
             </svg>
           </a>
-          {/* TikTok */}
-          <a
-            className="footer-social-btn"
-            href="https://tiktok.com/@uatob"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="TikTok"
-          >
+          <a className="footer-social-btn" href="https://tiktok.com/@uatob" target="_blank" rel="noopener noreferrer" aria-label="TikTok">
             <svg width="13" height="14" viewBox="0 0 24 24" fill="currentColor">
               <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.3 6.3 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.19 8.19 0 004.79 1.53V6.75a4.85 4.85 0 01-1.02-.06z"/>
             </svg>
@@ -600,19 +496,17 @@ function UaTobFooter({ onBookRideClick }) {
   );
 }
 
-// ── MAIN APP ──────────────────────────────────────────────────────────
+// ── MAIN APP ───────────────────────────────────────────────────────────
 export default function UaTobApp({ uid }) {
 
   const { uid: authUid } = useAuthContext();
   const resolvedUid = authUid ?? uid;
-    const { reviews } = useCompletedRides(uid);
 
-    console.log(reviews);
+  // ── Data hooks ─────────────────────────────────────────────────────
+  const { completedRides }               = useCompletedRides(resolvedUid);
   const { rides, loading: ridesLoading } = useUserRides(resolvedUid);
-  const { active } = useActiveRides(resolvedUid);
-  const { account, loading: accountLoading } = useUserAccount(resolvedUid);
-
-  console.log(account);
+  const { active }                       = useActiveRides(resolvedUid);
+  const { account }                      = useUserAccount(resolvedUid);
 
   const saved = loadSession();
 
@@ -625,8 +519,9 @@ export default function UaTobApp({ uid }) {
   const [showPayment,     setShowPayment]     = useState(saved?.showPayment     ?? false);
   const [selectedPayment, setSelectedPayment] = useState(saved?.selectedPayment ?? 'card');
   const [mounted,         setMounted]         = useState(false);
+  const [showDashboard,   setShowDashboard]   = useState(false);
 
-  // ── Header / overlay state ─────────────────────────────────────────
+  // ── Auth state ─────────────────────────────────────────────────────
   const [showAuthModal,   setShowAuthModal]   = useState(false);
   const [showBookingAuth, setShowBookingAuth] = useState(false);
   const [authMode,        setAuthMode]        = useState('login');
@@ -635,7 +530,10 @@ export default function UaTobApp({ uid }) {
   const [name,            setName]            = useState('');
   const [authLoading,     setAuthLoading]     = useState(false);
   const [authError,       setAuthError]       = useState('');
-  const [showDashboard,   setShowDashboard]   = useState(false);
+
+  // ── Review state ───────────────────────────────────────────────────
+  const [reviewedIds,   setReviewedIds]   = useState(() => loadReviewed());
+  const [reviewingRide, setReviewingRide] = useState(null);
 
   useEffect(() => setMounted(true), []);
 
@@ -648,7 +546,7 @@ export default function UaTobApp({ uid }) {
     }
   }, [bookingPayload, pickupCoords, dropoffCoords, showPayment, selectedPayment]);
 
-  // ── Derive ride state ──────────────────────────────────────────────
+  // ── Derive active ride ─────────────────────────────────────────────
   const activeRide = active?.find(
     r => r.paymentStatus === 'succeeded' && !DONE_STATUSES.includes(r.status)
   ) ?? null;
@@ -659,6 +557,13 @@ export default function UaTobApp({ uid }) {
   useEffect(() => {
     if (activeRide) setShowPayment(false);
   }, [activeRide]);
+
+  // ── Auto-prompt review for most recent unreviewed completed ride ───
+  useEffect(() => {
+    if (!completedRides.length || reviewingRide || isTracking || isSearching) return;
+    const unreviewed = completedRides.find(r => !reviewedIds.includes(r.id));
+    if (unreviewed) setReviewingRide(unreviewed);
+  }, [completedRides, isTracking, isSearching]);
 
   // ── Booking-flow auth submit ───────────────────────────────────────
   const handleBookingAuth = async (e) => {
@@ -722,7 +627,22 @@ export default function UaTobApp({ uid }) {
     clearSession();
   };
 
-  // ── Header right — Login pill OR Account avatar ────────────────────
+  const handleReviewSubmitted = (rideId) => {
+    const updated = [...reviewedIds, rideId];
+    setReviewedIds(updated);
+    saveReviewed(updated);
+    setReviewingRide(null);
+  };
+
+  const handleReviewSkip = () => {
+    if (!reviewingRide) return;
+    const updated = [...reviewedIds, reviewingRide.id];
+    setReviewedIds(updated);
+    saveReviewed(updated);
+    setReviewingRide(null);
+  };
+
+  // ── Header right ───────────────────────────────────────────────────
   const HeaderRight = () => (
     <div style={{ display:'flex', alignItems:'center' }}>
       {!resolvedUid ? (
@@ -762,7 +682,7 @@ export default function UaTobApp({ uid }) {
 
       <div style={{ maxWidth:'680px', margin:'0 auto', padding:'28px 20px 0', position:'relative', zIndex:1 }}>
 
-        {/* ── Header ── */}
+        {/* Header */}
         <div style={{
           display:'flex', alignItems:'center', justifyContent:'space-between',
           marginBottom:'40px',
@@ -773,7 +693,7 @@ export default function UaTobApp({ uid }) {
           <HeaderRight />
         </div>
 
-        {/* ── Hero (idle only) ── */}
+        {/* Hero */}
         {!activeRide && !bookingPayload && (
           <div style={{ marginBottom:'32px', animation: mounted ? 'slideUp .65s ease-out .08s forwards' : 'none', opacity:0 }}>
             <div style={{
@@ -800,14 +720,14 @@ export default function UaTobApp({ uid }) {
           </div>
         )}
 
-        {/* ── Map ── */}
+        {/* Map */}
         {!isTracking && (
           <div style={{ marginBottom:'14px', animation: mounted ? 'slideUp .65s ease-out .12s forwards' : 'none', opacity:0 }}>
             <MapView bookingPayload={bookingPayload} />
           </div>
         )}
 
-        {/* ── Main panel ── */}
+        {/* Main panel */}
         <div style={{ animation: mounted ? 'slideUp .65s ease-out .18s forwards' : 'none', opacity:0 }}>
           {isTracking ? (
             <LiveTrackingPanel active={active} onRideDone={resetRide} />
@@ -818,7 +738,7 @@ export default function UaTobApp({ uid }) {
 
       </div>
 
-      {/* ── Footer ── */}
+      {/* Footer */}
       {!isTracking && !bookingPayload && (
         <UaTobFooter
           onBookRideClick={() => {
@@ -831,7 +751,7 @@ export default function UaTobApp({ uid }) {
         />
       )}
 
-      {/* ── Inline header auth modal (Login badge) ── */}
+      {/* Inline header auth modal */}
       {showAuthModal && !resolvedUid && (
         <InlineAuthModal
           onClose={() => setShowAuthModal(false)}
@@ -839,7 +759,7 @@ export default function UaTobApp({ uid }) {
         />
       )}
 
-      {/* ── Booking-flow auth modal ── */}
+      {/* Booking-flow auth modal */}
       {showBookingAuth && !resolvedUid && (
         <AuthModal
           authMode={authMode}
@@ -857,7 +777,7 @@ export default function UaTobApp({ uid }) {
         />
       )}
 
-      {/* ── Payment modal ── */}
+      {/* Payment modal */}
       {showPayment && bookingPayload && (
         <PaymentModal
           uid={resolvedUid}
@@ -869,7 +789,7 @@ export default function UaTobApp({ uid }) {
         />
       )}
 
-      {/* ── Confirmation modal ── */}
+      {/* Confirmation modal */}
       {isSearching && (
         <ConfirmationModal
           rides={rides}
@@ -880,7 +800,17 @@ export default function UaTobApp({ uid }) {
         />
       )}
 
-      {/* ── Rider dashboard overlay (Account icon) ── */}
+      {/* Review modal */}
+      {reviewingRide && !isTracking && !isSearching && (
+        <ReviewModal
+          ride={reviewingRide}
+          uid={resolvedUid}
+          onClose={handleReviewSkip}
+          onSubmitted={handleReviewSubmitted}
+        />
+      )}
+
+      {/* Rider dashboard overlay */}
       {showDashboard && resolvedUid && (
         <div style={{
           position:'fixed', inset:0, zIndex:400,
@@ -888,7 +818,6 @@ export default function UaTobApp({ uid }) {
           animation:'fadeIn .22s ease',
           overflowY:'auto',
         }}>
-          {/* Close strip */}
           <div style={{
             position:'sticky', top:0, zIndex:10,
             display:'flex', justifyContent:'flex-end',

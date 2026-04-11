@@ -1,66 +1,44 @@
-// src/App/UaTob/useReviews.js
-import { useEffect, useState } from "react";
-import {
-  getFirestore,
-  collection,
-  query,
-  where,
-  orderBy,
-  onSnapshot,
-} from "firebase/firestore";
+// useCompletedRides.js
+import { useState, useEffect } from 'react';
+import { getFirestore, collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 
-export function useCompletedRides(uid = null) {
-  const [reviews, setReviews] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+export function useCompletedRides(uid) {
+  const [completedRides, setCompletedRides] = useState([]);
+  const [loading, setLoading]               = useState(true);
+  const [error, setError]                   = useState(null);
 
   useEffect(() => {
+    if (!uid) {
+      setCompletedRides([]);
+      setLoading(false);
+      return;
+    }
+
     const db = getFirestore();
 
-    setLoading(true);
-    setError(null);
-    setReviews([]);
+    const q = query(
+      collection(db, 'Rides'),
+      where('uid',    '==', uid),
+      where('status', '==', 'completed'),
+      orderBy('completedAt', 'desc')
+    );
 
-    let q;
-
-    try {
-      const baseQuery = [
-        collection(db, "rides"),
-        where("status", "==", "completed"),
-        orderBy("createdAt", "desc"),
-      ];
-
-      if (uid) {
-        q = query(...baseQuery, where("userId", "==", uid));
-      } else {
-        q = query(...baseQuery);
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const rides = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setCompletedRides(rides);
+        setLoading(false);
+      },
+      (err) => {
+        console.error('[useCompletedRides]', err);
+        setError(err);
+        setLoading(false);
       }
+    );
 
-      const unsub = onSnapshot(
-        q,
-        (snapshot) => {
-          const data = snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }));
-
-          setReviews(data);
-          setLoading(false);
-        },
-        (err) => {
-          console.error("useCompletedRides error:", err);
-          setError(err);
-          setLoading(false);
-        }
-      );
-
-      return () => unsub();
-    } catch (err) {
-      console.error("Query build error:", err);
-      setError(err);
-      setLoading(false);
-    }
+    return () => unsub();
   }, [uid]);
 
-  return { reviews, loading, error };
+  return { completedRides, loading, error };
 }
