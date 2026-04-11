@@ -1,4 +1,4 @@
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { initializeApp, getApps } = require("firebase-admin/app");
 const {
   getFirestore,
@@ -24,18 +24,23 @@ function haversineDistance(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// ── Firestore Trigger ─────────────────────────────
-exports.onRideCreated = onDocumentCreated(
+// ── Firestore Trigger (UPDATED) ─────────────────────────────
+exports.onRideCreated = onDocumentUpdated(
   {
     document: "Rides/{rideId}",
     region: "us-central1",
   },
   async (event) => {
-    const snap = event.data;
-    const ride = snap.data();
-    const rideRef = snap.ref;
+    const before = event.data.before.data();
+    const after = event.data.after.data();
+    const rideRef = event.data.after.ref;
 
-    const { pickupLat, pickupLng } = ride;
+    // ✅ Prevent infinite loop (only run when status changes to "searching_driver")
+    if (before.status === after.status) return;
+
+    if (after.status !== "searching_driver") return;
+
+    const { pickupLat, pickupLng } = after;
 
     if (pickupLat == null || pickupLng == null) {
       console.error("❌ Missing pickup coordinates");
@@ -107,13 +112,11 @@ exports.onRideCreated = onDocumentCreated(
         candidateDrivers: topDrivers,
         candidateDriverUids: topDrivers.map((d) => d.uid),
         currentDriverIndex: 0,
-
-        status: "searching_driver",
         requestSentAt: FieldValue.serverTimestamp(),
       });
 
       console.log(
-        `✅ Ride dispatched successfully to ${topDrivers.length} drivers`
+        `✅ Ride re-dispatched to ${topDrivers.length} drivers`
       );
     } catch (err) {
       console.error("❌ Matching failed:", err);
