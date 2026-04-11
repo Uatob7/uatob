@@ -16,7 +16,6 @@ const T = {
   ink:          '#111827',
 };
 
-
 const ROUTE_URL        = 'https://atob-ady2s2xhhq-uc.a.run.app';
 const PRICE_URL        = 'https://price-ady2s2xhhq-uc.a.run.app';
 const AUTOCOMPLETE_URL = 'https://autocomplete-ady2s2xhhq-uc.a.run.app';
@@ -39,18 +38,23 @@ async function fetchTripData(pickup, dropoff) {
   const res  = await fetch(ROUTE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ origin: pickup, destination: dropoff }) });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || `Route error ${res.status}`);
+
+  // ✅ Prefer duration_minutes (new ATOB), fall back to parsing duration_text (old)
   let durationMin = 0;
-  if (data.duration_text) {
+  if (data.duration_minutes) {
+    durationMin = data.duration_minutes;
+  } else if (data.duration_text) {
     const h = (data.duration_text.match(/(\d+)\s*hour/) || [])[1] | 0;
     const m = (data.duration_text.match(/(\d+)\s*min/)  || [])[1] | 0;
     durationMin = h * 60 + m;
   }
+
   return {
     pickup,
     dropoff,
     miles:        round2(data.distance_miles ?? 0),
-    durationMin:  Math.max(1, durationMin ?? 0),
-    durationText: data.duration_text ?? '',
+    durationMin:  Math.max(1, durationMin),
+    durationText: data.duration_text ?? `${durationMin} min`,
     pickupCity:   data.pickupCity  ?? '',
     pickupZip:    data.pickupZip   ?? '',
     pickupLat:    data.pickupLat   ?? null,
@@ -283,7 +287,7 @@ function BreakdownLines({ quote, tripData }) {
 // ── MAIN COMPONENT ────────────────────────────────────────
 export default function BookingPanel({ onBookNow, onPayloadChange }) {
   const { uid } = useAuthContext();
-  const saved   = useMemo(() => loadBookingForm(), []); // ✅ Load once, stable reference
+  const saved   = useMemo(() => loadBookingForm(), []);
 
   const [pickup,       setPickupRaw]    = useState(saved?.pickup       ?? '');
   const [dropoff,      setDropoffRaw]   = useState(saved?.dropoff      ?? '');
@@ -303,7 +307,6 @@ export default function BookingPanel({ onBookNow, onPayloadChange }) {
   const tripRequestRef  = useRef(0);
   const quoteRequestRef = useRef(0);
 
-  // ✅ Track what was last successfully fetched to deduplicate without stale closures
   const lastFetchedTripRef = useRef(saved?.tripData ? `${saved.tripData.pickup}||${saved.tripData.dropoff}` : '');
 
   function setPickup(val)  { setPickupRaw(val);  saveBookingForm({ pickup: val, dropoff,      selectedRide, tripData, quotesData }); }
@@ -314,18 +317,17 @@ export default function BookingPanel({ onBookNow, onPayloadChange }) {
     else clearBookingForm();
   }, [pickup, dropoff, selectedRide, tripData, quotesData]);
 
-  // ✅ Memoized buildPayload — always has current selectedRide, no stale closure risk
   const buildPayload = useCallback((trip, quote, quotes) => ({
     pickup:            trip.pickup,
     dropoff:           trip.dropoff,
     pickupCity:        trip.pickupCity  || '',
     pickupZip:         trip.pickupZip   || '',
-    pickupLat:         trip.pickupLat   ?? null,   // ✅ now included
-    pickupLng:         trip.pickupLng   ?? null,   // ✅ now included
+    pickupLat:         trip.pickupLat   ?? null,
+    pickupLng:         trip.pickupLng   ?? null,
     dropoffCity:       trip.dropoffCity || '',
     dropoffZip:        trip.dropoffZip  || '',
-    dropoffLat:        trip.dropoffLat  ?? null,   // ✅ now included
-    dropoffLng:        trip.dropoffLng  ?? null,   // ✅ now included
+    dropoffLat:        trip.dropoffLat  ?? null,
+    dropoffLng:        trip.dropoffLng  ?? null,
     miles:             trip.miles,
     durationMin:       trip.durationMin,
     durationText:      trip.durationText,
@@ -341,7 +343,6 @@ export default function BookingPanel({ onBookNow, onPayloadChange }) {
     createdAt:         new Date().toISOString(),
   }), [selectedRide]);
 
-  // ✅ onPayloadChange included in deps
   useEffect(() => {
     if (!tripData || !quotesData) return;
     const quote = quotesData?.rides?.[selectedRide];
@@ -386,7 +387,6 @@ export default function BookingPanel({ onBookNow, onPayloadChange }) {
       return;
     }
 
-    // ✅ Use a ref (not stale `saved`) to skip duplicate fetches
     const key = `${p}||${d}`;
     if (lastFetchedTripRef.current === key && tripData && quotesData) return;
 
@@ -414,8 +414,6 @@ export default function BookingPanel({ onBookNow, onPayloadChange }) {
   // ── STEP 2: PRICES ─────────────────────────────────────
   useEffect(() => {
     if (!tripData) return;
-    // ✅ Skip only if we already have quotes for this exact trip data (use tripData identity)
-    // No stale `saved` check — quotesData state is the source of truth
     if (quotesData) return;
 
     const requestId = ++quoteRequestRef.current;
