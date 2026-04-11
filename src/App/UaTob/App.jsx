@@ -425,7 +425,7 @@ function UaTobFooter({ onBookRideClick }) {
           <div style={{ marginTop:14 }}>
             <a
               className="footer-driver-cta"
-              href="https://uatob.com/drive"
+              href="https://uatob.com/driver/signup"
               target="_blank"
               rel="noopener noreferrer"
             >
