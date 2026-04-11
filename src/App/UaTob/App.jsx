@@ -18,6 +18,7 @@ import signUp from '@/firebase/auth/signup';
 import { useUserRides } from '@/App/UaTob/useUserRides';
 import { useActiveRides } from '@/App/UaTob/useActiveRides';
 import { useUserAccount } from '@/App/UaTob/useUserAccount';
+import { useCompletedRides } from '@/App/UaTob/useCompletedRides';
 
 // ── Status buckets ─────────────────────────────────────────────────────
 const SEARCHING_STATUSES = ['searching_driver'];
@@ -604,7 +605,9 @@ export default function UaTobApp({ uid }) {
 
   const { uid: authUid } = useAuthContext();
   const resolvedUid = authUid ?? uid;
+    const { reviews } = useCompletedRides(uid);
 
+    console.log(reviews);
   const { rides, loading: ridesLoading } = useUserRides(resolvedUid);
   const { active } = useActiveRides(resolvedUid);
   const { account, loading: accountLoading } = useUserAccount(resolvedUid);

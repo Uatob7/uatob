@@ -1,5 +1,5 @@
 // src/App/UaTob/useReviews.js
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 import {
   getFirestore,
   collection,
@@ -7,36 +7,33 @@ import {
   where,
   orderBy,
   onSnapshot,
-} from 'firebase/firestore';
+} from "firebase/firestore";
 
 export function useCompletedRides(uid = null) {
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  console.log(reviews);
-
   useEffect(() => {
     const db = getFirestore();
+
+    setLoading(true);
+    setError(null);
+    setReviews([]);
 
     let q;
 
     try {
-      if (!uid) {
-        // ALL completed rides
-        q = query(
-          collection(db, 'rides'),
-          where('status', '==', 'completed'),
-          orderBy('createdAt', 'desc')
-        );
+      const baseQuery = [
+        collection(db, "rides"),
+        where("status", "==", "completed"),
+        orderBy("createdAt", "desc"),
+      ];
+
+      if (uid) {
+        q = query(...baseQuery, where("userId", "==", uid));
       } else {
-        // Completed rides for specific user
-        q = query(
-          collection(db, 'rides'),
-          where('status', '==', 'completed'),
-          where('userId', '==', uid),
-          orderBy('createdAt', 'desc')
-        );
+        q = query(...baseQuery);
       }
 
       const unsub = onSnapshot(
@@ -51,7 +48,7 @@ export function useCompletedRides(uid = null) {
           setLoading(false);
         },
         (err) => {
-          console.error('useReviews error:', err);
+          console.error("useCompletedRides error:", err);
           setError(err);
           setLoading(false);
         }
@@ -59,7 +56,7 @@ export function useCompletedRides(uid = null) {
 
       return () => unsub();
     } catch (err) {
-      console.error(err);
+      console.error("Query build error:", err);
       setError(err);
       setLoading(false);
     }
