@@ -512,7 +512,16 @@ export default function BookingPanel({ onBookNow, onPayloadChange }) {
                       <div style={{ width: '32px', height: '32px', background: active ? '#ECFDF5' : '#F3F4F6', borderRadius: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: active ? `1px solid ${T.accent}40` : '1px solid transparent', transition: 'all .3s' }}>
                         <IconComp size={16} color={active ? T.accent : '#D1D5DB'} />
                       </div>
-                      <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '16px', fontWeight: 700, color: active ? T.accent : T.text }}>${ride.total}</div>
+                      <div
+  style={{
+    fontFamily: '"JetBrains Mono", monospace',
+    fontSize: '16px',
+    fontWeight: 700,
+    color: active ? T.accent : T.text
+  }}
+>
+  ${Number(ride.total).toFixed(2)}
+</div>
                     </div>
                     <div style={{ fontSize: '13.5px', fontWeight: 800, color: T.text, marginBottom: '2px' }}>{ride.label}</div>
                     <div style={{ fontSize: '11px', color: T.textMuted, marginBottom: '8px' }}>{ride.desc}</div>
