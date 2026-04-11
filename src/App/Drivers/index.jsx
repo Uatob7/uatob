@@ -80,6 +80,116 @@ function playRequestChime() {
   }
 }
 
+// ── Accept sound — punchy upward two-tone "confirmed" chime ──────────
+function playAcceptSound() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    const ctx = new AudioCtx();
+
+    const master = ctx.createGain();
+    master.gain.value = 0.22;
+    master.connect(ctx.destination);
+
+    const playTone = ({ freq, type = "sine", start, duration, volume }) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, start);
+      osc.connect(gain);
+      gain.connect(master);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(volume, start + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+      osc.start(start);
+      osc.stop(start + duration);
+    };
+
+    const now = ctx.currentTime + 0.02;
+
+    // Two bright rising tones — quick, satisfying, positive
+    // Beat 1: mid G5 (784 Hz) + harmonic
+    playTone({ freq: 784,  type: "sine",     start: now,        duration: 0.14, volume: 0.28 });
+    playTone({ freq: 1568, type: "triangle", start: now,        duration: 0.14, volume: 0.10 });
+
+    // Beat 2: high C6 (1047 Hz) + harmonic — lands ~120ms later, feels "locked in"
+    playTone({ freq: 1047, type: "sine",     start: now + 0.13, duration: 0.22, volume: 0.32 });
+    playTone({ freq: 2093, type: "triangle", start: now + 0.13, duration: 0.22, volume: 0.08 });
+
+    // Soft body thud for tactile feel
+    const bodyOsc  = ctx.createOscillator();
+    const bodyGain = ctx.createGain();
+    bodyOsc.type = "sine";
+    bodyOsc.frequency.setValueAtTime(180, now);
+    bodyOsc.frequency.exponentialRampToValueAtTime(60, now + 0.12);
+    bodyGain.gain.setValueAtTime(0.0001, now);
+    bodyGain.gain.exponentialRampToValueAtTime(0.18, now + 0.01);
+    bodyGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+    bodyOsc.connect(bodyGain);
+    bodyGain.connect(master);
+    bodyOsc.start(now);
+    bodyOsc.stop(now + 0.12);
+
+    setTimeout(() => ctx.close().catch(() => {}), 2000);
+  } catch (err) {
+    console.warn("Accept sound failed:", err);
+  }
+}
+
+// ── Decline sound — short descending dull thud, neutral not harsh ────
+function playDeclineSound() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    const ctx = new AudioCtx();
+
+    const master = ctx.createGain();
+    master.gain.value = 0.20;
+    master.connect(ctx.destination);
+
+    const playTone = ({ freq, type = "sine", start, duration, volume }) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, start);
+      osc.connect(gain);
+      gain.connect(master);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(volume, start + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+      osc.start(start);
+      osc.stop(start + duration);
+    };
+
+    const now = ctx.currentTime + 0.02;
+
+    // Two descending tones — low, muted, dismissal feel
+    // Beat 1: E4 (330 Hz)
+    playTone({ freq: 330, type: "sine",   start: now,        duration: 0.16, volume: 0.22 });
+    playTone({ freq: 660, type: "square", start: now,        duration: 0.10, volume: 0.04 });
+
+    // Beat 2: B3 (247 Hz) — lower, lands 130ms later
+    playTone({ freq: 247, type: "sine",   start: now + 0.13, duration: 0.20, volume: 0.18 });
+    playTone({ freq: 494, type: "square", start: now + 0.13, duration: 0.14, volume: 0.03 });
+
+    // Soft low thud
+    const thudOsc  = ctx.createOscillator();
+    const thudGain = ctx.createGain();
+    thudOsc.type = "sine";
+    thudOsc.frequency.setValueAtTime(100, now);
+    thudOsc.frequency.exponentialRampToValueAtTime(40, now + 0.14);
+    thudGain.gain.setValueAtTime(0.0001, now);
+    thudGain.gain.exponentialRampToValueAtTime(0.15, now + 0.01);
+    thudGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
+    thudOsc.connect(thudGain);
+    thudGain.connect(master);
+    thudOsc.start(now);
+    thudOsc.stop(now + 0.14);
+
+    setTimeout(() => ctx.close().catch(() => {}), 2000);
+  } catch (err) {
+    console.warn("Decline sound failed:", err);
+  }
+}
+
 // ── ACCOUNT SUSPENDED POPUP ──────────────────────────
 function SuspendedModal() {
   return (
@@ -570,6 +680,8 @@ export default function UaTobDriverApp({ uid }) {
       });
       if (!res.ok) throw new Error("Accept failed");
 
+      playAcceptSound(); // ← success chime
+
       clearInterval(timerRef.current);
       setAcceptedRequestId(tripRequest.id);
       setDismissedRequests(prev => {
@@ -600,6 +712,8 @@ export default function UaTobDriverApp({ uid }) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Decline failed");
       }
+
+      playDeclineSound(); // ← dismissal thud
 
       clearInterval(timerRef.current);
       setDismissedRequests(prev => {
