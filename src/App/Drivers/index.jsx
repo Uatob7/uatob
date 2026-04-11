@@ -309,7 +309,8 @@ function LocationPopup({ onAllow, onDeny, loading, error }) {
 // ── MAIN COMPONENT ────────────────────────────────────────────────────
 export default function UaTobDriverApp({ uid }) {
 
-  // ── Remote data ───────────────────────────────────────
+
+
   const { driver } = useDriverAccount(uid);
   const { earnings, refetch } = useDriverEarnings(uid);
   const { rides, loading: ridesLoading } = useDriverRides();
