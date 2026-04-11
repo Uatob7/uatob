@@ -313,22 +313,7 @@ export default function TrackingMap({
             </span>
           </div>
 
-          {!isCompleted && displayDistance > 0 && (
-            <div style={{
-              background: headingToPickup ? driverColor : '#16A34A',
-              color: '#fff',
-              fontSize: '13.5px',
-              fontWeight: 800,
-              fontFamily: '"JetBrains Mono", monospace',
-              padding: '6px 14px',
-              borderRadius: '10px',
-              letterSpacing: '0.4px',
-              minWidth: '72px',
-              textAlign: 'center',
-            }}>
-              {displayDistance.toFixed(1)} mi
-            </div>
-          )}
+          
         </div>
       )}
     </div>
