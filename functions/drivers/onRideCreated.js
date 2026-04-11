@@ -55,7 +55,6 @@ exports.onRideCreated = onDocumentCreated(
         await rideRef.update({
           candidateDrivers: [],
           candidateDriverUids: [],
-          uatobDriverUid: null,
           currentDriverIndex: 0,
           status: "no_drivers_available",
           requestSentAt: FieldValue.serverTimestamp(),
@@ -80,7 +79,6 @@ exports.onRideCreated = onDocumentCreated(
         await rideRef.update({
           candidateDrivers: [],
           candidateDriverUids: [],
-          uatobDriverUid: null,
           currentDriverIndex: 0,
           status: "no_valid_drivers",
           requestSentAt: FieldValue.serverTimestamp(),
@@ -102,7 +100,7 @@ exports.onRideCreated = onDocumentCreated(
         }))
         .sort((a, b) => a.distance - b.distance);
 
-      const topDrivers = sorted.slice(0, 5);
+      const topDrivers = sorted.slice(0, 10);
 
       // ── 4. UPDATE RIDE ─────────────────────────────
       await rideRef.update({

@@ -12,8 +12,8 @@ const db = getFirestore(firebase_app);
 
 export function useIncomingRequest(uid) {
   const [requests, setRequests] = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!uid) {
@@ -21,38 +21,22 @@ export function useIncomingRequest(uid) {
       return;
     }
 
-    setLoading(true);
-
     const q = query(
       collection(db, "Rides"),
-      where("status", "==", "searching_driver")
+      where("status", "==", "searching_driver"),
+      where("candidateDriverUids", "array-contains", uid)
     );
 
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        try {
-          const rides = snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }));
+        const rides = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
 
-          // 🔥 Filter using candidateDrivers
-          const filtered = rides.filter((ride) => {
-            if (!ride.candidateDrivers) return false;
-
-            return ride.candidateDrivers.some(
-              (driver) => driver.uid === uid
-            );
-          });
-
-          setRequests(filtered);
-          setLoading(false);
-        } catch (err) {
-          console.error("useIncomingRequest error:", err);
-          setError(err);
-          setLoading(false);
-        }
+        setRequests(rides);
+        setLoading(false);
       },
       (err) => {
         console.error("snapshot error:", err);

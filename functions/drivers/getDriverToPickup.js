@@ -11,7 +11,7 @@ exports.getDriverToPickup = onRequest(
     secrets: [GOOGLE_MAPS_KEY],
   },
   async (req, res) => {
-    return cors(req, res, async () => {
+    cors(req, res, async () => {
       try {
         if (req.method === "OPTIONS") return res.status(204).send("");
         if (req.method !== "POST") {
@@ -20,47 +20,86 @@ exports.getDriverToPickup = onRequest(
 
         const { driverLat, driverLng, pickupLat, pickupLng } = req.body ?? {};
 
-        if (driverLat == null || driverLng == null || pickupLat == null || pickupLng == null) {
-          return res.status(400).json({ error: "driverLat, driverLng, pickupLat, pickupLng are required" });
+        if (
+          driverLat == null ||
+          driverLng == null ||
+          pickupLat == null ||
+          pickupLng == null
+        ) {
+          return res.status(400).json({
+            error: "driverLat, driverLng, pickupLat, pickupLng are required",
+          });
         }
 
-        const response = await axios.get(
-          "https://maps.googleapis.com/maps/api/distancematrix/json",
+        const response = await axios.post(
+          "https://routes.googleapis.com/directions/v2:computeRoutes",
           {
-            params: {
-              origins:      `${driverLat},${driverLng}`,
-              destinations: `${pickupLat},${pickupLng}`,
-              units:        "imperial",
-              mode:         "driving",
-              key:          GOOGLE_MAPS_KEY.value(),
+            origin: {
+              location: {
+                latLng: {
+                  latitude: driverLat,
+                  longitude: driverLng,
+                },
+              },
             },
+            destination: {
+              location: {
+                latLng: {
+                  latitude: pickupLat,
+                  longitude: pickupLng,
+                },
+              },
+            },
+            travelMode: "DRIVE",
+            routingPreference: "TRAFFIC_AWARE",
+            computeAlternativeRoutes: false,
+          },
+          {
+            headers: {
+              "Content-Type": "application/json",
+              "X-Goog-Api-Key": GOOGLE_MAPS_KEY.value(),
+
+              // 🔥 REQUIRED or API returns empty response
+              "X-Goog-FieldMask":
+                "routes.duration,routes.distanceMeters",
+            },
+            timeout: 8000,
           }
         );
 
-        const data = response.data;
+        const route = response.data?.routes?.[0];
 
-        if (data.status !== "OK") {
-          return res.status(502).json({ error: `Distance Matrix failed: ${data.status}` });
+        if (!route) {
+          return res.status(404).json({
+            error: "No route found",
+          });
         }
 
-        const element = data.rows[0]?.elements[0];
+        const distanceMeters = route.distanceMeters;
+        const durationSeconds = parseInt(route.duration?.replace("s", "")) || 0;
 
-        if (!element || element.status !== "OK") {
-          return res.status(404).json({ error: "Could not calculate route to pickup" });
-        }
+        return res.status(200).json({
+          distanceMeters,
+          distanceMiles: distanceMeters / 1609.34,
 
-        return res.json({
-          distanceText: element.distance.text,          // "2.3 mi"
-          distanceMiles: element.distance.value / 1609.34, // raw miles
-          etaText: element.duration.text,               // "7 mins"
-          etaMin: Math.ceil(element.duration.value / 60), // raw minutes
+          etaSeconds: durationSeconds,
+          etaMin: Math.ceil(durationSeconds / 60),
+
+          distanceText: `${(distanceMeters / 1609.34).toFixed(1)} mi`,
+          etaText: `${Math.ceil(durationSeconds / 60)} mins`,
         });
-
       } catch (err) {
-        const status = err?.response?.status ?? 500;
-        const message = err?.response?.data?.error?.message ?? err.message ?? "Distance Matrix failed";
-        console.error("getDriverToPickup error:", err?.response?.data || err.message);
-        return res.status(status).json({ error: message });
+        console.error(
+          "Routes API error:",
+          err?.response?.data || err.message
+        );
+
+        return res.status(500).json({
+          error:
+            err?.response?.data?.error?.message ||
+            err.message ||
+            "Routes API failed",
+        });
       }
     });
   }
