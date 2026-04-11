@@ -1,5 +1,3 @@
-// src/App/Drivers/useDriverRides.js
-
 import { useState, useEffect } from "react";
 import {
   collection,
@@ -20,13 +18,10 @@ export function useDriverRides(uid) {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!uid) return;
-
     const q = query(
       collection(db, "Rides"),
       where("paymentStatus", "==", "succeeded"),
       where("status", "==", "searching_driver"),
-      where("currentDriverUid", "==", uid), // 🔥 KEY LINE
       orderBy("createdAt", "desc"),
       limit(25)
     );
@@ -56,7 +51,7 @@ export function useDriverRides(uid) {
     );
 
     return () => unsubscribe();
-  }, [uid]);
+  }, []);
 
   return { rides, loading, error };
 }

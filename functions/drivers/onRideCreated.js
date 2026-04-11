@@ -6,9 +6,10 @@ const {
 } = require("firebase-admin/firestore");
 
 if (!getApps().length) initializeApp();
+
 const db = getFirestore();
 
-// ── Haversine ─────────────────────────────
+// ── Haversine Distance (miles) ─────────────────────────────
 function haversineDistance(lat1, lng1, lat2, lng2) {
   const R = 3958.8; // miles
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -23,7 +24,7 @@ function haversineDistance(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// ── Trigger ─────────────────────────────
+// ── Firestore Trigger ─────────────────────────────
 exports.onRideCreated = onDocumentCreated(
   {
     document: "Rides/{rideId}",
@@ -42,32 +43,53 @@ exports.onRideCreated = onDocumentCreated(
     }
 
     try {
-      // 1. Get drivers (you SHOULD later filter online only)
-      const driversSnap = await db.collection("Drivers").get();
+      // ── 1. ONLY ONLINE DRIVERS ─────────────────────────────
+      const driversSnap = await db
+        .collection("Drivers")
+        .where("status", "==", "online")
+        .get();
 
       if (driversSnap.empty) {
-        console.log("⚠️ No drivers found");
+        console.log("⚠️ No online drivers found");
+
         await rideRef.update({
           candidateDrivers: [],
           candidateDriverUids: [],
-          currentDriverUid: null,
+          uatobDriverUid: null,
+          currentDriverIndex: 0,
           status: "no_drivers_available",
           requestSentAt: FieldValue.serverTimestamp(),
         });
+
         return;
       }
 
-      // 2. Build driver list safely
+      // ── 2. VALIDATE DRIVER DATA ─────────────────────────────
       const drivers = driversSnap.docs
         .map((doc) => doc.data())
-        .filter((d) => typeof d.lat === "number" && typeof d.lng === "number" && d.uid);
+        .filter(
+          (d) =>
+            typeof d.lat === "number" &&
+            typeof d.lng === "number" &&
+            d.uid
+        );
 
       if (drivers.length === 0) {
         console.log("⚠️ No valid driver locations");
+
+        await rideRef.update({
+          candidateDrivers: [],
+          candidateDriverUids: [],
+          uatobDriverUid: null,
+          currentDriverIndex: 0,
+          status: "no_valid_drivers",
+          requestSentAt: FieldValue.serverTimestamp(),
+        });
+
         return;
       }
 
-      // 3. Sort by distance
+      // ── 3. SORT BY DISTANCE ─────────────────────────────
       const sorted = drivers
         .map((d) => ({
           uid: d.uid,
@@ -82,22 +104,25 @@ exports.onRideCreated = onDocumentCreated(
 
       const topDrivers = sorted.slice(0, 5);
 
-      const firstDriver = topDrivers[0]?.uid || null;
-
-      // 4. Update ride safely
+      // ── 4. UPDATE RIDE ─────────────────────────────
       await rideRef.update({
         candidateDrivers: topDrivers,
         candidateDriverUids: topDrivers.map((d) => d.uid),
-
-        uatobDriverUid: firstDriver,
         currentDriverIndex: 0,
 
+        status: "searching_driver",
         requestSentAt: FieldValue.serverTimestamp(),
       });
 
-      console.log("✅ Ride dispatched successfully");
+      console.log(
+        `✅ Ride dispatched successfully to ${topDrivers.length} drivers`
+      );
     } catch (err) {
       console.error("❌ Matching failed:", err);
+
+      await rideRef.update({
+        status: "error_matching_drivers",
+      });
     }
   }
 );
