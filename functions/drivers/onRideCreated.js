@@ -93,7 +93,6 @@ exports.onRideCreated = onDocumentCreated(
         currentDriverIndex: 0,
 
         requestSentAt: FieldValue.serverTimestamp(),
-        status: firstDriver ? "dispatching" : "no_drivers_available",
       });
 
       console.log("✅ Ride dispatched successfully");

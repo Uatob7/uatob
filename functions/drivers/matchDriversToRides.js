@@ -98,14 +98,8 @@ exports.matchDriversToRides = onSchedule(
         batch.update(rideDoc.ref, {
           candidateDrivers: ranked,
           candidateDriverUids: ranked.map((d) => d.uid),
-
           currentDriverUid: firstDriver,
           currentDriverIndex: 0,
-
-          status: firstDriver
-            ? "dispatching"
-            : "no_drivers_available",
-
           matchedAt: FieldValue.serverTimestamp(),
         });
       }

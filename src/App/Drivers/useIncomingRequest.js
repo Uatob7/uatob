@@ -24,9 +24,13 @@ export function useIncomingRequest(uid) {
     setLoading(true);
 
     const q = query(
-      collection(db, "Rides"),
-      where("status", "==", "searching_driver")
-    );
+          collection(db, "Rides"),
+          where("paymentStatus", "==", "succeeded"),
+          where("status", "==", "searching_driver"),
+          where("currentDriverUid", "==", uid), // 🔥 KEY LINE
+          orderBy("createdAt", "desc"),
+          limit(25)
+        );
 
     const unsubscribe = onSnapshot(
       q,
