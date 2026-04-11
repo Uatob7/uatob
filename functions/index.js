@@ -37,6 +37,7 @@ const { processWithdrawal } = require("./drivers/processWithdrawal");
 const { updateDriverPresence } = require("./drivers/updateDriverPresence");
 const { setDriverTripActive } = require("./drivers/setDriverTripActive");
 const { onRideCreated } = require("./drivers/onRideCreated");
+const { emailCandidateDrivers } = require("./drivers/email/emailCandidateDrivers");
 
 
 
@@ -85,3 +86,4 @@ exports.onAccountCreatedNotifyAdmin = onAccountCreatedNotifyAdmin;
 exports.onDriverCreatedNotifyAdmin = onDriverCreatedNotifyAdmin;
 exports.onRideCreatedNotifyAdmin = onRideCreatedNotifyAdmin;
 exports.ApplicationApproved = ApplicationApproved;
+exports.emailCandidateDrivers = emailCandidateDrivers;
