@@ -1,68 +1,60 @@
 // src/App/UaTob/TrackingMap.jsx
 import React, { useMemo } from 'react';
-import { MapPin, Navigation, Car, Circle } from 'lucide-react';
-import { DRIVERS } from '@/App/UaTob/locations.js';
+import { MapPin, Navigation, Car } from 'lucide-react';
 
 // ── Helpers ────────────────────────────────────────────────
-function safeCoord(coord, fallback = 50) {
-  const n = Number(coord);
-  return Number.isFinite(n) ? n : fallback;
-}
-
 function safeNum(val, fallback = 0) {
   const n = Number(val);
   return Number.isFinite(n) ? n : fallback;
 }
 
-function getDriverColor(type) {
-  switch (type) {
+function getDriverColor(type = 'standard') {
+  switch (type?.toLowerCase()) {
     case 'premium': return '#7C3AED';
     case 'xl':      return '#F59E0B';
     default:        return '#16A34A';
   }
 }
 
-// Deterministic but well-spread coords from address string
-function addressToCoords(address, defaultX = 30, defaultY = 50) {
-  if (!address) return { x: defaultX, y: defaultY };
-  let h1 = 0, h2 = 0;
-  for (let i = 0; i < address.length; i++) {
-    h1 = ((h1 << 5) - h1 + address.charCodeAt(i)) | 0;
-    h2 = ((h2 << 3) - h2 + address.charCodeAt(address.length - 1 - i)) | 0;
-  }
-  const x = 18 + (Math.abs(h1 % 1000) / 1000) * 64;
-  const y = 22 + (Math.abs(h2 % 1000) / 1000) * 56;
-  return { x: +x.toFixed(1), y: +y.toFixed(1) };
+// ── Real lat/lng → map percentage (tuned for Orlando area) ──
+function latLngToMapPercent(lat, lng) {
+  if (!lat || !lng) return null;
+
+  // Orlando bounding box approximation
+  const latMin = 28.40;
+  const latMax = 28.68;
+  const lngMin = -81.58;
+  const lngMax = -81.25;
+
+  let x = ((lng - lngMin) / (lngMax - lngMin)) * 100;
+  let y = ((latMax - lat) / (latMax - latMin)) * 100; // Y inverted (north = top)
+
+  x = Math.max(8, Math.min(92, x));
+  y = Math.max(8, Math.min(92, y));
+
+  return { x: +x.toFixed(2), y: +y.toFixed(2) };
 }
 
-// ── Sub-components ─────────────────────────────────────────
-
+// ── Sub Components ─────────────────────────────────────────
 function PinPickup({ active }) {
   return (
     <div style={{
-      width: '40px',
-      height: '40px',
-      background: '#111827',
-      borderRadius: '50%',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      border: '3px solid #fff',
+      width: '42px', height: '42px', background: '#111827', borderRadius: '50%',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      border: '3.5px solid #fff',
       boxShadow: active
-        ? '0 0 0 6px rgba(17,24,39,.12), 0 8px 20px rgba(0,0,0,.22)'
-        : '0 4px 12px rgba(0,0,0,.18)',
+        ? '0 0 0 7px rgba(17,24,39,.15), 0 10px 24px rgba(0,0,0,.25)'
+        : '0 6px 16px rgba(0,0,0,.2)',
       position: 'relative',
+      zIndex: 4,
     }}>
       {active && (
         <div style={{
-          position: 'absolute',
-          inset: '-10px',
-          borderRadius: '50%',
-          border: '2px solid rgba(17,24,39,.18)',
-          animation: 'mapRipple 2s ease-out infinite',
+          position: 'absolute', inset: '-12px', borderRadius: '50%',
+          border: '2.5px solid rgba(17,24,39,.2)', animation: 'mapRipple 2.2s ease-out infinite',
         }} />
       )}
-      <MapPin size={16} color="#16A34A" />
+      <MapPin size={18} color="#16A34A" strokeWidth={2.5} />
     </div>
   );
 }
@@ -70,31 +62,23 @@ function PinPickup({ active }) {
 function PinDropoff({ active }) {
   return (
     <div style={{
-      width: '38px',
-      height: '38px',
-      background: '#16A34A',
-      borderRadius: '50% 50% 50% 6px',
-      transform: 'rotate(-45deg)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      border: '3px solid #fff',
+      width: '40px', height: '40px', background: '#16A34A', borderRadius: '50% 50% 50% 8px',
+      transform: 'rotate(-45deg)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      border: '3.5px solid #fff',
       boxShadow: active
-        ? '0 0 0 6px rgba(22,163,74,.16), 0 8px 20px rgba(22,163,74,.32)'
-        : '0 4px 12px rgba(22,163,74,.22)',
+        ? '0 0 0 7px rgba(22,163,74,.18), 0 10px 26px rgba(22,163,74,.35)'
+        : '0 6px 16px rgba(22,163,74,.25)',
       position: 'relative',
+      zIndex: 4,
     }}>
       {active && (
         <div style={{
-          position: 'absolute',
-          inset: '-10px',
-          borderRadius: '50%',
-          border: '2px solid rgba(22,163,74,.22)',
-          animation: 'mapRipple 2s ease-out infinite',
+          position: 'absolute', inset: '-12px', borderRadius: '50%',
+          border: '2.5px solid rgba(22,163,74,.25)', animation: 'mapRipple 2.2s ease-out infinite',
           transform: 'rotate(45deg)',
         }} />
       )}
-      <Navigation size={13} color="#fff" style={{ transform: 'rotate(45deg)' }} />
+      <Navigation size={15} color="#fff" style={{ transform: 'rotate(45deg)' }} strokeWidth={2.8} />
     </div>
   );
 }
@@ -102,347 +86,249 @@ function PinDropoff({ active }) {
 function DriverPin({ color }) {
   return (
     <div style={{
-      width: '46px',
-      height: '46px',
-      background: color,
-      borderRadius: '16px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      border: '3px solid #fff',
-      boxShadow: `0 0 0 5px ${color}22, 0 10px 24px ${color}40`,
-      animation: 'driverPulse 2.2s ease-in-out infinite',
+      width: '48px', height: '48px', background: color, borderRadius: '18px',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      border: '3.5px solid #fff',
+      boxShadow: `0 0 0 6px ${color}25, 0 12px 28px ${color}45`,
+      animation: 'driverPulse 2.1s ease-in-out infinite',
       position: 'relative',
-      zIndex: 5,
+      zIndex: 15,
     }}>
-      <Car size={20} color="#fff" />
+      <Car size={22} color="#fff" strokeWidth={2.5} />
     </div>
   );
 }
 
-// ── SVG route line between two percentage points ───────────
-function RouteLine({ x1, y1, x2, y2, color, active, dashed = true }) {
+function RouteLine({ x1, y1, x2, y2, color, active = false, dashed = false }) {
   return (
     <line
       x1={`${x1}%`} y1={`${y1}%`}
       x2={`${x2}%`} y2={`${y2}%`}
       stroke={color}
-      strokeWidth={active ? 4 : 2.5}
-      strokeDasharray={dashed ? '10 7' : undefined}
+      strokeWidth={active ? 5.5 : 3}
+      strokeDasharray={dashed ? '9 6' : undefined}
       strokeLinecap="round"
-      opacity={active ? 0.9 : 0.35}
+      strokeLinejoin="round"
+      opacity={active ? 0.95 : 0.45}
     />
   );
 }
 
-// ── Map tile background (clean, no clutter) ────────────────
 function MapTile() {
   return (
     <>
-      {/* Base surface */}
-      <div style={{
-        position: 'absolute', inset: 0,
-        background: '#F8F9FA',
-      }} />
+      <div style={{ position: 'absolute', inset: 0, background: '#F1F3F5' }} />
 
-      {/* Subtle block pattern for urban feel */}
-      <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.06 }}>
+      {/* Subtle urban blocks */}
+      <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.07 }}>
         <defs>
-          <pattern id="blocks" width="60" height="60" patternUnits="userSpaceOnUse">
-            <rect x="4"  y="4"  width="24" height="24" fill="#111827" rx="2" />
-            <rect x="32" y="4"  width="24" height="24" fill="#111827" rx="2" />
-            <rect x="4"  y="32" width="24" height="24" fill="#111827" rx="2" />
-            <rect x="32" y="32" width="24" height="24" fill="#111827" rx="2" />
+          <pattern id="blocks" width="58" height="58" patternUnits="userSpaceOnUse">
+            <rect x="6" y="6" width="22" height="22" fill="#1F2937" rx="1.5" />
+            <rect x="34" y="6" width="22" height="22" fill="#1F2937" rx="1.5" />
+            <rect x="6" y="34" width="22" height="22" fill="#1F2937" rx="1.5" />
+            <rect x="34" y="34" width="22" height="22" fill="#1F2937" rx="1.5" />
           </pattern>
         </defs>
         <rect width="100%" height="100%" fill="url(#blocks)" />
       </svg>
 
-      {/* Road network — horizontal arteries */}
-      <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.22, pointerEvents: 'none' }}>
-        {/* Main roads */}
-        <line x1="0" y1="35%" x2="100%" y2="32%" stroke="#D1D5DB" strokeWidth="14" strokeLinecap="round" />
-        <line x1="0" y1="68%" x2="100%" y2="72%" stroke="#E5E7EB" strokeWidth="10" strokeLinecap="round" />
-        {/* Cross streets */}
-        <line x1="28%" y1="0" x2="26%" y2="100%" stroke="#E5E7EB" strokeWidth="10" strokeLinecap="round" />
-        <line x1="62%" y1="0" x2="65%" y2="100%" stroke="#D1D5DB" strokeWidth="14" strokeLinecap="round" />
-        {/* Minor roads */}
-        <line x1="0"   y1="52%" x2="100%" y2="49%" stroke="#F3F4F6" strokeWidth="6" strokeLinecap="round" />
-        <line x1="44%" y1="0"   x2="46%" y2="100%" stroke="#F3F4F6" strokeWidth="6" strokeLinecap="round" />
+      {/* Road network */}
+      <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.25, pointerEvents: 'none' }}>
+        <line x1="0%" y1="34%" x2="100%" y2="31%" stroke="#CBD5E1" strokeWidth="16" strokeLinecap="round" />
+        <line x1="0%" y1="67%" x2="100%" y2="71%" stroke="#E2E8F0" strokeWidth="11" strokeLinecap="round" />
+        <line x1="27%" y1="0%" x2="25%" y2="100%" stroke="#E2E8F0" strokeWidth="12" strokeLinecap="round" />
+        <line x1="64%" y1="0%" x2="67%" y2="100%" stroke="#CBD5E1" strokeWidth="15" strokeLinecap="round" />
       </svg>
 
-      {/* Road center-line markers */}
-      <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.12, pointerEvents: 'none' }}>
-        <line x1="0" y1="35%" x2="100%" y2="32%" stroke="#fff" strokeWidth="2" strokeDasharray="16 12" strokeLinecap="round" />
-        <line x1="28%" y1="0" x2="26%" y2="100%" stroke="#fff" strokeWidth="2" strokeDasharray="16 12" strokeLinecap="round" />
-        <line x1="62%" y1="0" x2="65%" y2="100%" stroke="#fff" strokeWidth="2" strokeDasharray="16 12" strokeLinecap="round" />
+      {/* Road center lines */}
+      <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.15, pointerEvents: 'none' }}>
+        <line x1="0%" y1="34%" x2="100%" y2="31%" stroke="#fff" strokeWidth="2.5" strokeDasharray="18 10" />
       </svg>
-
-      {/* Vignette edges */}
-      <div style={{
-        position: 'absolute', inset: 0, pointerEvents: 'none',
-        background: 'radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0,0,0,.06) 100%)',
-      }} />
     </>
   );
 }
 
-// ── Main component ─────────────────────────────────────────
+// ── Main TrackingMap Component ─────────────────────────────────
 export default function TrackingMap({
   bookingPayload,
   rideStatus,
-  assignedDriver,
-  driverPos,
-  isTracking,
-  etaMinutes,
-  distToDropoff,
+  driverPos,               // pre-projected position from LiveTrackingPanel (preferred)
+  isTracking = true,
+  driverDistanceMiles,     // explicit prop for heading to pickup
+  dropoffDistanceMiles,    // explicit prop for heading to dropoff
+  distanceMiles,           // legacy fallback
+  etaMin,
 }) {
-  const miles       = safeNum(bookingPayload?.miles ?? bookingPayload?.tripDistanceMiles, 0);
-  const durationMin = safeNum(bookingPayload?.durationMin ?? bookingPayload?.tripDurationMin, 0);
+  const payload = bookingPayload || {};
+  const status = rideStatus || payload.status || '';
 
-  const safeDrivers = Array.isArray(DRIVERS) ? DRIVERS : [];
-  const driverType  = assignedDriver?.type || bookingPayload?.rideType || 'standard';
-  const driverColor = getDriverColor(driverType);
+  const rideType = payload.rideType || 'standard';
+  const driverColor = getDriverColor(rideType);
 
-  const pickupCoords  = useMemo(() => addressToCoords(bookingPayload?.pickup,  24, 44), [bookingPayload?.pickup]);
-  const dropoffCoords = useMemo(() => addressToCoords(bookingPayload?.dropoff, 72, 56), [bookingPayload?.dropoff]);
+  // Real coordinates from payload
+  const pickupLat = payload.pickupLat;
+  const pickupLng = payload.pickupLng;
+  const dropoffLat = payload.dropoffLat;
+  const dropoffLng = payload.dropoffLng;
+  const driverLat = payload.driverLat;
+  const driverLng = payload.driverLng;
 
-  const headingToPickup  = ['driver_assigned', 'driver_arriving'].includes(rideStatus);
-  const headingToDropoff = ['arrived', 'in_progress'].includes(rideStatus);
-  const isCompleted      = rideStatus === 'completed';
+  // Convert to map percentages
+  const pickupCoords = useMemo(() => 
+    latLngToMapPercent(pickupLat, pickupLng) || { x: 26, y: 38 }, 
+    [pickupLat, pickupLng]
+  );
 
-  // Where the driver line should point
-  const driverTarget = headingToDropoff ? dropoffCoords : pickupCoords;
+  const dropoffCoords = useMemo(() => 
+    latLngToMapPercent(dropoffLat, dropoffLng) || { x: 71, y: 59 }, 
+    [dropoffLat, dropoffLng]
+  );
 
-  const mapHeight = isTracking ? '300px' : 'clamp(200px,32vh,260px)';
+  // Driver position (prefer passed driverPos, fallback to real lat/lng)
+  const driverRealPos = useMemo(() => {
+    if (driverPos) return driverPos;
+    if (driverLat && driverLng) return latLngToMapPercent(driverLat, driverLng);
+    return null;
+  }, [driverPos, driverLat, driverLng]);
+
+  // Status flags
+  const isCompleted = status === 'completed';
+  const headingToPickup = ['driver_assigned', 'driver_arriving'].includes(status);
+  const headingToDropoff = ['arrived', 'in_progress'].includes(status);
+
+  // Distance to display
+  const displayDistance = headingToPickup
+    ? safeNum(driverDistanceMiles ?? payload.driverDistanceMiles)
+    : safeNum(dropoffDistanceMiles ?? distanceMiles ?? payload.dropoffDistanceMiles ?? payload.tripDistanceMiles);
 
   return (
     <div style={{
       position: 'relative',
-      height: mapHeight,
-      borderRadius: '20px',
+      height: '310px',
+      borderRadius: '22px',
       overflow: 'hidden',
-      border: '1px solid rgba(0,0,0,.08)',
+      border: '1px solid rgba(0,0,0,.09)',
+      boxShadow: '0 10px 30px rgba(0,0,0,.08)',
     }}>
       <style>{`
         @keyframes mapRipple {
-          0%   { transform: scale(.8); opacity: .7; }
-          100% { transform: scale(1.8); opacity: 0; }
+          0%   { transform: scale(0.75); opacity: 0.75; }
+          100% { transform: scale(1.95); opacity: 0; }
         }
         @keyframes driverPulse {
-          0%,100% { transform: scale(1); }
-          50%      { transform: scale(1.07); }
+          0%, 100% { transform: scale(1); }
+          50%      { transform: scale(1.08); }
         }
       `}</style>
 
-      {/* Map background */}
       <MapTile />
 
-      {/* ── SVG overlay: route lines ── */}
+      {/* SVG Route Lines - using real data */}
       <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 2 }}>
+        {/* Main route: Pickup → Dropoff */}
+        <RouteLine
+          x1={pickupCoords.x} y1={pickupCoords.y}
+          x2={dropoffCoords.x} y2={dropoffCoords.y}
+          color="#16A34A"
+          active={headingToDropoff || isCompleted}
+          dashed={!headingToDropoff}
+        />
 
-        {/* Leg 2: pickup → dropoff (always shown, dims when driver not yet there) */}
-        {bookingPayload?.pickup && bookingPayload?.dropoff && (
+        {/* Live driver route to current target */}
+        {driverRealPos && (
           <RouteLine
-            x1={safeCoord(pickupCoords.x)}  y1={safeCoord(pickupCoords.y)}
-            x2={safeCoord(dropoffCoords.x)} y2={safeCoord(dropoffCoords.y)}
-            color="#16A34A"
-            active={headingToDropoff || isCompleted}
-            dashed={true}
-          />
-        )}
-
-        {/* Leg 1: driver → pickup (only while heading to pickup) */}
-        {isTracking && driverPos && headingToPickup && (
-          <RouteLine
-            x1={safeCoord(driverPos.x)} y1={safeCoord(driverPos.y)}
-            x2={safeCoord(pickupCoords.x)} y2={safeCoord(pickupCoords.y)}
+            x1={driverRealPos.x} y1={driverRealPos.y}
+            x2={headingToDropoff ? dropoffCoords.x : pickupCoords.x}
+            y2={headingToDropoff ? dropoffCoords.y : pickupCoords.y}
             color={driverColor}
             active={true}
-            dashed={true}
-          />
-        )}
-
-        {/* Leg 1 while heading to dropoff: driver → dropoff */}
-        {isTracking && driverPos && headingToDropoff && (
-          <RouteLine
-            x1={safeCoord(driverPos.x)}  y1={safeCoord(driverPos.y)}
-            x2={safeCoord(dropoffCoords.x)} y2={safeCoord(dropoffCoords.y)}
-            color={driverColor}
-            active={true}
-            dashed={true}
+            dashed={false}
           />
         )}
       </svg>
 
-      {/* ── Pins ── */}
+      {/* Pickup Pin */}
+      <div style={{
+        position: 'absolute',
+        left: `${pickupCoords.x}%`,
+        top: `${pickupCoords.y}%`,
+        transform: 'translate(-50%, -50%)',
+        zIndex: 5,
+      }}>
+        <PinPickup active={headingToPickup} />
+      </div>
 
-      {/* Pickup pin */}
-      {bookingPayload?.pickup && (
+      {/* Dropoff Pin */}
+      <div style={{
+        position: 'absolute',
+        left: `${dropoffCoords.x}%`,
+        top: `${dropoffCoords.y}%`,
+        transform: 'translate(-50%, -50%)',
+        zIndex: 5,
+      }}>
+        <PinDropoff active={headingToDropoff} />
+      </div>
+
+      {/* Live Driver Pin */}
+      {driverRealPos && (
         <div style={{
           position: 'absolute',
-          left: `${safeCoord(pickupCoords.x)}%`,
-          top:  `${safeCoord(pickupCoords.y)}%`,
-          transform: 'translate(-50%,-50%)',
-          zIndex: 3,
-        }}>
-          <PinPickup active={headingToPickup} />
-        </div>
-      )}
-
-      {/* Dropoff pin */}
-      {bookingPayload?.dropoff && (
-        <div style={{
-          position: 'absolute',
-          left: `${safeCoord(dropoffCoords.x)}%`,
-          top:  `${safeCoord(dropoffCoords.y)}%`,
-          transform: 'translate(-50%,-50%)',
-          zIndex: 3,
-        }}>
-          <PinDropoff active={headingToDropoff} />
-        </div>
-      )}
-
-      {/* Driver pin (tracking only) */}
-      {isTracking && driverPos && (
-        <div style={{
-          position: 'absolute',
-          left: `${safeCoord(driverPos.x)}%`,
-          top:  `${safeCoord(driverPos.y)}%`,
-          transform: 'translate(-50%,-50%)',
-          transition: 'left 5s linear, top 5s linear',
-          zIndex: 5,
+          left: `${driverRealPos.x}%`,
+          top: `${driverRealPos.y}%`,
+          transform: 'translate(-50%, -50%)',
+          transition: 'left 2.8s ease-out, top 2.8s ease-out',
+          zIndex: 15,
         }}>
           <DriverPin color={driverColor} />
         </div>
       )}
 
-      {/* Idle nearby drivers (pre-booking) */}
-      {!isTracking && safeDrivers.map((d, i) => (
-        <div
-          key={d.id ?? i}
-          style={{
-            position: 'absolute',
-            left: `${safeCoord(d.x)}%`,
-            top:  `${safeCoord(d.y)}%`,
-            transform: 'translate(-50%,-50%)',
-            animation: `driverPulse 2.4s ease-in-out infinite`,
-            animationDelay: `${i * 0.3}s`,
-            zIndex: 2,
-          }}
-        >
-          <div style={{
-            width: '22px', height: '22px',
-            background: getDriverColor(d.type),
-            borderRadius: '8px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            border: '2px solid #fff',
-            boxShadow: `0 4px 10px ${getDriverColor(d.type)}40`,
-          }}>
-            <Car size={11} color="#fff" />
-          </div>
-        </div>
-      ))}
-
-      {/* ── Bottom status bar ── */}
+      {/* Bottom Status Bar - Fixed distance logic */}
       {isTracking && (
         <div style={{
           position: 'absolute',
           bottom: 0, left: 0, right: 0,
-          background: 'rgba(255,255,255,.96)',
-          borderTop: '1px solid rgba(0,0,0,.07)',
-          padding: '11px 16px',
+          background: 'rgba(255,255,255,0.97)',
+          borderTop: '1px solid rgba(0,0,0,.08)',
+          padding: '13px 18px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          zIndex: 6,
+          zIndex: 20,
+          boxShadow: '0 -4px 12px rgba(0,0,0,.06)',
         }}>
-          {/* Left: live indicator + status */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
             <div style={{
-              width: '8px', height: '8px',
-              background: isCompleted ? '#9CA3AF' : driverColor,
+              width: '9px', height: '9px',
+              background: isCompleted ? '#94A3B8' : driverColor,
               borderRadius: '50%',
-              animation: isCompleted ? 'none' : 'driverPulse 1.6s ease-in-out infinite',
-              flexShrink: 0,
+              animation: isCompleted ? 'none' : 'driverPulse 1.5s ease-in-out infinite',
             }} />
-            <span style={{
-              fontSize: '13px',
-              fontWeight: 700,
-              color: '#111827',
-            }}>
-              {isCompleted
-                ? 'Ride complete'
-                : headingToPickup
-                ? `${assignedDriver?.firstName ?? 'Driver'} is on the way`
-                : headingToDropoff
-                ? 'Heading to dropoff'
-                : 'Driver arrived'}
+            <span style={{ fontSize: '14px', fontWeight: 700, color: '#0F172A' }}>
+              {isCompleted 
+                ? 'Ride completed' 
+                : headingToPickup 
+                  ? 'Driver heading to pickup' 
+                  : 'Heading to dropoff'}
             </span>
           </div>
 
-          {/* Right: ETA or distance badge */}
-          {!isCompleted && (
-            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-              {headingToPickup && safeNum(etaMinutes) > 0 && (
-                <span style={{
-                  background: driverColor,
-                  color: '#fff',
-                  borderRadius: '8px',
-                  padding: '4px 10px',
-                  fontSize: '12px',
-                  fontWeight: 800,
-                  fontFamily: '"JetBrains Mono", monospace',
-                  letterSpacing: '0.3px',
-                }}>
-                  {safeNum(etaMinutes)} min
-                </span>
-              )}
-              {headingToDropoff && distToDropoff != null && (
-                <span style={{
-                  background: '#16A34A',
-                  color: '#fff',
-                  borderRadius: '8px',
-                  padding: '4px 10px',
-                  fontSize: '12px',
-                  fontWeight: 800,
-                  fontFamily: '"JetBrains Mono", monospace',
-                  letterSpacing: '0.3px',
-                }}>
-                  {safeNum(distToDropoff).toFixed(1)} mi
-                </span>
-              )}
+          {!isCompleted && displayDistance > 0 && (
+            <div style={{
+              background: headingToPickup ? driverColor : '#16A34A',
+              color: '#fff',
+              fontSize: '13.5px',
+              fontWeight: 800,
+              fontFamily: '"JetBrains Mono", monospace',
+              padding: '6px 14px',
+              borderRadius: '10px',
+              letterSpacing: '0.4px',
+              minWidth: '72px',
+              textAlign: 'center',
+            }}>
+              {displayDistance.toFixed(1)} mi
             </div>
           )}
-        </div>
-      )}
-
-      {/* ── Top trip summary (pre-booking only) ── */}
-      {!isTracking && bookingPayload?.pickup && bookingPayload?.dropoff && (
-        <div style={{
-          position: 'absolute',
-          top: '12px', left: '50%',
-          transform: 'translateX(-50%)',
-          background: 'rgba(255,255,255,.94)',
-          border: '1px solid rgba(0,0,0,.08)',
-          borderRadius: '12px',
-          padding: '9px 14px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          whiteSpace: 'nowrap',
-          zIndex: 6,
-          fontSize: '12px',
-          fontWeight: 700,
-          color: '#111827',
-          maxWidth: '90%',
-          overflow: 'hidden',
-        }}>
-          <span style={{ fontFamily: '"JetBrains Mono", monospace' }}>
-            {miles.toFixed(1)} mi
-          </span>
-          <div style={{ width: '1px', height: '14px', background: '#E5E7EB' }} />
-          <span>{durationMin} min</span>
         </div>
       )}
     </div>

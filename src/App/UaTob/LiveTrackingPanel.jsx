@@ -277,14 +277,15 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
 
       {/* ── Map ── */}
       <TrackingMap
-        bookingPayload={currentRide}
-        rideStatus={liveStatus}
-        assignedDriver={driverDoc}
-        driverPos={driverPos}
-        isTracking={true}
-        etaMinutes={etaMin}
-        distToDropoff={distanceMiles}
-      />
+  bookingPayload={currentRide}
+  rideStatus={liveStatus}
+  driverPos={driverPos}
+  isTracking={true}
+  driverDistanceMiles={driverDistanceMiles}     // 0.14 when heading to pickup
+  dropoffDistanceMiles={dropoffDistanceMiles}
+  distanceMiles={distanceMiles}
+  etaMin={etaMin}
+/>
 
       {/* ── Header row ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
