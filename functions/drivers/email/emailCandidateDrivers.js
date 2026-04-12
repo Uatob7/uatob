@@ -1,48 +1,60 @@
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const { defineSecret } = require("firebase-functions/params");
 const { initializeApp, getApps } = require("firebase-admin/app");
-const { getFirestore, FieldValue } = require("firebase-admin/firestore");
+const {
+  getFirestore,
+  FieldValue,
+} = require("firebase-admin/firestore");
 const sgMail = require("@sendgrid/mail");
 
 if (!getApps().length) initializeApp();
 const db = getFirestore();
 
-// 🔑 SET YOUR SENDGRID KEY
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+// ✅ Proper secret handling (Firebase v2 way)
+const SENDGRID_API_KEY = defineSecret("SENDGRID_API_KEY");
 
-// ─────────────────────────────────────────────
-// MAIN FUNCTION
-// ─────────────────────────────────────────────
-exports.emailCandidateDrivers = onDocumentCreated(
+exports.emailCandidateDrivers = onDocumentUpdated(
   {
     document: "Rides/{rideId}",
     region: "us-central1",
+    secrets: [SENDGRID_API_KEY],
   },
   async (event) => {
-    const snap = event.data;
-    const ride = snap.data();
-    const rideId = snap.id;
+    const before = event.data?.before?.data() || {};
+    const after = event.data?.after?.data() || {};
+    const rideRef = event.data.after.ref;
 
     try {
-      // ❌ Already notified
-      if (ride.driversNotified) {
-        console.log("⚠️ Drivers already notified");
-        return null;
+      // ✅ set API key ONCE, correctly
+      sgMail.setApiKey(SENDGRID_API_KEY.value());
+
+      const beforeList = before.candidateDriverUids || [];
+      const afterList = after.candidateDriverUids || [];
+
+      // ✅ if nothing changed → exit
+      if (beforeList.length === afterList.length &&
+          beforeList.every((v, i) => v === afterList[i])) {
+        return;
       }
 
-      const candidateUids = ride.candidateDriverUids || [];
+      // ❌ prevent duplicate sends
+      if (after.candidateEmail === true) {
+        console.log("⚠️ Already emailed");
+        return;
+      }
 
-      if (!candidateUids.length) {
+      if (!afterList.length) {
         console.log("⚠️ No candidate drivers");
-        return null;
+        return;
       }
 
-      console.log(`📨 Sending emails to ${candidateUids.length} drivers`);
+      console.log(`📨 Emailing ${afterList.length} drivers`);
 
-      // ─────────────────────────────────────
-      // FETCH ALL DRIVERS IN PARALLEL
-      // ─────────────────────────────────────
+      // ─────────────────────────────
+      // FETCH DRIVERS
+      // ─────────────────────────────
       const driverSnaps = await Promise.all(
-        candidateUids.map((uid) =>
+        afterList.map((uid) =>
           db.collection("Drivers").doc(uid).get()
         )
       );
@@ -50,61 +62,49 @@ exports.emailCandidateDrivers = onDocumentCreated(
       const validDrivers = driverSnaps
         .filter((doc) => doc.exists)
         .map((doc) => doc.data())
-        .filter((d) => d.email); // must have email
+        .filter((d) => d.email);
 
       if (!validDrivers.length) {
         console.log("⚠️ No drivers with emails");
-        return null;
+        return;
       }
 
-      // ─────────────────────────────────────
-      // BUILD EMAILS
-      // ─────────────────────────────────────
-      const messages = validDrivers.map((driver) => {
-        const payout = `$${Number(ride.driverPayout ?? 0).toFixed(2)}`;
+      // ─────────────────────────────
+      // SEND EMAILS
+      // ─────────────────────────────
+      const messages = validDrivers.map((driver) => ({
+        to: driver.email,
+        from: "support@uatob.com",
+        subject: "🚗 New Ride Available",
+        html: `
+          <div style="font-family:sans-serif;padding:20px">
+            <h2>New Ride Available</h2>
+            <p><strong>Pickup:</strong> ${after.pickup}</p>
+            <p><strong>Dropoff:</strong> ${after.dropoff}</p>
+            <p><strong>Payout:</strong> $${after.driverPayout ?? 0}</p>
+            <a href="https://uatob.com/driver/app"
+               style="background:#16A34A;color:#fff;padding:12px 20px;
+                      text-decoration:none;border-radius:8px;">
+              Open App
+            </a>
+          </div>
+        `,
+      }));
 
-        return {
-          to: driver.email,
-          from: "support@uatob.com",
-          subject: "🚗 New Ride Available",
-          html: `
-            <div style="font-family:sans-serif;padding:20px">
-              <h2>New Ride Available</h2>
-              <p><strong>Payout:</strong> ${payout}</p>
-              <p><strong>Pickup:</strong> ${ride.pickup}</p>
-              <p><strong>Dropoff:</strong> ${ride.dropoff}</p>
-              <p><strong>Distance:</strong> ${ride.tripDistanceMiles ?? "-"} mi</p>
-              <p><strong>Duration:</strong> ${ride.tripDurationMin ?? "-"} min</p>
-              <br/>
-              <a href="https://uatob.com/driver/app"
-                 style="background:#16A34A;color:#fff;padding:12px 20px;
-                        text-decoration:none;border-radius:8px;">
-                Open App
-              </a>
-            </div>
-          `,
-        };
-      });
-
-      // ─────────────────────────────────────
-      // SEND EMAILS (BATCH)
-      // ─────────────────────────────────────
       await sgMail.send(messages);
 
-      // ─────────────────────────────────────
+      // ─────────────────────────────
       // MARK AS SENT
-      // ─────────────────────────────────────
-      await snap.ref.update({
-        driversNotified: true,
-        driversNotifiedAt: FieldValue.serverTimestamp(),
+      // ─────────────────────────────
+      await rideRef.update({
+        candidateEmail: true,
+        candidateNotifiedAt: FieldValue.serverTimestamp(),
       });
 
       console.log("✅ Emails sent successfully");
 
     } catch (err) {
-      console.error("❌ Email error:", err.message);
+      console.error("❌ Email error:", err);
     }
-
-    return null;
   }
 );
