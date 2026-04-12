@@ -11,15 +11,22 @@ import HomeTab          from '@/App/Drivers/HomeTab.jsx';
 import EarningsTab      from '@/App/Drivers/EarningsTab.jsx';
 import TripsTab         from '@/App/Drivers/TripsTab.jsx';
 import ProfileTab       from '@/App/Drivers/ProfileTab.jsx';
+import DriverReviewModal from '@/App/Drivers/DriverReviewModal.jsx';
 import { useDriverAccount }   from "@/App/Drivers/useDriverAccount";
 import { useDriverRides }     from '@/App/Drivers/useDriverRides';
 import { useActiveRides }     from "@/App/Drivers/useActiveRides";
 import { useDriverEarnings }  from "@/App/Drivers/useDriverEarnings";
 import { useCompletedRides }  from "@/App/Drivers/useCompletedRides";
 import { useIncomingRequest } from "@/App/Drivers/useIncomingRequest";
+import { useDriverReviews }   from "@/App/Drivers/useDriverReviews";
 
 // ── Cloud Function URLs ───────────────────────────────────────────────
 const DRIVER_STATUS_URL = "https://setdriverstatus-ady2s2xhhq-uc.a.run.app";
+
+// ── localStorage helpers for seen review IDs ──────────────────────────
+const LS_SEEN_REVIEWS_KEY = 'uatob_driver_seen_reviews';
+function loadSeenReviews()     { try { return new Set(JSON.parse(localStorage.getItem(LS_SEEN_REVIEWS_KEY) || '[]')); } catch { return new Set(); } }
+function saveSeenReviews(set)  { try { localStorage.setItem(LS_SEEN_REVIEWS_KEY, JSON.stringify([...set])); } catch (_) {} }
 
 // ── Trip request chime ────────────────────────────────────────────────
 function playRequestChime() {
@@ -311,7 +318,6 @@ function LocationPopup({ onAllow, onDeny, loading, error }) {
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────
 export default function UaTobDriverApp({ uid }) {
-
   console.log("Rendering Driver App with UID:", uid);
 
   const { driver }                        = useDriverAccount(uid);
@@ -321,11 +327,11 @@ export default function UaTobDriverApp({ uid }) {
   const { activeRides }                   = useActiveRides(uid);
   const { completedRides }                = useCompletedRides(uid);
 
-  // ── driver.trip routing ───────────────────────────────────────────
-  // trip === true  → driver is on an active trip, use useIncomingRequest
-  //                  which filters to only show rides where this driver
-  //                  is the closest available driver (Haversine check)
-  // trip === false → driver is idle, use useDriverRides open pool
+  // ── Reviews from riders ───────────────────────────────────────────
+  const { reviews } = useDriverReviews(uid);
+
+  console.log('completedRides:', completedRides);
+
   const driverOnTrip  = driver?.trip === true;
   const sourceLoading = driverOnTrip ? reqLoading  : ridesLoading;
   const sourceRides   = driverOnTrip ? requests    : rides;
@@ -347,6 +353,10 @@ export default function UaTobDriverApp({ uid }) {
   const [showLocationPopup, setShowLocationPopup] = useState(false);
   const [locationLoading,   setLocationLoading]   = useState(false);
   const [locationError,     setLocationError]     = useState("");
+
+  // ── Review popup state ────────────────────────────────────────────
+  const [seenReviewIds,  setSeenReviewIds]  = useState(() => loadSeenReviews());
+  const [pendingReview,  setPendingReview]  = useState(null);
 
   // ── Refs ──────────────────────────────────────────────────────────
   const timerRef          = useRef(null);
@@ -392,6 +402,28 @@ export default function UaTobDriverApp({ uid }) {
   useEffect(() => {
     if (activeTrip?.id) setAcceptedRequestId(null);
   }, [activeTrip?.id]);
+
+  // ── Auto-popup unseen rider reviews ──────────────────────────────
+  // Shows the most recent review the driver hasn't dismissed yet.
+  // Suppressed while a trip is active or a trip request is showing.
+  useEffect(() => {
+    if (!reviews.length) return;
+    if (pendingReview)   return;   // already showing one
+    if (activeTrip)      return;   // mid-trip, don't interrupt
+    if (tripRequest)     return;   // incoming request takes priority
+
+    const unseen = reviews.find(r => !seenReviewIds.has(r.id));
+    if (unseen) setPendingReview(unseen);
+  }, [reviews, activeTrip, tripRequest]);
+
+  const handleDismissReview = () => {
+    if (!pendingReview) return;
+    const updated = new Set(seenReviewIds);
+    updated.add(pendingReview.id);
+    setSeenReviewIds(updated);
+    saveSeenReviews(updated);
+    setPendingReview(null);
+  };
 
   // ── Fetch trip button label ───────────────────────────────────────
   useEffect(() => {
@@ -650,6 +682,14 @@ export default function UaTobDriverApp({ uid }) {
         onDecline={handleDeclineTrip}
         actionPending={actionPending}
       />
+
+      {/* ── Driver review popup ── */}
+      {pendingReview && !activeTrip && !tripRequest && (
+        <DriverReviewModal
+          review={pendingReview}
+          onClose={handleDismissReview}
+        />
+      )}
 
       <div style={{ maxWidth: 680, margin: "0 auto", paddingBottom: 90 }}>
 
