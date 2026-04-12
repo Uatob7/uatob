@@ -14,7 +14,6 @@ const { onRidesCreated } = require("./ride/email/onRidesCreated");
 const { cardPayment } = require("./payments/cardPayment");
 const { cashAppPayment } = require("./payments/cashAppPayment");
 const { cashAppChecker } = require("./payments/cashAppChecker");
-const { cashAppPoller } = require("./payments/cashAppPoller");
 const { setupDeposit } = require("./payments/setupDeposit");
 
 // driver functions
@@ -66,7 +65,6 @@ exports.cardPayment = cardPayment;
 exports.checkDriverDeposit = checkDriverDeposit;
 exports.cashAppPayment = cashAppPayment;
 exports.cashAppChecker = cashAppChecker;
-exports.cashAppPoller = cashAppPoller;
 exports.setupDeposit = setupDeposit;
 exports.acceptRide = acceptRide;
 exports.declineRide = declineRide;

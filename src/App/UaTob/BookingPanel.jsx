@@ -35,38 +35,64 @@ function getRideIcon(rideId) {
 }
 
 async function fetchTripData(pickup, dropoff) {
-  const res  = await fetch(ROUTE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ origin: pickup, destination: dropoff }) });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `Route error ${res.status}`);
+  const res = await fetch(ROUTE_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ origin: pickup, destination: dropoff })
+  });
 
-  // ✅ Prefer duration_minutes (new ATOB), fall back to parsing duration_text (old)
-  let durationMin = 0;
-  if (data.duration_minutes) {
-    durationMin = data.duration_minutes;
-  } else if (data.duration_text) {
-    const h = (data.duration_text.match(/(\d+)\s*hour/) || [])[1] | 0;
-    const m = (data.duration_text.match(/(\d+)\s*min/)  || [])[1] | 0;
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.error || `Route error ${res.status}`);
+  }
+
+  // ✅ duration priority chain
+  let durationMin = data.duration_minutes;
+
+  if (!durationMin && data.route?.duration_seconds) {
+    durationMin = Math.ceil(data.route.duration_seconds / 60);
+  }
+
+  if (!durationMin && data.duration_text) {
+    const hMatch = data.duration_text.match(/(\d+)\s*hour/);
+    const mMatch = data.duration_text.match(/(\d+)\s*min/);
+
+    const h = hMatch ? Number(hMatch[1]) : 0;
+    const m = mMatch ? Number(mMatch[1]) : 0;
+
     durationMin = h * 60 + m;
   }
 
   return {
     pickup,
     dropoff,
-    miles:        round2(data.distance_miles ?? 0),
-    durationMin:  Math.max(1, durationMin),
-    durationText: data.duration_text ?? `${durationMin} min`,
-    pickupCity:   data.pickupCity  ?? '',
-    pickupZip:    data.pickupZip   ?? '',
-    pickupLat:    data.pickupLat   ?? null,
-    pickupLng:    data.pickupLng   ?? null,
-    dropoffCity:  data.dropoffCity ?? '',
-    dropoffZip:   data.dropoffZip  ?? '',
-    dropoffLat:   data.dropoffLat  ?? null,
-    dropoffLng:   data.dropoffLng  ?? null,
+
+    miles: round2(data.distance_miles ?? 0),
+    durationMin: Math.max(1, Number(durationMin || 0)),
+
+    durationText:
+      data.duration_text ||
+      `${Math.max(1, Number(durationMin || 0))} min`,
+
+    pickupCity: data.pickupCity ?? '',
+    pickupZip: data.pickupZip ?? '',
+    pickupLat: data.pickupLat ?? null,
+    pickupLng: data.pickupLng ?? null,
+
+    dropoffCity: data.dropoffCity ?? '',
+    dropoffZip: data.dropoffZip ?? '',
+    dropoffLat: data.dropoffLat ?? null,
+    dropoffLng: data.dropoffLng ?? null,
+
+    // 🚀 POLYLINE (THIS IS WHAT YOU WANTED)
+    polyline: data.route?.polyline ?? null,
   };
 }
 
 async function fetchQuotesData(tripData) {
+
+   console.log("Fetching quotes with trip data:", tripData);
   const res  = await fetch(PRICE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(tripData) });
   const data = await res.json();
   if (!res.ok || !data.ok) throw new Error(data.error || `Pricing error ${res.status}`);
@@ -326,30 +352,40 @@ export default function BookingPanel({ onBookNow, onPayloadChange }) {
   }, [pickup, dropoff, selectedRide, tripData, quotesData]);
 
   const buildPayload = useCallback((trip, quote, quotes) => ({
-    pickup:            trip.pickup,
-    dropoff:           trip.dropoff,
-    pickupCity:        trip.pickupCity  || '',
-    pickupZip:         trip.pickupZip   || '',
-    pickupLat:         trip.pickupLat   ?? null,
-    pickupLng:         trip.pickupLng   ?? null,
-    dropoffCity:       trip.dropoffCity || '',
-    dropoffZip:        trip.dropoffZip  || '',
-    dropoffLat:        trip.dropoffLat  ?? null,
-    dropoffLng:        trip.dropoffLng  ?? null,
-    miles:             trip.miles,
-    durationMin:       trip.durationMin,
-    durationText:      trip.durationText,
-    tripDistanceMiles: trip.miles,
-    tripDurationMin:   trip.durationMin,
-    rideType:          selectedRide,
-    rideLabel:         quote.label,
-    fareEstimate:      quote.total,
-    breakdown:         quote.breakdown || {},
-    receipt:           quote.receipt   || [],
-    allQuotes:         quotes.rides    || {},
-    status:            'searching_driver',
-    createdAt:         new Date().toISOString(),
-  }), [selectedRide]);
+  pickup:            trip.pickup,
+  dropoff:           trip.dropoff,
+
+  pickupCity:        trip.pickupCity  || '',
+  pickupZip:         trip.pickupZip   || '',
+  pickupLat:         trip.pickupLat   ?? null,
+  pickupLng:         trip.pickupLng   ?? null,
+
+  dropoffCity:       trip.dropoffCity || '',
+  dropoffZip:        trip.dropoffZip  || '',
+  dropoffLat:        trip.dropoffLat  ?? null,
+  dropoffLng:        trip.dropoffLng  ?? null,
+
+  miles:             trip.miles,
+  durationMin:       trip.durationMin,
+  durationText:      trip.durationText,
+
+  tripDistanceMiles: trip.miles,
+  tripDurationMin:   trip.durationMin,
+
+  rideType:          selectedRide,
+  rideLabel:         quote.label,
+  fareEstimate:      quote.total,
+
+  breakdown:         quote.breakdown || {},
+  receipt:           quote.receipt   || [],
+  allQuotes:         quotes.rides    || {},
+
+  // ✅ ADD THIS
+  polyline:          trip.polyline || null,
+
+  status:            'searching_driver',
+  createdAt:         new Date().toISOString(),
+}), [selectedRide]);
 
   useEffect(() => {
     if (!tripData || !quotesData) return;

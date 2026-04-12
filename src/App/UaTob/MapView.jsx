@@ -1,262 +1,403 @@
-import React, { useMemo } from 'react';
-import { MapPin, Navigation, Car } from 'lucide-react';
-import { DRIVERS } from '@/App/UaTob/locations.js';
+import React, { useMemo, useEffect, useRef, useState } from 'react';
 
-function getDriverColor(type) {
-  switch (type) {
-    case 'premium': return '#F59E0B';
-    case 'xl':      return '#2563EB';
-    default:        return '#16A34A';
+// ── CSS ────────────────────────────────────────────────────────────────
+const MAP_CSS = `
+  @keyframes mv-dashFlow  { to { stroke-dashoffset: -40 } }
+  @keyframes mv-pulseRing { 0%,100%{r:10;opacity:.22} 50%{r:15;opacity:.07} }
+  @keyframes mv-pinDrop   {
+    0%   { transform: translateY(-10px) scale(.85); opacity: 0; }
+    65%  { transform: translateY(2px)   scale(1.06); opacity: 1; }
+    100% { transform: translateY(0)     scale(1);    opacity: 1; }
   }
-}
+  @keyframes mv-routeDraw { from { stroke-dashoffset: var(--mv-len,1200) } to { stroke-dashoffset: 0 } }
+  @keyframes mv-fadeUp    { from { opacity:0; transform:translateY(5px) } to { opacity:1; transform:translateY(0) } }
 
-function safeCoord(coord, fallback = 50) {
-  const n = Number(coord);
-  return Number.isFinite(n) ? n : fallback;
-}
+  .mv-flowing  { animation: mv-dashFlow  1.3s linear infinite; }
+  .mv-pulse    { animation: mv-pulseRing 2.2s ease-in-out infinite; }
+  .mv-route    { animation: mv-routeDraw 1s cubic-bezier(.4,0,.2,1) forwards; }
+  .mv-fadeup   { animation: mv-fadeUp .4s ease-out both; }
 
-function safeNum(val, fallback = 0) {
-  const n = Number(val);
-  return Number.isFinite(n) ? n : fallback;
-}
+  .mv-card {
+    border-radius: 20px;
+    overflow: hidden;
+    border: 1.5px solid #E5E7EB;
+    background: #fff;
+    position: relative;
+  }
+  .mv-pill {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 7px;
+    background: #111827; color: #fff;
+    border-radius: 100px; padding: 6px 14px 6px 10px;
+    font-family: 'Outfit', system-ui, sans-serif;
+    font-size: 12px; font-weight: 700; letter-spacing: .3px;
+    white-space: nowrap;
+    box-shadow: 0 4px 16px rgba(17,24,39,.24);
+    pointer-events: none;
+  }
+  .mv-pill-dot { width: 7px; height: 7px; border-radius: 50%; background: #22C55E; flex-shrink: 0; }
 
-// Convert address string to a deterministic x/y position on the fake map
-function addressToCoords(address, defaultX = 30, defaultY = 50) {
-  if (!address) return { x: defaultX, y: defaultY };
-  let hash = 0;
-  for (let i = 0; i < address.length; i++) hash = address.charCodeAt(i) + ((hash << 5) - hash);
-  const x = 15 + (Math.abs(hash % 1000) / 1000) * 70;
-  const y = 20 + (Math.abs((hash >> 4) % 1000) / 1000) * 60;
-  return { x: +x.toFixed(1), y: +y.toFixed(1) };
-}
+  .mv-loc-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 11px 16px;
+    border-top: 1.5px solid #E5E7EB;
+  }
+  .mv-connector { width: 1.5px; height: 12px; background: #E5E7EB; margin-left: 30px; }
 
-export default function MapView({
-  bookingPayload,
-  rideStatus,
-  assignedDriver,
-  driverPos,
-  isTracking,
-  etaMinutes,
-  distToDropoff,
-}) {
-  const miles       = safeNum(bookingPayload?.miles ?? bookingPayload?.tripDistanceMiles, 0);
-  const durationMin = safeNum(bookingPayload?.durationMin ?? bookingPayload?.tripDurationMin, 0);
-  const km          = miles ? (miles * 1.60934).toFixed(1) : '0.0';
-  const fareTotal   = safeNum(bookingPayload?.fareEstimate, 0);
+  .mv-icon-wrap {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .mv-icon-wrap.pickup  { background: #F0FDF4; border: 1.5px solid #BBF7D0; }
+  .mv-icon-wrap.dropoff { background: #F9FAFB; border: 1.5px solid #E5E7EB; }
 
-  const safeDrivers  = Array.isArray(DRIVERS) ? DRIVERS : [];
-  const driverType   = assignedDriver?.type || bookingPayload?.rideType || 'standard';
-  const driverColor  = getDriverColor(driverType);
+  .mv-loc-name { font-size: 13px; font-weight: 700; color: #111827;
+                 white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mv-loc-sub  { font-size: 11px; font-weight: 500; color: #9CA3AF;
+                 white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-  const pickupCoords  = useMemo(() => addressToCoords(bookingPayload?.pickup,  25, 45), [bookingPayload?.pickup]);
-  const dropoffCoords = useMemo(() => addressToCoords(bookingPayload?.dropoff, 72, 58), [bookingPayload?.dropoff]);
-
-  const isHeadingToDropoff = ['in_progress'].includes(rideStatus);
-  const isWaitingForPickup = ['driver_assigned', 'arrived'].includes(rideStatus);
-  const isOnTrip           = ['in_progress'].includes(rideStatus);
-
-  const routeTarget = useMemo(() => {
-    if (isHeadingToDropoff && dropoffCoords) return { x: safeCoord(dropoffCoords.x), y: safeCoord(dropoffCoords.y) };
-    if (pickupCoords) return { x: safeCoord(pickupCoords.x), y: safeCoord(pickupCoords.y) };
-    return { x: 50, y: 50 };
-  }, [isHeadingToDropoff, dropoffCoords, pickupCoords]);
-
-  function getStatusMsg() {
-    switch (rideStatus) {
-      case 'driver_assigned': return `${assignedDriver?.name ?? 'Driver'} is on the way`;
-      case 'arrived':         return 'Driver has arrived';
-      case 'in_progress':     return 'Heading to dropoff';
-      case 'completed':       return 'Trip complete';
-      default:                return 'Finding your driver…';
-    }
+  .mv-tier-badge {
+    display: inline-flex; align-items: center;
+    background: #F0FDF4; border: 1px solid #BBF7D0;
+    border-radius: 100px; padding: 3px 10px;
+    font-size: 10px; font-weight: 800; color: #16A34A;
+    letter-spacing: .8px; text-transform: uppercase; flex-shrink: 0;
+    font-family: 'Outfit', system-ui, sans-serif;
   }
 
-  const showRoute    = bookingPayload?.pickup && bookingPayload?.dropoff;
-  const showSummary  = showRoute && !isTracking;
+  .mv-stats { display: flex; align-items: stretch; border-top: 1.5px solid #E5E7EB; }
+  .mv-stat  { flex: 1; padding: 13px 16px; display: flex; flex-direction: column; gap: 3px; }
+  .mv-stat + .mv-stat { border-left: 1.5px solid #E5E7EB; }
+  .mv-stat-label { font-size: 10px; font-weight: 800; letter-spacing: 1.2px;
+                   text-transform: uppercase; color: #9CA3AF; }
+  .mv-stat-val   { font-size: 18px; font-weight: 900; color: #111827;
+                   letter-spacing: -.5px; line-height: 1;
+                   font-family: 'Outfit', system-ui, sans-serif; }
+  .mv-stat-val.green { color: #16A34A; }
+  .mv-stat-sub   { font-size: 11px; font-weight: 600; color: #6B7280; }
+`;
+
+// ── Google encoded polyline decoder ───────────────────────────────────
+function decodePolyline(encoded) {
+  if (!encoded) return [];
+  const pts = [];
+  let i = 0, lat = 0, lng = 0;
+  while (i < encoded.length) {
+    let b, shift = 0, result = 0;
+    do { b = encoded.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    shift = 0; result = 0;
+    do { b = encoded.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    pts.push([lat / 1e5, lng / 1e5]);
+  }
+  return pts;
+}
+
+// ── Project lat/lng → SVG coords ──────────────────────────────────────
+const SVG_W = 560, SVG_H = 218, PAD = 52;
+
+function project(pts) {
+  if (!pts.length) return [];
+  const lats = pts.map(p => p[0]);
+  const lngs = pts.map(p => p[1]);
+  const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+  const dLat = maxLat - minLat || 0.002;
+  const dLng = maxLng - minLng || 0.002;
+  const scaleX = (SVG_W - PAD * 2) / dLng;
+  const scaleY = (SVG_H - PAD * 2) / dLat;
+  const scale  = Math.min(scaleX, scaleY);
+  const offX   = (SVG_W - dLng * scale) / 2;
+  const offY   = (SVG_H - dLat * scale) / 2;
+  return pts.map(([la, ln]) => ({
+    x: offX + (ln - minLng) * scale,
+    y: SVG_H - (offY + (la - minLat) * scale),
+  }));
+}
+
+function toSVGPath(svgPts) {
+  if (!svgPts.length) return '';
+  return svgPts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+}
+
+function approxPathLen(svgPts) {
+  let len = 0;
+  for (let i = 1; i < svgPts.length; i++) {
+    const dx = svgPts[i].x - svgPts[i - 1].x;
+    const dy = svgPts[i].y - svgPts[i - 1].y;
+    len += Math.sqrt(dx * dx + dy * dy);
+  }
+  return Math.ceil(len) + 40;
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────
+function shortAddr(full = '') { return full.split(',')[0].trim(); }
+function cityState(full = '') { return full.split(',').slice(1, 3).join(',').trim(); }
+
+// ── Inline icons ──────────────────────────────────────────────────────
+const PickupIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+    <circle cx="7" cy="7" r="4" fill="#16A34A"/>
+    <circle cx="7" cy="7" r="6.5" stroke="#16A34A" strokeWidth="1" fill="none" opacity=".3"/>
+  </svg>
+);
+
+const DropoffIcon = () => (
+  <svg width="12" height="15" viewBox="0 0 10 13" fill="none">
+    <path d="M5 0C2.239 0 0 2.239 0 5c0 3.75 5 8 5 8s5-4.25 5-8c0-2.761-2.239-5-5-5zm0 7a2 2 0 110-4 2 2 0 010 4z" fill="#111827"/>
+  </svg>
+);
+
+// ── Label bubble helper ────────────────────────────────────────────────
+function LabelBubble({ text, cx, cy, above = false }) {
+  if (!text) return null;
+  const lw = Math.min(text.length * 5.8 + 22, 160);
+  const lx = Math.max(4, Math.min(cx - lw / 2, SVG_W - lw - 4));
+  const ly = above ? cy - 22 : cy + 18;
+  if (ly < 2 || ly + 16 > SVG_H - 2) return null;
+  return (
+    <>
+      <rect x={lx} y={ly} width={lw} height={16} rx={8} fill="#111827" opacity=".82"/>
+      <text x={lx + lw / 2} y={ly + 11.5} textAnchor="middle"
+            fontFamily="Outfit,sans-serif" fontSize="9" fontWeight="700"
+            fill="#fff" letterSpacing=".3">{text}</text>
+    </>
+  );
+}
+
+// ── Map SVG ────────────────────────────────────────────────────────────
+function RouteSVG({ svgPts, routeKey, pickup, dropoff }) {
+  const d       = toSVGPath(svgPts);
+  const len     = svgPts.length > 1 ? approxPathLen(svgPts) : 600;
+  const start   = svgPts[0]                  ?? { x: 80,  y: 170 };
+  const end     = svgPts[svgPts.length - 1] ?? { x: 480, y: 60  };
+  const hasPath = svgPts.length > 1;
+
+  const pickupLabel  = shortAddr(pickup).slice(0, 22);
+  const dropoffLabel = shortAddr(dropoff).slice(0, 22);
+
+  // Decide label position: put pickup label below marker if there's room, above otherwise
+  const pickupAbove  = start.y > SVG_H - 45;
+  const dropoffAbove = end.y > SVG_H - 45;
 
   return (
-    <div style={{
-      background:    'linear-gradient(160deg,#FCFCFD 0%,#F7F8FA 45%,#F3F4F6 100%)',
-      borderRadius:  '30px',
-      overflow:      'hidden',
-      position:      'relative',
-      border:        '1px solid rgba(255,255,255,.65)',
-      height:        isTracking ? '320px' : 'clamp(220px,36vh,280px)',
-      boxShadow:     '0 20px 60px rgba(0,0,0,.08), inset 0 1px 0 rgba(255,255,255,.75)',
-      backdropFilter:'blur(12px)',
-    }}>
+    <svg
+      key={routeKey}
+      width="100%" height={SVG_H}
+      viewBox={`0 0 ${SVG_W} ${SVG_H}`}
+      xmlns="http://www.w3.org/2000/svg"
+      preserveAspectRatio="xMidYMid meet"
+      aria-hidden="true"
+      style={{ display: 'block', background: '#F5F7F2' }}
+    >
+      <defs>
+        <pattern id="mv-grid" width="36" height="36" patternUnits="userSpaceOnUse">
+          <path d="M36 0L0 0 0 36" fill="none" stroke="#E8EDE8" strokeWidth=".8"/>
+        </pattern>
+        <linearGradient id="mv-rg" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%"   stopColor="#22C55E"/>
+          <stop offset="100%" stopColor="#111827"/>
+        </linearGradient>
+        <filter id="mv-glow" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="2.8" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
 
-      {/* Ambient depth */}
-      <div style={{
-        position: 'absolute', inset: 0, pointerEvents: 'none',
-        background: 'radial-gradient(circle at 20% 15%, rgba(22,163,74,.06) 0%, transparent 30%), radial-gradient(circle at 85% 80%, rgba(37,99,235,.05) 0%, transparent 28%)',
-      }}/>
+      {/* Base + grid */}
+      <rect width={SVG_W} height={SVG_H} fill="#F5F7F2"/>
+      <rect width={SVG_W} height={SVG_H} fill="url(#mv-grid)"/>
 
-      {/* Street grid */}
-      <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.08 }}>
-        <defs>
-          <pattern id="road-grid" width="48" height="48" patternUnits="userSpaceOnUse">
-            <path d="M48 0 L0 0 0 48" fill="none" stroke="#111827" strokeWidth="1"/>
-          </pattern>
-          <pattern id="mini-grid" width="24" height="24" patternUnits="userSpaceOnUse">
-            <path d="M24 0 L0 0 0 24" fill="none" stroke="#9CA3AF" strokeWidth=".5"/>
-          </pattern>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#mini-grid)"/>
-        <rect width="100%" height="100%" fill="url(#road-grid)"/>
-      </svg>
+      {/* Contextual road stripes near midpoint */}
+      {hasPath && (() => {
+        const mx = (start.x + end.x) / 2;
+        const my = (start.y + end.y) / 2;
+        return (
+          <>
+            <rect x={0}      y={my - 11} width={SVG_W} height={22} fill="#ECEDE8" opacity=".65"/>
+            <rect x={mx - 11} y={0}      width={22}    height={SVG_H} fill="#ECEDE8" opacity=".65"/>
+            <line x1={0} y1={my} x2={SVG_W} y2={my} stroke="#D1D5CC" strokeWidth="1" strokeDasharray="10,8"/>
+            <line x1={mx} y1={0} x2={mx}    y2={SVG_H} stroke="#D1D5CC" strokeWidth="1" strokeDasharray="10,8"/>
+          </>
+        );
+      })()}
 
-      {/* Fake roads */}
-      <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.18, pointerEvents: 'none' }}>
-        <path d="M 0 75 C 20 70, 35 82, 55 76 S 90 62, 120 72 S 170 92, 220 82 S 290 52, 360 68"
-          fill="none" stroke="#D1D5DB" strokeWidth="10" strokeLinecap="round"/>
-        <path d="M 40 0 C 52 30, 65 60, 58 95 S 50 160, 72 220 S 120 290, 140 360"
-          fill="none" stroke="#E5E7EB" strokeWidth="12" strokeLinecap="round"/>
-        <path d="M 250 0 C 240 40, 230 90, 245 130 S 285 210, 270 320"
-          fill="none" stroke="#E5E7EB" strokeWidth="10" strokeLinecap="round"/>
-      </svg>
+      {/* Route white halo */}
+      {hasPath && (
+        <path d={d} fill="none" stroke="#fff" strokeWidth="7"
+              strokeLinecap="round" strokeLinejoin="round" opacity=".8"/>
+      )}
 
-      {/* Static route line */}
-      {showRoute && !isTracking && (
-        <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
-          <defs>
-            <linearGradient id="routeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%"   stopColor="#111827" stopOpacity=".55"/>
-              <stop offset="100%" stopColor="#16A34A" stopOpacity=".95"/>
-            </linearGradient>
-          </defs>
-          <line
-            x1={`${safeCoord(pickupCoords.x)}%`}  y1={`${safeCoord(pickupCoords.y)}%`}
-            x2={`${safeCoord(dropoffCoords.x)}%`} y2={`${safeCoord(dropoffCoords.y)}%`}
-            stroke="url(#routeGrad)" strokeWidth="4" strokeDasharray="10 8" strokeLinecap="round" opacity=".85"
+      {/* Animated gradient route */}
+      {hasPath && (
+        <path
+          className="mv-route"
+          d={d}
+          fill="none"
+          stroke="url(#mv-rg)"
+          strokeWidth="3.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          filter="url(#mv-glow)"
+          style={{ '--mv-len': len, strokeDasharray: len }}
+        />
+      )}
+
+      {/* Flowing dashes */}
+      {hasPath && (
+        <path
+          className="mv-flowing"
+          d={d}
+          fill="none"
+          stroke="#fff"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeDasharray="7,18"
+          opacity=".6"
+        />
+      )}
+
+      {/* ── Pickup marker ── */}
+      <g style={{
+        transformOrigin: `${start.x}px ${start.y}px`,
+        animation: 'mv-pinDrop .55s cubic-bezier(.34,1.2,.64,1) .1s both'
+      }}>
+        <circle className="mv-pulse" cx={start.x} cy={start.y} fill="#22C55E"/>
+        <circle cx={start.x} cy={start.y} r={13}  fill="#fff" stroke="#22C55E" strokeWidth="2.5"/>
+        <circle cx={start.x} cy={start.y} r={6.5} fill="#22C55E"/>
+        <circle cx={start.x} cy={start.y} r={2.5} fill="#fff"/>
+      </g>
+      <LabelBubble text={pickupLabel} cx={start.x} cy={start.y} above={pickupAbove}/>
+
+      {/* ── Dropoff pin ── */}
+      <g style={{
+        transformOrigin: `${end.x}px ${end.y}px`,
+        animation: 'mv-pinDrop .55s cubic-bezier(.34,1.2,.64,1) .3s both'
+      }}>
+        {/* shadow */}
+        <ellipse cx={end.x} cy={end.y + 26} rx={7} ry={3} fill="rgba(17,24,39,.15)"/>
+        {/* teardrop body */}
+        <path
+          d={`M${end.x},${end.y + 26}
+              C${end.x},${end.y + 26} ${end.x - 14},${end.y + 10}
+              ${end.x - 14},${end.y - 4}
+              A14,14 0 1,1 ${end.x + 14},${end.y - 4}
+              C${end.x + 14},${end.y + 10} ${end.x},${end.y + 26} Z`}
+          fill="#111827"
+        />
+        <circle cx={end.x} cy={end.y - 5} r={6}   fill="#fff"/>
+        <circle cx={end.x} cy={end.y - 5} r={2.5} fill="#111827"/>
+      </g>
+      <LabelBubble text={dropoffLabel} cx={end.x} cy={end.y + 30} above={dropoffAbove}/>
+    </svg>
+  );
+}
+
+// ── Main export ────────────────────────────────────────────────────────
+export default function MapView({ bookingPayload }) {
+  const [routeKey, setRouteKey] = useState(0);
+  const prevRef                 = useRef(null);
+
+  useEffect(() => {
+    const curr = bookingPayload;
+    if (!curr) { prevRef.current = null; return; }
+    const prev = prevRef.current;
+    const changed = !prev
+      || prev.pickup   !== curr.pickup
+      || prev.dropoff  !== curr.dropoff
+      || prev.rideType !== curr.rideType
+      || prev.polyline !== curr.polyline;
+    if (changed) { setRouteKey(k => k + 1); prevRef.current = curr; }
+  }, [bookingPayload]);
+
+  const svgPts = useMemo(() => {
+    const raw = bookingPayload?.polyline;
+    return raw ? project(decodePolyline(raw)) : [];
+  }, [bookingPayload?.polyline]);
+
+  if (!bookingPayload) return null;
+
+  const {
+    pickup            = '',
+    dropoff           = '',
+    rideLabel         = '',
+    fareEstimate      = null,
+    miles             = null,
+    tripDistanceMiles = null,
+    durationMin       = null,
+    durationText      = null,
+  } = bookingPayload;
+
+  const distMiles = miles ?? tripDistanceMiles;
+  const distStr   = distMiles != null ? `${Number(distMiles).toFixed(1)} mi` : '—';
+  const fareStr   = fareEstimate != null ? `$${Number(fareEstimate).toFixed(2)}` : '—';
+  const etaStr    = durationText ?? (durationMin != null ? `${durationMin} min` : '—');
+  const hasRoute  = !!(pickup && dropoff);
+
+  return (
+    <div style={{ fontFamily: "'Outfit', system-ui, sans-serif" }}>
+      <style>{MAP_CSS}</style>
+
+      <div className="mv-card">
+
+        {/* Map area */}
+        <div style={{ position: 'relative', height: SVG_H, overflow: 'hidden' }}>
+          <RouteSVG
+            svgPts={svgPts}
+            routeKey={routeKey}
+            pickup={pickup}
+            dropoff={dropoff}
           />
-        </svg>
-      )}
+          <div className="mv-pill mv-fadeup" key={routeKey} style={{ animationDelay: '.5s' }}>
+            <div className="mv-pill-dot"/>
+            {hasRoute ? 'Route calculated' : 'Set pickup & dropoff'}
+          </div>
+        </div>
 
-      {/* Tracking mode */}
-      {isTracking && driverPos && assignedDriver && (
-        <>
-          <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
-            <defs>
-              <linearGradient id="driverRouteGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%"   stopColor={driverColor} stopOpacity=".95"/>
-                <stop offset="100%" stopColor={driverColor} stopOpacity=".35"/>
-              </linearGradient>
-            </defs>
-            <line
-              x1={`${safeCoord(driverPos.x)}%`} y1={`${safeCoord(driverPos.y)}%`}
-              x2={`${routeTarget.x}%`}           y2={`${routeTarget.y}%`}
-              stroke="url(#driverRouteGrad)" strokeWidth="4" strokeDasharray="10 8" strokeLinecap="round"
-            />
-          </svg>
+        {/* Pickup row */}
+        <div className="mv-loc-row">
+          <div className="mv-icon-wrap pickup"><PickupIcon/></div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="mv-loc-name">{shortAddr(pickup) || 'Pickup location'}</div>
+            <div className="mv-loc-sub">{cityState(pickup) || 'Where we\'ll pick you up'}</div>
+          </div>
+          {rideLabel && <div className="mv-tier-badge">{rideLabel}</div>}
+        </div>
 
-          {/* Pickup pin */}
-          {pickupCoords && (
-            <div style={{ position: 'absolute', left: `${safeCoord(pickupCoords.x)}%`, top: `${safeCoord(pickupCoords.y)}%`, transform: 'translate(-50%,-50%)', zIndex: 3 }}>
-              {isWaitingForPickup && (
-                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '74px', height: '74px', borderRadius: '999px', background: 'rgba(17,24,39,.10)', animation: 'ripple 2s ease-out infinite' }}/>
-              )}
-              <div style={{ width: '42px', height: '42px', background: 'linear-gradient(145deg,#111827,#374151)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '3px solid #fff', boxShadow: '0 10px 28px rgba(0,0,0,.22)' }}>
-                <MapPin size={17} color="#16A34A"/>
-              </div>
+        <div className="mv-connector"/>
+
+        {/* Dropoff row */}
+        <div className="mv-loc-row">
+          <div className="mv-icon-wrap dropoff"><DropoffIcon/></div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="mv-loc-name">{shortAddr(dropoff) || 'Dropoff location'}</div>
+            <div className="mv-loc-sub">{cityState(dropoff) || 'Your destination'}</div>
+          </div>
+        </div>
+
+        {/* Stats strip — only when route is ready */}
+        {hasRoute && (
+          <div className="mv-stats mv-fadeup" key={`s-${routeKey}`} style={{ animationDelay: '.6s' }}>
+            <div className="mv-stat">
+              <div className="mv-stat-label">Distance</div>
+              <div className="mv-stat-val">{distStr}</div>
+              <div className="mv-stat-sub">point to point</div>
             </div>
-          )}
-
-          {/* Dropoff pin */}
-          {dropoffCoords && (
-            <div style={{ position: 'absolute', left: `${safeCoord(dropoffCoords.x)}%`, top: `${safeCoord(dropoffCoords.y)}%`, transform: 'translate(-50%,-50%)', zIndex: 3 }}>
-              {isOnTrip && (
-                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '70px', height: '70px', borderRadius: '999px', background: 'rgba(22,163,74,.16)', animation: 'ripple 2s ease-out infinite' }}/>
-              )}
-              <div style={{ width: '38px', height: '38px', background: 'linear-gradient(145deg,#16A34A,#22C55E)', borderRadius: '50% 50% 50% 6px', transform: 'rotate(-45deg)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '3px solid #fff', boxShadow: '0 10px 28px rgba(22,163,74,.32)' }}>
-                <Navigation size={14} color="#fff" style={{ transform: 'rotate(45deg)' }}/>
-              </div>
+            <div className="mv-stat">
+              <div className="mv-stat-label">Est. Fare</div>
+              <div className={`mv-stat-val ${fareEstimate != null ? 'green' : ''}`}>{fareStr}</div>
+              <div className="mv-stat-sub">distance-based</div>
             </div>
-          )}
-
-          {/* Driver pin */}
-          <div style={{ position: 'absolute', left: `${safeCoord(driverPos.x)}%`, top: `${safeCoord(driverPos.y)}%`, transform: 'translate(-50%,-50%)', transition: 'all 5s linear', zIndex: 5 }}>
-            <div style={{ position: 'absolute', inset: '-10px', borderRadius: '999px', background: `${driverColor}22`, filter: 'blur(10px)' }}/>
-            <div style={{ width: '50px', height: '50px', background: `linear-gradient(145deg,${driverColor},${driverColor}dd)`, borderRadius: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '3px solid #fff', boxShadow: `0 14px 30px ${driverColor}40`, animation: 'pulse 2s ease-in-out infinite', position: 'relative' }}>
-              <Car size={22} color="#fff"/>
+            <div className="mv-stat">
+              <div className="mv-stat-label">ETA</div>
+              <div className="mv-stat-val">{etaStr}</div>
+              <div className="mv-stat-sub">current traffic</div>
             </div>
           </div>
+        )}
 
-          {/* Live status chip */}
-          <div style={{ position: 'absolute', bottom: '16px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(255,255,255,.92)', backdropFilter: 'blur(18px)', border: '1px solid rgba(229,231,235,.9)', borderRadius: '999px', padding: '12px 18px', display: 'flex', alignItems: 'center', gap: '10px', whiteSpace: 'nowrap', boxShadow: '0 12px 30px rgba(0,0,0,.10)', maxWidth: '92%', overflow: 'hidden', zIndex: 6 }}>
-            <div style={{ width: '9px', height: '9px', background: driverColor, borderRadius: '999px', animation: 'pulse 1.6s ease-in-out infinite', flexShrink: 0 }}/>
-            <span style={{ fontSize: '14px', fontWeight: 800, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {getStatusMsg()}
-            </span>
-            {isWaitingForPickup && (
-              <span style={{ background: driverColor, color: '#fff', borderRadius: '999px', padding: '5px 12px', fontSize: '12px', fontWeight: 800, fontFamily: '"JetBrains Mono",monospace', flexShrink: 0, boxShadow: `0 6px 16px ${driverColor}35` }}>
-                {safeNum(etaMinutes) === 0 ? 'Now' : `${safeNum(etaMinutes)}m`}
-              </span>
-            )}
-            {isOnTrip && (
-              <span style={{ background: '#16A34A', color: '#fff', borderRadius: '999px', padding: '5px 12px', fontSize: '12px', fontWeight: 800, fontFamily: '"JetBrains Mono",monospace', flexShrink: 0, boxShadow: '0 6px 16px rgba(22,163,74,.35)' }}>
-                {safeNum(distToDropoff).toFixed(1)} mi
-              </span>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* Static pickup pin */}
-      {!isTracking && pickupCoords && (
-        <div style={{ position: 'absolute', left: `${safeCoord(pickupCoords.x)}%`, top: `${safeCoord(pickupCoords.y)}%`, transform: 'translate(-50%,-50%)', zIndex: 3 }}>
-          <div style={{ width: '40px', height: '40px', background: 'linear-gradient(145deg,#111827,#374151)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '3px solid #fff', boxShadow: '0 10px 24px rgba(0,0,0,.18)' }}>
-            <MapPin size={16} color="#16A34A"/>
-          </div>
-        </div>
-      )}
-
-      {/* Static dropoff pin */}
-      {!isTracking && dropoffCoords && (
-        <div style={{ position: 'absolute', left: `${safeCoord(dropoffCoords.x)}%`, top: `${safeCoord(dropoffCoords.y)}%`, transform: 'translate(-50%,-50%)', zIndex: 3 }}>
-          <div style={{ width: '40px', height: '40px', background: 'linear-gradient(145deg,#16A34A,#22C55E)', borderRadius: '50% 50% 50% 6px', transform: 'rotate(-45deg)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '3px solid #fff', boxShadow: '0 10px 24px rgba(22,163,74,.28)' }}>
-            <Navigation size={14} color="#fff" style={{ transform: 'rotate(45deg)' }}/>
-          </div>
-        </div>
-      )}
-
-      {/* Idle nearby drivers */}
-      {!isTracking && safeDrivers.map((d, index) => (
-        <div
-          key={d.id || index}
-          style={{ position: 'absolute', left: `${safeCoord(d.x)}%`, top: `${safeCoord(d.y)}%`, transform: 'translate(-50%,-50%)', animation: 'pulse 2.4s ease-in-out infinite', animationDelay: `${index * 0.2}s`, opacity: 0.92 }}
-        >
-          <div style={{ width: '20px', height: '20px', background: getDriverColor(d.type), borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', boxShadow: `0 6px 14px ${getDriverColor(d.type)}35` }}>
-            <Car size={10} color="#fff"/>
-          </div>
-        </div>
-      ))}
-
-      {/* Top trip summary chip */}
-      {showSummary && (
-        <div style={{ position: 'absolute', top: '14px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(255,255,255,.92)', backdropFilter: 'blur(18px)', border: '1px solid rgba(229,231,235,.9)', borderRadius: '18px', padding: '11px 16px', display: 'flex', alignItems: 'center', gap: '14px', whiteSpace: 'nowrap', boxShadow: '0 12px 28px rgba(0,0,0,.08)', animation: 'scaleIn .28s ease-out', maxWidth: '92%', overflow: 'hidden', zIndex: 6 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontSize: '13px', fontWeight: 800, color: '#111827', fontFamily: '"JetBrains Mono",monospace' }}>
-              {miles.toFixed(1)} mi
-            </span>
-            <span style={{ fontSize: '11px', color: '#9CA3AF', fontWeight: 700 }}>
-              ({km} km)
-            </span>
-          </div>
-          <div style={{ width: '1px', height: '16px', background: '#E5E7EB' }}/>
-          <span style={{ fontSize: '12px', fontWeight: 800, color: '#111827' }}>
-            {durationMin} min
-          </span>
-          {fareTotal > 0 && (
-            <>
-              <div style={{ width: '1px', height: '16px', background: '#E5E7EB' }}/>
-              <span style={{ fontSize: '12px', fontWeight: 900, color: '#16A34A', fontFamily: '"JetBrains Mono",monospace' }}>
-                ${fareTotal.toFixed(2)}
-              </span>
-            </>
-          )}
-        </div>
-      )}
+      </div>
     </div>
   );
 }

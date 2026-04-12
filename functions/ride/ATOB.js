@@ -2,6 +2,13 @@ const { onRequest } = require("firebase-functions/v2/https");
 const axios = require("axios");
 const cors = require("cors")({ origin: true });
 
+// 🔥 Firebase Admin
+const { initializeApp, getApps } = require("firebase-admin/app");
+const { getFirestore, FieldValue } = require("firebase-admin/firestore");
+
+if (!getApps().length) initializeApp();
+const db = getFirestore();
+
 // 🔍 Extract city + zip + lat/lng
 function extractLocationData(result) {
   let city = "";
@@ -31,7 +38,7 @@ function extractLocationData(result) {
   };
 }
 
-// 🌍 Geocode (address → city, zip, lat, lng)
+// 🌍 Geocode
 async function geocodeAddress(address, apiKey) {
   try {
     const res = await axios.get(
@@ -60,12 +67,11 @@ exports.ATOB = onRequest(
   {
     region: "us-central1",
     secrets: ["GOOGLE_MAPS_KEY"],
-    invoker: "public", // ✅ makes it publicly accessible
+    invoker: "public",
   },
   (req, res) => {
     cors(req, res, async () => {
       try {
-        // ✅ Handle preflight
         if (req.method === "OPTIONS") {
           return res.status(204).send("");
         }
@@ -76,8 +82,6 @@ exports.ATOB = onRequest(
 
         const { origin, destination } = req.body || {};
 
-        console.log("📍 ATOB request:", { origin, destination });
-
         if (!origin || !destination) {
           return res.status(400).json({
             error: "Missing origin or destination",
@@ -86,22 +90,12 @@ exports.ATOB = onRequest(
 
         const apiKey = process.env.GOOGLE_MAPS_KEY;
 
-        if (!apiKey) {
-          return res.status(500).json({
-            error: "Google Maps API key not configured",
-          });
-        }
-
-        // ── 🧭 Routes API Call (FIXED BODY) ─────────────────────
+        // 🧭 Routes API (WITH POLYLINE)
         const routeResponse = await axios.post(
           "https://routes.googleapis.com/directions/v2:computeRoutes",
           {
-            origin: {
-              address: origin, // ✅ FIXED
-            },
-            destination: {
-              address: destination, // ✅ FIXED
-            },
+            origin: { address: origin },
+            destination: { address: destination },
             travelMode: "DRIVE",
             routingPreference: "TRAFFIC_AWARE",
           },
@@ -110,7 +104,7 @@ exports.ATOB = onRequest(
               "Content-Type": "application/json",
               "X-Goog-Api-Key": apiKey,
               "X-Goog-FieldMask":
-                "routes.distanceMeters,routes.duration",
+                "routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline",
             },
             timeout: 10000,
           }
@@ -119,28 +113,34 @@ exports.ATOB = onRequest(
         const routes = routeResponse.data?.routes;
 
         if (!routes?.length) {
-          return res.status(400).json({
-            error: "Route not found",
-          });
+          return res.status(400).json({ error: "Route not found" });
         }
 
         const route = routes[0];
 
         const miles = route.distanceMeters / 1609.34;
-
         const seconds = Number(route.duration?.replace("s", "") || 0);
         const minutes = Math.ceil(seconds / 60);
 
-        // ── 🔥 Geocode for city + zip ───────────────────
+        // 🌍 Geocode
         const [pickupGeo, dropoffGeo] = await Promise.all([
           geocodeAddress(origin, apiKey),
           geocodeAddress(destination, apiKey),
         ]);
 
-        // ── ✅ Final Response ───────────────────────────
-        return res.status(200).json({
+        // 🧾 CLEAN STRUCTURE
+        const searchData = {
+          origin,
+          destination,
+
           distance_miles: Number(miles.toFixed(2)),
           duration_minutes: minutes,
+
+          route: {
+            distanceMeters: route.distanceMeters,
+            duration_seconds: seconds,
+            polyline: route.polyline?.encodedPolyline || null,
+          },
 
           pickupCity: pickupGeo.city,
           pickupZip: pickupGeo.zip,
@@ -151,7 +151,14 @@ exports.ATOB = onRequest(
           dropoffZip: dropoffGeo.zip,
           dropoffLat: dropoffGeo.lat,
           dropoffLng: dropoffGeo.lng,
-        });
+
+          createdAt: FieldValue.serverTimestamp(),
+        };
+
+
+        // 📦 Return
+        return res.status(200).json(searchData);
+
       } catch (error) {
         console.error(
           "❌ Routes API error:",
