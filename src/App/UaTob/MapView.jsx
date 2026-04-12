@@ -354,49 +354,8 @@ export default function MapView({ bookingPayload }) {
             {hasRoute ? 'Route calculated' : 'Set pickup & dropoff'}
           </div>
         </div>
-
-        {/* Pickup row */}
-        <div className="mv-loc-row">
-          <div className="mv-icon-wrap pickup"><PickupIcon/></div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="mv-loc-name">{shortAddr(pickup) || 'Pickup location'}</div>
-            <div className="mv-loc-sub">{cityState(pickup) || 'Where we\'ll pick you up'}</div>
-          </div>
-          {rideLabel && <div className="mv-tier-badge">{rideLabel}</div>}
-        </div>
-
-        <div className="mv-connector"/>
-
-        {/* Dropoff row */}
-        <div className="mv-loc-row">
-          <div className="mv-icon-wrap dropoff"><DropoffIcon/></div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="mv-loc-name">{shortAddr(dropoff) || 'Dropoff location'}</div>
-            <div className="mv-loc-sub">{cityState(dropoff) || 'Your destination'}</div>
-          </div>
-        </div>
-
-        {/* Stats strip — only when route is ready */}
-        {hasRoute && (
-          <div className="mv-stats mv-fadeup" key={`s-${routeKey}`} style={{ animationDelay: '.6s' }}>
-            <div className="mv-stat">
-              <div className="mv-stat-label">Distance</div>
-              <div className="mv-stat-val">{distStr}</div>
-              <div className="mv-stat-sub">point to point</div>
-            </div>
-            <div className="mv-stat">
-              <div className="mv-stat-label">Est. Fare</div>
-              <div className={`mv-stat-val ${fareEstimate != null ? 'green' : ''}`}>{fareStr}</div>
-              <div className="mv-stat-sub">distance-based</div>
-            </div>
-            <div className="mv-stat">
-              <div className="mv-stat-label">ETA</div>
-              <div className="mv-stat-val">{etaStr}</div>
-              <div className="mv-stat-sub">current traffic</div>
-            </div>
-          </div>
-        )}
-
+  
+       
       </div>
     </div>
   );
