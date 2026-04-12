@@ -358,12 +358,22 @@ function StepAccount({ data, setData, errors, isExistingUser }) {
         >
           {data.terms && <Check size={12} color={C.accent} />}
         </div>
-        <div style={{ fontSize: 12.5, color: C.textMid, fontWeight: 500, lineHeight: 1.6 }}>
-          I agree to UaTob's{" "}
-          <span style={{ color: C.accent, cursor: "pointer" }}>Driver Terms of Service</span>
-          {" "}and{" "}
-          <span style={{ color: C.accent, cursor: "pointer" }}>Privacy Policy</span>
-        </div>
+       <div style={{ fontSize: 12.5, color: C.textMid, fontWeight: 500, lineHeight: 1.6 }}>
+        I agree to UaTob's{" "}
+          <a
+         href="/driver-terms"
+          style={{ color: C.accent, cursor: "pointer", textDecoration: "none" }}
+         >
+        Driver Terms of Service
+        </a>
+        {" "}and{" "}
+         <a
+         href="/privacy-policy"
+        style={{ color: C.accent, cursor: "pointer", textDecoration: "none" }}
+        >
+         Privacy Policy
+        </a>
+       </div>
       </div>
       {errors.terms && (
         <div style={{ fontSize: 11.5, color: C.red, marginTop: 6, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
