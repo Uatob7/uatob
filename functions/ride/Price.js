@@ -2,6 +2,7 @@ const { onRequest } = require("firebase-functions/v2/https");
 const cors = require("cors")({ origin: true });
 
 const admin = require("firebase-admin");
+const { FieldValue } = require("firebase-admin/firestore");
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -134,9 +135,7 @@ function validate(miles, minutes) {
   const m = Number(miles);
   const n = Number(minutes);
 
-  if (!Number.isFinite(m) || !Number.isFinite(n))
-    return "Invalid numbers";
-
+  if (!Number.isFinite(m) || !Number.isFinite(n)) return "Invalid numbers";
   if (m < 0 || n < 0) return "Negative values not allowed";
   if (m > 300) return "Miles too large";
   if (n > 600) return "Minutes too large";
@@ -146,19 +145,25 @@ function validate(miles, minutes) {
 
 // ── MAIN FUNCTION ────────────────────────────────────────
 exports.Price = onRequest(
-  { region: "us-central1", invoker: "public" },
+  {
+    region: "us-central1",
+    invoker: "public",
+  },
   (req, res) => {
     cors(req, res, async () => {
       try {
-        if (req.method === "OPTIONS") return res.status(204).send("");
+        if (req.method === "OPTIONS") {
+          return res.status(204).send("");
+        }
+
         if (req.method !== "POST") {
           return res.status(405).json({ ok: false, error: "POST only" });
         }
 
         const body = req.body || {};
 
-        const miles = body.miles;
-        const minutes = body.durationMin;
+        const miles = Number(body.miles);
+        const minutes = Number(body.durationMin);
 
         const err = validate(miles, minutes);
         if (err) return res.status(400).json({ ok: false, error: err });
@@ -173,27 +178,26 @@ exports.Price = onRequest(
           ])
         );
 
-        // ── SAVE TO FIRESTORE (Search DB) ─────────────────
         await db.collection("Search").add({
-          pickup: body.pickup || null,
-          dropoff: body.dropoff || null,
+          pickup: body.pickup ?? null,
+          dropoff: body.dropoff ?? null,
 
-          pickupCity: body.pickupCity || null,
-          dropoffCity: body.dropoffCity || null,
+          pickupCity: body.pickupCity ?? null,
+          dropoffCity: body.dropoffCity ?? null,
 
-          pickupLat: body.pickupLat || null,
-          pickupLng: body.pickupLng || null,
-          dropoffLat: body.dropoffLat || null,
-          dropoffLng: body.dropoffLng || null,
+          pickupLat: body.pickupLat ?? null,
+          pickupLng: body.pickupLng ?? null,
+          dropoffLat: body.dropoffLat ?? null,
+          dropoffLng: body.dropoffLng ?? null,
 
           miles: cleanMiles,
           minutes: cleanMinutes,
 
-          polyline: body.polyline || null, // ✅ IMPORTANT
+          polyline: body.polyline ?? null,
 
-          rides, // full pricing snapshot
+          rides,
 
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
         });
 
         return res.status(200).json({
