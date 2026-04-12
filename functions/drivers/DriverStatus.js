@@ -1,51 +1,47 @@
 const { onRequest } = require("firebase-functions/v2/https");
-const { defineSecret } = require("firebase-functions/params");
 const { initializeApp, getApps } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const axios = require("axios");
 const cors = require("cors")({ origin: true });
-
-// 🔑 Secret
-const GOOGLE_MAPS_KEY = defineSecret("GOOGLE_MAPS_KEY");
 
 // ── Init Admin ───────────────────────────────────────────
 if (!getApps().length) initializeApp();
 const db = getFirestore();
 
 // ── Helper: Extract city + ZIP ───────────────────────────
-function extractCityAndZip(components) {
+function extractCityAndZip(components = []) {
   let city = "";
   let zip = "";
 
-  components.forEach((c) => {
-    if (c.types.includes("locality")) {
+  for (const c of components) {
+    if (!city && c.types?.includes("locality")) {
       city = c.long_name;
     }
-
-    if (!city && c.types.includes("administrative_area_level_2")) {
+    if (!city && c.types?.includes("administrative_area_level_2")) {
       city = c.long_name;
     }
-
-    if (c.types.includes("postal_code")) {
+    if (c.types?.includes("postal_code")) {
       zip = c.long_name;
     }
-  });
+  }
 
   return { city, zip };
 }
 
 // ─────────────────────────────────────────────────────────
-exports.setDriverStatus = onRequest(
+exports.DriverStatus = onRequest(
   {
     region: "us-central1",
-    secrets: [GOOGLE_MAPS_KEY], // 👈 important
+    invoker: "public",
+    secrets: ["GOOGLE_MAPS_KEY"],
   },
   async (req, res) => {
-    return cors(req, res, async () => {
+    cors(req, res, async () => {
       try {
+        if (req.method === "OPTIONS") {
+          return res.status(204).send("");
+        }
 
-        // ── Pre-flight ─────────────────────────────────────
-        if (req.method === "OPTIONS") return res.status(204).send("");
         if (req.method !== "POST") {
           return res.status(405).json({ ok: false, error: "Method Not Allowed" });
         }
@@ -53,12 +49,13 @@ exports.setDriverStatus = onRequest(
         const { uid, status, lat, lng } = req.body ?? {};
 
         // ── Validate uid ───────────────────────────────────
-        if (!uid || typeof uid !== "string" || !uid.trim()) {
+        if (!uid?.trim()) {
           return res.status(400).json({ ok: false, error: "uid is required" });
         }
 
         // ── Validate status ────────────────────────────────
         const VALID_STATUSES = ["online", "offline", "location_ping"];
+
         if (!VALID_STATUSES.includes(status)) {
           return res.status(400).json({
             ok: false,
@@ -67,8 +64,10 @@ exports.setDriverStatus = onRequest(
         }
 
         // ── Validate lat/lng ───────────────────────────────
-        let numLat, numLng;
         const needsLocation = status === "online" || status === "location_ping";
+
+        let numLat = null;
+        let numLng = null;
 
         if (needsLocation) {
           numLat = Number(lat);
@@ -77,110 +76,94 @@ exports.setDriverStatus = onRequest(
           if (!Number.isFinite(numLat) || !Number.isFinite(numLng)) {
             return res.status(400).json({
               ok: false,
-              error: "lat and lng must be valid numbers",
+              error: "lat/lng must be valid numbers",
             });
           }
 
           if (numLat < -90 || numLat > 90 || numLng < -180 || numLng > 180) {
             return res.status(400).json({
               ok: false,
-              error: "lat or lng out of range",
+              error: "lat/lng out of range",
             });
           }
         }
 
-        // ── 🧠 Get city + ZIP (ONLY when going online) ─────
+        // ── Geocode ONLY when going online ─────────────────
         let city = null;
-        let zip = null;
+        let zip  = null;
 
-        if (status === "online") {
+        if (status === "online" && numLat != null && numLng != null) {
           try {
-            const response = await axios.get(
+            const geo = await axios.get(
               "https://maps.googleapis.com/maps/api/geocode/json",
               {
                 params: {
                   latlng: `${numLat},${numLng}`,
-                  key: GOOGLE_MAPS_KEY.value(),
+                  key: process.env.GOOGLE_MAPS_KEY,
                 },
+                timeout: 8000,
               }
             );
 
-            const data = response.data;
+            const data = geo.data;
 
             if (data.status === "OK" && data.results?.length) {
-              const components = data.results[0].address_components;
-              const extracted = extractCityAndZip(components);
+              const extracted = extractCityAndZip(
+                data.results[0].address_components
+              );
               city = extracted.city;
-              zip = extracted.zip;
+              zip  = extracted.zip;
             }
-          } catch (geoErr) {
-            console.error("Geocode error:", geoErr.message);
+          } catch (err) {
+            console.error("Geocode error:", err.message);
           }
         }
 
-        // ── Build Firestore payload ────────────────────────
+        // ── Build Firestore update ─────────────────────────
         let update;
 
         if (status === "location_ping") {
           update = {
-            lat:            numLat,
-            lng:            numLng,
+            lat: numLat,
+            lng: numLng,
             lastLocationAt: FieldValue.serverTimestamp(),
             lastSeenAt:     FieldValue.serverTimestamp(),
             updatedAt:      FieldValue.serverTimestamp(),
           };
-
         } else if (status === "online") {
           update = {
-            status:         "online",
-            lat:            numLat,
-            lng:            numLng,
-            city, // 👈 NEW
-            zip,  // 👈 NEW
+            status: "online",
+            lat:    numLat,
+            lng:    numLng,
+            city,
+            zip,
             lastLocationAt: FieldValue.serverTimestamp(),
             lastSeenAt:     FieldValue.serverTimestamp(),
             updatedAt:      FieldValue.serverTimestamp(),
           };
-
         } else {
           update = {
-            status:         "offline",
-            lat:            FieldValue.delete(),
-            lng:            FieldValue.delete(),
-            city:           FieldValue.delete(), // 👈 NEW
-            zip:            FieldValue.delete(), // 👈 NEW
+            status:        "offline",
+            lat:           FieldValue.delete(),
+            lng:           FieldValue.delete(),
+            city:          FieldValue.delete(),
+            zip:           FieldValue.delete(),
             lastLocationAt: FieldValue.delete(),
-            lastSeenAt:     FieldValue.serverTimestamp(),
-            updatedAt:      FieldValue.serverTimestamp(),
+            lastSeenAt:    FieldValue.serverTimestamp(),
+            updatedAt:     FieldValue.serverTimestamp(),
           };
         }
 
-        // ── Save to Firestore ──────────────────────────────
-        await db
-          .collection("Drivers")
-          .doc(uid.trim())
-          .set(update, { merge: true });
+        // ── Write to Firestore ─────────────────────────────
+        await db.collection("Drivers").doc(uid.trim()).set(update, { merge: true });
 
-        console.log(
-          `✅ setDriverStatus — uid:${uid} status:${status}` +
-          (needsLocation
-            ? ` lat:${numLat.toFixed(5)} lng:${numLng.toFixed(5)}` +
-              (city ? ` city:${city} zip:${zip}` : "")
-            : "")
-        );
-
-        return res.status(200).json({
-          ok: true,
-          status,
-          city,
-          zip,
-        });
+        return res.status(200).json({ ok: true, status, city, zip });
 
       } catch (err) {
-        console.error("❌ setDriverStatus error:", err.message ?? err);
+        console.error("❌ DriverStatus error:", err);
         return res.status(500).json({
           ok: false,
-          error: err.message ?? "Internal server error",
+          error: err.message || "Internal server error",
         });
       }
     });

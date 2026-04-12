@@ -21,7 +21,7 @@ import { useIncomingRequest } from "@/App/Drivers/useIncomingRequest";
 import { useDriverReviews }   from "@/App/Drivers/useDriverReviews";
 
 // ── Cloud Function URLs ───────────────────────────────────────────────
-const DRIVER_STATUS_URL = "https://setdriverstatus-ady2s2xhhq-uc.a.run.app";
+const DRIVER_STATUS_URL = "https://driverstatus-ady2s2xhhq-uc.a.run.app";
 
 // ── localStorage helpers for seen review IDs ──────────────────────────
 const LS_SEEN_REVIEWS_KEY = 'uatob_driver_seen_reviews';

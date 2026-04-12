@@ -19,7 +19,7 @@ const { setupDeposit } = require("./payments/setupDeposit");
 // driver functions
 const { createDriverProfile } = require("./drivers/createDriverProfile");
 const { checkDriverDeposit } = require("./drivers/checkDriverDeposit");
-const { setDriverStatus } = require("./drivers/setDriverStatus");
+const { DriverStatus } = require("./drivers/DriverStatus");
 const { acceptRide } = require("./drivers/acceptRide");
 const { declineRide } = require("./drivers/declineRide");
 const { updateTripStatus } = require("./drivers/updateTripStatus");
@@ -71,7 +71,7 @@ exports.declineRide = declineRide;
 exports.updateTripStatus = updateTripStatus;
 exports.getTripButtonLabel = getTripButtonLabel;
 exports.createDriverProfile = createDriverProfile;
-exports.setDriverStatus = setDriverStatus;
+exports.DriverStatus = DriverStatus;
 exports.getDriverEarnings = getDriverEarnings;
 exports.calcDriverDistance = calcDriverDistance;
 exports.getDriverToPickup = getDriverToPickup;
