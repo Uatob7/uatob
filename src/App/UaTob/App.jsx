@@ -176,6 +176,25 @@ const EXTRA_CSS = `
     box-shadow:0 1px 6px rgba(0,0,0,.1);
   }
 
+  /* ── Terms line ── */
+  .auth-terms {
+    text-align:center;
+    font-size:11px;
+    color:#9CA3AF;
+    font-family:'Outfit',system-ui,sans-serif;
+    line-height:1.6;
+    margin-top:14px;
+    margin-bottom:4px;
+  }
+  .auth-terms a {
+    color:#6B7280;
+    font-weight:600;
+    text-decoration:underline;
+    text-underline-offset:2px;
+    transition:color .15s;
+  }
+  .auth-terms a:hover { color:#16A34A; }
+
   .uatob-footer {
     border-top:1px solid #E5E7EB;
     margin-top:64px;
@@ -285,6 +304,18 @@ const EXTRA_CSS = `
   }
 `;
 
+// ── Shared terms line ──────────────────────────────────────────────────
+function AuthTerms() {
+  return (
+    <p className="auth-terms">
+      By continuing, you agree to our{' '}
+      <a href="#terms" target="_blank" rel="noopener noreferrer">Terms of Service</a>
+      {' '}and{' '}
+      <a href="#privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
+    </p>
+  );
+}
+
 // ── Inline Auth Modal ──────────────────────────────────────────────────
 function InlineAuthModal({ onClose, onAuthSuccess }) {
   const [mode,     setMode]     = useState('login');
@@ -392,7 +423,10 @@ function InlineAuthModal({ onClose, onAuthSuccess }) {
           </button>
         </form>
 
-        <div style={{ textAlign:'center', marginTop:16, fontSize:13, color:'#6B7280' }}>
+        {/* ── Terms ── */}
+        <AuthTerms />
+
+        <div style={{ textAlign:'center', marginTop:10, fontSize:13, color:'#6B7280' }}>
           {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
           <button className="auth-toggle-link"
             onClick={() => { setMode(m => m === 'login' ? 'signup' : 'login'); setError(''); }}>
@@ -696,7 +730,6 @@ export default function UaTobApp({ uid }) {
         {/* ── INITIAL STATE: Hero + UatobView ── */}
         {!isCompact && !isTracking && (
           <>
-            {/* Hero */}
             {!activeRide && (
               <div style={{ marginBottom:'32px', animation: mounted ? 'slideUp .65s ease-out .08s forwards' : 'none', opacity:0 }}>
                 <div style={{
@@ -723,7 +756,6 @@ export default function UaTobApp({ uid }) {
               </div>
             )}
 
-            {/* ── UatobView with bottom spacing ── */}
             <div style={{ marginBottom:'36px' }}>
               <UatobView bookingPayload={null} />
             </div>
@@ -792,6 +824,7 @@ export default function UaTobApp({ uid }) {
           onClose={() => setShowBookingAuth(false)}
           loading={authLoading}
           error={authError}
+          showTerms={showTerms}
         />
       )}
 
