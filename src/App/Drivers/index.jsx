@@ -711,7 +711,11 @@ export default function UaTobDriverApp({ uid }) {
           <div style={{ display: "flex", gap: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 5, background: C.surface, borderRadius: 100, padding: "6px 12px" }}>
               <Star size={11} fill="#F59E0B" color="#F59E0B" />
-              <span>4.93</span>
+              <span>
+              {driver?.averageRating != null
+               ? driver.averageRating.toFixed(2)
+               : "—"}
+             </span>
             </div>
             <button><Bell size={15} /></button>
           </div>
