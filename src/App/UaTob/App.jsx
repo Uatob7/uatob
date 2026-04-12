@@ -4,6 +4,7 @@ import { Route, User, LogIn, X, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { THEME as T } from '@/App/UaTob/pricing.js';
 import CSS from '@/App/UaTob/styles.js';
 import { UaTobWordmark } from '@/App/UaTob/Brand.jsx';
+import UatobView from '@/App/UaTob/UatobView.jsx';
 import MapView from '@/App/UaTob/MapView.jsx';
 import BookingPanel from '@/App/UaTob/BookingPanel.jsx';
 import LiveTrackingPanel from '@/App/UaTob/LiveTrackingPanel.jsx';
@@ -423,12 +424,7 @@ function UaTobFooter({ onBookRideClick }) {
             Orlando, FL
           </div>
           <div style={{ marginTop:14 }}>
-            <a
-              className="footer-driver-cta"
-              href="https://uatob.com/driver/signup"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
+            <a className="footer-driver-cta" href="https://uatob.com/driver/signup" target="_blank" rel="noopener noreferrer">
               <Route size={12} />
               Drive with UaTob
             </a>
@@ -495,10 +491,8 @@ function UaTobFooter({ onBookRideClick }) {
     </footer>
   );
 }
-
 // ── MAIN APP ───────────────────────────────────────────────────────────
 export default function UaTobApp({ uid }) {
-
   const { uid: authUid } = useAuthContext();
   const resolvedUid = authUid ?? uid;
 
@@ -620,11 +614,14 @@ export default function UaTobApp({ uid }) {
 
   const handlePaymentSuccess = () => setShowPayment(false);
 
+  // ── Full reset — back to hero + UatobView + footer ─────────────────
   const resetRide = () => {
+    clearSession();
     setBookingPayload(null);
     setPickupCoords(null);
     setDropoffCoords(null);
-    clearSession();
+    setShowPayment(false);
+    setShowBookingAuth(false);
   };
 
   const handleReviewSubmitted = (rideId) => {
@@ -641,6 +638,10 @@ export default function UaTobApp({ uid }) {
     saveReviewed(updated);
     setReviewingRide(null);
   };
+
+  // ── Derived view flags ─────────────────────────────────────────────
+  // isCompact = user has a bookingPayload but is not yet in a live ride
+  const isCompact = !!bookingPayload && !isTracking;
 
   // ── Header right ───────────────────────────────────────────────────
   const HeaderRight = () => (
@@ -682,10 +683,10 @@ export default function UaTobApp({ uid }) {
 
       <div style={{ maxWidth:'680px', margin:'0 auto', padding:'28px 20px 0', position:'relative', zIndex:1 }}>
 
-        {/* Header */}
+        {/* ── Header: always visible ───────────────────────────────── */}
         <div style={{
           display:'flex', alignItems:'center', justifyContent:'space-between',
-          marginBottom:'40px',
+          marginBottom: isCompact ? '24px' : '40px',
           animation: mounted ? 'slideUp .55s ease-out forwards' : 'none',
           opacity:0,
         }}>
@@ -693,53 +694,69 @@ export default function UaTobApp({ uid }) {
           <HeaderRight />
         </div>
 
-        {/* Hero */}
-        {!activeRide && !bookingPayload && (
-          <div style={{ marginBottom:'32px', animation: mounted ? 'slideUp .65s ease-out .08s forwards' : 'none', opacity:0 }}>
-            <div style={{
-              display:'inline-flex', alignItems:'center', gap:'6px',
-              background:T.accentLight, border:`1px solid ${T.accentBorder}`,
-              borderRadius:'100px', padding:'5px 14px',
-              fontSize:'11px', fontWeight:700, color:T.accent,
-              letterSpacing:'1px', textTransform:'uppercase', marginBottom:'18px',
-            }}>
-              <Route size={12} />
-              Distance-Based Pricing
-            </div>
-            <h1 style={{ fontSize:'clamp(30px,6vw,52px)', fontWeight:900, lineHeight:1.02, letterSpacing:'-2px', marginBottom:'14px', color:T.text }}>
-              Your destination,
-              <br />
-              <span style={{ background:'linear-gradient(135deg,#111827 0%,#16A34A 100%)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text' }}>
-                always waiting.
-              </span>
-            </h1>
-            <p style={{ fontSize:'15px', color:T.textMuted, fontWeight:500, lineHeight:1.65 }}>
-              Fare is calculated live based on the actual
-              <br />distance from A to B — no surprises.
-            </p>
-          </div>
+        {/* ── INITIAL STATE: Hero + UatobView ─────────────────────── */}
+        {!isCompact && !isTracking && (
+          <>
+            {/* Hero — hide once a ride is active */}
+            {!activeRide && (
+              <div style={{ marginBottom:'32px', animation: mounted ? 'slideUp .65s ease-out .08s forwards' : 'none', opacity:0 }}>
+                <div style={{
+                  display:'inline-flex', alignItems:'center', gap:'6px',
+                  background:T.accentLight, border:`1px solid ${T.accentBorder}`,
+                  borderRadius:'100px', padding:'5px 14px',
+                  fontSize:'11px', fontWeight:700, color:T.accent,
+                  letterSpacing:'1px', textTransform:'uppercase', marginBottom:'18px',
+                }}>
+                  <Route size={12} />
+                  Distance-Based Pricing
+                </div>
+                <h1 style={{ fontSize:'clamp(30px,6vw,52px)', fontWeight:900, lineHeight:1.02, letterSpacing:'-2px', marginBottom:'14px', color:T.text }}>
+                  Your destination,
+                  <br />
+                  <span style={{ background:'linear-gradient(135deg,#111827 0%,#16A34A 100%)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text' }}>
+                    always waiting.
+                  </span>
+                </h1>
+                <p style={{ fontSize:'15px', color:T.textMuted, fontWeight:500, lineHeight:1.65 }}>
+                  Fare is calculated live based on the actual
+                  <br />distance from A to B — no surprises.
+                </p>
+              </div>
+            )}
+
+            {/* UatobView — only on the initial landing screen */}
+            <UatobView bookingPayload={null} />
+          </>
         )}
 
-        {/* Map */}
-        {!isTracking && (
-          <div style={{ marginBottom:'14px', animation: mounted ? 'slideUp .65s ease-out .12s forwards' : 'none', opacity:0 }}>
+        {/* ── COMPACT STATE: MapView ───────────────────────────────── */}
+        {isCompact && (
+          <div style={{
+            marginBottom:'16px',
+            animation: mounted ? 'slideUp .45s ease-out forwards' : 'none',
+            opacity:0,
+          }}>
             <MapView bookingPayload={bookingPayload} />
           </div>
         )}
 
-        {/* Main panel */}
+        {/* ── Main panel: BookingPanel or LiveTrackingPanel ────────── */}
         <div style={{ animation: mounted ? 'slideUp .65s ease-out .18s forwards' : 'none', opacity:0 }}>
           {isTracking ? (
             <LiveTrackingPanel active={active} onRideDone={resetRide} />
           ) : (
-            <BookingPanel onBookNow={handleBookNow} onPayloadChange={handlePayloadChange} />
+            <BookingPanel
+              onBookNow={handleBookNow}
+              onPayloadChange={handlePayloadChange}
+              onCancel={resetRide}
+            />
           )}
         </div>
 
       </div>
 
-      {/* Footer */}
-      {!isTracking && !bookingPayload && (
+      {/* ── Footer: only on initial screen ──────────────────────────── */}
+      {!isCompact && !isTracking && (
         <UaTobFooter
           onBookRideClick={() => {
             if (!resolvedUid) {
@@ -751,7 +768,7 @@ export default function UaTobApp({ uid }) {
         />
       )}
 
-      {/* Inline header auth modal */}
+      {/* ── Inline header auth modal ─────────────────────────────────── */}
       {showAuthModal && !resolvedUid && (
         <InlineAuthModal
           onClose={() => setShowAuthModal(false)}
@@ -759,7 +776,7 @@ export default function UaTobApp({ uid }) {
         />
       )}
 
-      {/* Booking-flow auth modal */}
+      {/* ── Booking-flow auth modal ──────────────────────────────────── */}
       {showBookingAuth && !resolvedUid && (
         <AuthModal
           authMode={authMode}
@@ -777,7 +794,7 @@ export default function UaTobApp({ uid }) {
         />
       )}
 
-      {/* Payment modal */}
+      {/* ── Payment modal ────────────────────────────────────────────── */}
       {showPayment && bookingPayload && (
         <PaymentModal
           uid={resolvedUid}
@@ -785,11 +802,11 @@ export default function UaTobApp({ uid }) {
           selectedPayment={selectedPayment}
           setSelectedPayment={setSelectedPayment}
           onSuccess={handlePaymentSuccess}
-          onClose={() => setShowPayment(false)}
+          onClose={resetRide}
         />
       )}
 
-      {/* Confirmation modal */}
+      {/* ── Confirmation modal (searching for driver) ────────────────── */}
       {isSearching && (
         <ConfirmationModal
           rides={rides}
@@ -800,7 +817,7 @@ export default function UaTobApp({ uid }) {
         />
       )}
 
-      {/* Review modal */}
+      {/* ── Review modal ─────────────────────────────────────────────── */}
       {reviewingRide && !isTracking && !isSearching && (
         <ReviewModal
           ride={reviewingRide}
@@ -810,7 +827,7 @@ export default function UaTobApp({ uid }) {
         />
       )}
 
-      {/* Rider dashboard overlay */}
+      {/* ── Rider dashboard overlay ──────────────────────────────────── */}
       {showDashboard && resolvedUid && (
         <div style={{
           position:'fixed', inset:0, zIndex:400,
