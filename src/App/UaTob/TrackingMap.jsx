@@ -596,48 +596,9 @@ export default function TrackingMap({
             )}
           </div>
 
-          {/* Address row */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <div style={{
-              background: '#F8FAFC',
-              border: '1px solid #E2E8F0',
-              borderRadius: 12,
-              padding: '8px 12px',
-            }}>
-              <div style={{
-                fontSize: 9, color: '#94A3B8', fontWeight: 800,
-                letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 3,
-              }}>
-                Pickup
-              </div>
-              <div style={{
-                fontSize: 12, fontWeight: 700, color: '#0F172A',
-                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-              }}>
-                {payload.pickup?.split(',')[0] ?? '—'}
-              </div>
-            </div>
-
-            <div style={{
-              background: '#F0FDF4',
-              border: '1px solid #BBF7D0',
-              borderRadius: 12,
-              padding: '8px 12px',
-            }}>
-              <div style={{
-                fontSize: 9, color: '#86EFAC', fontWeight: 800,
-                letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 3,
-              }}>
-                Dropoff
-              </div>
-              <div style={{
-                fontSize: 12, fontWeight: 700, color: '#14532D',
-                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-              }}>
-                {payload.dropoff?.split(',')[0] ?? '—'}
-              </div>
-            </div>
-          </div>
+         
+           
+          
 
         </div>
       )}
