@@ -18,6 +18,7 @@ import Achievements   from '@/App/Drivers/Achievements.jsx';
  *   onAdvanceTrip   — handler for trip stage advance
  */
 export default function HomeTab({
+  driver,
   online,
   activeTrip,
   tripStage,
@@ -50,7 +51,7 @@ export default function HomeTab({
 
       <LiveMap online={online} activeTrip={activeTrip}/>
 
-      <Achievements online={online}/>
+      <Achievements online={online} driver={driver}/>
     </div>
   );
 }

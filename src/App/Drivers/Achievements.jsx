@@ -1,19 +1,14 @@
 import { Car, Wallet, Award, MessageSquare } from 'lucide-react';
 import { C } from '@/App/Drivers/constants.js';
 
-/**
- * Props:
- *   online — bool
- *   totalTrips — number
- *   payoutReady — bool
- *   reviewsCount — number
- */
-export default function Achievements({
-  online,
-  totalTrips = 0,
-  payoutReady = false,
-  reviewsCount = 0,
-}) {
+export default function Achievements({ driver }) {
+  if (!driver) return null;
+
+  const totalTrips = driver.totalRides || 0;
+  const reviewsCount = driver.totalReviews || 0;
+  const payoutReady = !!driver.payoutMethod;
+  const online = driver.status === "online";
+
   const BADGES = [
     {
       icon: Car,

@@ -38,6 +38,7 @@ const { updateDriverPresence } = require("./drivers/updateDriverPresence");
 const { setDriverTripActive } = require("./drivers/setDriverTripActive");
 const { onRideCreated } = require("./drivers/onRideCreated");
 const { onReviewCreated } = require("./drivers/onReviewCreated");
+const { updateDriverAchievements } = require("./drivers/updateDriverAchievements");
 
 
 
@@ -80,6 +81,7 @@ exports.updateDriverPresence = updateDriverPresence;
 exports.setDriverTripActive = setDriverTripActive;
 exports.onRideCreated = onRideCreated;
 exports.onDriverCreated = onDriverCreated;
+exports.updateDriverAchievements = updateDriverAchievements;
 exports.onDriverApplicationSubmitted = onDriverApplicationSubmitted;
 exports.withdraw = withdraw;
 

@@ -724,6 +724,7 @@ export default function UaTobDriverApp({ uid }) {
         {/* Tabs */}
         {activeTab === "home" && (
           <HomeTab
+            driver={driver}
             online={online}
             rides={rides}
             activeTrip={activeTrip}
