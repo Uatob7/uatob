@@ -824,7 +824,7 @@ export default function UaTobApp({ uid }) {
           onClose={() => setShowBookingAuth(false)}
           loading={authLoading}
           error={authError}
-          showTerms={showTerms}
+   
         />
       )}
 

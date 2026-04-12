@@ -63,13 +63,8 @@ const PRICING = {
 };
 
 // ── HELPERS ──────────────────────────────────────────────
-function round2(n) {
-  return Number(Number(n).toFixed(2));
-}
-
-function clamp(n, min, max) {
-  return Math.min(Math.max(Number(n), min), max);
-}
+const round2 = (n) => Number(Number(n).toFixed(2));
+const clamp = (n, min, max) => Math.min(Math.max(Number(n), min), max);
 
 // ── PRICE CALCULATION ────────────────────────────────────
 function calculateRidePrice(p, miles, minutes) {
@@ -114,8 +109,6 @@ function calculateRidePrice(p, miles, minutes) {
     ];
   }
 
-  const breakdown = Object.fromEntries(receipt.map(r => [r.key, r.amount]));
-
   return {
     id: p.id,
     label: p.label,
@@ -124,7 +117,6 @@ function calculateRidePrice(p, miles, minutes) {
     capacity: p.capacity,
     total,
     receipt,
-    breakdown,
   };
 }
 
@@ -157,16 +149,18 @@ exports.Price = onRequest(
         }
 
         if (req.method !== "POST") {
-          return res.status(405).json({ ok: false, error: "POST only" });
+          return res.status(405).json({ error: "Method Not Allowed" });
         }
 
-        const body = req.body || {};
+        if (!req.body) {
+          return res.status(400).json({ error: "Missing request body" });
+        }
 
-        const miles = Number(body.miles);
-        const minutes = Number(body.durationMin);
+        const miles = Number(req.body.miles);
+        const minutes = Number(req.body.durationMin);
 
         const err = validate(miles, minutes);
-        if (err) return res.status(400).json({ ok: false, error: err });
+        if (err) return res.status(400).json({ error: err });
 
         const cleanMiles = clamp(round2(miles), 0, 300);
         const cleanMinutes = clamp(round2(minutes), 0, 600);
@@ -178,38 +172,39 @@ exports.Price = onRequest(
           ])
         );
 
-        await db.collection("Search").add({
-          pickup: body.pickup ?? null,
-          dropoff: body.dropoff ?? null,
+        // ✅ SAFE FIRESTORE WRITE
+        try {
+          await db.collection("Search").add({
+            pickup: req.body.pickup ?? null,
+            dropoff: req.body.dropoff ?? null,
 
-          pickupCity: body.pickupCity ?? null,
-          dropoffCity: body.dropoffCity ?? null,
+            pickupData: req.body.pickup ?? null,   // match ATOB structure
+            dropoffData: req.body.dropoff ?? null,
 
-          pickupLat: body.pickupLat ?? null,
-          pickupLng: body.pickupLng ?? null,
-          dropoffLat: body.dropoffLat ?? null,
-          dropoffLng: body.dropoffLng ?? null,
+            miles: cleanMiles,
+            minutes: cleanMinutes,
 
-          miles: cleanMiles,
-          minutes: cleanMinutes,
+            polyline: req.body.polyline ?? null,
+            rides,
 
-          polyline: body.polyline ?? null,
-
-          rides,
-
-          createdAt: FieldValue.serverTimestamp(),
-        });
+            createdAt: FieldValue.serverTimestamp(),
+          });
+        } catch (dbErr) {
+          console.error("Firestore write failed:", dbErr.message);
+        }
 
         return res.status(200).json({
-          ok: true,
           trip: { miles: cleanMiles, minutes: cleanMinutes },
           rides,
           currency: "USD",
+          ok: true,
           generatedAt: new Date().toISOString(),
         });
       } catch (e) {
         console.error(e);
-        return res.status(500).json({ ok: false, error: "Server error" });
+        return res.status(500).json({
+          error: e.message || "Server error",
+        });
       }
     });
   }

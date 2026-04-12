@@ -40,7 +40,7 @@ function extractLocationData(result) {
   };
 }
 
-// 🌍 Geocode
+// 🌍 Geocode (legacy but reliable)
 async function geocodeAddress(address, apiKey) {
   try {
     const res = await axios.get(
@@ -69,7 +69,6 @@ exports.ATOB = onRequest(
   {
     region: "us-central1",
     secrets: [GOOGLE_MAPS_KEY],
-    invoker: "public",
   },
   (req, res) => {
     cors(req, res, async () => {
@@ -83,7 +82,12 @@ exports.ATOB = onRequest(
           return res.status(405).json({ error: "Method Not Allowed" });
         }
 
-        const { origin, destination } = req.body || {};
+        if (!req.body) {
+          return res.status(400).json({ error: "Missing request body" });
+        }
+
+        const origin = String(req.body.origin ?? "").trim();
+        const destination = String(req.body.destination ?? "").trim();
 
         if (!origin || !destination) {
           return res.status(400).json({
@@ -93,16 +97,12 @@ exports.ATOB = onRequest(
 
         const apiKey = GOOGLE_MAPS_KEY.value();
 
-        // 🧭 Routes API
-        const routeResponse = await axios.post(
+        // 🧭 ROUTES API
+        const routePromise = axios.post(
           "https://routes.googleapis.com/directions/v2:computeRoutes",
           {
-            origin: {
-              address: origin,
-            },
-            destination: {
-              address: destination,
-            },
+            origin: { address: origin },
+            destination: { address: destination },
             travelMode: "DRIVE",
             routingPreference: "TRAFFIC_AWARE",
           },
@@ -117,6 +117,15 @@ exports.ATOB = onRequest(
           }
         );
 
+        // 🌍 GEOCODE IN PARALLEL
+        const geoPromise = Promise.all([
+          geocodeAddress(origin, apiKey),
+          geocodeAddress(destination, apiKey),
+        ]);
+
+        const [routeResponse, [pickupGeo, dropoffGeo]] =
+          await Promise.all([routePromise, geoPromise]);
+
         const routes = routeResponse.data?.routes;
 
         if (!routes || routes.length === 0) {
@@ -125,18 +134,14 @@ exports.ATOB = onRequest(
 
         const route = routes[0];
 
-        const miles = route.distanceMeters / 1609.34;
-        const seconds = Number(route.duration?.replace("s", "") || 0);
+        const distanceMeters = route.distanceMeters ?? 0;
+        const miles = distanceMeters / 1609.34;
+
+        const seconds = parseInt(route.duration?.replace("s", "") || "0", 10);
         const minutes = Math.ceil(seconds / 60);
 
-        // 🌍 Geocode in parallel
-        const [pickupGeo, dropoffGeo] = await Promise.all([
-          geocodeAddress(origin, apiKey),
-          geocodeAddress(destination, apiKey),
-        ]);
-
-        // 🧾 Response object
-        const searchData = {
+        // 🧾 RESPONSE
+        return res.status(200).json({
           origin,
           destination,
 
@@ -144,25 +149,17 @@ exports.ATOB = onRequest(
           duration_minutes: minutes,
 
           route: {
-            distanceMeters: route.distanceMeters,
+            distanceMeters,
             duration_seconds: seconds,
             polyline: route.polyline?.encodedPolyline ?? null,
           },
 
-          pickupCity: pickupGeo.city,
-          pickupZip: pickupGeo.zip,
-          pickupLat: pickupGeo.lat,
-          pickupLng: pickupGeo.lng,
-
-          dropoffCity: dropoffGeo.city,
-          dropoffZip: dropoffGeo.zip,
-          dropoffLat: dropoffGeo.lat,
-          dropoffLng: dropoffGeo.lng,
+          pickup: pickupGeo,
+          dropoff: dropoffGeo,
 
           createdAt: FieldValue.serverTimestamp(),
-        };
-
-        return res.status(200).json(searchData);
+          status: "OK",
+        });
       } catch (error) {
         console.error(
           "❌ Routes API error:",
@@ -170,8 +167,10 @@ exports.ATOB = onRequest(
         );
 
         return res.status(500).json({
-          error: "Error calculating route",
-          details: error?.response?.data || error.message,
+          error:
+            error?.response?.data?.error?.message ||
+            error.message ||
+            "Route calculation failed",
         });
       }
     });
