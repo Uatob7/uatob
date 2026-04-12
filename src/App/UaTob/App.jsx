@@ -491,6 +491,7 @@ function UaTobFooter({ onBookRideClick }) {
     </footer>
   );
 }
+
 // ── MAIN APP ───────────────────────────────────────────────────────────
 export default function UaTobApp({ uid }) {
   const { uid: authUid } = useAuthContext();
@@ -614,7 +615,6 @@ export default function UaTobApp({ uid }) {
 
   const handlePaymentSuccess = () => setShowPayment(false);
 
-  // ── Full reset — back to hero + UatobView + footer ─────────────────
   const resetRide = () => {
     clearSession();
     setBookingPayload(null);
@@ -640,7 +640,6 @@ export default function UaTobApp({ uid }) {
   };
 
   // ── Derived view flags ─────────────────────────────────────────────
-  // isCompact = user has a bookingPayload but is not yet in a live ride
   const isCompact = !!bookingPayload && !isTracking;
 
   // ── Header right ───────────────────────────────────────────────────
@@ -683,7 +682,7 @@ export default function UaTobApp({ uid }) {
 
       <div style={{ maxWidth:'680px', margin:'0 auto', padding:'28px 20px 0', position:'relative', zIndex:1 }}>
 
-        {/* ── Header: always visible ───────────────────────────────── */}
+        {/* ── Header ── */}
         <div style={{
           display:'flex', alignItems:'center', justifyContent:'space-between',
           marginBottom: isCompact ? '24px' : '40px',
@@ -694,10 +693,10 @@ export default function UaTobApp({ uid }) {
           <HeaderRight />
         </div>
 
-        {/* ── INITIAL STATE: Hero + UatobView ─────────────────────── */}
+        {/* ── INITIAL STATE: Hero + UatobView ── */}
         {!isCompact && !isTracking && (
           <>
-            {/* Hero — hide once a ride is active */}
+            {/* Hero */}
             {!activeRide && (
               <div style={{ marginBottom:'32px', animation: mounted ? 'slideUp .65s ease-out .08s forwards' : 'none', opacity:0 }}>
                 <div style={{
@@ -724,12 +723,14 @@ export default function UaTobApp({ uid }) {
               </div>
             )}
 
-            {/* UatobView — only on the initial landing screen */}
-            <UatobView bookingPayload={null} />
+            {/* ── UatobView with bottom spacing ── */}
+            <div style={{ marginBottom:'36px' }}>
+              <UatobView bookingPayload={null} />
+            </div>
           </>
         )}
 
-        {/* ── COMPACT STATE: MapView ───────────────────────────────── */}
+        {/* ── COMPACT STATE: MapView ── */}
         {isCompact && (
           <div style={{
             marginBottom:'16px',
@@ -740,7 +741,7 @@ export default function UaTobApp({ uid }) {
           </div>
         )}
 
-        {/* ── Main panel: BookingPanel or LiveTrackingPanel ────────── */}
+        {/* ── Main panel ── */}
         <div style={{ animation: mounted ? 'slideUp .65s ease-out .18s forwards' : 'none', opacity:0 }}>
           {isTracking ? (
             <LiveTrackingPanel active={active} onRideDone={resetRide} />
@@ -755,7 +756,7 @@ export default function UaTobApp({ uid }) {
 
       </div>
 
-      {/* ── Footer: only on initial screen ──────────────────────────── */}
+      {/* ── Footer ── */}
       {!isCompact && !isTracking && (
         <UaTobFooter
           onBookRideClick={() => {
@@ -768,7 +769,7 @@ export default function UaTobApp({ uid }) {
         />
       )}
 
-      {/* ── Inline header auth modal ─────────────────────────────────── */}
+      {/* ── Inline header auth modal ── */}
       {showAuthModal && !resolvedUid && (
         <InlineAuthModal
           onClose={() => setShowAuthModal(false)}
@@ -776,7 +777,7 @@ export default function UaTobApp({ uid }) {
         />
       )}
 
-      {/* ── Booking-flow auth modal ──────────────────────────────────── */}
+      {/* ── Booking-flow auth modal ── */}
       {showBookingAuth && !resolvedUid && (
         <AuthModal
           authMode={authMode}
@@ -794,7 +795,7 @@ export default function UaTobApp({ uid }) {
         />
       )}
 
-      {/* ── Payment modal ────────────────────────────────────────────── */}
+      {/* ── Payment modal ── */}
       {showPayment && bookingPayload && (
         <PaymentModal
           uid={resolvedUid}
@@ -806,7 +807,7 @@ export default function UaTobApp({ uid }) {
         />
       )}
 
-      {/* ── Confirmation modal (searching for driver) ────────────────── */}
+      {/* ── Confirmation modal ── */}
       {isSearching && (
         <ConfirmationModal
           rides={rides}
@@ -817,7 +818,7 @@ export default function UaTobApp({ uid }) {
         />
       )}
 
-      {/* ── Review modal ─────────────────────────────────────────────── */}
+      {/* ── Review modal ── */}
       {reviewingRide && !isTracking && !isSearching && (
         <ReviewModal
           ride={reviewingRide}
@@ -827,7 +828,7 @@ export default function UaTobApp({ uid }) {
         />
       )}
 
-      {/* ── Rider dashboard overlay ──────────────────────────────────── */}
+      {/* ── Rider dashboard overlay ── */}
       {showDashboard && resolvedUid && (
         <div style={{
           position:'fixed', inset:0, zIndex:400,
