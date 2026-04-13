@@ -1,17 +1,25 @@
 // src/App/UaTob/LiveTrackingPanel.jsx
-import React, { useMemo, useEffect, useState } from 'react';
-import { Car, Star, Check, Phone, MapPin, Navigation } from 'lucide-react';
+import React, { useMemo, useEffect, useState, useRef } from 'react';
+import { Car, Star, Check, Phone, MapPin, Navigation, MessageCircle, Send, X, ChevronDown } from 'lucide-react';
 import { THEME as T } from '@/App/UaTob/pricing.js';
-import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
+import {
+  getFirestore,
+  doc,
+  onSnapshot,
+  addDoc,
+  collection,
+  serverTimestamp,
+} from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 import TrackingMap from '@/App/UaTob/TrackingMap.jsx';
 
 // ── Status → progress steps ────────────────────────────────
 const STEPS = [
-  { key: 'driver_assigned', label: 'Assigned'  },
-  { key: 'driver_arriving', label: 'En Route'  },
-  { key: 'arrived',         label: 'Arrived'   },
-  { key: 'in_progress',     label: 'Riding'    },
-  { key: 'completed',       label: 'Done'      },
+  { key: 'driver_assigned', label: 'Assigned' },
+  { key: 'driver_arriving', label: 'En Route' },
+  { key: 'arrived',         label: 'Arrived'  },
+  { key: 'in_progress',     label: 'Riding'   },
+  { key: 'completed',       label: 'Done'     },
 ];
 
 const STATUS_ORDER = [
@@ -38,9 +46,9 @@ function buildProgress(liveStatus) {
   const currentIndex = STATUS_ORDER.indexOf(liveStatus);
   return STEPS.map((step) => {
     const stepIndex = STATUS_ORDER.indexOf(step.key);
-    if (currentIndex === -1)      return { ...step, status: 'pending'   };
-    if (stepIndex < currentIndex) return { ...step, status: 'completed' };
-    if (stepIndex === currentIndex) return { ...step, status: 'current' };
+    if (currentIndex === -1)        return { ...step, status: 'pending'   };
+    if (stepIndex < currentIndex)   return { ...step, status: 'completed' };
+    if (stepIndex === currentIndex) return { ...step, status: 'current'   };
     return { ...step, status: 'pending' };
   });
 }
@@ -110,45 +118,302 @@ function Pill({ children, color = T.accent }) {
   );
 }
 
-// ── Stat cell ──────────────────────────────────────────────
-function StatCell({ label, value, unit, accent = T.accent }) {
+// ── Message Panel ─────────────────────────────────────────
+function MessagePanel({ rideId, driverUid, driverName, driverColor, onClose }) {
+  const [messages, setMessages]   = useState([]);
+  const [input, setInput]         = useState('');
+  const [sending, setSending]     = useState(false);
+  const [sent, setSent]           = useState(false);
+  const bottomRef                 = useRef(null);
+  const auth                      = getAuth();
+  const db                        = getFirestore();
+  const riderUid                  = auth.currentUser?.uid ?? null;
+
+  // Quick-reply suggestions
+  const QUICK_REPLIES = [
+    "I'm outside 👋",
+    'On my way down',
+    'Give me 2 min',
+    'At the main entrance',
+  ];
+
+  // ── Real-time messages listener ────────────────────────
+  useEffect(() => {
+    if (!rideId) return;
+    const ref  = collection(db, 'Rides', rideId, 'Messages');
+    const unsub = onSnapshot(ref, (snap) => {
+      const msgs = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0));
+      setMessages(msgs);
+    });
+    return () => unsub();
+  }, [rideId]);
+
+  // Auto-scroll to latest message
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // ── Send message ───────────────────────────────────────
+  async function sendMessage(text) {
+    const trimmed = (text ?? input).trim();
+    if (!trimmed || !rideId || !riderUid) return;
+    setSending(true);
+    try {
+      await addDoc(collection(db, 'Rides', rideId, 'Messages'), {
+        text: trimmed,
+        senderUid:  riderUid,
+        senderRole: 'rider',
+        createdAt:  serverTimestamp(),
+        readByDriver: false,
+      });
+      setInput('');
+      setSent(true);
+      setTimeout(() => setSent(false), 2000);
+    } catch (err) {
+      console.error('Message send failed:', err);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  function formatTime(ts) {
+    if (!ts?.seconds) return '';
+    return new Date(ts.seconds * 1000).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
   return (
-    <div style={{ textAlign: 'center' }}>
+    <div
+      style={{
+        background: T.surfaceAlt,
+        border: `1.5px solid ${driverColor}30`,
+        borderRadius: '18px',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      {/* ── Header ── */}
       <div
         style={{
-          fontSize: '11px',
-          fontWeight: 600,
-          color: T.textMuted,
-          letterSpacing: '0.6px',
-          textTransform: 'uppercase',
-          marginBottom: '6px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '14px 16px',
+          borderBottom: `1px solid ${T.border}`,
+          background: `${driverColor}08`,
         }}
       >
-        {label}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <MessageCircle size={15} color={driverColor} />
+          <span style={{ fontSize: '13px', fontWeight: 700, color: T.text }}>
+            Message {driverName || 'Driver'}
+          </span>
+        </div>
+        <button
+          onClick={onClose}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            fontSize: '11px',
+            fontWeight: 700,
+            color: T.textMuted,
+            padding: '4px 8px',
+            borderRadius: '8px',
+          }}
+        >
+          <ChevronDown size={14} />
+          Hide
+        </button>
       </div>
+
+      {/* ── Message list ── */}
       <div
         style={{
-          fontFamily: '"JetBrains Mono", monospace',
-          fontSize: '34px',
-          fontWeight: 700,
-          letterSpacing: '-1.5px',
-          color: accent,
-          lineHeight: 1,
+          minHeight: '160px',
+          maxHeight: '240px',
+          overflowY: 'auto',
+          padding: '14px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
         }}
       >
-        {value}
-        {unit && (
-          <span
+        {messages.length === 0 && (
+          <div
             style={{
-              fontSize: '15px',
-              fontWeight: 400,
+              textAlign: 'center',
               color: T.textMuted,
-              marginLeft: '3px',
+              fontSize: '12px',
+              fontWeight: 500,
+              marginTop: '20px',
             }}
           >
-            {unit}
-          </span>
+            No messages yet. Say hi to your driver!
+          </div>
         )}
+        {messages.map((msg) => {
+          const isRider = msg.senderRole === 'rider';
+          return (
+            <div
+              key={msg.id}
+              style={{
+                display: 'flex',
+                justifyContent: isRider ? 'flex-end' : 'flex-start',
+              }}
+            >
+              <div
+                style={{
+                  maxWidth: '78%',
+                  padding: '9px 13px',
+                  borderRadius: isRider ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+                  background: isRider
+                    ? `linear-gradient(135deg,${driverColor},${driverColor}cc)`
+                    : T.surface ?? '#F9FAFB',
+                  border: isRider ? 'none' : `1px solid ${T.border}`,
+                  boxShadow: isRider ? `0 2px 10px ${driverColor}30` : 'none',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    color: isRider ? '#fff' : T.text,
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {msg.text}
+                </div>
+                <div
+                  style={{
+                    fontSize: '10px',
+                    color: isRider ? 'rgba(255,255,255,0.65)' : T.textMuted,
+                    marginTop: '4px',
+                    textAlign: isRider ? 'right' : 'left',
+                  }}
+                >
+                  {formatTime(msg.createdAt)}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* ── Quick replies ── */}
+      <div
+        style={{
+          display: 'flex',
+          gap: '6px',
+          padding: '0 16px 10px',
+          flexWrap: 'wrap',
+        }}
+      >
+        {QUICK_REPLIES.map((qr) => (
+          <button
+            key={qr}
+            onClick={() => sendMessage(qr)}
+            style={{
+              background: 'none',
+              border: `1px solid ${T.border}`,
+              borderRadius: '99px',
+              padding: '4px 10px',
+              fontSize: '11px',
+              fontWeight: 600,
+              color: T.textMuted,
+              cursor: 'pointer',
+              transition: 'all .15s',
+              whiteSpace: 'nowrap',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = driverColor;
+              e.currentTarget.style.color = driverColor;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = T.border;
+              e.currentTarget.style.color = T.textMuted;
+            }}
+          >
+            {qr}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Input row ── */}
+      <div
+        style={{
+          display: 'flex',
+          gap: '8px',
+          padding: '10px 16px 14px',
+          borderTop: `1px solid ${T.border}`,
+          alignItems: 'flex-end',
+        }}
+      >
+        <textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              sendMessage();
+            }
+          }}
+          placeholder="Type a message…"
+          rows={1}
+          style={{
+            flex: 1,
+            resize: 'none',
+            background: T.surface ?? '#F9FAFB',
+            border: `1.5px solid ${T.border}`,
+            borderRadius: '12px',
+            padding: '10px 13px',
+            fontSize: '13px',
+            color: T.text,
+            fontFamily: 'inherit',
+            outline: 'none',
+            lineHeight: 1.4,
+            transition: 'border-color .2s',
+            maxHeight: '80px',
+            overflowY: 'auto',
+          }}
+          onFocus={(e) => (e.target.style.borderColor = driverColor)}
+          onBlur={(e)  => (e.target.style.borderColor = T.border)}
+        />
+        <button
+          onClick={() => sendMessage()}
+          disabled={!input.trim() || sending}
+          style={{
+            width: '40px',
+            height: '40px',
+            borderRadius: '12px',
+            border: 'none',
+            background: !input.trim() || sending
+              ? T.border
+              : `linear-gradient(135deg,${driverColor},${driverColor}cc)`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: !input.trim() || sending ? 'not-allowed' : 'pointer',
+            flexShrink: 0,
+            transition: 'all .2s',
+            boxShadow: input.trim() ? `0 2px 10px ${driverColor}35` : 'none',
+          }}
+        >
+          {sent ? (
+            <Check size={16} color="#fff" strokeWidth={3} />
+          ) : (
+            <Send size={15} color={!input.trim() || sending ? T.textMuted : '#fff'} />
+          )}
+        </button>
       </div>
     </div>
   );
@@ -156,7 +421,8 @@ function StatCell({ label, value, unit, accent = T.accent }) {
 
 // ── Main component ─────────────────────────────────────────
 export default function LiveTrackingPanel({ active, onRideDone }) {
-  const [driverDoc, setDriverDoc] = useState(null);
+  const [driverDoc, setDriverDoc]       = useState(null);
+  const [showMessage, setShowMessage]   = useState(false);
 
   const currentRide = useMemo(() => {
     if (!active?.length) return null;
@@ -207,15 +473,15 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
   }, [currentRide]);
 
   // ── Driver info ────────────────────────────────────────
-  const driverFirstName = driverDoc?.firstName ?? '';
-  const driverLastName  = driverDoc?.lastName  ?? '';
+  const driverFirstName  = driverDoc?.firstName ?? '';
+  const driverLastName   = driverDoc?.lastName  ?? '';
   const driverName = driverFirstName || driverLastName
     ? `${driverFirstName} ${driverLastName}`.trim()
     : null;
 
-  const vehicle    = driverDoc?.vehicle ?? null;
-  const driverPhone = driverDoc?.contact?.phone ?? null;
-  const driverRating = driverDoc?.rating ?? null;
+  const vehicle      = driverDoc?.vehicle ?? null;
+  const driverPhone  = driverDoc?.contact?.phone ?? null;
+  const driverRating = driverDoc?.averageRating ?? null;
 
   // ── Live position ──────────────────────────────────────
   const driverLat = currentRide?.driverLat ?? null;
@@ -229,21 +495,17 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
     return { x: +x.toFixed(1), y: +y.toFixed(1) };
   }, [driverLat, driverLng, hasLiveLocation]);
 
-  // ── ETA / distance — both legs always available ────────
+  // ── ETA / distance ─────────────────────────────────────
   const headingToPickup  = ['driver_assigned', 'driver_arriving'].includes(liveStatus);
   const headingToDropoff = ['arrived', 'in_progress'].includes(liveStatus);
 
-  // Leg 1: driver → pickup
-  const driverDistanceMiles = currentRide?.driverDistanceMiles ?? null;
-  const driverEtaMin        = currentRide?.driverEtaMin        ?? null;
-
-  // Leg 2: pickup → dropoff
+  const driverDistanceMiles  = currentRide?.driverDistanceMiles  ?? null;
+  const driverEtaMin         = currentRide?.driverEtaMin         ?? null;
   const dropoffDistanceMiles = currentRide?.dropoffDistanceMiles ?? null;
   const dropoffEtaMin        = currentRide?.dropoffEtaMin        ?? null;
 
-  // Legacy single values (still used by map etc.)
-  const distanceMiles = headingToPickup  ? driverDistanceMiles  : dropoffDistanceMiles;
-  const etaMin        = headingToPickup  ? driverEtaMin         : dropoffEtaMin;
+  const distanceMiles = headingToPickup ? driverDistanceMiles : dropoffDistanceMiles;
+  const etaMin        = headingToPickup ? driverEtaMin        : dropoffEtaMin;
 
   // ── Empty state ────────────────────────────────────────
   if (!currentRide) {
@@ -277,15 +539,15 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
 
       {/* ── Map ── */}
       <TrackingMap
-  bookingPayload={currentRide}
-  rideStatus={liveStatus}
-  driverPos={driverPos}
-  isTracking={true}
-  driverDistanceMiles={driverDistanceMiles}     // 0.14 when heading to pickup
-  dropoffDistanceMiles={dropoffDistanceMiles}
-  distanceMiles={distanceMiles}
-  etaMin={etaMin}
-/>
+        bookingPayload={currentRide}
+        rideStatus={liveStatus}
+        driverPos={driverPos}
+        isTracking={true}
+        driverDistanceMiles={driverDistanceMiles}
+        dropoffDistanceMiles={dropoffDistanceMiles}
+        distanceMiles={distanceMiles}
+        etaMin={etaMin}
+      />
 
       {/* ── Header row ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -406,263 +668,227 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
         ))}
       </div>
 
-      {/* ── Route Timeline — both legs always visible ── */}
-      {(driverDistanceMiles !== null || dropoffDistanceMiles !== null) && (
-        <div
-          style={{
-            background: T.surfaceAlt,
-            border: `1.5px solid ${T.border}`,
-            borderRadius: '16px',
-            padding: '18px 20px',
-          }}
-        >
-          {/* Spine row */}
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '14px' }}>
-
-            {/* Driver dot */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-              <div
-                style={{
-                  width: '10px',
-                  height: '10px',
-                  borderRadius: '50%',
-                  background: headingToPickup ? driverColor : T.border,
-                  boxShadow: headingToPickup ? `0 0 0 3px ${driverColor}22` : 'none',
-                  transition: 'all .4s',
-                }}
-              />
-            </div>
-
-            {/* Leg 1 line — driver → pickup */}
+      {/* ── Route Timeline + Route Card + Message Panel — mutually exclusive ── */}
+      {showMessage ? (
+        <MessagePanel
+          rideId={currentRide?.id ?? currentRide?.rideId}
+          driverUid={driverUid}
+          driverName={driverName}
+          driverColor={driverColor}
+          onClose={() => setShowMessage(false)}
+        />
+      ) : (
+        <>
+          {/* ── Route Timeline ── */}
+          {(driverDistanceMiles !== null || dropoffDistanceMiles !== null) && (
             <div
               style={{
-                flex: 1,
-                height: '2px',
-                background: headingToPickup
-                  ? `linear-gradient(90deg,${driverColor},${driverColor}88)`
-                  : T.border,
-                transition: 'all .4s',
-                position: 'relative',
-              }}
-            />
-
-            {/* Pickup dot */}
-            <div
-              style={{
-                width: '12px',
-                height: '12px',
-                borderRadius: '50%',
-                background: T.ink,
-                border: `2px solid ${headingToPickup ? T.border : T.ink}`,
-                flexShrink: 0,
-                transition: 'all .4s',
-              }}
-            />
-
-            {/* Leg 2 line — pickup → dropoff */}
-            <div
-              style={{
-                flex: 1,
-                height: '2px',
-                background: headingToDropoff
-                  ? `linear-gradient(90deg,${T.accent},${T.accent}88)`
-                  : T.border,
-                transition: 'all .4s',
-              }}
-            />
-
-            {/* Dropoff diamond */}
-            <div
-              style={{
-                width: '10px',
-                height: '10px',
-                background: headingToDropoff ? T.accent : T.border,
-                borderRadius: '2px',
-                transform: 'rotate(45deg)',
-                flexShrink: 0,
-                transition: 'all .4s',
-              }}
-            />
-          </div>
-
-          {/* Labels row */}
-          <div style={{ display: 'flex', alignItems: 'flex-start' }}>
-
-            {/* Leg 1 stat */}
-            <div style={{ flexShrink: 0, maxWidth: '80px' }}>
-              <div
-                style={{
-                  fontSize: '10px',
-                  fontWeight: 700,
-                  color: headingToPickup ? driverColor : T.textMuted,
-                  letterSpacing: '0.5px',
-                  textTransform: 'uppercase',
-                  marginBottom: '3px',
-                  transition: 'color .4s',
-                }}
-              >
-                Driver
-              </div>
-              {driverDistanceMiles !== null ? (
-                <>
-                  <div
-                    style={{
-                      fontFamily: '"JetBrains Mono", monospace',
-                      fontSize: headingToPickup ? '22px' : '15px',
-                      fontWeight: 700,
-                      color: headingToPickup ? driverColor : T.textMuted,
-                      lineHeight: 1,
-                      transition: 'all .4s',
-                    }}
-                  >
-                    {driverDistanceMiles}
-                    <span style={{ fontSize: '11px', fontWeight: 400, marginLeft: '2px' }}>mi</span>
-                  </div>
-                  {driverEtaMin !== null && (
-                    <div style={{ fontSize: '11px', color: headingToPickup ? driverColor : T.textMuted, marginTop: '2px', transition: 'color .4s' }}>
-                      {driverEtaMin} min away
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div style={{ fontSize: '11px', color: T.textMuted }}>—</div>
-              )}
-            </div>
-
-            {/* Pickup label — centered */}
-            <div style={{ flex: 1, textAlign: 'center', padding: '0 8px' }}>
-              <div style={{ fontSize: '10px', fontWeight: 700, color: T.textMuted, letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '3px' }}>
-                Pickup
-              </div>
-              <div
-                style={{
-                  fontSize: '11px',
-                  color: T.textMuted,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {pickup.split(',')[0]}
-              </div>
-            </div>
-
-            {/* Leg 2 stat — right aligned */}
-            <div style={{ flexShrink: 0, maxWidth: '80px', textAlign: 'right' }}>
-              <div
-                style={{
-                  fontSize: '10px',
-                  fontWeight: 700,
-                  color: headingToDropoff ? T.accent : T.textMuted,
-                  letterSpacing: '0.5px',
-                  textTransform: 'uppercase',
-                  marginBottom: '3px',
-                  transition: 'color .4s',
-                }}
-              >
-                Dropoff
-              </div>
-              {dropoffDistanceMiles !== null ? (
-                <>
-                  <div
-                    style={{
-                      fontFamily: '"JetBrains Mono", monospace',
-                      fontSize: headingToDropoff ? '22px' : '15px',
-                      fontWeight: 700,
-                      color: headingToDropoff ? T.accent : T.textMuted,
-                      lineHeight: 1,
-                      transition: 'all .4s',
-                    }}
-                  >
-                    {dropoffDistanceMiles}
-                    <span style={{ fontSize: '11px', fontWeight: 400, marginLeft: '2px' }}>mi</span>
-                  </div>
-                  {dropoffEtaMin !== null && (
-                    <div style={{ fontSize: '11px', color: headingToDropoff ? T.accent : T.textMuted, marginTop: '2px', transition: 'color .4s' }}>
-                      {dropoffEtaMin} min away
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div style={{ fontSize: '11px', color: T.textMuted }}>—</div>
-              )}
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* ── Route card ── */}
-      <div
-        style={{
-          background: T.surfaceAlt,
-          border: `1px solid ${T.border}`,
-          borderRadius: '16px',
-          padding: '18px',
-        }}
-      >
-        <div style={{ display: 'flex', gap: '14px', alignItems: 'stretch' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-            <div style={{ width: '10px', height: '10px', background: T.ink, borderRadius: '50%' }} />
-            <div style={{ width: '1.5px', flex: 1, background: T.border }} />
-            <div
-              style={{
-                width: '10px',
-                height: '10px',
-                background: T.accent,
-                borderRadius: '2px',
-                transform: 'rotate(45deg)',
-              }}
-            />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ marginBottom: '14px' }}>
-              <div className="lbl">From</div>
-              <div
-                style={{
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  color: T.text,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-              >
-                {pickup}
-              </div>
-            </div>
-            <div>
-              <div className="lbl">To</div>
-              <div
-                style={{
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  color: T.text,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-              >
-                {dropoff}
-              </div>
-            </div>
-          </div>
-          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-            <div className="lbl">Trip</div>
-            <div
-              style={{
-                fontFamily: '"JetBrains Mono", monospace',
-                fontSize: '22px',
-                fontWeight: 700,
-                color: T.accent,
+                background: T.surfaceAlt,
+                border: `1.5px solid ${T.border}`,
+                borderRadius: '16px',
+                padding: '18px 20px',
               }}
             >
-              ${total}
+              {/* Spine row */}
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '14px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                  <div
+                    style={{
+                      width: '10px',
+                      height: '10px',
+                      borderRadius: '50%',
+                      background: headingToPickup ? driverColor : T.border,
+                      boxShadow: headingToPickup ? `0 0 0 3px ${driverColor}22` : 'none',
+                      transition: 'all .4s',
+                    }}
+                  />
+                </div>
+                <div
+                  style={{
+                    flex: 1,
+                    height: '2px',
+                    background: headingToPickup
+                      ? `linear-gradient(90deg,${driverColor},${driverColor}88)`
+                      : T.border,
+                    transition: 'all .4s',
+                  }}
+                />
+                <div
+                  style={{
+                    width: '12px',
+                    height: '12px',
+                    borderRadius: '50%',
+                    background: T.ink,
+                    border: `2px solid ${headingToPickup ? T.border : T.ink}`,
+                    flexShrink: 0,
+                    transition: 'all .4s',
+                  }}
+                />
+                <div
+                  style={{
+                    flex: 1,
+                    height: '2px',
+                    background: headingToDropoff
+                      ? `linear-gradient(90deg,${T.accent},${T.accent}88)`
+                      : T.border,
+                    transition: 'all .4s',
+                  }}
+                />
+                <div
+                  style={{
+                    width: '10px',
+                    height: '10px',
+                    background: headingToDropoff ? T.accent : T.border,
+                    borderRadius: '2px',
+                    transform: 'rotate(45deg)',
+                    flexShrink: 0,
+                    transition: 'all .4s',
+                  }}
+                />
+              </div>
+
+              {/* Labels row */}
+              <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+                <div style={{ flexShrink: 0, maxWidth: '80px' }}>
+                  <div
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      color: headingToPickup ? driverColor : T.textMuted,
+                      letterSpacing: '0.5px',
+                      textTransform: 'uppercase',
+                      marginBottom: '3px',
+                      transition: 'color .4s',
+                    }}
+                  >
+                    Driver
+                  </div>
+                  {driverDistanceMiles !== null ? (
+                    <>
+                      <div
+                        style={{
+                          fontFamily: '"JetBrains Mono", monospace',
+                          fontSize: headingToPickup ? '22px' : '15px',
+                          fontWeight: 700,
+                          color: headingToPickup ? driverColor : T.textMuted,
+                          lineHeight: 1,
+                          transition: 'all .4s',
+                        }}
+                      >
+                        {driverDistanceMiles}
+                        <span style={{ fontSize: '11px', fontWeight: 400, marginLeft: '2px' }}>mi</span>
+                      </div>
+                      {driverEtaMin !== null && (
+                        <div style={{ fontSize: '11px', color: headingToPickup ? driverColor : T.textMuted, marginTop: '2px', transition: 'color .4s' }}>
+                          {driverEtaMin} min away
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div style={{ fontSize: '11px', color: T.textMuted }}>—</div>
+                  )}
+                </div>
+
+                <div style={{ flex: 1, textAlign: 'center', padding: '0 8px' }}>
+                  <div style={{ fontSize: '10px', fontWeight: 700, color: T.textMuted, letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '3px' }}>
+                    Pickup
+                  </div>
+                  <div style={{ fontSize: '11px', color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {pickup.split(',')[0]}
+                  </div>
+                </div>
+
+                <div style={{ flexShrink: 0, maxWidth: '80px', textAlign: 'right' }}>
+                  <div
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      color: headingToDropoff ? T.accent : T.textMuted,
+                      letterSpacing: '0.5px',
+                      textTransform: 'uppercase',
+                      marginBottom: '3px',
+                      transition: 'color .4s',
+                    }}
+                  >
+                    Dropoff
+                  </div>
+                  {dropoffDistanceMiles !== null ? (
+                    <>
+                      <div
+                        style={{
+                          fontFamily: '"JetBrains Mono", monospace',
+                          fontSize: headingToDropoff ? '22px' : '15px',
+                          fontWeight: 700,
+                          color: headingToDropoff ? T.accent : T.textMuted,
+                          lineHeight: 1,
+                          transition: 'all .4s',
+                        }}
+                      >
+                        {dropoffDistanceMiles}
+                        <span style={{ fontSize: '11px', fontWeight: 400, marginLeft: '2px' }}>mi</span>
+                      </div>
+                      {dropoffEtaMin !== null && (
+                        <div style={{ fontSize: '11px', color: headingToDropoff ? T.accent : T.textMuted, marginTop: '2px', transition: 'color .4s' }}>
+                          {dropoffEtaMin} min away
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div style={{ fontSize: '11px', color: T.textMuted }}>—</div>
+                  )}
+                </div>
+              </div>
             </div>
-            <div style={{ fontSize: '11px', color: T.textMuted, marginTop: '2px' }}>{miles} mi</div>
+          )}
+
+          {/* ── Route card ── */}
+          <div
+            style={{
+              background: T.surfaceAlt,
+              border: `1px solid ${T.border}`,
+              borderRadius: '16px',
+              padding: '18px',
+            }}
+          >
+            <div style={{ display: 'flex', gap: '14px', alignItems: 'stretch' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                <div style={{ width: '10px', height: '10px', background: T.ink, borderRadius: '50%' }} />
+                <div style={{ width: '1.5px', flex: 1, background: T.border }} />
+                <div
+                  style={{
+                    width: '10px',
+                    height: '10px',
+                    background: T.accent,
+                    borderRadius: '2px',
+                    transform: 'rotate(45deg)',
+                  }}
+                />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ marginBottom: '14px' }}>
+                  <div className="lbl">From</div>
+                  <div style={{ fontSize: '14px', fontWeight: 600, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {pickup}
+                  </div>
+                </div>
+                <div>
+                  <div className="lbl">To</div>
+                  <div style={{ fontSize: '14px', fontWeight: 600, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {dropoff}
+                  </div>
+                </div>
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div className="lbl">Trip</div>
+                <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '22px', fontWeight: 700, color: T.accent }}>
+                  ${total}
+                </div>
+                <div style={{ fontSize: '11px', color: T.textMuted, marginTop: '2px' }}>{miles} mi</div>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
 
       {/* ── Driver card ── */}
       <div
@@ -675,30 +901,21 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
       >
         {/* Top row: avatar + name + rating */}
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', marginBottom: vehicleLabel ? '14px' : 0 }}>
-          <DriverAvatar
-            firstName={driverFirstName}
-            lastName={driverLastName}
-            size={52}
-            color={driverColor}
-          />
+          <DriverAvatar firstName={driverFirstName} lastName={driverLastName} size={52} color={driverColor} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '16px', fontWeight: 800, color: T.text }}>
                 {driverName || 'Finding driver…'}
               </span>
               {driverRating && (
-                <span
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '3px',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    color: '#F59E0B',
-                  }}
-                >
+                <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '12px', fontWeight: 700, color: '#F59E0B' }}>
                   <Star size={11} fill="#F59E0B" />
                   {driverRating}
+                  {driverDoc?.totalReviews && (
+                    <span style={{ fontSize: '11px', fontWeight: 500, color: T.textMuted }}>
+                      ({driverDoc.totalReviews})
+                    </span>
+                  )}
                 </span>
               )}
               {currentRide?.rideLabel && (
@@ -706,26 +923,13 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
               )}
             </div>
 
-            {/* Vehicle info */}
             {vehicleLabel && (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  fontSize: '13px',
-                  color: T.textMuted,
-                  marginBottom: '3px',
-                }}
-              >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', color: T.textMuted, marginBottom: '3px' }}>
                 <Car size={12} />
-                <span>
-                  {vehicleColor ? `${vehicleColor} ` : ''}{vehicleLabel}
-                </span>
+                <span>{vehicleColor ? `${vehicleColor} ` : ''}{vehicleLabel}</span>
               </div>
             )}
 
-            {/* Plate */}
             {vehicle?.plate && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span
@@ -750,7 +954,7 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
             )}
           </div>
 
-          {/* Phone CTA + live pip */}
+          {/* Call + Message CTAs */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', flexShrink: 0 }}>
             {driverPhone && (
               <a
@@ -774,6 +978,30 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
                 Call
               </a>
             )}
+
+            {/* Message button */}
+            <button
+              onClick={() => setShowMessage((v) => !v)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: showMessage ? `${driverColor}18` : 'none',
+                border: `1.5px solid ${showMessage ? driverColor : T.border}`,
+                borderRadius: '10px',
+                padding: '7px 12px',
+                fontSize: '12px',
+                fontWeight: 700,
+                color: showMessage ? driverColor : T.textMuted,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                transition: 'all .2s',
+              }}
+            >
+              <MessageCircle size={12} />
+              {showMessage ? 'Hide' : 'Message'}
+            </button>
+
             {hasLiveLocation && liveStatus !== 'completed' && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <div
