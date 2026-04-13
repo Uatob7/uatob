@@ -672,7 +672,7 @@ export default function UaTobDriverApp({ uid }) {
         />
       )}
 
-      <Notification notification={notification} />
+      <Notification activeTrip={activeTrip} />
 
       <TripRequestModal
         tripRequest={tripRequest}
