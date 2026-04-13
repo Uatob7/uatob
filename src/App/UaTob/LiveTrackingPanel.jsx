@@ -124,12 +124,14 @@ function MessagePanel({ rideId, driverUid, driverName, driverColor, onClose }) {
   const [input, setInput]         = useState('');
   const [sending, setSending]     = useState(false);
   const [sent, setSent]           = useState(false);
-  const bottomRef                 = useRef(null);
+  const listRef                   = useRef(null);   // scrollable container
+  const bottomRef                 = useRef(null);   // sentinel
+  const isAtBottomRef             = useRef(true);   // track if user is near bottom
+  const justSentRef               = useRef(false);  // force-scroll after rider sends
   const auth                      = getAuth();
   const db                        = getFirestore();
   const riderUid                  = auth.currentUser?.uid ?? null;
 
-  // Quick-reply suggestions
   const QUICK_REPLIES = [
     "I'm outside 👋",
     'On my way down',
@@ -137,10 +139,17 @@ function MessagePanel({ rideId, driverUid, driverName, driverColor, onClose }) {
     'At the main entrance',
   ];
 
+  // ── Track scroll position ──────────────────────────────
+  function handleScroll() {
+    const el = listRef.current;
+    if (!el) return;
+    isAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  }
+
   // ── Real-time messages listener ────────────────────────
   useEffect(() => {
     if (!rideId) return;
-    const ref  = collection(db, 'Rides', rideId, 'Messages');
+    const ref   = collection(db, 'Rides', rideId, 'Messages');
     const unsub = onSnapshot(ref, (snap) => {
       const msgs = snap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
@@ -150,9 +159,13 @@ function MessagePanel({ rideId, driverUid, driverName, driverColor, onClose }) {
     return () => unsub();
   }, [rideId]);
 
-  // Auto-scroll to latest message
+  // ── Smart auto-scroll ──────────────────────────────────
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!bottomRef.current) return;
+    if (isAtBottomRef.current || justSentRef.current) {
+      bottomRef.current.scrollIntoView({ behavior: 'smooth' });
+      justSentRef.current = false;
+    }
   }, [messages]);
 
   // ── Send message ───────────────────────────────────────
@@ -160,19 +173,22 @@ function MessagePanel({ rideId, driverUid, driverName, driverColor, onClose }) {
     const trimmed = (text ?? input).trim();
     if (!trimmed || !rideId || !riderUid) return;
     setSending(true);
+    justSentRef.current = true;
     try {
       await addDoc(collection(db, 'Rides', rideId, 'Messages'), {
-        text: trimmed,
-        senderUid:  riderUid,
-        senderRole: 'rider',
-        createdAt:  serverTimestamp(),
+        text:         trimmed,
+        senderUid:    riderUid,
+        senderRole:   'rider',
+        createdAt:    serverTimestamp(),
         readByDriver: false,
+        readByRider:  true,
       });
       setInput('');
       setSent(true);
       setTimeout(() => setSent(false), 2000);
     } catch (err) {
       console.error('Message send failed:', err);
+      justSentRef.current = false;
     } finally {
       setSending(false);
     }
@@ -237,14 +253,18 @@ function MessagePanel({ rideId, driverUid, driverName, driverColor, onClose }) {
 
       {/* ── Message list ── */}
       <div
+        ref={listRef}
+        onScroll={handleScroll}
         style={{
           minHeight: '160px',
           maxHeight: '240px',
           overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
           padding: '14px 16px',
           display: 'flex',
           flexDirection: 'column',
           gap: '8px',
+          overscrollBehavior: 'contain',
         }}
       >
         {messages.length === 0 && (
@@ -260,53 +280,121 @@ function MessagePanel({ rideId, driverUid, driverName, driverColor, onClose }) {
             No messages yet. Say hi to your driver!
           </div>
         )}
-        {messages.map((msg) => {
-          const isRider = msg.senderRole === 'rider';
-          return (
-            <div
-              key={msg.id}
-              style={{
-                display: 'flex',
-                justifyContent: isRider ? 'flex-end' : 'flex-start',
-              }}
-            >
+        {(() => {
+          // Only the last rider-sent message gets the tick
+          const lastRiderIdx = messages.reduce(
+            (acc, m, i) => (m.senderRole === 'rider' ? i : acc), -1
+          );
+          return messages.map((msg, idx) => {
+            const isRider    = msg.senderRole === 'rider';
+            const isLastSent = isRider && idx === lastRiderIdx;
+            const seen       = isLastSent && msg.readByDriver === true;
+
+            return (
               <div
+                key={msg.id}
                 style={{
-                  maxWidth: '78%',
-                  padding: '9px 13px',
-                  borderRadius: isRider ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                  background: isRider
-                    ? `linear-gradient(135deg,${driverColor},${driverColor}cc)`
-                    : T.surface ?? '#F9FAFB',
-                  border: isRider ? 'none' : `1px solid ${T.border}`,
-                  boxShadow: isRider ? `0 2px 10px ${driverColor}30` : 'none',
+                  display: 'flex',
+                  justifyContent: isRider ? 'flex-end' : 'flex-start',
                 }}
               >
                 <div
                   style={{
-                    fontSize: '13px',
-                    fontWeight: 500,
-                    color: isRider ? '#fff' : T.text,
-                    lineHeight: 1.4,
+                    maxWidth: '78%',
+                    padding: '9px 13px',
+                    borderRadius: isRider ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+                    background: isRider
+                      ? `linear-gradient(135deg,${driverColor},${driverColor}cc)`
+                      : T.surface ?? '#F9FAFB',
+                    border: isRider ? 'none' : `1px solid ${T.border}`,
+                    boxShadow: isRider ? `0 2px 10px ${driverColor}30` : 'none',
                   }}
                 >
-                  {msg.text}
-                </div>
-                <div
-                  style={{
-                    fontSize: '10px',
-                    color: isRider ? 'rgba(255,255,255,0.65)' : T.textMuted,
+                  {/* "Driver" label on incoming messages */}
+                  {!isRider && (
+                    <div style={{
+                      fontSize: '9px', fontWeight: 700, color: T.textMuted,
+                      letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '3px',
+                    }}>
+                      Driver
+                    </div>
+                  )}
+                  <div
+                    style={{
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      color: isRider ? '#fff' : T.text,
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {msg.text}
+                  </div>
+
+                  {/* Timestamp + seen tick row */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: isRider ? 'flex-end' : 'flex-start',
+                    gap: '3px',
                     marginTop: '4px',
-                    textAlign: isRider ? 'right' : 'left',
-                  }}
-                >
-                  {formatTime(msg.createdAt)}
+                  }}>
+                    <span style={{
+                      fontSize: '10px',
+                      color: isRider ? 'rgba(255,255,255,0.65)' : T.textMuted,
+                    }}>
+                      {formatTime(msg.createdAt)}
+                    </span>
+
+                    {isLastSent && (
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center',
+                        position: 'relative', width: '18px', height: '11px',
+                        flexShrink: 0,
+                      }}>
+                        {/* First tick — shifts left when seen */}
+                        <svg
+                          width="11" height="8" viewBox="0 0 11 8" fill="none"
+                          style={{
+                            position: 'absolute',
+                            left: seen ? '0px' : '3px',
+                            transition: 'left .2s ease',
+                          }}
+                        >
+                          <path
+                            d="M1 4L3.5 6.5L9.5 1"
+                            stroke={seen ? driverColor : 'rgba(255,255,255,.55)'}
+                            strokeWidth="1.6"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                        {/* Second tick — fades in when seen */}
+                        <svg
+                          width="11" height="8" viewBox="0 0 11 8" fill="none"
+                          style={{
+                            position: 'absolute',
+                            right: '0px',
+                            opacity: seen ? 1 : 0,
+                            transition: 'opacity .25s ease',
+                          }}
+                        >
+                          <path
+                            d="M1 4L3.5 6.5L9.5 1"
+                            stroke={driverColor}
+                            strokeWidth="1.6"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
-        <div ref={bottomRef} />
+            );
+          });
+        })()}
+        <div ref={bottomRef} style={{ height: 1 }} />
       </div>
 
       {/* ── Quick replies ── */}
