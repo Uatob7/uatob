@@ -309,9 +309,9 @@ function AuthTerms() {
   return (
     <p className="auth-terms">
       By continuing, you agree to our{' '}
-      <a href="#terms" target="_blank" rel="noopener noreferrer">Terms of Service</a>
+      <a href="/terms" target="_blank" rel="noopener noreferrer">Terms of Service</a>
       {' '}and{' '}
-      <a href="#privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
+      <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
     </p>
   );
 }
@@ -468,16 +468,16 @@ function UaTobFooter({ onBookRideClick }) {
         <div>
           <div className="footer-col-heading">Ride</div>
           <button className="footer-link" onClick={onBookRideClick}>Book a Ride</button>
-          <a className="footer-link" href="#pricing">Pricing</a>
-          <a className="footer-link" href="#safety">Safety</a>
-          <a className="footer-link" href="#faq">FAQ</a>
+          <a className="footer-link" href="/pricing">Pricing</a>
+          <a className="footer-link" href="/safety">Safety</a>
+          <a className="footer-link" href="/faq">FAQ</a>
         </div>
 
         <div>
           <div className="footer-col-heading">Company</div>
-          <a className="footer-link" href="#about">About</a>
-          <a className="footer-link" href="#blog">Blog</a>
-          <a className="footer-link" href="#careers">Careers</a>
+          <a className="footer-link" href="/about">About</a>
+          <a className="footer-link" href="/blog">Blog</a>
+          <a className="footer-link" href="/careers">Careers</a>
           <a className="footer-link" href="mailto:support@uatob.com">Support</a>
         </div>
 
