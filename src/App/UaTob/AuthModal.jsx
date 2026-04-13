@@ -66,6 +66,27 @@ export default function AuthModal({
             )}
           </button>
         </form>
+
+        {/* ── Terms ── */}
+        <p style={{
+          textAlign: 'center',
+          fontSize: '11px',
+          color: '#9CA3AF',
+          fontFamily: '"Outfit", system-ui, sans-serif',
+          lineHeight: 1.6,
+          marginTop: '14px',
+          marginBottom: '4px',
+        }}>
+          By continuing, you agree to our{' '}
+          <a href="#terms" target="_blank" rel="noopener noreferrer" style={{ color: '#6B7280', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: '2px' }}>
+            Terms of Service
+          </a>
+          {' '}and{' '}
+          <a href="#privacy" target="_blank" rel="noopener noreferrer" style={{ color: '#6B7280', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: '2px' }}>
+            Privacy Policy
+          </a>.
+        </p>
+
       </div>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
