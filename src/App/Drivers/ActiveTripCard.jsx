@@ -23,6 +23,7 @@ import { getAuth } from "firebase/auth";
  *   tripBtnLabel    — CTA button label string
  *   onAdvance       — handler called when CTA is tapped
  *   advancePending  — bool, disables CTA while Cloud Function is in-flight
+ *   onUnreadChange  — (count: number) => void  ← bubble unread up to parent
  */
 export default function ActiveTripCard({
   activeTrip,
@@ -31,9 +32,15 @@ export default function ActiveTripCard({
   tripBtnLabel,
   onAdvance,
   advancePending,
+  onUnreadChange,
 }) {
   const [showMessages, setShowMessages] = useState(false);
   const [unreadCount, setUnreadCount]   = useState(0);
+
+  // Bubble unread count up whenever it changes
+  useEffect(() => {
+    onUnreadChange?.(unreadCount);
+  }, [unreadCount, onUnreadChange]);
 
   if (!activeTrip) return null;
 
@@ -162,7 +169,6 @@ export default function ActiveTripCard({
         }
         .atc-msg-btn.active { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
         .atc-msg-btn:hover  { border-color: var(--accent); color: var(--accent); }
-        /* wrapper keeps badge positioned relative to the icon only */
         .atc-icon-wrap {
           position: relative;
           display: inline-flex;
@@ -201,10 +207,13 @@ export default function ActiveTripCard({
         }
         .atc-msg-list {
           min-height: 140px; max-height: 220px;
-          overflow-y: auto; padding: 12px 14px;
+          overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
+          padding: 12px 14px;
           display: flex; flex-direction: column; gap: 8px;
           background: #fff;
           overscroll-behavior: contain;
+          scroll-behavior: smooth;
         }
         .atc-msg-empty {
           text-align: center; color: #B0B8C4;
@@ -369,7 +378,10 @@ function DriverMessagePanel({ rideId, accent, onUnreadChange }) {
   const [input, setInput]       = useState("");
   const [sending, setSending]   = useState(false);
   const [sent, setSent]         = useState(false);
-  const bottomRef               = useRef(null);
+  const listRef                 = useRef(null);   // ref on the scroll container
+  const bottomRef               = useRef(null);   // sentinel at the bottom
+  const isAtBottomRef           = useRef(true);   // whether user is scrolled to bottom
+  const justSentRef             = useRef(false);  // force-scroll after driver sends
   const auth                    = getAuth();
   const db                      = getFirestore();
   const driverUid               = auth.currentUser?.uid ?? null;
@@ -381,10 +393,18 @@ function DriverMessagePanel({ rideId, accent, onUnreadChange }) {
     "1 min away",
   ];
 
-  // ── Subscribe to messages ───────────────────────────────
+  // ── Track whether user is near the bottom ──────────────────────────
+  function handleScroll() {
+    const el = listRef.current;
+    if (!el) return;
+    // Consider "at bottom" if within 40px of the end
+    isAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  }
+
+  // ── Subscribe to messages ───────────────────────────────────────────
   useEffect(() => {
     if (!rideId) return;
-    const ref  = query(
+    const ref = query(
       collection(db, "Rides", rideId, "Messages"),
       orderBy("createdAt", "asc")
     );
@@ -401,7 +421,7 @@ function DriverMessagePanel({ rideId, accent, onUnreadChange }) {
     return () => unsub();
   }, [rideId]);
 
-  // ── Mark rider messages as read when panel opens ────────
+  // ── Mark rider messages as read when panel opens ────────────────────
   useEffect(() => {
     if (!rideId) return;
     messages.forEach((msg) => {
@@ -413,29 +433,37 @@ function DriverMessagePanel({ rideId, accent, onUnreadChange }) {
     });
   }, [messages, rideId]);
 
-  // ── Auto-scroll ─────────────────────────────────────────
+  // ── Smart auto-scroll: only scroll if user is at the bottom
+  //    or the driver just sent a message ──────────────────────────────
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!bottomRef.current) return;
+    if (isAtBottomRef.current || justSentRef.current) {
+      bottomRef.current.scrollIntoView({ behavior: "smooth" });
+      justSentRef.current = false;
+    }
   }, [messages]);
 
-  // ── Send ────────────────────────────────────────────────
+  // ── Send ────────────────────────────────────────────────────────────
   async function sendMessage(text) {
     const trimmed = (text ?? input).trim();
     if (!trimmed || !rideId || !driverUid) return;
     setSending(true);
+    justSentRef.current = true; // force scroll to bottom after send
     try {
       await addDoc(collection(db, "Rides", rideId, "Messages"), {
         text: trimmed,
-        senderUid:  driverUid,
-        senderRole: "driver",
-        createdAt:  serverTimestamp(),
+        senderUid:   driverUid,
+        senderRole:  "driver",
+        createdAt:   serverTimestamp(),
         readByDriver: true,
+        readByRider:  false,
       });
       setInput("");
       setSent(true);
       setTimeout(() => setSent(false), 2000);
     } catch (err) {
       console.error("Driver message send failed:", err);
+      justSentRef.current = false;
     } finally {
       setSending(false);
     }
@@ -450,58 +478,120 @@ function DriverMessagePanel({ rideId, accent, onUnreadChange }) {
 
   return (
     <div className="atc-msg-panel">
-      {/* Message list */}
-      <div className="atc-msg-list">
+      {/* Message list — ref on the scrollable container */}
+      <div
+        className="atc-msg-list"
+        ref={listRef}
+        onScroll={handleScroll}
+      >
         {messages.length === 0 && (
           <div className="atc-msg-empty">No messages yet. Say hi to your rider!</div>
         )}
-        {messages.map((msg) => {
-          const isDriver = msg.senderRole === "driver";
-          return (
-            <div
-              key={msg.id}
-              style={{ display: "flex", justifyContent: isDriver ? "flex-end" : "flex-start" }}
-            >
+        {(() => {
+          // Index of the last message sent by the driver — only that one shows the tick
+          const lastDriverIdx = messages.reduce(
+            (acc, m, i) => (m.senderRole === "driver" ? i : acc), -1
+          );
+          return messages.map((msg, idx) => {
+            const isDriver   = msg.senderRole === "driver";
+            const isLastSent = isDriver && idx === lastDriverIdx;
+            const seen       = isLastSent && msg.readByRider === true;
+
+            return (
               <div
-                style={{
-                  maxWidth: "78%",
-                  padding: "9px 13px",
-                  borderRadius: isDriver ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
-                  background: isDriver
-                    ? `linear-gradient(135deg, ${accent}, ${accent}cc)`
-                    : "#F3F4F6",
-                  border: isDriver ? "none" : "1px solid #E8ECF0",
-                  boxShadow: isDriver ? `0 2px 10px ${accent}30` : "none",
-                }}
+                key={msg.id}
+                style={{ display: "flex", justifyContent: isDriver ? "flex-end" : "flex-start" }}
               >
-                {/* "Rider" label on incoming messages */}
-                {!isDriver && (
+                <div
+                  style={{
+                    maxWidth: "78%",
+                    padding: "9px 13px",
+                    borderRadius: isDriver ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
+                    background: isDriver
+                      ? `linear-gradient(135deg, ${accent}, ${accent}cc)`
+                      : "#F3F4F6",
+                    border: isDriver ? "none" : "1px solid #E8ECF0",
+                    boxShadow: isDriver ? `0 2px 10px ${accent}30` : "none",
+                  }}
+                >
+                  {!isDriver && (
+                    <div style={{
+                      fontSize: "9px", fontWeight: 700, color: "#9CA3AF",
+                      letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "3px",
+                    }}>
+                      Rider
+                    </div>
+                  )}
                   <div style={{
-                    fontSize: "9px", fontWeight: 700, color: "#9CA3AF",
-                    letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "3px",
+                    fontSize: "13px", fontWeight: 500,
+                    color: isDriver ? "#fff" : "#1A1F2E", lineHeight: 1.4,
                   }}>
-                    Rider
+                    {msg.text}
                   </div>
-                )}
-                <div style={{
-                  fontSize: "13px", fontWeight: 500,
-                  color: isDriver ? "#fff" : "#1A1F2E", lineHeight: 1.4,
-                }}>
-                  {msg.text}
-                </div>
-                <div style={{
-                  fontSize: "10px",
-                  color: isDriver ? "rgba(255,255,255,.6)" : "#9CA3AF",
-                  marginTop: "4px",
-                  textAlign: isDriver ? "right" : "left",
-                }}>
-                  {formatTime(msg.createdAt)}
+
+                  {/* Timestamp row — with tick on last driver message */}
+                  <div style={{
+                    display: "flex", alignItems: "center", justifyContent: isDriver ? "flex-end" : "flex-start",
+                    gap: "3px", marginTop: "4px",
+                  }}>
+                    <span style={{
+                      fontSize: "10px",
+                      color: isDriver ? "rgba(255,255,255,.6)" : "#9CA3AF",
+                    }}>
+                      {formatTime(msg.createdAt)}
+                    </span>
+
+                    {isLastSent && (
+                      <span style={{
+                        display: "inline-flex", alignItems: "center",
+                        position: "relative", width: "18px", height: "11px",
+                        flexShrink: 0,
+                      }}>
+                        {/* First tick — always shown, shifts left when seen to make room for second */}
+                        <svg
+                          width="11" height="8" viewBox="0 0 11 8" fill="none"
+                          style={{
+                            position: "absolute",
+                            left: seen ? "0px" : "3px",
+                            transition: "left .2s ease",
+                          }}
+                        >
+                          <path
+                            d="M1 4L3.5 6.5L9.5 1"
+                            stroke={seen ? accent : "rgba(255,255,255,.55)"}
+                            strokeWidth="1.6"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                        {/* Second tick — only shown when seen, fades in */}
+                        <svg
+                          width="11" height="8" viewBox="0 0 11 8" fill="none"
+                          style={{
+                            position: "absolute",
+                            right: "0px",
+                            opacity: seen ? 1 : 0,
+                            transition: "opacity .25s ease",
+                          }}
+                        >
+                          <path
+                            d="M1 4L3.5 6.5L9.5 1"
+                            stroke={accent}
+                            strokeWidth="1.6"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
-        <div ref={bottomRef} />
+            );
+          });
+        })()}
+        {/* Sentinel — scrolled to only when appropriate */}
+        <div ref={bottomRef} style={{ height: 1 }} />
       </div>
 
       {/* Quick replies */}
