@@ -78,11 +78,11 @@ export default function AuthModal({
           marginBottom: '4px',
         }}>
           By continuing, you agree to our{' '}
-          <a href="#terms" target="_blank" rel="noopener noreferrer" style={{ color: '#6B7280', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: '2px' }}>
+          <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: '#6B7280', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: '2px' }}>
             Terms of Service
           </a>
           {' '}and{' '}
-          <a href="#privacy" target="_blank" rel="noopener noreferrer" style={{ color: '#6B7280', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: '2px' }}>
+          <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: '#6B7280', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: '2px' }}>
             Privacy Policy
           </a>.
         </p>

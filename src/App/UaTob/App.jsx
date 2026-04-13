@@ -491,9 +491,9 @@ function UaTobFooter({ onBookRideClick }) {
             © {new Date().getFullYear()} UaTob · All rights reserved
           </div>
           <div className="footer-legal-links">
-            <a className="footer-legal-link" href="#privacy">Privacy Policy</a>
-            <a className="footer-legal-link" href="#terms">Terms of Service</a>
-            <a className="footer-legal-link" href="#accessibility">Accessibility</a>
+            <a className="footer-legal-link" href="/privacy">Privacy Policy</a>
+            <a className="footer-legal-link" href="/terms">Terms of Service</a>
+            <a className="footer-legal-link" href="/accessibility">Accessibility</a>
           </div>
         </div>
 
