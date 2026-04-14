@@ -1,439 +1,575 @@
-import Head from "next/head";
+// src/App/UaTob/TermsOfService.jsx
+import React from 'react';
+import { THEME as T } from '@/App/UaTob/pricing.js';
 
-export default function TermsOfService() {
+const EFFECTIVE_DATE = 'April 13, 2026';
+
+// ── Typography helpers ─────────────────────────────────────
+function SectionTitle({ number, children }) {
   return (
-    <>
-      <Head>
-        <title>CallTelo — Terms of Service</title>
-        <meta name="description" content="CallTelo Terms of Service - Read our platform rules and policies" />
-      </Head>
+    <div style={{ marginTop: '36px', marginBottom: '10px' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+        <span
+          style={{
+            fontFamily:    '"JetBrains Mono", monospace',
+            fontSize:      '11px',
+            fontWeight:    700,
+            color:         '#16A34A',
+            letterSpacing: '1px',
+            flexShrink:    0,
+          }}
+        >
+          {String(number).padStart(2, '0')}
+        </span>
+        <h2
+          style={{
+            margin:        0,
+            fontSize:      '17px',
+            fontWeight:    800,
+            color:         T.text,
+            letterSpacing: '-0.3px',
+            lineHeight:    1.2,
+          }}
+        >
+          {children}
+        </h2>
+      </div>
+      <div
+        style={{
+          height:     '1.5px',
+          background: `linear-gradient(90deg, #16A34A30, transparent)`,
+          marginTop:  '8px',
+        }}
+      />
+    </div>
+  );
+}
 
-      <main className="min-h-screen bg-gray-50 px-4 py-10">
-        <div className="mx-auto max-w-4xl rounded-2xl bg-white p-8 shadow-sm">
-          <h1 className="mb-6 text-3xl font-bold">Terms of Service</h1>
-          <p className="mb-6 text-sm text-gray-600">
-            Last updated: January 9, 2026 • Effective Date: January 9, 2026
-          </p>
+function SubTitle({ children }) {
+  return (
+    <p
+      style={{
+        margin:       '18px 0 4px',
+        fontSize:     '13px',
+        fontWeight:   700,
+        color:        T.text,
+        letterSpacing:'-0.1px',
+      }}
+    >
+      {children}
+    </p>
+  );
+}
 
-          {/* Introduction */}
-          <section className="mb-8">
-            <h2 className="mb-3 text-xl font-semibold">1. Acceptance of Terms</h2>
-            <p className="mb-3 text-gray-700">
-              Welcome to CallTelo ("we," "our," "us," or "Platform"). By accessing or using CallTelo, 
-              you ("User," "you," or "your") agree to be bound by these Terms of Service ("Terms"), 
-              our Privacy Policy, and all applicable laws and regulations.
-            </p>
-            <p className="text-gray-700">
-              <strong>IF YOU DO NOT AGREE TO THESE TERMS, DO NOT USE CALLTELO.</strong>
-            </p>
-          </section>
+function Body({ children }) {
+  return (
+    <p
+      style={{
+        margin:     '0 0 10px',
+        fontSize:   '13px',
+        fontWeight: 400,
+        color:      T.textMuted,
+        lineHeight: 1.75,
+      }}
+    >
+      {children}
+    </p>
+  );
+}
 
-          {/* Eligibility */}
-          <section className="mb-8">
-            <h2 className="mb-3 text-xl font-semibold">2. Eligibility and Account Requirements</h2>
-            <div className="space-y-3 text-gray-700">
-              <p><strong>2.1 Age Requirement:</strong> You must be at least 18 years of age to use CallTelo. 
-              By creating an account, you represent and warrant that you are 18 or older.</p>
-              
-              <p><strong>2.2 Account Security:</strong> You are responsible for maintaining the confidentiality 
-              of your account credentials. You agree to notify us immediately of any unauthorized access or 
-              security breach.</p>
-              
-              <p><strong>2.3 Accurate Information:</strong> You agree to provide accurate, current, and complete 
-              information during registration and to update such information to keep it accurate and current.</p>
-              
-              <p><strong>2.4 One Account Per Person:</strong> You may only maintain one active account. 
-              Creating multiple accounts to circumvent platform rules or abuse promotions is prohibited.</p>
-            </div>
-          </section>
+function BulletList({ items }) {
+  return (
+    <ul
+      style={{
+        margin:         '4px 0 10px',
+        paddingLeft:    '20px',
+        display:        'flex',
+        flexDirection:  'column',
+        gap:            '5px',
+      }}
+    >
+      {items.map((item, i) => (
+        <li
+          key={i}
+          style={{
+            fontSize:   '13px',
+            color:      T.textMuted,
+            lineHeight: 1.65,
+          }}
+        >
+          {item}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
-          {/* How CallTelo Works */}
-          <section className="mb-8">
-            <h2 className="mb-3 text-xl font-semibold">3. How CallTelo Works</h2>
-            <div className="space-y-3 text-gray-700">
-              <p><strong>3.1 Platform Purpose:</strong> CallTelo is a marketplace connecting people who want 
-              to talk ("Callers") with people willing to receive paid calls ("Posters").</p>
-              
-              <p><strong>3.2 Posting:</strong> Posters pay a fee to list their availability for calls. 
-              Your real phone number remains private and is never displayed to Callers.</p>
-              
-              <p><strong>3.3 Calling:</strong> Callers pay to connect with Posters. All calls are routed 
-              through CallTelo's secure system to protect both parties' privacy.</p>
-              
-              <p><strong>3.4 No Guarantee:</strong> We do not guarantee that Posters will receive calls 
-              or that Callers will reach their desired Poster. Availability depends on user activity.</p>
-            </div>
-          </section>
+function Caps({ children }) {
+  return (
+    <p
+      style={{
+        margin:      '0 0 10px',
+        fontSize:    '12px',
+        fontWeight:  600,
+        color:       T.textMuted,
+        lineHeight:  1.7,
+        background:  T.surfaceAlt ?? '#F9FAFB',
+        border:      `1px solid ${T.border}`,
+        borderRadius:'10px',
+        padding:     '12px 14px',
+      }}
+    >
+      {children}
+    </p>
+  );
+}
 
-          {/* Payments and Fees */}
-          <section className="mb-8">
-            <h2 className="mb-3 text-xl font-semibold">4. Payments, Fees, and Earnings</h2>
-            <div className="space-y-3 text-gray-700">
-              <p><strong>4.1 Posting Fee:</strong> Posting your phone number costs $1.00 per 24-hour listing 
-              unless otherwise indicated. This fee is charged immediately upon posting.</p>
-              
-              <p><strong>4.2 Calling Fee:</strong> Callers pay $1.00 to initiate a call. If the call exceeds 
-              60 seconds, additional charges apply at $0.01 per second ($0.60 per minute).</p>
-              
-              <p><strong>4.3 Poster Earnings:</strong> Posters earn 80% of call revenue for calls exceeding 
-              60 seconds. Calls under 60 seconds generate no earnings for Posters.</p>
-              
-              <p><strong>4.4 Payment Processing:</strong> All payments are processed through Stripe, Cash App, 
-              or other third-party payment processors. You agree to their respective terms of service.</p>
-              
-              <p><strong>4.5 Non-Refundable:</strong> All fees are non-refundable once charged, except as 
-              required by law or at our sole discretion in cases of technical error.</p>
-              
-              <p><strong>4.6 Payout Timing:</strong> Earnings are typically available immediately after calls 
-              end. We reserve the right to hold funds for up to 7 days for security or fraud prevention.</p>
-              
-              <p><strong>4.7 Minimum Payout:</strong> There is no minimum payout threshold. You can withdraw 
-              earnings at any time.</p>
-              
-              <p><strong>4.8 Taxes:</strong> You are solely responsible for reporting and paying all applicable 
-              taxes on earnings. We may report your earnings to tax authorities as required by law.</p>
-              
-              <p><strong>4.9 Failed Payments:</strong> If a payment fails due to insufficient funds, expired 
-              cards, or other reasons, your access may be suspended until payment is resolved.</p>
-            </div>
-          </section>
-
-          {/* Prohibited Content */}
-          <section className="mb-8">
-            <h2 className="mb-3 text-xl font-semibold">5. Prohibited Content and Conduct</h2>
-            <div className="mb-4 rounded-lg bg-red-50 border-2 border-red-200 p-4">
-              <p className="font-semibold text-red-800 mb-2">⚠️ ZERO TOLERANCE POLICY</p>
-              <p className="text-red-700 text-sm">
-                Violation of these content policies will result in immediate account termination, 
-                forfeiture of all earnings, and permanent ban from the platform.
-              </p>
-            </div>
-            
-            <div className="space-y-3 text-gray-700">
-              <p><strong>5.1 Sexually Explicit Content - STRICTLY PROHIBITED:</strong></p>
-              <ul className="list-disc pl-6 space-y-1 mb-3">
-                <li>Nudity, partial nudity, or sexually suggestive imagery</li>
-                <li>Pornographic, obscene, or sexually explicit photos or text</li>
-                <li>Profile photos showing underwear, lingerie, or swimwear in sexual contexts</li>
-                <li>Provocative poses or gestures of a sexual nature</li>
-                <li>Text or descriptions that sexualize the service or suggest adult services</li>
-                <li>Any content that could be construed as solicitation for sexual services</li>
-              </ul>
-              
-              <p><strong>5.2 Illegal Activities - STRICTLY PROHIBITED:</strong></p>
-              <ul className="list-disc pl-6 space-y-1 mb-3">
-                <li>Prostitution, escort services, or sex work of any kind</li>
-                <li>Drug sales, trafficking, or promotion of illegal substances</li>
-                <li>Money laundering or fraudulent financial schemes</li>
-                <li>Human trafficking or exploitation</li>
-                <li>Sale of illegal goods or services</li>
-                <li>Gambling or betting services</li>
-              </ul>
-              
-              <p><strong>5.3 Harmful or Abusive Content - PROHIBITED:</strong></p>
-              <ul className="list-disc pl-6 space-y-1 mb-3">
-                <li>Harassment, bullying, threats, or intimidation</li>
-                <li>Hate speech, discrimination, or content promoting violence</li>
-                <li>Impersonation of others or fraudulent representations</li>
-                <li>Spam, phishing, or other deceptive practices</li>
-                <li>Content promoting self-harm or suicide</li>
-                <li>Child exploitation or endangerment of any kind</li>
-              </ul>
-              
-              <p><strong>5.4 Acceptable Content:</strong></p>
-              <ul className="list-disc pl-6 space-y-1 mb-3">
-                <li>Regular photos of yourself (fully clothed, non-sexual)</li>
-                <li>Professional headshots or casual photos</li>
-                <li>Photos you would show to family members</li>
-                <li>Honest descriptions of conversation topics you're interested in</li>
-                <li>Respectful communication during calls</li>
-              </ul>
-              
-              <p><strong>5.5 Platform Misuse - PROHIBITED:</strong></p>
-              <ul className="list-disc pl-6 space-y-1">
-                <li>Using CallTelo for any purpose other than legitimate conversations</li>
-                <li>Attempting to exchange contact information to circumvent platform fees</li>
-                <li>Sharing or posting others' personal information without consent</li>
-                <li>Manipulating the rating or review system</li>
-                <li>Using automated systems, bots, or scripts</li>
-                <li>Reverse engineering, copying, or scraping the platform</li>
-              </ul>
-            </div>
-          </section>
-
-          {/* Why We Have These Rules */}
-          <section className="mb-8">
-            <h2 className="mb-3 text-xl font-semibold">6. Why These Content Rules Exist</h2>
-            <div className="space-y-3 text-gray-700">
-              <p>Our strict content policies are not arbitrary. They exist because:</p>
-              
-              <p><strong>6.1 Legal Requirements:</strong> Federal law (18 U.S.C. § 2257) requires age 
-              verification and record-keeping for any platform hosting sexually explicit content. 
-              We do not have systems in place for this compliance.</p>
-              
-              <p><strong>6.2 Payment Processor Requirements:</strong> Stripe, Cash App, and all major 
-              payment processors strictly prohibit adult content, escort services, and sexually explicit 
-              material. Violations result in immediate account termination and loss of payment processing.</p>
-              
-              <p><strong>6.3 App Store Compliance:</strong> Apple App Store and Google Play Store prohibit 
-              adult content. Violations prevent us from offering mobile apps.</p>
-              
-              <p><strong>6.4 User Safety:</strong> These policies protect all users by maintaining a 
-              safe, respectful environment focused on genuine conversations.</p>
-              
-              <p className="font-semibold">We cannot and will not make exceptions to these policies, 
-              regardless of user status, tenure, or contribution to the platform.</p>
-            </div>
-          </section>
-
-          {/* Content Moderation */}
-          <section className="mb-8">
-            <h2 className="mb-3 text-xl font-semibold">7. Content Moderation and Enforcement</h2>
-            <div className="space-y-3 text-gray-700">
-              <p><strong>7.1 Automated Systems:</strong> We use automated systems (including AI and 
-              image recognition) to detect prohibited content. These systems may flag your content 
-              for review or automatically remove it.</p>
-              
-              <p><strong>7.2 Human Review:</strong> Flagged content may be reviewed by our moderation team. 
-              We reserve the right to remove any content at our discretion.</p>
-              
-              <p><strong>7.3 User Reports:</strong> Users can report prohibited content. We investigate 
-              all reports and take appropriate action.</p>
-              
-              <p><strong>7.4 Immediate Removal:</strong> Content that violates these Terms may be removed 
-              immediately without notice. Serious violations result in immediate account termination.</p>
-              
-              <p><strong>7.5 No Appeals for Adult Content:</strong> Bans for sexually explicit content, 
-              nudity, or escort services are permanent and not subject to appeal.</p>
-            </div>
-          </section>
-
-          {/* Call Responsibility */}
-          <section className="mb-8">
-            <h2 className="mb-3 text-xl font-semibold">8. Call Conduct and Responsibility</h2>
-            <div className="space-y-3 text-gray-700">
-              <p><strong>8.1 No Monitoring:</strong> CallTelo does not monitor, record, or review the 
-              content of calls made through the platform. Calls are private between participants.</p>
-              
-              <p><strong>8.2 User Responsibility:</strong> You are solely responsible for the content, 
-              legality, and appropriateness of your calls. Exercise good judgment and respect.</p>
-              
-              <p><strong>8.3 Hang Up Anytime:</strong> Either party may end a call at any time for any reason. 
-              You are not obligated to continue uncomfortable or inappropriate calls.</p>
-              
-              <p><strong>8.4 Report Abuse:</strong> If you experience harassment, abuse, or illegal activity 
-              during a call, report it immediately to support@calltelo.com.</p>
-              
-              <p><strong>8.5 Emergency Services:</strong> CallTelo is not intended for emergency communications. 
-              Dial 911 or your local emergency number for emergencies.</p>
-            </div>
-          </section>
-
-          {/* Privacy */}
-          <section className="mb-8">
-            <h2 className="mb-3 text-xl font-semibold">9. Privacy and Data Protection</h2>
-            <div className="space-y-3 text-gray-700">
-              <p><strong>9.1 Phone Number Privacy:</strong> Your real phone number is never displayed to 
-              other users. All calls are routed through our secure system using a proxy number.</p>
-              
-              <p><strong>9.2 Data Collection:</strong> We collect information necessary to provide the service, 
-              including your name, phone number, email, payment information, and usage data. See our Privacy 
-              Policy for details.</p>
-              
-              <p><strong>9.3 No Recording:</strong> CallTelo does not record calls. However, we cannot prevent 
-              users from recording calls on their own devices. Be aware that the other party may be recording.</p>
-              
-              <p><strong>9.4 Information Sharing:</strong> Do not share personal information (email, social media, 
-              other phone numbers) with other users during calls. We are not responsible for information you 
-              voluntarily share.</p>
-            </div>
-          </section>
-
-          {/* Account Termination */}
-          <section className="mb-8">
-            <h2 className="mb-3 text-xl font-semibold">10. Account Suspension and Termination</h2>
-            <div className="space-y-3 text-gray-700">
-              <p><strong>10.1 Our Right to Terminate:</strong> We reserve the right to suspend or terminate 
-              any account at any time, for any reason, including but not limited to:</p>
-              <ul className="list-disc pl-6 space-y-1 mb-3">
-                <li>Violation of these Terms of Service</li>
-                <li>Posting prohibited content</li>
-                <li>Engaging in fraudulent or illegal activity</li>
-                <li>Abusing other users or the platform</li>
-                <li>Chargebacks or payment disputes</li>
-                <li>Creating multiple accounts</li>
-                <li>At our sole discretion if we determine you pose a risk</li>
-              </ul>
-              
-              <p><strong>10.2 Effect of Termination:</strong> Upon termination:</p>
-              <ul className="list-disc pl-6 space-y-1 mb-3">
-                <li>Your account access is immediately revoked</li>
-                <li>Any pending earnings may be forfeited (except as required by law)</li>
-                <li>You may not create a new account without our permission</li>
-                <li>Paid posting fees are not refunded</li>
-              </ul>
-              
-              <p><strong>10.3 Your Right to Terminate:</strong> You may delete your account at any time 
-              through account settings or by contacting support@calltelo.com. Deletion is permanent and 
-              cannot be undone.</p>
-              
-              <p><strong>10.4 Survival:</strong> Sections related to payments, liability, indemnification, 
-              and dispute resolution survive account termination.</p>
-            </div>
-          </section>
-
-          {/* Disclaimers */}
-          <section className="mb-8">
-            <h2 className="mb-3 text-xl font-semibold">11. Disclaimers and Limitations of Liability</h2>
-            <div className="space-y-3 text-gray-700">
-              <p><strong>11.1 "AS IS" Service:</strong> CallTelo is provided "AS IS" and "AS AVAILABLE" 
-              without warranties of any kind, either express or implied, including but not limited to 
-              warranties of merchantability, fitness for a particular purpose, or non-infringement.</p>
-              
-              <p><strong>11.2 No Guarantee of Service:</strong> We do not guarantee that:</p>
-              <ul className="list-disc pl-6 space-y-1 mb-3">
-                <li>The service will be uninterrupted, secure, or error-free</li>
-                <li>Posters will receive calls or earn income</li>
-                <li>Callers will reach their desired Poster</li>
-                <li>Call quality will meet your expectations</li>
-                <li>Technical issues will not occur</li>
-              </ul>
-              
-              <p><strong>11.3 Limitation of Liability:</strong> TO THE FULLEST EXTENT PERMITTED BY LAW, 
-              CALLTELO AND ITS OFFICERS, DIRECTORS, EMPLOYEES, AND AGENTS SHALL NOT BE LIABLE FOR ANY 
-              INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING BUT NOT 
-              LIMITED TO LOST PROFITS, LOST REVENUE, LOST DATA, OR LOSS OF GOODWILL, ARISING FROM:</p>
-              <ul className="list-disc pl-6 space-y-1 mb-3">
-                <li>Your use or inability to use the service</li>
-                <li>Technical issues, bugs, or outages</li>
-                <li>Actions or content of other users</li>
-                <li>Unauthorized access to your account</li>
-                <li>Any other matter relating to the service</li>
-              </ul>
-              
-              <p><strong>11.4 Maximum Liability:</strong> Our total liability to you for all claims 
-              arising from your use of CallTelo shall not exceed the amount you paid us in the 12 months 
-              before the claim arose, or $100, whichever is less.</p>
-              
-              <p><strong>11.5 User Interactions:</strong> We are not responsible for interactions between 
-              users. Users interact at their own risk.</p>
-            </div>
-          </section>
-
-          {/* Indemnification */}
-          <section className="mb-8">
-            <h2 className="mb-3 text-xl font-semibold">12. Indemnification</h2>
-            <div className="space-y-3 text-gray-700">
-              <p>You agree to indemnify, defend, and hold harmless CallTelo, its affiliates, officers, 
-              directors, employees, agents, and partners from and against any claims, liabilities, damages, 
-              losses, costs, or expenses (including reasonable attorneys' fees) arising from:</p>
-              <ul className="list-disc pl-6 space-y-1">
-                <li>Your violation of these Terms</li>
-                <li>Your violation of any law or regulation</li>
-                <li>Your violation of any third-party rights</li>
-                <li>Content you post or calls you make/receive</li>
-                <li>Your use or misuse of the platform</li>
-                <li>Any fraud or illegal activity you engage in</li>
-              </ul>
-            </div>
-          </section>
-
-          {/* Dispute Resolution */}
-          <section className="mb-8">
-            <h2 className="mb-3 text-xl font-semibold">13. Dispute Resolution and Arbitration</h2>
-            <div className="space-y-3 text-gray-700">
-              <p><strong>13.1 Informal Resolution:</strong> Before filing a claim, you agree to contact us 
-              at support@calltelo.com and attempt to resolve the dispute informally for at least 30 days.</p>
-              
-              <p><strong>13.2 Binding Arbitration:</strong> If we cannot resolve a dispute informally, 
-              you agree that any dispute will be resolved through binding arbitration rather than in court, 
-              except where prohibited by law.</p>
-              
-              <p><strong>13.3 Class Action Waiver:</strong> You agree to resolve disputes on an individual 
-              basis only. You waive any right to participate in a class action lawsuit or class-wide arbitration.</p>
-              
-              <p><strong>13.4 Governing Law:</strong> These Terms are governed by the laws of [YOUR STATE], 
-              without regard to conflict of law principles.</p>
-            </div>
-          </section>
-
-          {/* Promotions */}
-          <section className="mb-8">
-            <h2 className="mb-3 text-xl font-semibold">14. Promotions and Special Offers</h2>
-            <div className="space-y-3 text-gray-700">
-              <p><strong>14.1 First 1,000 Users Promotion:</strong> The first 1,000 users to create accounts 
-              receive free automatic reposting for life (a $30/month value). This promotion:</p>
-              <ul className="list-disc pl-6 space-y-1 mb-3">
-                <li>Is a pricing benefit only</li>
-                <li>Does not exempt users from content policies or Terms of Service</li>
-                <li>May be revoked if account is terminated for violations</li>
-                <li>Cannot be transferred to other accounts</li>
-              </ul>
-              
-              <p><strong>14.2 Promotion Terms:</strong> All promotions are subject to availability and may 
-              be modified or terminated at any time. Promotions cannot be combined unless explicitly stated.</p>
-            </div>
-          </section>
-
-          {/* Changes to Terms */}
-          <section className="mb-8">
-            <h2 className="mb-3 text-xl font-semibold">15. Changes to Terms</h2>
-            <div className="space-y-3 text-gray-700">
-              <p><strong>15.1 Right to Modify:</strong> We may update these Terms at any time. When we do, 
-              we will update the "Last Updated" date at the top of this page.</p>
-              
-              <p><strong>15.2 Notice of Changes:</strong> For material changes, we will provide notice through 
-              the platform, via email, or by other means at least 30 days before the changes take effect.</p>
-              
-              <p><strong>15.3 Continued Use:</strong> Your continued use of CallTelo after changes take effect 
-              constitutes acceptance of the updated Terms. If you do not agree to the changes, you must stop 
-              using the platform and delete your account.</p>
-            </div>
-          </section>
-
-          {/* Miscellaneous */}
-          <section className="mb-8">
-            <h2 className="mb-3 text-xl font-semibold">16. Miscellaneous</h2>
-            <div className="space-y-3 text-gray-700">
-              <p><strong>16.1 Entire Agreement:</strong> These Terms, together with our Privacy Policy, 
-              constitute the entire agreement between you and CallTelo.</p>
-              
-              <p><strong>16.2 Severability:</strong> If any provision of these Terms is found to be invalid 
-              or unenforceable, the remaining provisions will remain in full force and effect.</p>
-              
-              <p><strong>16.3 No Waiver:</strong> Our failure to enforce any right or provision of these 
-              Terms does not constitute a waiver of such right or provision.</p>
-              
-              <p><strong>16.4 Assignment:</strong> You may not assign or transfer your rights under these 
-              Terms without our written consent. We may assign our rights and obligations without restriction.</p>
-              
-              <p><strong>16.5 Force Majeure:</strong> We are not liable for any failure or delay in performance 
-              due to circumstances beyond our reasonable control.</p>
-            </div>
-          </section>
-
-          {/* Contact */}
-          <section className="mb-8">
-            <h2 className="mb-3 text-xl font-semibold">17. Contact Information</h2>
-            <div className="space-y-3 text-gray-700">
-              <p>If you have questions about these Terms of Service, please contact us:</p>
-              <ul className="list-none space-y-1">
-                <li><strong>Email:</strong> <a href="mailto:support@calltelo.com" className="text-blue-600 underline">support@calltelo.com</a></li>
-                <li><strong>Website:</strong> <a href="https://calltelo.com" className="text-blue-600 underline">https://calltelo.com</a></li>
-              </ul>
-            </div>
-          </section>
-
-          {/* Acknowledgment */}
-          <section className="mb-8 rounded-lg bg-blue-50 border-2 border-blue-200 p-6">
-            <h2 className="mb-3 text-xl font-semibold text-blue-900">Acknowledgment</h2>
-            <p className="text-blue-800">
-              BY USING CALLTELO, YOU ACKNOWLEDGE THAT YOU HAVE READ, UNDERSTOOD, AND AGREE TO BE BOUND 
-              BY THESE TERMS OF SERVICE. IF YOU DO NOT AGREE, YOU MUST NOT USE THE PLATFORM.
-            </p>
-          </section>
+// ── Main component ─────────────────────────────────────────
+export default function TermsOfService({ onAccept, onDecline, showActions = false }) {
+  return (
+    <div
+      style={{
+        maxWidth:      '720px',
+        margin:        '0 auto',
+        padding:       '0 4px',
+        fontFamily:    'inherit',
+      }}
+    >
+      {/* ── Header ── */}
+      <div
+        style={{
+          textAlign:    'center',
+          padding:      '32px 0 24px',
+          borderBottom: `1.5px solid ${T.border}`,
+          marginBottom: '4px',
+        }}
+      >
+        <div
+          style={{
+            display:        'inline-flex',
+            alignItems:     'center',
+            gap:            '8px',
+            background:     '#16A34A12',
+            border:         '1px solid #16A34A30',
+            borderRadius:   '99px',
+            padding:        '4px 14px',
+            fontSize:       '11px',
+            fontWeight:     700,
+            color:          '#16A34A',
+            letterSpacing:  '0.8px',
+            marginBottom:   '14px',
+          }}
+        >
+          LEGAL AGREEMENT
         </div>
-      </main>
-    </>
+        <h1
+          style={{
+            margin:        0,
+            fontSize:      '28px',
+            fontWeight:    900,
+            color:         T.text,
+            letterSpacing: '-0.6px',
+          }}
+        >
+          Terms of Service
+        </h1>
+        <p style={{ margin: '8px 0 0', fontSize: '13px', color: T.textMuted }}>
+          UaTob LLC &nbsp;·&nbsp; Effective {EFFECTIVE_DATE} &nbsp;·&nbsp; uatob.com
+        </p>
+      </div>
+
+      {/* ── Intro callout ── */}
+      <div
+        style={{
+          background:   '#16A34A08',
+          border:       '1.5px solid #16A34A25',
+          borderRadius: '14px',
+          padding:      '16px 18px',
+          marginTop:    '20px',
+          marginBottom: '4px',
+        }}
+      >
+        <p style={{ margin: 0, fontSize: '13px', color: T.textMuted, lineHeight: 1.7 }}>
+          Please read these Terms carefully before creating an account or using the UaTob platform.
+          By signing up as a <strong style={{ color: T.text }}>Rider</strong> or{' '}
+          <strong style={{ color: T.text }}>Driver</strong>, you agree to be legally bound by these Terms.
+        </p>
+      </div>
+
+      {/* ────────────────────────────────────────────────────── */}
+      {/* SECTION 1 */}
+      <SectionTitle number={1}>Introduction</SectionTitle>
+      <Body>
+        Welcome to UaTob. These Terms of Service ("Terms") govern your access to and use of the UaTob
+        platform, including our website at uatob.com, mobile applications, and related services
+        (collectively, the "Platform"), operated by UaTob LLC ("UaTob," "we," "us," or "our"), based
+        in Orlando, Florida.
+      </Body>
+      <Body>
+        By creating an account, booking a ride, or registering as a driver, you agree to be bound by
+        these Terms. If you do not agree, do not use the Platform. These Terms apply to all users,
+        including Riders, Drivers, and any individual who accesses or uses UaTob services.
+      </Body>
+
+      {/* SECTION 2 */}
+      <SectionTitle number={2}>Eligibility</SectionTitle>
+      <Body>To use the Platform, you must:</Body>
+      <BulletList items={[
+        'Be at least 18 years of age',
+        'Have the legal capacity to enter into a binding contract under applicable law',
+        'Not be prohibited from using the Platform under any applicable laws or regulations',
+        'Provide accurate, complete, and current registration information',
+      ]} />
+      <Body>Drivers must additionally:</Body>
+      <BulletList items={[
+        'Hold a valid driver\'s license issued in the United States',
+        'Maintain valid vehicle registration and insurance as required by Florida law',
+        'Pass UaTob\'s background screening and vehicle inspection process',
+        'Be legally authorized to work in the United States',
+      ]} />
+
+      {/* SECTION 3 */}
+      <SectionTitle number={3}>Accounts and Registration</SectionTitle>
+      <SubTitle>3.1 Account Creation</SubTitle>
+      <Body>
+        To access certain features of the Platform, you must create an account. You agree to provide
+        accurate and complete information during registration and to keep your account information
+        current.
+      </Body>
+      <SubTitle>3.2 Account Security</SubTitle>
+      <Body>
+        You are responsible for maintaining the confidentiality of your account credentials and for
+        all activity that occurs under your account. Notify UaTob immediately at support@uatob.com if
+        you suspect unauthorized access. UaTob is not liable for any loss resulting from unauthorized
+        use of your credentials.
+      </Body>
+      <SubTitle>3.3 One Account Per Person</SubTitle>
+      <Body>
+        Each individual may maintain only one active account. UaTob reserves the right to terminate
+        duplicate or fraudulent accounts without notice.
+      </Body>
+
+      {/* SECTION 4 */}
+      <SectionTitle number={4}>The UaTob Platform</SectionTitle>
+      <SubTitle>4.1 Ride-Sharing Services</SubTitle>
+      <Body>
+        UaTob provides a technology platform that connects independent driver partners ("Drivers") with
+        individuals seeking transportation ("Riders"). UaTob is not a transportation carrier. Drivers
+        are independent contractors — not employees, agents, or representatives of UaTob.
+      </Body>
+      <SubTitle>4.2 No Guarantee of Availability</SubTitle>
+      <Body>
+        UaTob does not guarantee the availability of drivers at any given time or location. Ride
+        availability depends on driver supply, location, and demand within the service area.
+      </Body>
+      <SubTitle>4.3 Service Area</SubTitle>
+      <Body>
+        UaTob currently operates in the Orlando, Florida metropolitan area. Service availability may
+        vary by location and is subject to change without notice.
+      </Body>
+
+      {/* SECTION 5 */}
+      <SectionTitle number={5}>Fares and Payments</SectionTitle>
+      <SubTitle>5.1 Fare Calculation</SubTitle>
+      <Body>
+        Fares are calculated based on a combination of base fare, distance, ride tier, and applicable
+        fees. The estimated fare is displayed before you confirm a booking. Final fares may differ
+        from estimates based on actual trip distance and duration.
+      </Body>
+      <SubTitle>5.2 Payment Processing</SubTitle>
+      <Body>
+        All payments are processed securely through Stripe. By using the Platform, you authorize
+        UaTob to charge your selected payment method for all applicable ride fares, fees, and charges.
+        UaTob uses Stripe Connect to facilitate payments to drivers.
+      </Body>
+      <SubTitle>5.3 Platform Fee</SubTitle>
+      <Body>
+        UaTob retains a platform service fee from each completed ride. Drivers receive the remaining
+        portion of the fare as specified in their Driver Agreement.
+      </Body>
+      <SubTitle>5.4 Cancellations and Refunds</SubTitle>
+      <Body>
+        Cancellation policies vary based on when a cancellation occurs relative to driver assignment
+        and arrival. UaTob reserves the right to charge a cancellation fee where applicable. Refund
+        requests are reviewed on a case-by-case basis and may be submitted to support@uatob.com.
+      </Body>
+      <SubTitle>5.5 Disputes</SubTitle>
+      <Body>
+        If you believe you were charged incorrectly, you must notify UaTob within 30 days of the
+        charge. UaTob will review the dispute and, at its sole discretion, issue a credit or refund
+        where warranted.
+      </Body>
+
+      {/* SECTION 6 */}
+      <SectionTitle number={6}>Rider Conduct</SectionTitle>
+      <Body>As a Rider, you agree to:</Body>
+      <BulletList items={[
+        'Treat drivers with respect and courtesy at all times',
+        'Not engage in discriminatory, abusive, or threatening behavior toward drivers',
+        'Not damage or deface any driver\'s vehicle',
+        'Wear a seatbelt during all rides as required by Florida law',
+        'Not request rides for the purpose of conducting illegal activity',
+        'Not bring prohibited items — including open alcohol containers, illegal substances, or weapons — into a driver\'s vehicle',
+        'Be ready at the designated pickup location at the confirmed time',
+      ]} />
+      <Body>
+        Riders who violate these conduct standards may have their accounts suspended or permanently
+        deactivated.
+      </Body>
+
+      {/* SECTION 7 */}
+      <SectionTitle number={7}>Driver Conduct and Obligations</SectionTitle>
+      <Body>As a Driver, you agree to:</Body>
+      <BulletList items={[
+        'Maintain a valid driver\'s license, vehicle registration, and auto insurance at all times',
+        'Keep your vehicle clean, safe, and in compliance with UaTob\'s vehicle standards',
+        'Comply with all applicable traffic laws and regulations',
+        'Treat riders with professionalism and courtesy',
+        'Not accept or solicit off-platform payments from riders',
+        'Not engage in discrimination based on race, color, religion, sex, national origin, disability, or any other protected characteristic',
+        'Promptly report any accidents, incidents, or safety concerns to UaTob',
+      ]} />
+      <Body>
+        Drivers who violate these obligations may be suspended, deactivated, or removed from the
+        Platform, and may be subject to legal action where applicable.
+      </Body>
+
+      {/* SECTION 8 */}
+      <SectionTitle number={8}>Independent Contractor Relationship</SectionTitle>
+      <Body>
+        Drivers using the UaTob Platform are independent contractors, not employees of UaTob LLC.
+        Nothing in these Terms creates an employment, agency, joint venture, or partnership
+        relationship between UaTob and any Driver. Drivers are solely responsible for determining
+        how, when, and where they provide services, subject to applicable law and UaTob's standards.
+      </Body>
+      <Body>
+        As independent contractors, Drivers are responsible for their own taxes, insurance, and
+        compliance with applicable federal, state, and local laws.
+      </Body>
+
+      {/* SECTION 9 */}
+      <SectionTitle number={9}>Privacy</SectionTitle>
+      <Body>
+        Your use of the Platform is governed by our Privacy Policy, available at uatob.com/privacy.
+        By using the Platform, you consent to the collection, use, and disclosure of your information
+        as described in the Privacy Policy.
+      </Body>
+      <Body>
+        UaTob collects location data from drivers while they are active on the Platform in order to
+        facilitate ride matching and live tracking. Riders may view driver location in real time
+        during an active ride.
+      </Body>
+
+      {/* SECTION 10 */}
+      <SectionTitle number={10}>Intellectual Property</SectionTitle>
+      <Body>
+        All content, features, and functionality of the Platform — including text, graphics, logos,
+        software, and code — are owned by or licensed to UaTob LLC and are protected by applicable
+        intellectual property laws.
+      </Body>
+      <Body>
+        You may not reproduce, distribute, modify, create derivative works of, publicly display, or
+        otherwise exploit any portion of the Platform without UaTob's prior written consent.
+      </Body>
+
+      {/* SECTION 11 */}
+      <SectionTitle number={11}>Prohibited Uses</SectionTitle>
+      <Body>You agree not to use the Platform to:</Body>
+      <BulletList items={[
+        'Violate any applicable law or regulation',
+        'Impersonate any person or entity or misrepresent your affiliation',
+        'Transmit harmful, offensive, or disruptive content through the messaging system',
+        'Attempt to gain unauthorized access to any part of the Platform or its infrastructure',
+        'Use automated tools, bots, or scripts to interact with the Platform',
+        'Interfere with or disrupt the integrity or performance of the Platform',
+        'Collect or harvest user data without authorization',
+      ]} />
+
+      {/* SECTION 12 */}
+      <SectionTitle number={12}>Disclaimers</SectionTitle>
+      <Caps>
+        THE PLATFORM IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, EITHER
+        EXPRESS OR IMPLIED. UATOB DISCLAIMS ALL WARRANTIES, INCLUDING IMPLIED WARRANTIES OF
+        MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. UATOB IS NOT
+        RESPONSIBLE FOR THE CONDUCT, ACTIONS, OR OMISSIONS OF ANY DRIVER OR RIDER ON OR OFF THE
+        PLATFORM.
+      </Caps>
+
+      {/* SECTION 13 */}
+      <SectionTitle number={13}>Limitation of Liability</SectionTitle>
+      <Caps>
+        TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, UATOB LLC AND ITS OFFICERS, DIRECTORS,
+        EMPLOYEES, AGENTS, AND LICENSORS SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL,
+        CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING LOSS OF PROFITS, DATA, OR GOODWILL. IN NO
+        EVENT SHALL UATOB'S TOTAL LIABILITY EXCEED THE GREATER OF (A) THE TOTAL AMOUNT PAID BY YOU
+        TO UATOB IN THE THREE (3) MONTHS PRECEDING THE CLAIM, OR (B) ONE HUNDRED DOLLARS ($100.00).
+      </Caps>
+
+      {/* SECTION 14 */}
+      <SectionTitle number={14}>Indemnification</SectionTitle>
+      <Body>
+        You agree to indemnify, defend, and hold harmless UaTob LLC and its officers, directors,
+        employees, agents, and licensors from and against any claims, liabilities, damages, losses,
+        and expenses — including reasonable attorneys' fees — arising out of or in connection with:
+        (a) your use of the Platform; (b) your violation of these Terms; (c) your violation of any
+        third-party rights; or (d) any ride you provide or receive through the Platform.
+      </Body>
+
+      {/* SECTION 15 */}
+      <SectionTitle number={15}>Governing Law and Dispute Resolution</SectionTitle>
+      <SubTitle>15.1 Governing Law</SubTitle>
+      <Body>
+        These Terms are governed by the laws of the State of Florida, without regard to its conflict
+        of law provisions. Disputes shall be subject to the exclusive jurisdiction of the state and
+        federal courts located in Orange County, Florida.
+      </Body>
+      <SubTitle>15.2 Informal Resolution</SubTitle>
+      <Body>
+        Before initiating any formal legal proceeding, you agree to contact UaTob at legal@uatob.com
+        and attempt to resolve the dispute informally for at least 30 days.
+      </Body>
+      <SubTitle>15.3 Class Action Waiver</SubTitle>
+      <Caps>
+        YOU AND UATOB AGREE THAT EACH MAY BRING CLAIMS AGAINST THE OTHER ONLY IN YOUR OR ITS
+        INDIVIDUAL CAPACITY AND NOT AS A PLAINTIFF OR CLASS MEMBER IN ANY PURPORTED CLASS OR
+        REPRESENTATIVE PROCEEDING.
+      </Caps>
+
+      {/* SECTION 16 */}
+      <SectionTitle number={16}>Termination</SectionTitle>
+      <Body>
+        UaTob reserves the right to suspend or terminate your account at any time, with or without
+        cause and with or without notice. Grounds include violation of these Terms, fraudulent
+        activity, unsafe behavior, or conduct that harms other users or UaTob.
+      </Body>
+      <Body>
+        Upon termination, your right to use the Platform ceases immediately. Sections 10, 12, 13,
+        14, and 15 survive termination.
+      </Body>
+
+      {/* SECTION 17 */}
+      <SectionTitle number={17}>Changes to These Terms</SectionTitle>
+      <Body>
+        UaTob may modify these Terms at any time. When material changes are made, we will update the
+        Effective Date and notify you via email or in-app notification. Continued use of the Platform
+        after such notice constitutes acceptance of the updated Terms.
+      </Body>
+
+      {/* SECTION 18 */}
+      <SectionTitle number={18}>Miscellaneous</SectionTitle>
+      <SubTitle>18.1 Entire Agreement</SubTitle>
+      <Body>
+        These Terms, together with the Privacy Policy and any applicable Driver Agreement, constitute
+        the entire agreement between you and UaTob with respect to the Platform.
+      </Body>
+      <SubTitle>18.2 Severability</SubTitle>
+      <Body>
+        If any provision of these Terms is found to be unenforceable, it shall be modified to the
+        minimum extent necessary, and the remaining provisions shall remain in full force and effect.
+      </Body>
+      <SubTitle>18.3 Waiver</SubTitle>
+      <Body>
+        UaTob's failure to enforce any right or provision shall not be deemed a waiver of such right
+        or provision.
+      </Body>
+      <SubTitle>18.4 Assignment</SubTitle>
+      <Body>
+        You may not assign these Terms without UaTob's prior written consent. UaTob may assign these
+        Terms without restriction.
+      </Body>
+
+      {/* SECTION 19 */}
+      <SectionTitle number={19}>Contact Us</SectionTitle>
+      <Body>If you have any questions about these Terms, please contact us:</Body>
+      <div
+        style={{
+          background:   T.surfaceAlt ?? '#F9FAFB',
+          border:       `1px solid ${T.border}`,
+          borderRadius: '12px',
+          padding:      '16px 18px',
+          marginBottom: '12px',
+        }}
+      >
+        {[
+          ['Company',  'UaTob LLC'],
+          ['Website',  'uatob.com'],
+          ['Legal',    'legal@uatob.com'],
+          ['Support',  'support@uatob.com'],
+          ['Location', 'Orlando, Florida'],
+        ].map(([label, value]) => (
+          <div
+            key={label}
+            style={{ display: 'flex', gap: '12px', marginBottom: '6px', fontSize: '13px' }}
+          >
+            <span style={{ fontWeight: 700, color: T.text, minWidth: '70px' }}>{label}</span>
+            <span style={{ color: T.textMuted }}>{value}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Footer ── */}
+      <div
+        style={{
+          borderTop:  `1px solid ${T.border}`,
+          marginTop:  '24px',
+          paddingTop: '16px',
+          textAlign:  'center',
+          fontSize:   '11px',
+          color:      T.textMuted,
+          paddingBottom: showActions ? '0' : '32px',
+        }}
+      >
+        © {new Date().getFullYear()} UaTob LLC. All rights reserved.
+        &nbsp;·&nbsp; Last updated {EFFECTIVE_DATE}
+      </div>
+
+      {/* ── Optional accept / decline actions ── */}
+      {showActions && (
+        <div
+          style={{
+            display:        'flex',
+            gap:            '10px',
+            padding:        '20px 0 32px',
+            justifyContent: 'center',
+          }}
+        >
+          {onDecline && (
+            <button
+              onClick={onDecline}
+              style={{
+                padding:      '11px 24px',
+                borderRadius: '12px',
+                border:       `1.5px solid ${T.border}`,
+                background:   'none',
+                fontSize:     '13px',
+                fontWeight:   700,
+                color:        T.textMuted,
+                cursor:       'pointer',
+              }}
+            >
+              Decline
+            </button>
+          )}
+          {onAccept && (
+            <button
+              onClick={onAccept}
+              style={{
+                padding:      '11px 28px',
+                borderRadius: '12px',
+                border:       'none',
+                background:   'linear-gradient(135deg,#16A34A,#15803D)',
+                fontSize:     '13px',
+                fontWeight:   700,
+                color:        '#fff',
+                cursor:       'pointer',
+                boxShadow:    '0 4px 14px rgba(22,163,74,.3)',
+              }}
+            >
+              I Agree to the Terms
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
