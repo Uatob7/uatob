@@ -972,54 +972,7 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
                 </div>
               </div>
 
-              {/* ── Rider-to-dropoff distance row (shows during in_progress) ── */}
-              {liveStatus === 'in_progress' && riderDropoffDistanceMiles !== null && (
-                <div
-                  style={{
-                    marginTop: '14px',
-                    paddingTop: '14px',
-                    borderTop: `1px solid ${T.border}`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    {hasRiderLocation && (
-                      <div
-                        style={{
-                          width: '6px',
-                          height: '6px',
-                          background: T.accent,
-                          borderRadius: '50%',
-                          animation: 'pulse 1.5s ease-in-out infinite',
-                        }}
-                      />
-                    )}
-                    <span style={{ fontSize: '11px', fontWeight: 700, color: T.textMuted, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-                      You → Dropoff
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
-                    <span
-                      style={{
-                        fontFamily: '"JetBrains Mono", monospace',
-                        fontSize: '18px',
-                        fontWeight: 700,
-                        color: T.accent,
-                      }}
-                    >
-                      {riderDropoffDistanceMiles}
-                      <span style={{ fontSize: '11px', fontWeight: 400, marginLeft: '2px' }}>mi</span>
-                    </span>
-                    {riderDropoffEtaMin !== null && (
-                      <span style={{ fontSize: '11px', color: T.accent }}>
-                        {riderDropoffEtaMin} min
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
+          
             </div>
           )}
 
