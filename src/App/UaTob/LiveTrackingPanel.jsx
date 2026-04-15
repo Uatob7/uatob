@@ -13,6 +13,9 @@ import {
 import { getAuth } from 'firebase/auth';
 import TrackingMap from '@/App/UaTob/TrackingMap.jsx';
 
+// ── Cloud Function URLs ────────────────────────────────────────────────
+const RIDER_LOCATION_URL = "https://riderlocation-ady2s2xhhq-ue.a.run.app";
+
 // ── Status → progress steps ────────────────────────────────
 const STEPS = [
   { key: 'driver_assigned', label: 'Assigned' },
@@ -124,10 +127,10 @@ function MessagePanel({ rideId, driverUid, driverName, driverColor, onClose }) {
   const [input, setInput]         = useState('');
   const [sending, setSending]     = useState(false);
   const [sent, setSent]           = useState(false);
-  const listRef                   = useRef(null);   // scrollable container
-  const bottomRef                 = useRef(null);   // sentinel
-  const isAtBottomRef             = useRef(true);   // track if user is near bottom
-  const justSentRef               = useRef(false);  // force-scroll after rider sends
+  const listRef                   = useRef(null);
+  const bottomRef                 = useRef(null);
+  const isAtBottomRef             = useRef(true);
+  const justSentRef               = useRef(false);
   const auth                      = getAuth();
   const db                        = getFirestore();
   const riderUid                  = auth.currentUser?.uid ?? null;
@@ -139,14 +142,12 @@ function MessagePanel({ rideId, driverUid, driverName, driverColor, onClose }) {
     'At the main entrance',
   ];
 
-  // ── Track scroll position ──────────────────────────────
   function handleScroll() {
     const el = listRef.current;
     if (!el) return;
     isAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
   }
 
-  // ── Real-time messages listener ────────────────────────
   useEffect(() => {
     if (!rideId) return;
     const ref   = collection(db, 'Rides', rideId, 'Messages');
@@ -159,7 +160,6 @@ function MessagePanel({ rideId, driverUid, driverName, driverColor, onClose }) {
     return () => unsub();
   }, [rideId]);
 
-  // ── Smart auto-scroll ──────────────────────────────────
   useEffect(() => {
     if (!bottomRef.current) return;
     if (isAtBottomRef.current || justSentRef.current) {
@@ -168,7 +168,6 @@ function MessagePanel({ rideId, driverUid, driverName, driverColor, onClose }) {
     }
   }, [messages]);
 
-  // ── Send message ───────────────────────────────────────
   async function sendMessage(text) {
     const trimmed = (text ?? input).trim();
     if (!trimmed || !rideId || !riderUid) return;
@@ -281,7 +280,6 @@ function MessagePanel({ rideId, driverUid, driverName, driverColor, onClose }) {
           </div>
         )}
         {(() => {
-          // Only the last rider-sent message gets the tick
           const lastRiderIdx = messages.reduce(
             (acc, m, i) => (m.senderRole === 'rider' ? i : acc), -1
           );
@@ -310,7 +308,6 @@ function MessagePanel({ rideId, driverUid, driverName, driverColor, onClose }) {
                     boxShadow: isRider ? `0 2px 10px ${driverColor}30` : 'none',
                   }}
                 >
-                  {/* "Driver" label on incoming messages */}
                   {!isRider && (
                     <div style={{
                       fontSize: '9px', fontWeight: 700, color: T.textMuted,
@@ -330,7 +327,6 @@ function MessagePanel({ rideId, driverUid, driverName, driverColor, onClose }) {
                     {msg.text}
                   </div>
 
-                  {/* Timestamp + seen tick row */}
                   <div style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -351,7 +347,6 @@ function MessagePanel({ rideId, driverUid, driverName, driverColor, onClose }) {
                         position: 'relative', width: '18px', height: '11px',
                         flexShrink: 0,
                       }}>
-                        {/* First tick — shifts left when seen */}
                         <svg
                           width="11" height="8" viewBox="0 0 11 8" fill="none"
                           style={{
@@ -368,7 +363,6 @@ function MessagePanel({ rideId, driverUid, driverName, driverColor, onClose }) {
                             strokeLinejoin="round"
                           />
                         </svg>
-                        {/* Second tick — fades in when seen */}
                         <svg
                           width="11" height="8" viewBox="0 0 11 8" fill="none"
                           style={{
@@ -509,6 +503,8 @@ function MessagePanel({ rideId, driverUid, driverName, driverColor, onClose }) {
 
 // ── Main component ─────────────────────────────────────────
 export default function LiveTrackingPanel({ active, onRideDone }) {
+
+  console.log('LiveTrackingPanel render', { active });
   const [driverDoc, setDriverDoc]       = useState(null);
   const [showMessage, setShowMessage]   = useState(false);
 
@@ -526,6 +522,7 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
 
   const driverUid = currentRide?.driverUid;
 
+  // ── Live driver doc ────────────────────────────────────
   useEffect(() => {
     if (!driverUid) { setDriverDoc(null); return; }
     const db    = getFirestore();
@@ -536,12 +533,51 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
     return () => unsub();
   }, [driverUid]);
 
+  // ── Ride completion callback ───────────────────────────
   useEffect(() => {
     if (currentRide?.status === 'completed') {
       const t = setTimeout(() => onRideDone?.(), 3000);
       return () => clearTimeout(t);
     }
   }, [currentRide?.status]);
+
+  // ── Rider location ping ────────────────────────────────
+  // Fires immediately when a ride becomes active, then every 60 seconds.
+  // Sends riderLat/riderLng to the Rides doc via the riderLocation CF
+  // so the backend can compute rider-to-dropoff distance and ETA.
+  // Stops automatically when the ride is completed or cancelled.
+  useEffect(() => {
+    const rideId = currentRide?.id;
+    const liveStatus = currentRide?.status;
+
+    if (!rideId) return;
+    if (liveStatus === 'completed' || liveStatus === 'cancelled') return;
+
+    const ping = async () => {
+      try {
+        const position = await new Promise((resolve, reject) =>
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 8000,
+            maximumAge: 30000,
+          })
+        );
+        const { latitude: lat, longitude: lng } = position.coords;
+        await fetch(RIDER_LOCATION_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rideId, lat, lng }),
+        });
+        console.log(`📍 Rider location ping — lat:${lat.toFixed(5)} lng:${lng.toFixed(5)}`);
+      } catch (err) {
+        console.warn('📍 Rider location ping failed:', err?.message ?? err);
+      }
+    };
+
+    ping(); // fire immediately on mount / status change
+    const interval = setInterval(ping, 60_000);
+    return () => clearInterval(interval);
+  }, [currentRide?.id, currentRide?.status]);
 
   // ── Derived values ─────────────────────────────────────
   const liveStatus  = currentRide?.status ?? '';
@@ -571,7 +607,7 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
   const driverPhone  = driverDoc?.contact?.phone ?? null;
   const driverRating = driverDoc?.averageRating ?? null;
 
-  // ── Live position ──────────────────────────────────────
+  // ── Live driver position ───────────────────────────────
   const driverLat = currentRide?.driverLat ?? null;
   const driverLng = currentRide?.driverLng ?? null;
   const hasLiveLocation = driverLat !== null && driverLng !== null;
@@ -583,6 +619,11 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
     return { x: +x.toFixed(1), y: +y.toFixed(1) };
   }, [driverLat, driverLng, hasLiveLocation]);
 
+  // ── Live rider position (from Rides doc) ───────────────
+  const riderLat = currentRide?.riderLat ?? null;
+  const riderLng = currentRide?.riderLng ?? null;
+  const hasRiderLocation = riderLat !== null && riderLng !== null;
+
   // ── ETA / distance ─────────────────────────────────────
   const headingToPickup  = ['driver_assigned', 'driver_arriving'].includes(liveStatus);
   const headingToDropoff = ['arrived', 'in_progress'].includes(liveStatus);
@@ -591,6 +632,10 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
   const driverEtaMin         = currentRide?.driverEtaMin         ?? null;
   const dropoffDistanceMiles = currentRide?.dropoffDistanceMiles ?? null;
   const dropoffEtaMin        = currentRide?.dropoffEtaMin        ?? null;
+
+  // ── Rider-to-dropoff distance (computed by backend from riderLat/riderLng) ──
+  const riderDropoffDistanceMiles = currentRide?.riderDropoffDistanceMiles ?? null;
+  const riderDropoffEtaMin        = currentRide?.riderDropoffEtaMin        ?? null;
 
   const distanceMiles = headingToPickup ? driverDistanceMiles : dropoffDistanceMiles;
   const etaMin        = headingToPickup ? driverEtaMin        : dropoffEtaMin;
@@ -926,6 +971,55 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
                   )}
                 </div>
               </div>
+
+              {/* ── Rider-to-dropoff distance row (shows during in_progress) ── */}
+              {liveStatus === 'in_progress' && riderDropoffDistanceMiles !== null && (
+                <div
+                  style={{
+                    marginTop: '14px',
+                    paddingTop: '14px',
+                    borderTop: `1px solid ${T.border}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {hasRiderLocation && (
+                      <div
+                        style={{
+                          width: '6px',
+                          height: '6px',
+                          background: T.accent,
+                          borderRadius: '50%',
+                          animation: 'pulse 1.5s ease-in-out infinite',
+                        }}
+                      />
+                    )}
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: T.textMuted, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                      You → Dropoff
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                    <span
+                      style={{
+                        fontFamily: '"JetBrains Mono", monospace',
+                        fontSize: '18px',
+                        fontWeight: 700,
+                        color: T.accent,
+                      }}
+                    >
+                      {riderDropoffDistanceMiles}
+                      <span style={{ fontSize: '11px', fontWeight: 400, marginLeft: '2px' }}>mi</span>
+                    </span>
+                    {riderDropoffEtaMin !== null && (
+                      <span style={{ fontSize: '11px', color: T.accent }}>
+                        {riderDropoffEtaMin} min
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1067,7 +1161,6 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
               </a>
             )}
 
-            {/* Message button */}
             <button
               onClick={() => setShowMessage((v) => !v)}
               style={{

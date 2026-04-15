@@ -9,6 +9,7 @@ const { Autocomplete } = require("./ride/Autocomplete");
 const { Geo } = require("./ride/Geo"); 
 const { onAccountCreated } = require("./ride/email/onAccountCreated");
 const { onRidesCreated } = require("./ride/email/onRidesCreated");
+const { riderLocation } = require("./ride/riderLocation.JS");
 
 // Payment functions
 const { cardPayment } = require("./payments/cardPayment");
@@ -58,6 +59,7 @@ exports.createAccount = createAccount;
 exports.onAccountCreated = onAccountCreated;
 exports.onRidesCreated = onRidesCreated;
 exports.ATOB = ATOB;
+exports.riderLocation = riderLocation;
 exports.Autocomplete = Autocomplete;
 exports.Price = Price;
 exports.Geo = Geo;

@@ -1,4 +1,3 @@
-// src/App/UaTob/TrackingMap.jsx
 import React, { useMemo, useEffect, useRef, useCallback, useState } from 'react';
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -52,7 +51,6 @@ function projectPoints(pts, W, H, pad = 48) {
   }));
 }
 
-// Project a single lat/lng using the same bounds as the polyline points
 function projectSingle(lat, lng, pts, W, H, pad = 48) {
   if (!pts.length || !W || !H) return null;
   const lats = pts.map(p => p[0]);
@@ -87,7 +85,6 @@ function approxPathLen(svgPts) {
   return Math.ceil(len) + 40;
 }
 
-// ── Find closest point on polyline to driver ──────────────────────────
 function closestPointOnPolyline(svgPts, px, py) {
   if (!svgPts.length) return { x: px, y: py };
   let best = svgPts[0], bestDist = Infinity;
@@ -96,6 +93,70 @@ function closestPointOnPolyline(svgPts, px, py) {
     if (d < bestDist) { bestDist = d; best = pt; }
   }
   return best;
+}
+
+// ── Determine GPS source for in_progress rides ────────────────────────
+// Returns { source: 'driver' | 'rider', lat, lng, etaMin }
+// Driver is "online" if their coords exist and are distinct enough from rider
+// to suggest an independent ping. We use riderLocationAt as a recency signal —
+// if the driver fields are absent/stale we fall back to rider.
+function resolveGpsSource(payload, status) {
+  const isInProgress = status === 'in_progress';
+
+  const driverLat = safeNum(payload.driverLat);
+  const driverLng = safeNum(payload.driverLng);
+  const riderLat  = safeNum(payload.riderLat);
+  const riderLng  = safeNum(payload.riderLng);
+
+  const hasDriver = driverLat !== 0 && driverLng !== 0;
+  const hasRider  = riderLat !== 0 && riderLng !== 0;
+
+  const driverEta = safeNum(payload.driverEtaMin ?? payload.dropoffEtaMin ?? 999);
+  const riderEta  = safeNum(payload.riderDropoffEtaMin ?? 999);
+
+  // ── NOT in progress ──
+  if (!isInProgress) {
+    if (hasDriver) {
+      return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta };
+    }
+    if (hasRider) {
+      return { source: 'rider', lat: riderLat, lng: riderLng, etaMin: riderEta };
+    }
+
+    // 🔥 fallback to static trip values
+    return {
+      source: 'static',
+      lat: safeNum(payload.dropoffLat),
+      lng: safeNum(payload.dropoffLng),
+      etaMin: safeNum(payload.dropoffEtaMin),
+    };
+  }
+
+  // ── IN PROGRESS ──
+
+  // Driver online check
+  const driverIsOnline = hasDriver && (
+    Math.abs(driverLat - riderLat) > 0.00005 ||
+    Math.abs(driverLng - riderLng) > 0.00005
+  );
+
+  // ✅ BEST: driver GPS
+  if (driverIsOnline) {
+    return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta };
+  }
+
+  // ✅ fallback: rider GPS
+  if (hasRider) {
+    return { source: 'rider', lat: riderLat, lng: riderLng, etaMin: riderEta };
+  }
+
+  // 🔥 FINAL fallback: backend trip values
+  return {
+    source: 'static',
+    lat: safeNum(payload.dropoffLat),
+    lng: safeNum(payload.dropoffLng),
+    etaMin: safeNum(payload.dropoffEtaMin),
+  };
 }
 
 // ── Keyframes ─────────────────────────────────────────────────────────
@@ -127,6 +188,11 @@ const KEYFRAMES = `
     0%, 100% { box-shadow: 0 4px 18px rgba(22,163,74,0.4), 0 0 0 0 rgba(22,163,74,0.3); }
     50%       { box-shadow: 0 4px 18px rgba(22,163,74,0.4), 0 0 0 10px rgba(22,163,74,0); }
   }
+  @keyframes tmBadgePop {
+    0%   { transform: scale(0.6); opacity: 0; }
+    70%  { transform: scale(1.15); }
+    100% { transform: scale(1); opacity: 1; }
+  }
 `;
 
 let _injected = false;
@@ -154,16 +220,13 @@ function MapBackground({ W, H }) {
       </defs>
       <rect width={W} height={H} fill="#EEF2F0"/>
       <rect width={W} height={H} fill="url(#tm-grid)"/>
-      {/* Road layer */}
       <line x1={0}        y1={H * 0.37} x2={W}        y2={H * 0.34} stroke="#D4DBD7" strokeWidth={18} strokeLinecap="round"/>
       <line x1={0}        y1={H * 0.64} x2={W}        y2={H * 0.69} stroke="#DAE2DE" strokeWidth={12} strokeLinecap="round"/>
       <line x1={W * 0.26} y1={0}        x2={W * 0.24} y2={H}        stroke="#DAE2DE" strokeWidth={13} strokeLinecap="round"/>
       <line x1={W * 0.63} y1={0}        x2={W * 0.66} y2={H}        stroke="#D4DBD7" strokeWidth={17} strokeLinecap="round"/>
       <line x1={W * 0.43} y1={0}        x2={W * 0.41} y2={H}        stroke="#DDE5E2" strokeWidth={9}  strokeLinecap="round"/>
-      {/* Road center lines */}
       <line x1={0} y1={H * 0.37} x2={W} y2={H * 0.34} stroke="#fff" strokeWidth={1.5} strokeDasharray="18 10" opacity={0.7}/>
       <line x1={W * 0.63} y1={0} x2={W * 0.66} y2={H} stroke="#fff" strokeWidth={1.5} strokeDasharray="18 10" opacity={0.6}/>
-      {/* City blocks */}
       {[
         [0.07, 0.10, 0.09, 0.13],
         [0.19, 0.07, 0.07, 0.10],
@@ -177,6 +240,36 @@ function MapBackground({ W, H }) {
         <rect key={i} x={W*rx} y={H*ry} width={W*rw} height={H*rh} rx={3} fill="#C5CEC9" opacity={0.45}/>
       ))}
     </svg>
+  );
+}
+
+// ── GPS source badge on car ───────────────────────────────────────────
+function GpsBadge({ source }) {
+  const isRider  = source === 'rider';
+  const bg       = isRider ? '#3B82F6' : '#16A34A';
+  const label    = isRider ? 'R' : 'D';
+  const title    = isRider ? 'Rider GPS' : 'Driver GPS';
+
+  return (
+    <div
+      title={title}
+      style={{
+        position: 'absolute',
+        top: -6, right: -6,
+        width: 16, height: 16,
+        borderRadius: '50%',
+        background: bg,
+        border: '2px solid #fff',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 8, fontWeight: 900, color: '#fff',
+        letterSpacing: 0,
+        zIndex: 2,
+        boxShadow: `0 2px 6px ${bg}88`,
+        animation: 'tmBadgePop .35s cubic-bezier(.34,1.4,.64,1) both',
+      }}
+    >
+      {label}
+    </div>
   );
 }
 
@@ -216,80 +309,99 @@ export default function TrackingMap({
   const STATUS_BAR_H = 108;
   const mapH = Math.max(0, dims.H - STATUS_BAR_H);
 
-  // Status flags
+  // ── Status flags ──────────────────────────────────────────────────
   const headingToPickup  = ['driver_assigned', 'driver_arriving'].includes(status);
   const headingToDropoff = ['arrived', 'in_progress'].includes(status);
+  const isInProgress     = status === 'in_progress';
   const isCompleted      = status === 'completed';
   const isArrived        = status === 'arrived';
 
+  // ── Resolve GPS source ────────────────────────────────────────────
+  // For in_progress: pick driver or rider GPS depending on who is active
+  // and which ETA is shorter. Outside in_progress: use driver as normal.
+  const gpsSource = useMemo(
+    () => resolveGpsSource(payload, status),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      status,
+      payload.driverLat, payload.driverLng,
+      payload.riderLat,  payload.riderLng,
+      payload.driverEtaMin, payload.riderDropoffEtaMin,
+    ]
+  );
+
   // ── Decode polyline ───────────────────────────────────────────────
-  // Use trip polyline (pickup→dropoff) or driver polyline (driver→pickup)
-  const rawPolyline = payload.polyline ?? null;
+  const rawPolyline  = payload.polyline ?? null;
+  const decodedPts   = useMemo(() => decodePolyline(rawPolyline), [rawPolyline]);
 
-  const decodedPts = useMemo(() => decodePolyline(rawPolyline), [rawPolyline]);
-
-  // ── SVG projected points ──────────────────────────────────────────
-  // We project the full set of relevant points together so the scale is consistent.
-  // Include driver lat/lng so it's within the bounding box.
+  // ── Build unified bounding box ────────────────────────────────────
+  // Always include pickup + dropoff. Include active GPS position so the car
+  // is never clipped outside the viewport.
   const allGeoPoints = useMemo(() => {
     const pts = [...decodedPts];
-    if (payload.driverLat && payload.driverLng)
-      pts.push([safeNum(payload.driverLat), safeNum(payload.driverLng)]);
-    if (payload.pickupLat && payload.pickupLng)
-      pts.push([safeNum(payload.pickupLat), safeNum(payload.pickupLng)]);
+    if (gpsSource) pts.push([gpsSource.lat, gpsSource.lng]);
+    if (payload.pickupLat  && payload.pickupLng)
+      pts.push([safeNum(payload.pickupLat),  safeNum(payload.pickupLng)]);
     if (payload.dropoffLat && payload.dropoffLng)
       pts.push([safeNum(payload.dropoffLat), safeNum(payload.dropoffLng)]);
     return pts;
-  }, [decodedPts, payload.driverLat, payload.driverLng, payload.pickupLat, payload.pickupLng, payload.dropoffLat, payload.dropoffLng]);
+  }, [decodedPts, gpsSource, payload.pickupLat, payload.pickupLng, payload.dropoffLat, payload.dropoffLng]);
 
-  // Project polyline path
+  // ── Project polyline path ─────────────────────────────────────────
   const svgPolyPts = useMemo(
     () => projectPoints(decodedPts, dims.W, mapH),
     [decodedPts, dims.W, mapH]
   );
 
-  // Project individual pins using the same unified bounding box
-  const pickupSvg  = useMemo(
-    () => projectSingle(safeNum(payload.pickupLat),  safeNum(payload.pickupLng),  allGeoPoints, dims.W, mapH),
-    [payload.pickupLat, payload.pickupLng, allGeoPoints, dims.W, mapH]
+  // ── Project pins ──────────────────────────────────────────────────
+  // When in_progress only show dropoff pin (not pickup — they've left it).
+  const pickupSvg = useMemo(
+    () => isInProgress
+      ? null
+      : projectSingle(safeNum(payload.pickupLat), safeNum(payload.pickupLng), allGeoPoints, dims.W, mapH),
+    [isInProgress, payload.pickupLat, payload.pickupLng, allGeoPoints, dims.W, mapH]
   );
   const dropoffSvg = useMemo(
     () => projectSingle(safeNum(payload.dropoffLat), safeNum(payload.dropoffLng), allGeoPoints, dims.W, mapH),
     [payload.dropoffLat, payload.dropoffLng, allGeoPoints, dims.W, mapH]
   );
 
-  // Driver position: use driverPos (already projected) if provided,
-  // otherwise project from lat/lng and snap to polyline
-  const driverSvgRaw = useMemo(() => {
-    if (driverPos) return driverPos;
-    if (!payload.driverLat || !payload.driverLng) return null;
-    return projectSingle(safeNum(payload.driverLat), safeNum(payload.driverLng), allGeoPoints, dims.W, mapH);
-  }, [driverPos, payload.driverLat, payload.driverLng, allGeoPoints, dims.W, mapH]);
+  // ── Project car position ──────────────────────────────────────────
+  // Use the resolved GPS source lat/lng (driver or rider) and snap to polyline.
+  const carSvgRaw = useMemo(() => {
+    if (driverPos) return driverPos; // externally provided projected pos
+    if (!gpsSource) return null;
+    return projectSingle(gpsSource.lat, gpsSource.lng, allGeoPoints, dims.W, mapH);
+  }, [driverPos, gpsSource, allGeoPoints, dims.W, mapH]);
 
-  // Snap driver to closest polyline point for cleaner positioning
-  const driverSvg = useMemo(() => {
-    if (!driverSvgRaw || !svgPolyPts.length) return driverSvgRaw;
-    return closestPointOnPolyline(svgPolyPts, driverSvgRaw.x, driverSvgRaw.y);
-  }, [driverSvgRaw, svgPolyPts]);
+  const carSvg = useMemo(() => {
+    if (!carSvgRaw || !svgPolyPts.length) return carSvgRaw;
+    return closestPointOnPolyline(svgPolyPts, carSvgRaw.x, carSvgRaw.y);
+  }, [carSvgRaw, svgPolyPts]);
 
   const polylinePath = toSVGPath(svgPolyPts);
   const routeLen     = svgPolyPts.length > 1 ? approxPathLen(svgPolyPts) : 1200;
 
-  // Display values
+  // ── Display values ────────────────────────────────────────────────
+  // When in_progress: use the ETA from the resolved GPS source (shortest).
+  // Otherwise: fall back to the same logic as before.
+  const displayEta = isInProgress && gpsSource
+    ? gpsSource.etaMin
+    : safeNum(etaMin ?? (headingToPickup ? payload.driverEtaMin : payload.dropoffEtaMin));
+
   const displayDist = headingToPickup
     ? safeNum(driverDistanceMiles ?? payload.driverDistanceMiles)
     : safeNum(dropoffDistanceMiles ?? distanceMiles ?? payload.dropoffDistanceMiles ?? payload.tripDistanceMiles);
 
-  const displayEta = safeNum(etaMin ?? (headingToPickup ? payload.driverEtaMin : payload.dropoffEtaMin));
-
+  // ── Status label ──────────────────────────────────────────────────
   const statusLabel = isCompleted
     ? 'Ride complete'
     : isArrived
       ? 'Driver has arrived'
-      : headingToPickup
-        ? 'Driver on the way'
-        : headingToDropoff
-          ? 'Heading to dropoff'
+      : isInProgress
+        ? 'Heading to dropoff'
+        : headingToPickup
+          ? 'Driver on the way'
           : 'Locating driver…';
 
   const statusColor = isCompleted
@@ -297,6 +409,13 @@ export default function TrackingMap({
     : isArrived
       ? '#F59E0B'
       : '#16A34A';
+
+  // ── GPS source label for status bar (in_progress only) ────────────
+  const gpsLabel = isInProgress && gpsSource
+    ? gpsSource.source === 'rider'
+      ? { text: 'Rider GPS', color: '#3B82F6' }
+      : { text: 'Driver GPS', color: '#16A34A' }
+    : null;
 
   return (
     <div
@@ -330,37 +449,15 @@ export default function TrackingMap({
               <feGaussianBlur stdDeviation="2.5" result="blur"/>
               <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
             </filter>
-            {/* Clip mask: travelled portion (driver → end) */}
-            {driverSvg && (
-              <clipPath id="tm-travelled">
-                <rect x={driverSvg.x} y={0} width={dims.W} height={mapH}/>
-              </clipPath>
-            )}
           </defs>
 
-          {/* White halo behind route */}
-          <path
-            d={polylinePath}
-            fill="none"
-            stroke="#fff"
-            strokeWidth={9}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity={0.7}
-          />
+          {/* White halo */}
+          <path d={polylinePath} fill="none" stroke="#fff" strokeWidth={9} strokeLinecap="round" strokeLinejoin="round" opacity={0.7}/>
 
-          {/* Faded "remaining" route */}
-          <path
-            d={polylinePath}
-            fill="none"
-            stroke={headingToDropoff ? '#BBF7D0' : '#BFDBFE'}
-            strokeWidth={4}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity={0.9}
-          />
+          {/* Faded remaining route */}
+          <path d={polylinePath} fill="none" stroke={headingToDropoff ? '#BBF7D0' : '#BFDBFE'} strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" opacity={0.9}/>
 
-          {/* Active animated route — draw-on effect */}
+          {/* Animated active route */}
           <path
             d={polylinePath}
             fill="none"
@@ -377,7 +474,7 @@ export default function TrackingMap({
             }}
           />
 
-          {/* Flowing dash overlay */}
+          {/* Flowing dash */}
           <path
             d={polylinePath}
             fill="none"
@@ -394,7 +491,7 @@ export default function TrackingMap({
         </svg>
       )}
 
-      {/* ── Pickup pin ── */}
+      {/* ── Pickup pin (hidden during in_progress) ── */}
       {pickupSvg && (
         <div style={{
           position: 'absolute',
@@ -414,18 +511,8 @@ export default function TrackingMap({
           }}>
             {headingToPickup && (
               <>
-                <div style={{
-                  position: 'absolute', width: 42, height: 42, borderRadius: '50%',
-                  border: '2px solid rgba(17,24,39,.22)',
-                  top: '50%', left: '50%',
-                  animation: 'tmRipple 2s ease-out infinite',
-                }}/>
-                <div style={{
-                  position: 'absolute', width: 42, height: 42, borderRadius: '50%',
-                  border: '2px solid rgba(17,24,39,.12)',
-                  top: '50%', left: '50%',
-                  animation: 'tmRipple 2s ease-out .7s infinite',
-                }}/>
+                <div style={{ position:'absolute', width:42, height:42, borderRadius:'50%', border:'2px solid rgba(17,24,39,.22)', top:'50%', left:'50%', animation:'tmRipple 2s ease-out infinite' }}/>
+                <div style={{ position:'absolute', width:42, height:42, borderRadius:'50%', border:'2px solid rgba(17,24,39,.12)', top:'50%', left:'50%', animation:'tmRipple 2s ease-out .7s infinite' }}/>
               </>
             )}
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -433,16 +520,11 @@ export default function TrackingMap({
               <circle cx="12" cy="9" r="2.5" fill="#fff"/>
             </svg>
           </div>
-          {/* Pickup label */}
           <div style={{
-            position: 'absolute', top: '110%', left: '50%',
-            transform: 'translateX(-50%)',
-            background: '#111827', color: '#fff',
-            fontSize: 9, fontWeight: 700,
-            padding: '3px 8px', borderRadius: 100,
-            whiteSpace: 'nowrap', letterSpacing: '.3px',
-            boxShadow: '0 2px 8px rgba(0,0,0,.2)',
-            marginTop: 4,
+            position:'absolute', top:'110%', left:'50%', transform:'translateX(-50%)',
+            background:'#111827', color:'#fff', fontSize:9, fontWeight:700,
+            padding:'3px 8px', borderRadius:100, whiteSpace:'nowrap',
+            letterSpacing:'.3px', boxShadow:'0 2px 8px rgba(0,0,0,.2)', marginTop:4,
           }}>
             Pickup
           </div>
@@ -470,18 +552,8 @@ export default function TrackingMap({
           }}>
             {headingToDropoff && (
               <>
-                <div style={{
-                  position: 'absolute', width: 42, height: 42, borderRadius: '50%',
-                  border: '2px solid rgba(22,163,74,.4)',
-                  top: '50%', left: '50%',
-                  animation: 'tmRipple 2.2s ease-out infinite',
-                }}/>
-                <div style={{
-                  position: 'absolute', width: 42, height: 42, borderRadius: '50%',
-                  border: '2px solid rgba(22,163,74,.25)',
-                  top: '50%', left: '50%',
-                  animation: 'tmRipple 2.2s ease-out .8s infinite',
-                }}/>
+                <div style={{ position:'absolute', width:42, height:42, borderRadius:'50%', border:'2px solid rgba(22,163,74,.4)', top:'50%', left:'50%', animation:'tmRipple 2.2s ease-out infinite' }}/>
+                <div style={{ position:'absolute', width:42, height:42, borderRadius:'50%', border:'2px solid rgba(22,163,74,.25)', top:'50%', left:'50%', animation:'tmRipple 2.2s ease-out .8s infinite' }}/>
               </>
             )}
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
@@ -489,30 +561,33 @@ export default function TrackingMap({
             </svg>
           </div>
           <div style={{
-            position: 'absolute', top: '110%', left: '50%',
-            transform: 'translateX(-50%)',
-            background: '#16A34A', color: '#fff',
-            fontSize: 9, fontWeight: 700,
-            padding: '3px 8px', borderRadius: 100,
-            whiteSpace: 'nowrap', letterSpacing: '.3px',
-            boxShadow: '0 2px 8px rgba(22,163,74,.3)',
-            marginTop: 4,
+            position:'absolute', top:'110%', left:'50%', transform:'translateX(-50%)',
+            background:'#16A34A', color:'#fff', fontSize:9, fontWeight:700,
+            padding:'3px 8px', borderRadius:100, whiteSpace:'nowrap',
+            letterSpacing:'.3px', boxShadow:'0 2px 8px rgba(22,163,74,.3)', marginTop:4,
           }}>
             Dropoff
           </div>
         </div>
       )}
 
-      {/* ── Driver pin ── */}
-      {driverSvg && !isCompleted && (
+      {/* ── Car pin (driver or rider GPS) ── */}
+      {carSvg && !isCompleted && (
         <div style={{
           position: 'absolute',
-          left: driverSvg.x,
-          top:  driverSvg.y,
+          left: carSvg.x,
+          top:  carSvg.y,
           zIndex: 20,
           transition: 'left 2.5s cubic-bezier(.4,0,.2,1), top 2.5s cubic-bezier(.4,0,.2,1)',
           animation: 'tmFadeUp .4s ease-out both',
         }}>
+          {/* GPS source badge */}
+          {isInProgress && gpsSource && (
+            <div style={{ position: 'absolute', top: 0, right: 0, transform: 'translate(-50%,-50%)', zIndex: 30 }}>
+              <GpsBadge source={gpsSource.source} />
+            </div>
+          )}
+
           <div style={{
             width: 50, height: 50,
             background: driverColor,
@@ -522,6 +597,7 @@ export default function TrackingMap({
             transform: 'translate(-50%, -50%)',
             boxShadow: `0 6px 22px ${driverColor}60, 0 0 0 6px ${driverColor}18`,
             animation: 'tmDriverBob 2.2s ease-in-out infinite',
+            position: 'relative',
           }}>
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
               <rect x="3" y="8"  width="18" height="9"  rx="2.5" fill="#fff"/>
@@ -552,11 +628,11 @@ export default function TrackingMap({
           boxShadow: '0 -6px 20px rgba(0,0,0,0.07)',
         }}>
 
-          {/* Top row */}
+          {/* Top row: status + ETA */}
           <div style={{
             display: 'flex', alignItems: 'center',
             justifyContent: 'space-between',
-            marginBottom: 10,
+            marginBottom: gpsLabel ? 8 : 0,
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{
@@ -566,19 +642,14 @@ export default function TrackingMap({
                 flexShrink: 0,
                 animation: isCompleted ? 'none' : 'tmLiveDot 1.5s ease-in-out infinite',
               }}/>
-              <span style={{
-                fontSize: 14, fontWeight: 800, color: '#0F172A',
-                letterSpacing: '-0.2px',
-              }}>
+              <span style={{ fontSize: 14, fontWeight: 800, color: '#0F172A', letterSpacing: '-0.2px' }}>
                 {statusLabel}
               </span>
             </div>
 
             {!isCompleted && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{
-                  fontSize: 11, color: '#94A3B8', fontWeight: 600,
-                }}>
+                <span style={{ fontSize: 11, color: '#94A3B8', fontWeight: 600 }}>
                   {displayDist.toFixed(2)} mi
                 </span>
                 <div style={{
@@ -596,9 +667,21 @@ export default function TrackingMap({
             )}
           </div>
 
-         
-           
-          
+          {/* GPS source row: only shown during in_progress */}
+          {gpsLabel && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <div style={{
+                width: 6, height: 6, borderRadius: '50%',
+                background: gpsLabel.color, flexShrink: 0,
+              }}/>
+              <span style={{ fontSize: 11, color: gpsLabel.color, fontWeight: 700, letterSpacing: '.2px' }}>
+                {gpsLabel.text}
+              </span>
+              <span style={{ fontSize: 11, color: '#94A3B8', fontWeight: 500 }}>
+                · live position
+              </span>
+            </div>
+          )}
 
         </div>
       )}
