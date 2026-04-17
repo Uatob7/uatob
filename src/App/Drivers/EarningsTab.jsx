@@ -14,10 +14,9 @@ export default function EarningsTab({ earnings, online, driver }) {
   const changePercent  = earnings?.week?.changePercent ?? 0;
   const dailyBreakdown = earnings?.week?.dailyBreakdown ?? [];
 
-  // Available = pending totalPayout on driver.withdrawal
-  // nothingPending = no withdrawal map OR totalPayout is 0 (reset after paid)
-  const withdrawal = driver?.transferCapability === "enabled";
-  const totalPayout    = withdrawal?.totalPayout ?? 0;
+  const withdrawal     = driver?.transferCapability === "enabled";
+  const pendingData    = driver?.withdrawal;
+  const totalPayout    = pendingData?.totalPayout ?? 0;
   const available      = totalPayout.toFixed(2);
   const nothingPending = totalPayout === 0;
 
@@ -25,6 +24,8 @@ export default function EarningsTab({ earnings, online, driver }) {
     ...dailyBreakdown.map(d => d.amount ?? 0),
     1
   );
+
+  const showSetupGate = !driver?.accountId || withdrawal !== true;
 
   // ── Stripe deposit setup ──────────────────────────────────────
   const handleSetupDeposit = async () => {
@@ -78,8 +79,6 @@ export default function EarningsTab({ earnings, online, driver }) {
       setIsWithdrawing(false);
     }
   };
-
-  const showSetupGate = !driver?.accountId;
 
   return (
     <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14, animation: "slideUp .38s ease-out forwards" }}>
@@ -203,7 +202,7 @@ export default function EarningsTab({ earnings, online, driver }) {
               <div style={{ fontSize: 12, color: C.textDim, fontWeight: 600, marginTop: 4 }}>
                 {nothingPending
                   ? "No pending payouts"
-                  : `${withdrawal?.rideCount ?? 0} ride(s) · instant transfer`}
+                  : `${pendingData?.rideCount ?? 0} ride(s) · instant transfer`}
               </div>
             </div>
             <div style={{
