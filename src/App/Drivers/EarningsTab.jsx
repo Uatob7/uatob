@@ -16,7 +16,7 @@ export default function EarningsTab({ earnings, online, driver }) {
 
   // Available = pending totalPayout on driver.withdrawal
   // nothingPending = no withdrawal map OR totalPayout is 0 (reset after paid)
-  const withdrawal     = driver?.withdrawal;
+  const withdrawal = driver?.transferCapability === "enabled";
   const totalPayout    = withdrawal?.totalPayout ?? 0;
   const available      = totalPayout.toFixed(2);
   const nothingPending = totalPayout === 0;
