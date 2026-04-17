@@ -39,6 +39,7 @@ const { setDriverTripActive } = require("./drivers/setDriverTripActive");
 const { onRideCreated } = require("./drivers/onRideCreated");
 const { onReviewCreated } = require("./drivers/onReviewCreated");
 const { updateDriverAchievements } = require("./drivers/updateDriverAchievements");
+const { checkDriverStripeCapability } = require("./drivers/checkDriverStripeCapability");
 
 
 
@@ -89,6 +90,7 @@ exports.processWithdrawal = processWithdrawal;
 exports.onRideCreatedNotifyOnlineDrivers = onRideCreatedNotifyOnlineDrivers;
 exports.onReviewCreated = onReviewCreated;
 exports.onDriverStatusChanged = onDriverStatusChanged;
+exports.checkDriverStripeCapability = checkDriverStripeCapability;
 
 exports.onAccountCreatedNotifyAdmin = onAccountCreatedNotifyAdmin;
 exports.onDriverCreatedNotifyAdmin = onDriverCreatedNotifyAdmin;
