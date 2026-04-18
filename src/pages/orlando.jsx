@@ -145,7 +145,7 @@ const CSS = `
   animation: ua-bar .9s cubic-bezier(.16,1,.3,1) both;
 }
 
-@media (max-width: 380px) { .hero-num { font-size: 64px !important; } }
+@media (max-width: 380px) { .hero-num { font-size: 44px !important; } }
 `;
 
 /* ─── SCROLL REVEAL ─────────────────────────── */
@@ -454,20 +454,20 @@ export default function DriverSignupLanding() {
           <div style={{ textAlign: 'center', marginBottom: 10 }}>
             <div className="hero-num" style={{
               fontFamily: "'Syne', sans-serif",
-              fontSize: 'clamp(72px, 22vw, 108px)',
+              fontSize: 'clamp(48px, 14vw, 108px)',
               fontWeight: 800, lineHeight: .92,
               color: T.white, letterSpacing: '-.03em'
             }}>EARN</div>
             <div className="hero-num" style={{
               fontFamily: "'Syne', sans-serif",
-              fontSize: 'clamp(72px, 22vw, 108px)',
+              fontSize: 'clamp(48px, 14vw, 108px)',
               fontWeight: 800, lineHeight: .92,
               color: T.green, letterSpacing: '-.03em',
               textShadow: `0 0 80px rgba(34,197,94,.25)`
             }}>MORE.</div>
             <div className="hero-num" style={{
               fontFamily: "'Syne', sans-serif",
-              fontSize: 'clamp(42px, 13vw, 64px)',
+              fontSize: 'clamp(28px, 8vw, 64px)',
               fontWeight: 600, lineHeight: 1.1, marginTop: 8,
               color: 'transparent',
               WebkitTextStroke: `1px rgba(232,240,232,.2)`,
