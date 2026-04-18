@@ -1,6 +1,6 @@
-import Drivers from '@/App/Drivers';
+import SignUp from '@/App/SignUp';
 
 export default function Home({ uid }) {
 
-  return <Drivers uid={uid} />;
+  return <SignUp uid={uid} />;
 }
