@@ -23,6 +23,13 @@ import { useDriverReviews }   from "@/App/Drivers/useDriverReviews";
 // ── Cloud Function URLs ───────────────────────────────────────────────
 const DRIVER_STATUS_URL = "https://driverstatus-ady2s2xhhq-uc.a.run.app";
 
+// ── Trip button labels (local — no Cloud Function needed) ─────────────
+const TRIP_BUTTON_LABELS = {
+  driver_assigned: "Arrived at Pickup",
+  arrived:         "Start Trip",
+  in_progress:     "Complete Trip",
+};
+
 // ── localStorage helpers for seen review IDs ──────────────────────────
 const LS_SEEN_REVIEWS_KEY = 'uatob_driver_seen_reviews';
 function loadSeenReviews()     { try { return new Set(JSON.parse(localStorage.getItem(LS_SEEN_REVIEWS_KEY) || '[]')); } catch { return new Set(); } }
@@ -404,13 +411,11 @@ export default function UaTobDriverApp({ uid }) {
   }, [activeTrip?.id]);
 
   // ── Auto-popup unseen rider reviews ──────────────────────────────
-  // Shows the most recent review the driver hasn't dismissed yet.
-  // Suppressed while a trip is active or a trip request is showing.
   useEffect(() => {
     if (!reviews.length) return;
-    if (pendingReview)   return;   // already showing one
-    if (activeTrip)      return;   // mid-trip, don't interrupt
-    if (tripRequest)     return;   // incoming request takes priority
+    if (pendingReview)   return;
+    if (activeTrip)      return;
+    if (tripRequest)     return;
 
     const unseen = reviews.find(r => !seenReviewIds.has(r.id));
     if (unseen) setPendingReview(unseen);
@@ -425,23 +430,9 @@ export default function UaTobDriverApp({ uid }) {
     setPendingReview(null);
   };
 
-  // ── Fetch trip button label ───────────────────────────────────────
+  // ── Trip button label (local lookup — no Cloud Function) ──────────
   useEffect(() => {
-    async function fetchTripBtnLabel(status) {
-      if (!status) return;
-      try {
-        const res  = await fetch("https://gettripbuttonlabel-ady2s2xhhq-uc.a.run.app", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status }),
-        });
-        const data = await res.json();
-        setTripBtnLabel(data.success ? data.label : "Unknown Action");
-      } catch (err) {
-        console.error("Error fetching trip label:", err);
-        setTripBtnLabel("Error");
-      }
-    }
-    if (activeTrip?.status) fetchTripBtnLabel(activeTrip.status);
+    setTripBtnLabel(TRIP_BUTTON_LABELS[activeTrip?.status] ?? "");
   }, [activeTrip?.status]);
 
   // ── Request timer ─────────────────────────────────────────────────
@@ -683,7 +674,6 @@ export default function UaTobDriverApp({ uid }) {
         actionPending={actionPending}
       />
 
-      {/* ── Driver review popup ── */}
       {pendingReview && !activeTrip && !tripRequest && (
         <DriverReviewModal
           review={pendingReview}
@@ -712,10 +702,10 @@ export default function UaTobDriverApp({ uid }) {
             <div style={{ display: "flex", alignItems: "center", gap: 5, background: C.surface, borderRadius: 100, padding: "6px 12px" }}>
               <Star size={11} fill="#F59E0B" color="#F59E0B" />
               <span>
-              {driver?.averageRating != null
-               ? driver.averageRating.toFixed(2)
-               : "—"}
-             </span>
+                {driver?.averageRating != null
+                  ? driver.averageRating.toFixed(2)
+                  : "—"}
+              </span>
             </div>
             <button><Bell size={15} /></button>
           </div>

@@ -1,9 +1,8 @@
-// functions/index.js
 const { onRequest } = require("firebase-functions/v2/https");
 const cors = require("cors")({ origin: true });
 
 exports.getTripButtonLabel = onRequest(async (req, res) => {
-  return cors(req, res, () => {
+  cors(req, res, () => {
     try {
       const { status } = req.body;
 
@@ -13,8 +12,8 @@ exports.getTripButtonLabel = onRequest(async (req, res) => {
 
       const labelMap = {
         driver_assigned: "Arrived at Pickup",
-        arrived: "Start Trip",
-        in_progress: "Complete Trip",
+        arrived:         "Start Trip",
+        in_progress:     "Complete Trip",
       };
 
       const label = labelMap[status];
