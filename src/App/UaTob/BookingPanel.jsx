@@ -100,6 +100,37 @@ const PANEL_CSS = `
   }
   .bp-card + .bp-card { margin-top: 10px; }
 
+  /* ── card header row (title + cancel X) ── */
+  .bp-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 13px 16px 0;
+    font-family: 'Outfit', system-ui, sans-serif;
+  }
+  .bp-card-header-label {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: #9CA3AF;
+  }
+  /* The X cancel button shown in the card header once addresses are entered */
+  .bp-cancel-btn {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: #F3F4F6;
+    border: none;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: #6B7280;
+    transition: background .15s, color .15s, transform .12s;
+    padding: 0;
+    flex-shrink: 0;
+  }
+  .bp-cancel-btn:hover  { background: #E5E7EB; color: #111827; transform: scale(1.08); }
+  .bp-cancel-btn:active { transform: scale(.94); }
+
   /* ── route input rows ── */
   .bp-route-row {
     display: flex;
@@ -209,21 +240,20 @@ const PANEL_CSS = `
     transition: background .15s;
     position: relative;
   }
-  .bp-ride-card:nth-child(2n)   { border-right: none; }
+  .bp-ride-card:nth-child(2n)        { border-right: none; }
   .bp-ride-card:nth-last-child(-n+2) { border-bottom: none; }
-  .bp-ride-card:hover           { background: #FAFAFA; }
-  .bp-ride-card.active          { background: #F0FDF4; }
+  .bp-ride-card:hover                { background: #FAFAFA; }
+  .bp-ride-card.active               { background: #F0FDF4; }
   .bp-ride-card.active::after {
     content: '';
     position: absolute; inset: 0;
     border: 2px solid #16A34A;
     border-radius: 0; pointer-events: none;
   }
-  /* first active card gets left+top corner radius */
-  .bp-ride-card:first-child.active::after { border-radius: 18px 0 0 0; }
-  .bp-ride-card:nth-child(2).active::after { border-radius: 0 18px 0 0; }
+  .bp-ride-card:first-child.active::after     { border-radius: 18px 0 0 0; }
+  .bp-ride-card:nth-child(2).active::after    { border-radius: 0 18px 0 0; }
   .bp-ride-card:nth-last-child(2).active::after { border-radius: 0 0 0 18px; }
-  .bp-ride-card:last-child.active::after  { border-radius: 0 0 18px 0; }
+  .bp-ride-card:last-child.active::after      { border-radius: 0 0 18px 0; }
 
   .bp-ride-icon-wrap {
     width: 34px; height: 34px; border-radius: 10px;
@@ -597,7 +627,14 @@ function BreakdownLines({ quote, tripData }) {
 }
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────
-export default function BookingPanel({ onBookNow, onPayloadChange }) {
+// New props:
+//   onPriceReady — called once when both addresses are resolved and the
+//                  fare is first displayed. Signals UaTobApp to switch
+//                  into compact mode (MapView + panel only).
+//   onCancel     — called when the user clicks the X button to abandon
+//                  the current booking. Signals UaTobApp to reset back
+//                  to the full hero / initial state.
+export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady, onCancel }) {
   const { uid } = useAuthContext();
   const saved   = useMemo(() => loadBookingForm(), []);
 
@@ -612,10 +649,14 @@ export default function BookingPanel({ onBookNow, onPayloadChange }) {
   const [error,         setError]         = useState('');
   const [showBreakdown, setShowBreakdown] = useState(false);
 
-  const [focusedInput,      setFocusedInput]      = useState(null); // 'pickup' | 'dropoff' | null
+  const [focusedInput,      setFocusedInput]      = useState(null);
   const [showLocationAlert, setShowLocationAlert] = useState(false);
   const [locationLoading,   setLocationLoading]   = useState(false);
   const [locationError,     setLocationError]     = useState('');
+
+  // Track whether onPriceReady has already fired this session so we
+  // don't call it repeatedly on re-renders.
+  const priceReadyFiredRef  = useRef(false);
 
   const tripRequestRef      = useRef(0);
   const quoteRequestRef     = useRef(0);
@@ -685,6 +726,9 @@ export default function BookingPanel({ onBookNow, onPayloadChange }) {
       setTripData(null); setQuotesData(null); setError('');
       setLoadingTrip(false); setLoadingQuotes(false); setShowBreakdown(false);
       lastFetchedTripRef.current = '';
+      // Reset the guard so onPriceReady can fire again if the user
+      // re-enters addresses after cancelling.
+      priceReadyFiredRef.current = false;
       return;
     }
     const key = `${p}||${d}`;
@@ -736,6 +780,38 @@ export default function BookingPanel({ onBookNow, onPayloadChange }) {
   const rideOptions   = useMemo(() => Object.values(quotesData?.rides || {}), [quotesData]);
   const selectedQuote = useMemo(() => quotesData?.rides?.[selectedRide] || null, [quotesData, selectedRide]);
 
+  // ── hasQuote: true once trip + quotes are resolved and fare is visible ─
+  const isLoading = loadingTrip || loadingQuotes;
+  const hasQuote  = !!tripData && !!quotesData && !!selectedQuote && !error && !isLoading;
+
+  // ── Fire onPriceReady exactly once per booking session ────────────
+  // When hasQuote transitions to true (fare appears on screen) we notify
+  // the parent to switch to compact mode (MapView visible, hero hidden).
+  // priceReadyFiredRef prevents repeat calls on re-renders or ride-type
+  // switches.
+  useEffect(() => {
+    if (hasQuote && !priceReadyFiredRef.current) {
+      priceReadyFiredRef.current = true;
+      onPriceReady?.();
+    }
+  }, [hasQuote, onPriceReady]);
+
+  // ── Internal cancel: clear all local state then notify parent ─────
+  const handleCancel = useCallback(() => {
+    clearBookingForm();
+    setPickupRaw('');
+    setDropoffRaw('');
+    setTripData(null);
+    setQuotesData(null);
+    setError('');
+    setShowBreakdown(false);
+    setShowLocationAlert(false);
+    setLocationError('');
+    lastFetchedTripRef.current  = '';
+    priceReadyFiredRef.current  = false;
+    onCancel?.();
+  }, [onCancel]);
+
   const handleBookNow = useCallback(() => {
     if (!tripData || !quotesData || !selectedQuote) return;
     const payload = buildPayload(tripData, selectedQuote, quotesData);
@@ -743,8 +819,9 @@ export default function BookingPanel({ onBookNow, onPayloadChange }) {
     if (typeof onBookNow === 'function') onBookNow(payload);
   }, [tripData, quotesData, selectedQuote, buildPayload, onBookNow]);
 
-  const isLoading = loadingTrip || loadingQuotes;
-  const hasQuote  = !!tripData && !!quotesData && !!selectedQuote && !error && !isLoading;
+  // Show the cancel X in the card header once the user has typed
+  // something in either field — not just when a quote is ready.
+  const showCancelBtn = !!(pickup.trim() || dropoff.trim());
 
   return (
     <>
@@ -762,6 +839,24 @@ export default function BookingPanel({ onBookNow, onPayloadChange }) {
 
       {/* ── Route input card ── */}
       <div className="bp-card" style={{ marginBottom: 10 }}>
+
+        {/* Card header: only visible once the user has started typing.
+            Houses the subtle "Your trip" label and the X cancel button. */}
+        {showCancelBtn && (
+          <div className="bp-card-header">
+            <span className="bp-card-header-label">Your trip</span>
+            <button
+              type="button"
+              className="bp-cancel-btn"
+              onClick={handleCancel}
+              title="Cancel and start over"
+              aria-label="Cancel booking"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        )}
+
         {/* Pickup row */}
         <div style={{ position:'relative' }}>
           <PlaceInput
@@ -789,13 +884,15 @@ export default function BookingPanel({ onBookNow, onPayloadChange }) {
           onBlur={() => setFocusedInput(null)}
         />
 
-        {/* Loading / error */}
+        {/* Loading */}
         {isLoading && (
           <div className="bp-status">
             <Loader2 size={15} color={T.accent} style={{ animation:'bp-spin 1s linear infinite' }}/>
             {loadingTrip ? 'Calculating route…' : 'Calculating prices…'}
           </div>
         )}
+
+        {/* Error */}
         {error && !isLoading && (
           <div style={{ padding:'12px 16px', borderTop:'1px solid #F3F4F6' }}>
             <div className="bp-error">
@@ -889,9 +986,7 @@ export default function BookingPanel({ onBookNow, onPayloadChange }) {
                 </button>
               </div>
               {/* Ride type badge */}
-              <div style={{
-                display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8, flexShrink:0
-              }}>
+              <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8, flexShrink:0 }}>
                 <div style={{
                   display:'inline-flex', alignItems:'center', gap:5,
                   background:'#fff', border:'1.5px solid #BBF7D0',
