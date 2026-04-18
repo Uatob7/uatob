@@ -59,6 +59,9 @@ const DEFAULT_DOC = {
 // Statuses that mean the driver has already completed signup
 const COMPLETED_STATUSES = ["approved", "online", "active", "suspended", "offline"];
 
+// ── FIX 3: Dynamic max year — never goes stale ─────────────────────────
+const MAX_VEHICLE_YEAR = new Date().getFullYear() + 1;
+
 /* ─── UaTob SVG Icon ─────────────────────────── */
 function UaTobIcon({ size = 38 }) {
   return (
@@ -358,22 +361,16 @@ function StepAccount({ data, setData, errors, isExistingUser }) {
         >
           {data.terms && <Check size={12} color={C.accent} />}
         </div>
-       <div style={{ fontSize: 12.5, color: C.textMid, fontWeight: 500, lineHeight: 1.6 }}>
-        I agree to UaTob's{" "}
-          <a
-         href="/driver-terms"
-          style={{ color: C.accent, cursor: "pointer", textDecoration: "none" }}
-         >
-        Driver Terms of Service
-        </a>
-        {" "}and{" "}
-         <a
-         href="/privacy-policy"
-        style={{ color: C.accent, cursor: "pointer", textDecoration: "none" }}
-        >
-         Privacy Policy
-        </a>
-       </div>
+        <div style={{ fontSize: 12.5, color: C.textMid, fontWeight: 500, lineHeight: 1.6 }}>
+          I agree to UaTob's{" "}
+          <a href="/driver-terms" style={{ color: C.accent, cursor: "pointer", textDecoration: "none" }}>
+            Driver Terms of Service
+          </a>
+          {" "}and{" "}
+          <a href="/privacy-policy" style={{ color: C.accent, cursor: "pointer", textDecoration: "none" }}>
+            Privacy Policy
+          </a>
+        </div>
       </div>
       {errors.terms && (
         <div style={{ fontSize: 11.5, color: C.red, marginTop: 6, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
@@ -430,7 +427,16 @@ function StepVehicle({ data, setData, errors }) {
       </div>
       <div style={{ display: "flex", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <InputField label="Year" placeholder="2020" type="number" icon={Calendar} value={data.year} onChange={v => setData(d => ({ ...d, year: v }))} error={errors.year} />
+          {/* FIX 3: Uses MAX_VEHICLE_YEAR constant derived from current year */}
+          <InputField
+            label="Year"
+            placeholder={`2010–${MAX_VEHICLE_YEAR}`}
+            type="number"
+            icon={Calendar}
+            value={data.year}
+            onChange={v => setData(d => ({ ...d, year: v }))}
+            error={errors.year}
+          />
         </div>
         <div style={{ flex: 1 }}>
           <InputField label="Color" placeholder="Pearl White" value={data.color} onChange={v => setData(d => ({ ...d, color: v }))} error={errors.color} />
@@ -737,39 +743,16 @@ function PendingScreen({ firstName, email }) {
 
 export default function UaTobDriverSignup({ uid, driverSignUp }) {
   const router = useRouter();
-  const { drivers} = useApplicationSubmitted(uid);
-
-
+  const { drivers } = useApplicationSubmitted(uid);
 
   const isExistingUser = Boolean(uid);
 
-  // ── Guard: Redirect approved/online drivers to driver dashboard ──────────────────
-  useEffect(() => {
-    const driverSignUpStatus = driverSignUp?.status;
-    const driversStatus = drivers?.[0]?.status;
-    const shouldRedirect = ["approved", "online"].includes(driverSignUpStatus) || ["approved", "online"].includes(driversStatus);
-    
-    if (shouldRedirect) {
-      router.push("/driver");
-      return;
-    }
-  }, [driverSignUp?.status, drivers, router]);
-
-  // ── Guard: driver already completed signup ──────────────────
-  // Return null for any status that means they're past the signup flow
-  if (driverSignUp && COMPLETED_STATUSES.includes(driverSignUp.status)) {
-    return null;
-  }
+  // ── ALL hooks must come before any conditional returns ─────────────
+  // FIX 1: Every useState/useEffect/useRef/useCallback is declared here
+  // unconditionally, before any early return logic. React's rules of
+  // hooks require hooks to run in the same order on every render.
 
   const [submitted, setSubmitted] = useState(() => lsGet(LS_KEYS.submitted, false));
-
-  useEffect(() => {
-    if (driverSignUp?.status === "pending") {
-      setSubmitted(true);
-      lsSet(LS_KEYS.submitted, true);
-    }
-  }, [driverSignUp?.status]);
-
   const [step,        setStep]        = useState(() => lsGet(LS_KEYS.step, 1));
   const [createdUid,  setCreatedUid]  = useState(() => uid || lsGet(LS_KEYS.uid, null));
   const [accountData, setAccountData] = useState(() => {
@@ -786,81 +769,89 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
   const [loading,          setLoading]          = useState(false);
   const [submitError,      setSubmitError]      = useState(null);
   const [showResumeBanner, setShowResumeBanner] = useState(() => lsGet(LS_KEYS.step, 1) > 1);
-  const scrollRef = useRef(null);
 
-  const firestoreHydrated = useRef(false);
-  
-  // ── Hydrate from drivers data (Firestore) ──
+  const scrollRef           = useRef(null);
+  const firestoreHydrated   = useRef(false);
+
+  // ── Guard: redirect approved/online drivers ────────────────────────
+  useEffect(() => {
+    const driverSignUpStatus = driverSignUp?.status;
+    const driversStatus      = drivers?.[0]?.status;
+    const shouldRedirect     = ["approved", "online"].includes(driverSignUpStatus) ||
+                               ["approved", "online"].includes(driversStatus);
+    if (shouldRedirect) router.push("/driver");
+  }, [driverSignUp?.status, drivers, router]);
+
+  // ── Sync submitted state from Firestore status ─────────────────────
+  useEffect(() => {
+    if (driverSignUp?.status === "pending") {
+      setSubmitted(true);
+      lsSet(LS_KEYS.submitted, true);
+    }
+  }, [driverSignUp?.status]);
+
+  // ── Hydrate from drivers data (Firestore) ──────────────────────────
   useEffect(() => {
     if (!drivers?.length || firestoreHydrated.current) return;
     firestoreHydrated.current = true;
-    
-    const driver = drivers[0];
+
+    const driver    = drivers[0];
     const savedStep = driver.currentStep ?? 1;
-    
-    // Set step
-    if (savedStep > 1) { 
-      setStep(s => Math.max(s, savedStep)); 
-      setShowResumeBanner(true); 
+
+    if (savedStep > 1) {
+      setStep(s => Math.max(s, savedStep));
+      setShowResumeBanner(true);
     }
-    
-    // Hydrate account data
     if (driver.firstName || driver.lastName || driver.email) {
-      setAccountData(d => ({ 
-        ...d, 
-        firstName: driver.firstName || d.firstName, 
-        lastName: driver.lastName || d.lastName, 
-        email: driver.email || d.email 
+      setAccountData(d => ({
+        ...d,
+        firstName: driver.firstName || d.firstName,
+        lastName:  driver.lastName  || d.lastName,
+        email:     driver.email     || d.email,
       }));
     }
-    
-    // Hydrate contact data
     if (driver.contact) {
-      setContactData(d => ({ 
-        ...d, 
-        phone: driver.contact.phone || d.phone,
+      setContactData(d => ({
+        ...d,
+        phone:   driver.contact.phone   || d.phone,
         address: driver.contact.address || d.address,
-        city: driver.contact.city || d.city,
-        state: driver.contact.state || d.state,
-        zip: driver.contact.zip || d.zip,
+        city:    driver.contact.city    || d.city,
+        state:   driver.contact.state   || d.state,
+        zip:     driver.contact.zip     || d.zip,
       }));
     }
-    
-    // Hydrate vehicle data
     if (driver.vehicle) {
-      setVehicleData(d => ({ 
-        ...d, 
-        make: driver.vehicle.make || d.make,
-        model: driver.vehicle.model || d.model,
-        year: driver.vehicle.year || d.year,
-        color: driver.vehicle.color || d.color,
-        plate: driver.vehicle.plate || d.plate,
-        vin: driver.vehicle.vin || d.vin,
+      setVehicleData(d => ({
+        ...d,
+        make:      driver.vehicle.make      || d.make,
+        model:     driver.vehicle.model     || d.model,
+        year:      driver.vehicle.year      || d.year,
+        color:     driver.vehicle.color     || d.color,
+        plate:     driver.vehicle.plate     || d.plate,
+        vin:       driver.vehicle.vin       || d.vin,
         rideTypes: driver.vehicle.rideTypes || d.rideTypes,
       }));
     }
-    
-    // Hydrate document data
     if (driver.documents) {
       const docs = driver.documents;
-      setDocData(d => ({ 
-        ...d, 
-        licenseFront: docs.licenseFront || d.licenseFront,
+      setDocData(d => ({
+        ...d,
+        licenseFront:    docs.licenseFront    || d.licenseFront,
         licenseFrontUrl: docs.licenseFrontUrl || d.licenseFrontUrl,
-        licenseBack: docs.licenseBack || d.licenseBack,
-        licenseBackUrl: docs.licenseBackUrl || d.licenseBackUrl,
-        licenseNumber: docs.licenseNumber || d.licenseNumber,
-        registration: docs.registration || d.registration,
+        licenseBack:     docs.licenseBack     || d.licenseBack,
+        licenseBackUrl:  docs.licenseBackUrl  || d.licenseBackUrl,
+        licenseNumber:   docs.licenseNumber   || d.licenseNumber,
+        registration:    docs.registration    || d.registration,
         registrationUrl: docs.registrationUrl || d.registrationUrl,
-        insurance: docs.insurance || d.insurance,
-        insuranceUrl: docs.insuranceUrl || d.insuranceUrl,
-        profilePhoto: docs.profilePhoto || d.profilePhoto,
+        insurance:       docs.insurance       || d.insurance,
+        insuranceUrl:    docs.insuranceUrl    || d.insuranceUrl,
+        profilePhoto:    docs.profilePhoto    || d.profilePhoto,
         profilePhotoUrl: docs.profilePhotoUrl || d.profilePhotoUrl,
       }));
     }
   }, [drivers]);
-  
-  // ── Fallback hydration from driverSignUp prop ──
+
+  // ── Fallback hydration from driverSignUp prop ──────────────────────
   useEffect(() => {
     if (!driverSignUp || firestoreHydrated.current || drivers?.length) return;
     firestoreHydrated.current = true;
@@ -874,6 +865,7 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
     if (driverSignUp.docData)     setDocData(d => ({ ...d, ...driverSignUp.docData }));
   }, [driverSignUp, drivers]);
 
+  // ── Persist to localStorage ────────────────────────────────────────
   useEffect(() => { lsSet(LS_KEYS.step, step); }, [step]);
   useEffect(() => { lsSet(LS_KEYS.uid,  createdUid); }, [createdUid]);
   useEffect(() => {
@@ -883,6 +875,14 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
   useEffect(() => { lsSet(LS_KEYS.contact, contactData); }, [contactData]);
   useEffect(() => { lsSet(LS_KEYS.vehicle, vehicleData); }, [vehicleData]);
   useEffect(() => { lsSet(LS_KEYS.doc,     docData); },     [docData]);
+
+  // ── NOW safe to return early after all hooks have been declared ─────
+  // FIX 1 (continued): The conditional render based on COMPLETED_STATUSES
+  // has been moved here — after every hook — so hook call order is always
+  // identical regardless of driverSignUp.status.
+  if (driverSignUp && COMPLETED_STATUSES.includes(driverSignUp.status)) {
+    return null;
+  }
 
   /* ── API helpers ── */
 
@@ -927,6 +927,7 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
 
   const validate = () => {
     const e = {};
+
     if (step === 1) {
       if (!accountData.firstName.trim()) e.firstName = "Required";
       if (!accountData.lastName.trim())  e.lastName  = "Required";
@@ -935,6 +936,7 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
       if (accountData.password !== accountData.confirmPassword) e.confirmPassword = "Passwords don't match";
       if (!accountData.terms) e.terms = "You must agree to continue";
     }
+
     if (step === 2) {
       if (!contactData.phone.trim())   e.phone   = "Required";
       if (!contactData.address.trim()) e.address = "Required";
@@ -942,13 +944,31 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
       if (!contactData.zip.match(/^\d{5}(-\d{4})?$/)) e.zip = "Enter a valid ZIP code";
       if (!contactData.state)          e.state   = "Required";
     }
+
     if (step === 3) {
       if (!vehicleData.model.trim()) e.model = "Required";
-      if (!vehicleData.year || vehicleData.year < 2005 || vehicleData.year > 2026) e.year = "Enter a year between 2005–2026";
+      // FIX 3: Uses MAX_VEHICLE_YEAR constant — never manually hardcoded
+      if (!vehicleData.year || vehicleData.year < 2005 || vehicleData.year > MAX_VEHICLE_YEAR) {
+        e.year = `Enter a year between 2005–${MAX_VEHICLE_YEAR}`;
+      }
       if (!vehicleData.color.trim()) e.color = "Required";
       if (!vehicleData.plate.trim()) e.plate = "Required";
       if (!vehicleData.rideTypes?.length) e.rideTypes = "Select at least one ride type";
     }
+
+    // FIX 2: Step 4 document validation ─────────────────────────────
+    // Previously there was NO validation on this step — a driver could
+    // skip all uploads and proceed to submission. Now the three required
+    // documents (license front, license back, insurance) must be uploaded
+    // before the driver can continue. Registration and profile photo show
+    // inline errors but don't block progression, matching the UX message
+    // in StepVerify ("You can still submit — upload remaining docs later").
+    if (step === 4) {
+      if (!docData.licenseFront) e.licenseFront = "Required — upload front of license";
+      if (!docData.licenseBack)  e.licenseBack  = "Required — upload back of license";
+      if (!docData.insurance)    e.insurance    = "Required — upload proof of insurance";
+    }
+
     setErrors(e);
     return Object.keys(e).length === 0;
   };
