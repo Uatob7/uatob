@@ -12,9 +12,15 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
       const before = event.data.before.data();
       const after  = event.data.after.data();
 
-      // Only fire when status flips to "pending"
+      // ✅ Only fire when status flips TO "pending"
       if (before.status === after.status) return null;
       if (after.status !== "pending") return null;
+
+      // ✅ Idempotency guard
+      if (after.submittedEmailSent) {
+        console.log("Submitted email already sent, skipping.");
+        return null;
+      }
 
       const { email, firstName, lastName, vehicle, documents } = after || {};
 
@@ -48,7 +54,6 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
       const allDocsUploaded = docRows.every(d => d.ok);
       const missingCount    = docRows.filter(d => !d.ok).length;
 
-      /* ── helpers ── */
       const esc = (s) => String(s ?? "")
         .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 
@@ -85,7 +90,6 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
   <tr>
     <td class="outer-pad" align="center" style="padding:32px 16px;">
 
-      <!-- ── WRAPPER ── -->
       <table width="600" cellpadding="0" cellspacing="0" role="presentation"
              style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;
                     border:1px solid rgba(34,197,94,0.15);background-color:#111411;">
@@ -97,13 +101,6 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
                      background:linear-gradient(160deg,#0a1a0d 0%,#0f2914 45%,#0a1a0d 100%);
                      border-bottom:1px solid rgba(34,197,94,0.12);">
 
-            <!-- Grid pattern -->
-            <div style="position:absolute;inset:0;opacity:0.4;pointer-events:none;
-                        background-image:linear-gradient(rgba(34,197,94,0.06) 1px,transparent 1px),
-                                         linear-gradient(90deg,rgba(34,197,94,0.06) 1px,transparent 1px);
-                        background-size:32px 32px;"></div>
-
-            <!-- Icon -->
             <table cellpadding="0" cellspacing="0" role="presentation"
                    style="margin:0 auto 24px;">
               <tr>
@@ -118,14 +115,12 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
               </tr>
             </table>
 
-            <!-- Eyebrow -->
             <div style="font-family:Arial,sans-serif;font-size:11px;font-weight:700;
                         letter-spacing:0.28em;color:rgba(34,197,94,0.7);
                         text-transform:uppercase;margin-bottom:14px;">
               APPLICATION RECEIVED
             </div>
 
-            <!-- Headline -->
             <h1 class="hero-title"
                 style="margin:0 0 12px;font-size:32px;font-weight:900;
                        color:#ffffff;line-height:1.1;letter-spacing:-0.5px;
@@ -138,7 +133,6 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
               documents and vehicle info now.
             </p>
 
-            <!-- Review time pill -->
             <table cellpadding="0" cellspacing="0" role="presentation"
                    style="margin:24px auto 0;">
               <tr>
@@ -162,7 +156,6 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
           <td style="background-color:#0f180f;border-bottom:1px solid rgba(34,197,94,0.1);">
             <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
               <tr>
-                <!-- Step 1 — done -->
                 <td width="33%" align="center"
                     style="padding:18px 8px;border-right:1px solid rgba(34,197,94,0.1);">
                   <div style="font-family:Arial,sans-serif;font-size:10px;font-weight:700;
@@ -172,7 +165,6 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
                   </div>
                   <div style="height:3px;background:#22C55E;border-radius:2px;"></div>
                 </td>
-                <!-- Step 2 — active -->
                 <td width="33%" align="center"
                     style="padding:18px 8px;border-right:1px solid rgba(34,197,94,0.1);">
                   <div style="font-family:Arial,sans-serif;font-size:10px;font-weight:700;
@@ -182,7 +174,6 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
                   </div>
                   <div style="height:3px;background:rgba(253,224,71,0.4);border-radius:2px;"></div>
                 </td>
-                <!-- Step 3 — pending -->
                 <td width="33%" align="center"
                     style="padding:18px 8px;">
                   <div style="font-family:Arial,sans-serif;font-size:10px;font-weight:600;
@@ -201,7 +192,7 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
         <tr>
           <td class="body-pad" style="padding:36px 32px;background-color:#111411;">
 
-            <!-- ── APPLICATION SUMMARY ── -->
+            <!-- APPLICATION SUMMARY -->
             <div style="margin-bottom:14px;">
               <div style="display:inline-block;width:20px;height:1px;
                           background:#22C55E;vertical-align:middle;margin-right:10px;"></div>
@@ -216,7 +207,6 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
                    style="margin-bottom:28px;background:rgba(255,255,255,0.03);
                           border:1px solid rgba(34,197,94,0.1);border-radius:12px;
                           overflow:hidden;">
-              <!-- Name -->
               <tr>
                 <td style="padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.05);
                            font-size:12px;color:rgba(255,255,255,0.35);
@@ -230,7 +220,6 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
                   ${esc(firstName)} ${esc(lastName)}
                 </td>
               </tr>
-              <!-- Email -->
               <tr>
                 <td style="padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.05);
                            font-size:12px;color:rgba(255,255,255,0.35);
@@ -245,7 +234,6 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
                 </td>
               </tr>
               ${vehicleStr ? `
-              <!-- Vehicle -->
               <tr>
                 <td style="padding:14px 18px;
                            ${vehicle?.plate || vehicle?.rideTypes?.length ? "border-bottom:1px solid rgba(255,255,255,0.05);" : ""}
@@ -263,7 +251,6 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
               </tr>
               ` : ""}
               ${vehicle?.plate ? `
-              <!-- Plate -->
               <tr>
                 <td style="padding:14px 18px;
                            ${vehicle?.rideTypes?.length ? "border-bottom:1px solid rgba(255,255,255,0.05);" : ""}
@@ -281,7 +268,6 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
               </tr>
               ` : ""}
               ${vehicle?.rideTypes?.length ? `
-              <!-- Ride types -->
               <tr>
                 <td style="padding:14px 18px;font-size:12px;color:rgba(255,255,255,0.35);
                            font-family:Arial,sans-serif;letter-spacing:0.06em;
@@ -297,7 +283,7 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
               ` : ""}
             </table>
 
-            <!-- ── DOCUMENT STATUS ── -->
+            <!-- DOCUMENT STATUS -->
             <div style="margin-bottom:14px;">
               <div style="display:inline-block;width:20px;height:1px;
                           background:#22C55E;vertical-align:middle;margin-right:10px;"></div>
@@ -336,7 +322,6 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
             </table>
 
             ${!allDocsUploaded ? `
-            <!-- Missing docs warning -->
             <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
                    style="margin-bottom:28px;background:rgba(251,191,36,0.06);
                           border:1px solid rgba(251,191,36,0.25);border-radius:10px;">
@@ -351,7 +336,7 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
             </table>
             ` : ""}
 
-            <!-- ── REVIEW TIMELINE ── -->
+            <!-- REVIEW TIMELINE -->
             <div style="margin-bottom:14px;">
               <div style="display:inline-block;width:20px;height:1px;
                           background:#22C55E;vertical-align:middle;margin-right:10px;"></div>
@@ -366,8 +351,6 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
                    style="margin-bottom:32px;background:rgba(255,255,255,0.03);
                           border:1px solid rgba(34,197,94,0.1);border-radius:12px;
                           overflow:hidden;">
-
-              <!-- Done -->
               <tr>
                 <td style="padding:18px 20px;border-bottom:1px solid rgba(255,255,255,0.05);">
                   <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
@@ -394,8 +377,6 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
                   </table>
                 </td>
               </tr>
-
-              <!-- Active -->
               <tr>
                 <td style="padding:18px 20px;border-bottom:1px solid rgba(255,255,255,0.05);
                            background:rgba(253,224,71,0.03);">
@@ -428,8 +409,6 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
                   </table>
                 </td>
               </tr>
-
-              <!-- Pending -->
               <tr>
                 <td style="padding:18px 20px;">
                   <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
@@ -463,7 +442,6 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
                   </table>
                 </td>
               </tr>
-
             </table>
 
             <!-- While you wait -->
@@ -493,7 +471,7 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
               </tr>
             </table>
 
-            <!-- ── CTA ── -->
+            <!-- CTA -->
             <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
                    style="margin-bottom:10px;">
               <tr>
@@ -581,6 +559,10 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
       };
 
       await sgMail.send(msg);
+
+      // ✅ Mark as sent to prevent re-fires
+      await event.data.after.ref.update({ submittedEmailSent: true });
+
       console.log(`📧 Application submitted email sent to ${email} (${firstName} ${lastName}) ✅`);
       return null;
 
