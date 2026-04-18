@@ -1,22 +1,21 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const cors = require("cors")({ origin: true });
-const admin = require("firebase-admin");
 
-const db = admin.firestore();
+const { initializeApp } = require("firebase-admin/app");
+const { getFirestore, FieldValue } = require("firebase-admin/firestore");
+
+initializeApp();
+
+const db = getFirestore();
 
 // ─────────────────────────────────────────────────────────
 exports.updateTripStatus = onRequest(
   {
     region: "us-central1",
-    invoker: "public", // ✅ makes it publicly accessible
+    invoker: "public",
   },
-  async (req, res) => {
-    return cors(req, res, async () => {
-      // ✅ Handle preflight
-      if (req.method === "OPTIONS") {
-        return res.status(204).send("");
-      }
-
+  (req, res) => {
+    cors(req, res, async () => {
       if (req.method !== "POST") {
         return res.status(405).json({ success: false });
       }
@@ -40,14 +39,12 @@ exports.updateTripStatus = onRequest(
 
           const ride = snap.data();
 
-          // 🔐 Ensure correct driver
           if (ride.driverUid !== driverUid) {
             throw new Error("Unauthorized driver");
           }
 
           let newStatus = ride.status;
 
-          // ── STATE MACHINE ───────────────────────────────
           if (action === "arrive") {
             if (ride.status !== "driver_assigned") {
               throw new Error("Invalid transition to arrived");
@@ -67,20 +64,22 @@ exports.updateTripStatus = onRequest(
             throw new Error("Invalid action");
           }
 
+          const now = FieldValue.serverTimestamp();
+
           tx.update(rideRef, {
             status: newStatus,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: now,
 
             ...(action === "arrive" && {
-              arrivedAt: admin.firestore.FieldValue.serverTimestamp(),
+              arrivedAt: now,
             }),
 
             ...(action === "start" && {
-              startedAt: admin.firestore.FieldValue.serverTimestamp(),
+              startedAt: now,
             }),
 
             ...(action === "complete" && {
-              completedAt: admin.firestore.FieldValue.serverTimestamp(),
+              completedAt: now,
             }),
           });
         });

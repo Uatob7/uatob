@@ -1,15 +1,15 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const cors = require("cors")({ origin: true });
 const admin = require("firebase-admin");
+const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 
-admin.initializeApp();
 
-const db = admin.firestore();
-const { FieldValue } = require("firebase-admin/firestore");
+
+const db = getFirestore();
 
 exports.acceptRide = onRequest(
   { region: "us-central1" },
-  async (req, res) => {
+  (req, res) => {
     cors(req, res, async () => {
       if (req.method !== "POST") {
         return res.status(405).json({ success: false });

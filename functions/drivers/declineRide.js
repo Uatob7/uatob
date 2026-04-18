@@ -1,13 +1,17 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const cors = require("cors")({ origin: true });
-const admin = require("firebase-admin");
 
-const db = admin.firestore();
+const { initializeApp } = require("firebase-admin/app");
+const { getFirestore, FieldValue } = require("firebase-admin/firestore");
+
+initializeApp();
+
+const db = getFirestore();
 
 exports.declineRide = onRequest(
   { region: "us-central1" },
-  async (req, res) => {
-    return cors(req, res, async () => {
+  (req, res) => {
+    cors(req, res, async () => {
       if (req.method !== "POST") {
         return res.status(405).json({ success: false });
       }
@@ -22,11 +26,10 @@ exports.declineRide = onRequest(
           });
         }
 
-        // Optional: store declines for analytics
         await db.collection("RideDeclines").add({
           rideId,
           uid,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
         });
 
         return res.status(200).json({
