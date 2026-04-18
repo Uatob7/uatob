@@ -31,12 +31,12 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
 
       sgMail.setApiKey(sendgridKey);
 
-      const name        = firstName || "there";
-      const vehicleStr  = vehicle?.make && vehicle?.model
+      const name       = firstName || "there";
+      const year       = new Date().getFullYear();
+      const vehicleStr = vehicle?.make && vehicle?.model
         ? `${vehicle.year || ""} ${vehicle.make} ${vehicle.model}`.trim()
         : null;
 
-      // Build doc status rows
       const docRows = [
         { label: "Driver's License (Front)", ok: documents?.licenseFront },
         { label: "Driver's License (Back)",  ok: documents?.licenseBack  },
@@ -46,9 +46,13 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
       ];
 
       const allDocsUploaded = docRows.every(d => d.ok);
+      const missingCount    = docRows.filter(d => !d.ok).length;
 
-      const html = `
-<!DOCTYPE html>
+      /* ── helpers ── */
+      const esc = (s) => String(s ?? "")
+        .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+      const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -56,403 +60,523 @@ exports.onDriverApplicationSubmitted = onDocumentUpdated(
   <meta name="color-scheme" content="light">
   <title>Application Received — UaTob</title>
   <style type="text/css">
-    body, html, div, span, p, a, table, tr, td, h1, h2, h3, h4, h5, h6 {
-      -webkit-text-size-adjust: 100% !important;
-      -ms-text-size-adjust: 100% !important;
+    body, table, td, p, a, h1, h2, h3 {
+      -webkit-text-size-adjust: 100%;
+      -ms-text-size-adjust: 100%;
     }
     body {
       margin: 0 !important;
       padding: 0 !important;
-      width: 100% !important;
-      min-width: 100% !important;
-      background-color: #ffffff !important;
-      color: #000000 !important;
-    }
-    @media (prefers-color-scheme: dark) {
-      body, html { background-color: #ffffff !important; }
-      * { background-color: inherit !important; color: #000000 !important; }
+      background-color: #0C0F0C !important;
     }
     @media only screen and (max-width: 600px) {
-      .hero-title  { font-size: 26px !important; }
-      .content-pad { padding: 24px 16px !important; }
-      .cta-btn     { padding: 16px 28px !important; font-size: 15px !important; }
+      .outer-pad   { padding: 16px !important; }
+      .hero-title  { font-size: 26px !important; line-height: 1.2 !important; }
+      .hero-pad    { padding: 40px 20px 36px !important; }
+      .body-pad    { padding: 28px 18px !important; }
+      .summary-row td { font-size: 12px !important; }
     }
   </style>
 </head>
-<body style="margin:0!important;padding:0!important;background-color:#ffffff!important;color:#000000!important;">
+<body style="margin:0;padding:0;background-color:#0C0F0C;">
 
-  <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
-         style="margin:0;padding:40px 0;background-color:#ffffff!important;">
-    <tr>
-      <td align="center" style="background-color:#ffffff!important;">
-        <table width="600" cellpadding="0" cellspacing="0" role="presentation"
-               style="max-width:600px;width:100%;background-color:#ffffff!important;
-                      border-radius:24px;overflow:hidden;">
+<table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+       style="background-color:#0C0F0C;">
+  <tr>
+    <td class="outer-pad" align="center" style="padding:32px 16px;">
 
-          <!-- ── HERO ── -->
-          <tr>
-            <td align="center"
-                style="background: linear-gradient(135deg, #15803D 0%, #16A34A 55%, #22C55E 100%);
-                       padding: 52px 32px 44px;">
+      <!-- ── WRAPPER ── -->
+      <table width="600" cellpadding="0" cellspacing="0" role="presentation"
+             style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;
+                    border:1px solid rgba(34,197,94,0.15);background-color:#111411;">
 
-              <!-- Icon -->
-              <table cellpadding="0" cellspacing="0" role="presentation"
-                     style="margin: 0 auto 24px;">
-                <tr>
-                  <td align="center">
-                    <div style="width:80px;height:80px;background-color:rgba(255,255,255,0.15);
-                                border-radius:50%;text-align:center;line-height:80px;
-                                font-size:42px;">
-                      ✅
-                    </div>
-                  </td>
-                </tr>
-              </table>
+        <!-- ══ HERO ══ -->
+        <tr>
+          <td class="hero-pad" align="center"
+              style="padding:52px 32px 44px;
+                     background:linear-gradient(160deg,#0a1a0d 0%,#0f2914 45%,#0a1a0d 100%);
+                     border-bottom:1px solid rgba(34,197,94,0.12);">
 
-              <h1 class="hero-title"
-                  style="margin:0 0 12px;font-size:32px;font-weight:900;color:#ffffff;
-                         line-height:1.2;letter-spacing:-0.5px;font-family:Arial,sans-serif;">
-                Application Received!
-              </h1>
-              <p style="margin:0;font-size:16px;color:#ffffff;font-weight:500;
-                        font-family:Arial,sans-serif;opacity:0.92;line-height:1.5;">
-                We've got everything we need, ${name}.<br/>
-                Our team is reviewing your application now.
-              </p>
-            </td>
-          </tr>
+            <!-- Grid pattern -->
+            <div style="position:absolute;inset:0;opacity:0.4;pointer-events:none;
+                        background-image:linear-gradient(rgba(34,197,94,0.06) 1px,transparent 1px),
+                                         linear-gradient(90deg,rgba(34,197,94,0.06) 1px,transparent 1px);
+                        background-size:32px 32px;"></div>
 
-          <!-- ── REVIEW TIMER BADGE ── -->
-          <tr>
-            <td style="padding:0 32px;background-color:#ffffff;">
-              <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
-                     style="margin-top:-20px;">
-                <tr>
-                  <td align="center">
-                    <div style="display:inline-block;background-color:#fefce8;
-                                border:2px solid #fde047;border-radius:100px;
-                                padding:10px 24px;font-size:13px;font-weight:700;
-                                color:#854d0e;font-family:Arial,sans-serif;letter-spacing:0.5px;">
-                      ⏱️ &nbsp;ESTIMATED REVIEW TIME: 24–48 HOURS
-                    </div>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+            <!-- Icon -->
+            <table cellpadding="0" cellspacing="0" role="presentation"
+                   style="margin:0 auto 24px;">
+              <tr>
+                <td align="center">
+                  <div style="width:64px;height:64px;border-radius:14px;
+                              background:rgba(34,197,94,0.12);
+                              border:1px solid rgba(34,197,94,0.35);
+                              font-size:30px;text-align:center;line-height:64px;">
+                    📋
+                  </div>
+                </td>
+              </tr>
+            </table>
 
-          <!-- ── MAIN CONTENT ── -->
-          <tr>
-            <td class="content-pad"
-                style="padding:36px 32px;background-color:#ffffff;">
+            <!-- Eyebrow -->
+            <div style="font-family:Arial,sans-serif;font-size:11px;font-weight:700;
+                        letter-spacing:0.28em;color:rgba(34,197,94,0.7);
+                        text-transform:uppercase;margin-bottom:14px;">
+              APPLICATION RECEIVED
+            </div>
 
-              <!-- Intro -->
-              <p style="margin:0 0 28px;font-size:16px;color:#111827;
-                        line-height:1.7;font-family:Arial,sans-serif;">
-                Hey <strong>${name}</strong>! Your UaTob driver application has been
-                successfully submitted. We'll review your documents and vehicle
-                information and send you a decision within <strong>24–48 hours</strong>.
-              </p>
+            <!-- Headline -->
+            <h1 class="hero-title"
+                style="margin:0 0 12px;font-size:32px;font-weight:900;
+                       color:#ffffff;line-height:1.1;letter-spacing:-0.5px;
+                       font-family:Arial,sans-serif;">
+              We've got it, ${esc(name)}.
+            </h1>
+            <p style="margin:0 auto;font-size:15px;color:rgba(255,255,255,0.55);
+                      font-family:Arial,sans-serif;line-height:1.65;max-width:380px;">
+              Your driver application is in. Our team is reviewing your
+              documents and vehicle info now.
+            </p>
 
-              <!-- ── APPLICATION SUMMARY ── -->
-              <div style="background-color:#f9fafb;border:1px solid #e5e7eb;
-                          border-radius:16px;padding:24px;margin-bottom:28px;">
-                <h2 style="margin:0 0 18px;font-size:17px;font-weight:700;
-                           color:#111827;font-family:Arial,sans-serif;">
-                  📋 Your Application Summary
-                </h2>
+            <!-- Review time pill -->
+            <table cellpadding="0" cellspacing="0" role="presentation"
+                   style="margin:24px auto 0;">
+              <tr>
+                <td align="center"
+                    style="background:rgba(253,224,71,0.08);
+                           border:1px solid rgba(253,224,71,0.3);
+                           border-radius:100px;padding:9px 20px;">
+                  <span style="font-family:Arial,sans-serif;font-size:11px;font-weight:700;
+                               color:#fde047;letter-spacing:0.12em;text-transform:uppercase;">
+                    ⏱ &nbsp;Estimated review: 24–48 hours
+                  </span>
+                </td>
+              </tr>
+            </table>
 
-                <!-- Name -->
-                <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-                  <tr>
-                    <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;
-                               font-size:13.5px;color:#6B7280;font-family:Arial,sans-serif;
-                               width:45%;">
-                      Full Name
-                    </td>
-                    <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;
-                               font-size:13.5px;color:#111827;font-weight:700;
-                               font-family:Arial,sans-serif;text-align:right;">
-                      ${firstName || ""} ${lastName || ""}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;
-                               font-size:13.5px;color:#6B7280;font-family:Arial,sans-serif;">
-                      Email
-                    </td>
-                    <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;
-                               font-size:13.5px;color:#111827;font-weight:700;
-                               font-family:Arial,sans-serif;text-align:right;">
-                      ${email}
-                    </td>
-                  </tr>
-                  ${vehicleStr ? `
-                  <tr>
-                    <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;
-                               font-size:13.5px;color:#6B7280;font-family:Arial,sans-serif;">
-                      Vehicle
-                    </td>
-                    <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;
-                               font-size:13.5px;color:#111827;font-weight:700;
-                               font-family:Arial,sans-serif;text-align:right;">
-                      ${vehicleStr}
-                    </td>
-                  </tr>
-                  ` : ""}
-                  ${vehicle?.plate ? `
-                  <tr>
-                    <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;
-                               font-size:13.5px;color:#6B7280;font-family:Arial,sans-serif;">
-                      License Plate
-                    </td>
-                    <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;
-                               font-size:13.5px;color:#111827;font-weight:700;
-                               font-family:Arial,sans-serif;text-align:right;">
-                      ${vehicle.plate}
-                    </td>
-                  </tr>
-                  ` : ""}
-                  ${vehicle?.rideTypes?.length ? `
-                  <tr>
-                    <td style="padding:10px 0;font-size:13.5px;color:#6B7280;
-                               font-family:Arial,sans-serif;">
-                      Ride Types
-                    </td>
-                    <td style="padding:10px 0;font-size:13.5px;color:#111827;font-weight:700;
-                               font-family:Arial,sans-serif;text-align:right;
-                               text-transform:capitalize;">
-                      ${vehicle.rideTypes.join(", ")}
-                    </td>
-                  </tr>
-                  ` : ""}
-                </table>
-              </div>
+          </td>
+        </tr>
 
-              <!-- ── DOCUMENTS STATUS ── -->
-              <div style="border-radius:16px;padding:24px;margin-bottom:28px;
-                          background-color:${allDocsUploaded ? "#f0fdf4" : "#fffbeb"};
-                          border:2px solid ${allDocsUploaded ? "#86efac" : "#fde047"};">
-                <h2 style="margin:0 0 16px;font-size:17px;font-weight:700;
-                           color:#111827;font-family:Arial,sans-serif;">
-                  ${allDocsUploaded ? "📁 Documents — All Uploaded ✓" : "📁 Document Status"}
-                </h2>
+        <!-- ══ PROGRESS BAR ══ -->
+        <tr>
+          <td style="background-color:#0f180f;border-bottom:1px solid rgba(34,197,94,0.1);">
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+              <tr>
+                <!-- Step 1 — done -->
+                <td width="33%" align="center"
+                    style="padding:18px 8px;border-right:1px solid rgba(34,197,94,0.1);">
+                  <div style="font-family:Arial,sans-serif;font-size:10px;font-weight:700;
+                              color:#22C55E;letter-spacing:0.12em;text-transform:uppercase;
+                              margin-bottom:6px;">
+                    ✓ &nbsp;Submitted
+                  </div>
+                  <div style="height:3px;background:#22C55E;border-radius:2px;"></div>
+                </td>
+                <!-- Step 2 — active -->
+                <td width="33%" align="center"
+                    style="padding:18px 8px;border-right:1px solid rgba(34,197,94,0.1);">
+                  <div style="font-family:Arial,sans-serif;font-size:10px;font-weight:700;
+                              color:#fde047;letter-spacing:0.12em;text-transform:uppercase;
+                              margin-bottom:6px;">
+                    ● &nbsp;In Review
+                  </div>
+                  <div style="height:3px;background:rgba(253,224,71,0.4);border-radius:2px;"></div>
+                </td>
+                <!-- Step 3 — pending -->
+                <td width="33%" align="center"
+                    style="padding:18px 8px;">
+                  <div style="font-family:Arial,sans-serif;font-size:10px;font-weight:600;
+                              color:rgba(255,255,255,0.2);letter-spacing:0.12em;text-transform:uppercase;
+                              margin-bottom:6px;">
+                    ○ &nbsp;Decision
+                  </div>
+                  <div style="height:3px;background:rgba(255,255,255,0.07);border-radius:2px;"></div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
 
-                <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-                  ${docRows.map((d, i) => `
-                  <tr>
-                    <td style="padding:9px 0;
-                               ${i < docRows.length - 1 ? "border-bottom:1px solid " + (allDocsUploaded ? "#bbf7d0" : "#fde68a") + ";" : ""}
-                               font-size:13.5px;color:#111827;font-family:Arial,sans-serif;">
-                      ${d.label}
-                    </td>
-                    <td style="padding:9px 0;
-                               ${i < docRows.length - 1 ? "border-bottom:1px solid " + (allDocsUploaded ? "#bbf7d0" : "#fde68a") + ";" : ""}
-                               font-size:13.5px;font-weight:700;text-align:right;
-                               color:${d.ok ? "#16A34A" : "#D97706"};
-                               font-family:Arial,sans-serif;">
-                      ${d.ok ? "✓ Uploaded" : "⚠ Pending"}
-                    </td>
-                  </tr>
-                  `).join("")}
-                </table>
+        <!-- ══ BODY ══ -->
+        <tr>
+          <td class="body-pad" style="padding:36px 32px;background-color:#111411;">
 
-                ${!allDocsUploaded ? `
-                <div style="margin-top:16px;padding:12px 16px;background-color:#fef3c7;
-                            border-radius:10px;font-size:13px;color:#92400e;
-                            font-family:Arial,sans-serif;line-height:1.6;">
-                  ⚠️ <strong>Some documents are still missing.</strong> You can upload
-                  them by returning to your application. Missing documents may delay
-                  your approval.
-                </div>
-                ` : ""}
-              </div>
+            <!-- ── APPLICATION SUMMARY ── -->
+            <div style="margin-bottom:14px;">
+              <div style="display:inline-block;width:20px;height:1px;
+                          background:#22C55E;vertical-align:middle;margin-right:10px;"></div>
+              <span style="font-family:Arial,sans-serif;font-size:10px;font-weight:700;
+                           color:#22C55E;letter-spacing:0.22em;text-transform:uppercase;
+                           vertical-align:middle;">
+                Application Summary
+              </span>
+            </div>
 
-              <!-- ── REVIEW TIMELINE ── -->
-              <div style="background-color:#eff6ff;border:2px solid #93c5fd;
-                          border-radius:16px;padding:24px;margin-bottom:32px;">
-                <h2 style="margin:0 0 18px;font-size:17px;font-weight:700;
-                           color:#111827;font-family:Arial,sans-serif;">
-                  🗓️ Review Timeline
-                </h2>
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+                   style="margin-bottom:28px;background:rgba(255,255,255,0.03);
+                          border:1px solid rgba(34,197,94,0.1);border-radius:12px;
+                          overflow:hidden;">
+              <!-- Name -->
+              <tr>
+                <td style="padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.05);
+                           font-size:12px;color:rgba(255,255,255,0.35);
+                           font-family:Arial,sans-serif;letter-spacing:0.06em;
+                           text-transform:uppercase;width:40%;">
+                  Full Name
+                </td>
+                <td style="padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.05);
+                           font-size:13px;color:rgba(255,255,255,0.8);font-weight:700;
+                           font-family:Arial,sans-serif;text-align:right;">
+                  ${esc(firstName)} ${esc(lastName)}
+                </td>
+              </tr>
+              <!-- Email -->
+              <tr>
+                <td style="padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.05);
+                           font-size:12px;color:rgba(255,255,255,0.35);
+                           font-family:Arial,sans-serif;letter-spacing:0.06em;
+                           text-transform:uppercase;">
+                  Email
+                </td>
+                <td style="padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.05);
+                           font-size:13px;color:rgba(255,255,255,0.8);font-weight:700;
+                           font-family:Arial,sans-serif;text-align:right;">
+                  ${esc(email)}
+                </td>
+              </tr>
+              ${vehicleStr ? `
+              <!-- Vehicle -->
+              <tr>
+                <td style="padding:14px 18px;
+                           ${vehicle?.plate || vehicle?.rideTypes?.length ? "border-bottom:1px solid rgba(255,255,255,0.05);" : ""}
+                           font-size:12px;color:rgba(255,255,255,0.35);
+                           font-family:Arial,sans-serif;letter-spacing:0.06em;
+                           text-transform:uppercase;">
+                  Vehicle
+                </td>
+                <td style="padding:14px 18px;
+                           ${vehicle?.plate || vehicle?.rideTypes?.length ? "border-bottom:1px solid rgba(255,255,255,0.05);" : ""}
+                           font-size:13px;color:rgba(255,255,255,0.8);font-weight:700;
+                           font-family:Arial,sans-serif;text-align:right;">
+                  ${esc(vehicleStr)}
+                </td>
+              </tr>
+              ` : ""}
+              ${vehicle?.plate ? `
+              <!-- Plate -->
+              <tr>
+                <td style="padding:14px 18px;
+                           ${vehicle?.rideTypes?.length ? "border-bottom:1px solid rgba(255,255,255,0.05);" : ""}
+                           font-size:12px;color:rgba(255,255,255,0.35);
+                           font-family:Arial,sans-serif;letter-spacing:0.06em;
+                           text-transform:uppercase;">
+                  License Plate
+                </td>
+                <td style="padding:14px 18px;
+                           ${vehicle?.rideTypes?.length ? "border-bottom:1px solid rgba(255,255,255,0.05);" : ""}
+                           font-size:13px;color:rgba(255,255,255,0.8);font-weight:700;
+                           font-family:Arial,sans-serif;text-align:right;">
+                  ${esc(vehicle.plate)}
+                </td>
+              </tr>
+              ` : ""}
+              ${vehicle?.rideTypes?.length ? `
+              <!-- Ride types -->
+              <tr>
+                <td style="padding:14px 18px;font-size:12px;color:rgba(255,255,255,0.35);
+                           font-family:Arial,sans-serif;letter-spacing:0.06em;
+                           text-transform:uppercase;">
+                  Ride Types
+                </td>
+                <td style="padding:14px 18px;font-size:13px;color:rgba(255,255,255,0.8);
+                           font-weight:700;font-family:Arial,sans-serif;text-align:right;
+                           text-transform:capitalize;">
+                  ${vehicle.rideTypes.map(esc).join(", ")}
+                </td>
+              </tr>
+              ` : ""}
+            </table>
 
-                <!-- Timeline item 1 -->
-                <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
-                       style="margin-bottom:14px;">
-                  <tr>
-                    <td width="36" valign="top">
-                      <div style="width:28px;height:28px;background-color:#22C55E;
-                                  border-radius:50%;text-align:center;line-height:28px;
-                                  font-size:13px;font-weight:700;color:#ffffff;
-                                  font-family:Arial,sans-serif;">✓</div>
-                    </td>
-                    <td valign="middle" style="padding-left:10px;">
-                      <p style="margin:0;font-size:14px;color:#111827;font-weight:700;
-                                font-family:Arial,sans-serif;">
-                        Application Submitted
-                        <span style="font-weight:500;color:#16A34A;margin-left:8px;
-                                     font-size:12px;">DONE</span>
-                      </p>
-                    </td>
-                  </tr>
-                </table>
+            <!-- ── DOCUMENT STATUS ── -->
+            <div style="margin-bottom:14px;">
+              <div style="display:inline-block;width:20px;height:1px;
+                          background:#22C55E;vertical-align:middle;margin-right:10px;"></div>
+              <span style="font-family:Arial,sans-serif;font-size:10px;font-weight:700;
+                           color:#22C55E;letter-spacing:0.22em;text-transform:uppercase;
+                           vertical-align:middle;">
+                Document Status
+              </span>
+            </div>
 
-                <!-- Timeline item 2 -->
-                <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
-                       style="margin-bottom:14px;">
-                  <tr>
-                    <td width="36" valign="top">
-                      <div style="width:28px;height:28px;background-color:#2563EB;
-                                  border-radius:50%;text-align:center;line-height:28px;
-                                  font-size:13px;font-weight:700;color:#ffffff;
-                                  font-family:Arial,sans-serif;">2</div>
-                    </td>
-                    <td valign="middle" style="padding-left:10px;">
-                      <p style="margin:0;font-size:14px;color:#111827;font-weight:700;
-                                font-family:Arial,sans-serif;">
-                        Document &amp; Background Verification
-                        <span style="font-weight:500;color:#2563EB;margin-left:8px;
-                                     font-size:12px;">IN PROGRESS</span>
-                      </p>
-                      <p style="margin:4px 0 0;font-size:13px;color:#4B5563;
-                                font-family:Arial,sans-serif;">
-                        Our team reviews your license, insurance, and vehicle details.
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-
-                <!-- Timeline item 3 -->
-                <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-                  <tr>
-                    <td width="36" valign="top">
-                      <div style="width:28px;height:28px;background-color:#D1D5DB;
-                                  border-radius:50%;text-align:center;line-height:28px;
-                                  font-size:13px;font-weight:700;color:#ffffff;
-                                  font-family:Arial,sans-serif;">3</div>
-                    </td>
-                    <td valign="middle" style="padding-left:10px;">
-                      <p style="margin:0;font-size:14px;color:#6B7280;font-weight:700;
-                                font-family:Arial,sans-serif;">
-                        Decision Email Sent to You
-                        <span style="font-weight:500;color:#9CA3AF;margin-left:8px;
-                                     font-size:12px;">PENDING</span>
-                      </p>
-                      <p style="margin:4px 0 0;font-size:13px;color:#9CA3AF;
-                                font-family:Arial,sans-serif;">
-                        You'll get an approval or follow-up email within 24–48 hours.
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </div>
-
-              <!-- ── WHILE YOU WAIT ── -->
-              <div style="background-color:#f9fafb;border:1px solid #e5e7eb;
-                          border-radius:14px;padding:20px;margin-bottom:32px;">
-                <p style="margin:0 0 12px;font-size:15px;font-weight:700;
-                           color:#111827;font-family:Arial,sans-serif;">
-                  💡 While You Wait
-                </p>
-                <ul style="margin:0;padding-left:18px;font-size:13.5px;
-                           color:#4B5563;line-height:1.85;font-family:Arial,sans-serif;">
-                  <li>Make sure your phone number is active — we may call to verify details</li>
-                  <li>Keep your vehicle registration and insurance current</li>
-                  <li>Check your spam folder so our approval email doesn't get buried</li>
-                  ${!allDocsUploaded ? "<li><strong>Upload any missing documents</strong> to avoid delays</li>" : ""}
-                </ul>
-              </div>
-
-              <!-- ── CTA ── -->
-              ${!allDocsUploaded ? `
-              <div style="text-align:center;margin:32px 0;">
-                <a href="https://uatob.com/driver/signup"
-                   style="display:inline-block;background-color:#D97706;
-                          color:#ffffff;font-size:16px;font-weight:700;
-                          text-decoration:none;padding:16px 36px;
-                          border-radius:14px;font-family:Arial,sans-serif;">
-                  Upload Missing Documents →
-                </a>
-                <p style="margin:12px 0 0;font-size:13px;color:#6B7280;
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+                   style="margin-bottom:${allDocsUploaded ? "28px" : "12px"};
+                          background:rgba(255,255,255,0.03);
+                          border:1px solid ${allDocsUploaded
+                            ? "rgba(34,197,94,0.2)"
+                            : "rgba(253,224,71,0.2)"};
+                          border-radius:12px;overflow:hidden;">
+              ${docRows.map((d, i) => `
+              <tr>
+                <td style="padding:13px 18px;
+                           ${i < docRows.length - 1 ? "border-bottom:1px solid rgba(255,255,255,0.05);" : ""}
+                           font-size:13px;color:rgba(255,255,255,0.6);
                            font-family:Arial,sans-serif;">
-                  Missing documents may delay your approval
-                </p>
-              </div>
-              ` : `
-              <div style="text-align:center;margin:32px 0;">
-                <p style="margin:0 0 6px;font-size:15px;color:#111827;font-weight:700;
-                           font-family:Arial,sans-serif;">
-                  🎉 You're all set! Sit tight.
-                </p>
-                <p style="margin:0;font-size:14px;color:#6B7280;
-                           font-family:Arial,sans-serif;line-height:1.6;">
-                  We'll email you the moment your application is approved.
-                </p>
-              </div>
-              `}
+                  ${esc(d.label)}
+                </td>
+                <td style="padding:13px 18px;
+                           ${i < docRows.length - 1 ? "border-bottom:1px solid rgba(255,255,255,0.05);" : ""}
+                           font-size:12px;font-weight:700;text-align:right;
+                           font-family:Arial,sans-serif;
+                           color:${d.ok ? "#22C55E" : "#fbbf24"};
+                           letter-spacing:0.06em;text-transform:uppercase;">
+                  ${d.ok ? "✓ Uploaded" : "⚠ Missing"}
+                </td>
+              </tr>
+              `).join("")}
+            </table>
 
-              <!-- ── FOOTER NOTE ── -->
-              <div style="text-align:center;padding-top:24px;
-                          border-top:1px solid #e5e7eb;">
-                <p style="margin:0;font-size:13px;color:#4B5563;
-                           line-height:1.7;font-family:Arial,sans-serif;">
-                  Questions about your application?<br/>
-                  Reply to this email or visit our
-                  <a href="https://uatob.com/help"
-                     style="color:#16A34A;text-decoration:none;font-weight:600;">
-                    Help Center
+            ${!allDocsUploaded ? `
+            <!-- Missing docs warning -->
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+                   style="margin-bottom:28px;background:rgba(251,191,36,0.06);
+                          border:1px solid rgba(251,191,36,0.25);border-radius:10px;">
+              <tr>
+                <td style="padding:14px 18px;font-size:13px;
+                           color:rgba(253,224,71,0.85);font-family:Arial,sans-serif;
+                           line-height:1.65;">
+                  <strong>${missingCount} document${missingCount > 1 ? "s" : ""} still missing.</strong>
+                  Upload them to avoid delays — incomplete applications take longer to review.
+                </td>
+              </tr>
+            </table>
+            ` : ""}
+
+            <!-- ── REVIEW TIMELINE ── -->
+            <div style="margin-bottom:14px;">
+              <div style="display:inline-block;width:20px;height:1px;
+                          background:#22C55E;vertical-align:middle;margin-right:10px;"></div>
+              <span style="font-family:Arial,sans-serif;font-size:10px;font-weight:700;
+                           color:#22C55E;letter-spacing:0.22em;text-transform:uppercase;
+                           vertical-align:middle;">
+                What happens now
+              </span>
+            </div>
+
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+                   style="margin-bottom:32px;background:rgba(255,255,255,0.03);
+                          border:1px solid rgba(34,197,94,0.1);border-radius:12px;
+                          overflow:hidden;">
+
+              <!-- Done -->
+              <tr>
+                <td style="padding:18px 20px;border-bottom:1px solid rgba(255,255,255,0.05);">
+                  <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                    <tr>
+                      <td width="34" valign="middle">
+                        <div style="width:28px;height:28px;border-radius:6px;
+                                    background:rgba(34,197,94,0.15);
+                                    border:1px solid #22C55E;
+                                    text-align:center;line-height:28px;
+                                    font-size:13px;font-weight:700;
+                                    color:#22C55E;font-family:Arial,sans-serif;">✓</div>
+                      </td>
+                      <td valign="middle" style="padding-left:14px;">
+                        <span style="font-family:Arial,sans-serif;font-size:13px;
+                                     font-weight:700;color:#22C55E;">
+                          Application Submitted
+                        </span>
+                        <span style="font-family:Arial,sans-serif;font-size:10px;
+                                     font-weight:700;color:rgba(34,197,94,0.5);
+                                     letter-spacing:0.1em;text-transform:uppercase;
+                                     margin-left:8px;">Done</span>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Active -->
+              <tr>
+                <td style="padding:18px 20px;border-bottom:1px solid rgba(255,255,255,0.05);
+                           background:rgba(253,224,71,0.03);">
+                  <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                    <tr>
+                      <td width="34" valign="top">
+                        <div style="width:28px;height:28px;border-radius:6px;
+                                    background:rgba(253,224,71,0.1);
+                                    border:1px solid rgba(253,224,71,0.35);
+                                    text-align:center;line-height:28px;
+                                    font-size:12px;font-weight:700;
+                                    color:#fde047;font-family:Arial,sans-serif;">02</div>
+                      </td>
+                      <td valign="top" style="padding-left:14px;">
+                        <div style="font-family:Arial,sans-serif;font-size:13px;
+                                    font-weight:700;color:#ffffff;margin-bottom:4px;">
+                          Document &amp; Vehicle Verification
+                          <span style="font-size:10px;font-weight:700;
+                                       color:#fde047;letter-spacing:0.1em;
+                                       text-transform:uppercase;margin-left:8px;">
+                            In Progress
+                          </span>
+                        </div>
+                        <div style="font-family:Arial,sans-serif;font-size:12px;
+                                    color:rgba(255,255,255,0.4);line-height:1.6;">
+                          License, insurance, and vehicle details are being reviewed.
+                        </div>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Pending -->
+              <tr>
+                <td style="padding:18px 20px;">
+                  <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                    <tr>
+                      <td width="34" valign="top">
+                        <div style="width:28px;height:28px;border-radius:6px;
+                                    background:rgba(255,255,255,0.04);
+                                    border:1px solid rgba(255,255,255,0.1);
+                                    text-align:center;line-height:28px;
+                                    font-size:12px;font-weight:700;
+                                    color:rgba(255,255,255,0.2);
+                                    font-family:Arial,sans-serif;">03</div>
+                      </td>
+                      <td valign="top" style="padding-left:14px;">
+                        <div style="font-family:Arial,sans-serif;font-size:13px;
+                                    font-weight:700;color:rgba(255,255,255,0.3);
+                                    margin-bottom:4px;">
+                          Decision Email Sent
+                          <span style="font-size:10px;font-weight:700;
+                                       color:rgba(255,255,255,0.2);letter-spacing:0.1em;
+                                       text-transform:uppercase;margin-left:8px;">
+                            Pending
+                          </span>
+                        </div>
+                        <div style="font-family:Arial,sans-serif;font-size:12px;
+                                    color:rgba(255,255,255,0.25);line-height:1.6;">
+                          You'll receive an approval or follow-up within 24–48 hours.
+                        </div>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+            </table>
+
+            <!-- While you wait -->
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+                   style="margin-bottom:32px;background:rgba(255,255,255,0.03);
+                          border:1px solid rgba(255,255,255,0.07);border-radius:10px;">
+              <tr>
+                <td style="padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.05);">
+                  <span style="font-family:Arial,sans-serif;font-size:11px;font-weight:700;
+                               color:rgba(255,255,255,0.3);letter-spacing:0.15em;
+                               text-transform:uppercase;">
+                    While you wait
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:16px 18px;font-size:13px;
+                           color:rgba(255,255,255,0.45);font-family:Arial,sans-serif;
+                           line-height:1.9;">
+                  — Keep your phone active — we may call to verify details<br/>
+                  — Check your spam folder so our approval email isn't missed<br/>
+                  — Make sure insurance and registration stay current<br/>
+                  ${!allDocsUploaded
+                    ? `— <strong style="color:rgba(253,224,71,0.7);">Upload missing documents</strong> to avoid delays`
+                    : `— You're all set — sit tight and we'll be in touch`}
+                </td>
+              </tr>
+            </table>
+
+            <!-- ── CTA ── -->
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+                   style="margin-bottom:10px;">
+              <tr>
+                <td align="center">
+                  <a href="https://uatob.com/driver/signup"
+                     style="display:inline-block;
+                            background:${allDocsUploaded
+                              ? "linear-gradient(90deg,#16A34A,#22C55E)"
+                              : "linear-gradient(90deg,#b45309,#f59e0b)"};
+                            color:#000000;font-size:14px;font-weight:800;
+                            text-decoration:none;padding:17px 44px;
+                            border-radius:8px;font-family:Arial,sans-serif;
+                            letter-spacing:0.05em;text-transform:uppercase;">
+                    ${allDocsUploaded
+                      ? "View Your Application →"
+                      : "Upload Missing Documents →"}
                   </a>
-                </p>
-              </div>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:0;text-align:center;font-size:11px;
+                      color:rgba(255,255,255,0.2);font-family:Arial,sans-serif;
+                      letter-spacing:0.05em;">
+              ${allDocsUploaded
+                ? "We'll email you the moment a decision is made"
+                : `${missingCount} missing document${missingCount > 1 ? "s" : ""} may delay your approval`}
+            </p>
 
-            </td>
-          </tr>
+          </td>
+        </tr>
 
-          <!-- ── EMAIL FOOTER ── -->
-          <tr>
-            <td style="padding:24px 32px;text-align:center;
-                       background-color:#f3f4f6;border-top:1px solid #e5e7eb;">
-              <div style="font-size:15px;font-weight:800;color:#111827;
-                          font-family:Arial,sans-serif;margin-bottom:4px;
-                          letter-spacing:-0.3px;">
-                UaTob
-              </div>
-              <div style="font-size:12px;color:#6B7280;
-                          font-family:Arial,sans-serif;margin-bottom:12px;">
-                Orlando's Rideshare Platform
-              </div>
-              <div style="font-size:12px;color:#9CA3AF;
-                          font-family:Arial,sans-serif;margin-bottom:12px;">
-                © ${new Date().getFullYear()} UaTob. All rights reserved.
-              </div>
-              <div>
-                <a href="https://uatob.com/privacy"
-                   style="color:#16A34A;text-decoration:none;font-size:11px;
-                          margin:0 8px;font-family:Arial,sans-serif;">Privacy</a>
-                <a href="https://uatob.com/terms"
-                   style="color:#16A34A;text-decoration:none;font-size:11px;
-                          margin:0 8px;font-family:Arial,sans-serif;">Terms</a>
-                <a href="https://uatob.com/unsubscribe"
-                   style="color:#16A34A;text-decoration:none;font-size:11px;
-                          margin:0 8px;font-family:Arial,sans-serif;">Unsubscribe</a>
-              </div>
-            </td>
-          </tr>
+        <!-- ══ FOOTER ══ -->
+        <tr>
+          <td style="padding:24px 32px;text-align:center;
+                     background-color:#0a0d0a;
+                     border-top:1px solid rgba(34,197,94,0.1);">
+            <div style="font-family:Arial,sans-serif;font-size:13px;font-weight:800;
+                        color:#22C55E;letter-spacing:0.12em;margin-bottom:4px;">
+              UATOB
+            </div>
+            <div style="font-family:Arial,sans-serif;font-size:11px;
+                        color:rgba(255,255,255,0.2);margin-bottom:12px;
+                        letter-spacing:0.07em;">
+              Orlando's Driver-First Rideshare Platform
+            </div>
+            <div style="font-family:Arial,sans-serif;font-size:12px;
+                        color:rgba(255,255,255,0.2);margin-bottom:14px;">
+              Questions? Reply to this email or visit our
+              <a href="https://uatob.com/help"
+                 style="color:#22C55E;text-decoration:none;">Help Center</a>
+            </div>
+            <div>
+              <a href="https://uatob.com/privacy"
+                 style="color:rgba(255,255,255,0.2);text-decoration:none;
+                        font-size:11px;margin:0 10px;font-family:Arial,sans-serif;">Privacy</a>
+              <a href="https://uatob.com/terms"
+                 style="color:rgba(255,255,255,0.2);text-decoration:none;
+                        font-size:11px;margin:0 10px;font-family:Arial,sans-serif;">Terms</a>
+              <a href="https://uatob.com/unsubscribe"
+                 style="color:rgba(255,255,255,0.2);text-decoration:none;
+                        font-size:11px;margin:0 10px;font-family:Arial,sans-serif;">Unsubscribe</a>
+            </div>
+            <div style="font-family:Arial,sans-serif;font-size:11px;
+                        color:rgba(255,255,255,0.1);margin-top:12px;">
+              © ${year} UaTob. All rights reserved.
+            </div>
+          </td>
+        </tr>
 
-        </table>
-      </td>
-    </tr>
-  </table>
+      </table>
+    </td>
+  </tr>
+</table>
 
 </body>
-</html>
-      `;
+</html>`;
 
       const msg = {
         to:      email,
         from:    "UaTob <noreply@uatob.com>",
-        subject: `✅ Application received, ${name} — we'll review it within 48 hours.`,
-        text:    `Hey ${name}! We've received your UaTob driver application and our team is reviewing it now. You'll hear back within 24–48 hours. Questions? Visit https://uatob.com/help`,
+        replyTo: "support@uatob.com",
+        subject: `Application received, ${name} — we'll review it within 48 hours`,
+        text:    `Hey ${name}! We've received your UaTob driver application and our team is reviewing it now. You'll hear back within 24–48 hours.${!allDocsUploaded ? ` You still have ${missingCount} missing document(s) — upload them at https://uatob.com/driver/signup to avoid delays.` : ""} Questions? Email support@uatob.com`,
         html,
       };
 
