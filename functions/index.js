@@ -14,7 +14,7 @@ const { riderLocation } = require("./ride/riderLocation.JS");
 // Payment functions
 const { cardPayment } = require("./payments/cardPayment");
 const { cashAppPayment } = require("./payments/cashAppPayment");
-const { cashAppChecker } = require("./payments/cashAppChecker");
+const { cardChecker } = require("./payments/cardChecker");
 const { setupDeposit } = require("./payments/setupDeposit");
 
 // driver functions
@@ -67,7 +67,6 @@ exports.Geo = Geo;
 exports.cardPayment = cardPayment;
 exports.checkDriverDeposit = checkDriverDeposit;
 exports.cashAppPayment = cashAppPayment;
-exports.cashAppChecker = cashAppChecker;
 exports.setupDeposit = setupDeposit;
 exports.acceptRide = acceptRide;
 exports.declineRide = declineRide;
@@ -81,6 +80,7 @@ exports.getDriverToPickup = getDriverToPickup;
 exports.updateDriverPresence = updateDriverPresence;
 exports.setDriverTripActive = setDriverTripActive;
 exports.onRideCreated = onRideCreated;
+exports.cardChecker = cardChecker;
 exports.onDriverCreated = onDriverCreated;
 exports.updateDriverAchievements = updateDriverAchievements;
 exports.onDriverApplicationSubmitted = onDriverApplicationSubmitted;

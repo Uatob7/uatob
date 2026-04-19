@@ -2,13 +2,12 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Clock, Car, CheckCircle, RotateCcw, Loader2 } from 'lucide-react';
 import { THEME as T } from '@/App/UaTob/pricing.js';
-import { doc, updateDoc, deleteDoc, getFirestore } from 'firebase/firestore';
+import { doc, updateDoc, deleteDoc, onSnapshot, getFirestore } from 'firebase/firestore';
 import { firebase_app } from '@/firebase/config';
 
 const db = getFirestore(firebase_app);
 const SEARCH_LIMIT_SEC = 7 * 60;
 
-// ── Compute seconds remaining based on ride's createdAt ──
 function getSecondsRemaining(createdAt) {
   if (!createdAt) return SEARCH_LIMIT_SEC;
   const createdMs = createdAt instanceof Date
@@ -27,30 +26,35 @@ export default function ConfirmationModal({
   ridesLoading,
 }) {
 
-  const [status,      setStatus]      = useState('searching');
+  const [status,      setStatus]      = useState('checking_payment');
   const [secondsLeft, setSecondsLeft] = useState(SEARCH_LIMIT_SEC);
   const [driver,      setDriver]      = useState(null);
   const [visible,     setVisible]     = useState(false);
+  const [liveRide,    setLiveRide]    = useState(null);
 
   const timerRef        = useRef(null);
   const closeTimeoutRef = useRef(null);
   const mountedRef      = useRef(true);
   const didTimeoutRef   = useRef(false);
   const lastRideIdRef   = useRef(null);
+  const unsubRef        = useRef(null);
 
-  // ── Derive the active ride directly from rides ─────────
-  const currentRide = useMemo(() => {
+  // ── Derive the active ride from rides prop (seed only) ──
+  const seedRide = useMemo(() => {
     if (!rides?.length) return null;
     return rides.find(
       (r) => r.paymentStatus === 'succeeded' &&
              r.status !== 'completed' &&
              r.status !== 'cancelled'
+    ) ?? rides.find(
+      (r) => r.status === 'pending_payment'
     ) ?? null;
   }, [rides]);
 
-  const rideId = currentRide?.id ?? null;
+  const currentRide = liveRide ?? seedRide;
+  const rideId      = currentRide?.id ?? null;
 
-  // ── Mount / unmount ────────────────────────────────────
+  // ── Mount / unmount ──────────────────────────────────
   useEffect(() => {
     mountedRef.current = true;
     const t = setTimeout(() => { if (mountedRef.current) setVisible(true); }, 30);
@@ -59,37 +63,54 @@ export default function ConfirmationModal({
       clearTimeout(t);
       clearTimeout(closeTimeoutRef.current);
       clearInterval(timerRef.current);
+      unsubRef.current?.();
     };
   }, []);
 
-  // ── Reset when a new rideId appears ───────────────────
+  // ── Subscribe to ride via onSnapshot when rideId is known ──
   useEffect(() => {
-    if (!rideId || rideId === lastRideIdRef.current) return;
+    if (!rideId) return;
+    if (rideId === lastRideIdRef.current) return;
     lastRideIdRef.current = rideId;
 
-    // ── Seed timer from actual createdAt so refreshes don't reset to 7:00 ──
-    const remaining = getSecondsRemaining(currentRide?.createdAt);
-    setSecondsLeft(remaining);
-    setStatus(remaining <= 0 ? 'timeout' : 'searching');
-    setDriver(null);
-    didTimeoutRef.current = remaining <= 0;
+    // Tear down any previous listener
+    unsubRef.current?.();
+
+    unsubRef.current = onSnapshot(
+      doc(db, 'Rides', rideId),
+      (snap) => {
+        if (!snap.exists() || !mountedRef.current) return;
+        setLiveRide({ id: snap.id, ...snap.data() });
+      },
+      (err) => console.warn('[ConfirmationModal] onSnapshot error:', err)
+    );
   }, [rideId]);
 
-  // ── Drive status from live ride ────────────────────────
+  // ── Drive UI status from live ride ──────────────────
   useEffect(() => {
-    if (ridesLoading || !currentRide) return;
+    if (!currentRide) return;
 
-    if (currentRide.status === 'pending_payment') {
+    const s = currentRide.status;
+
+    if (s === 'pending_payment') {
       setStatus('checking_payment');
       return;
     }
 
-    if (currentRide.status === 'searching_driver' || currentRide.status === 'searching') {
-      setStatus((prev) => (prev === 'searching' ? prev : 'searching'));
+    if (s === 'searching_driver' || s === 'searching') {
+      if (didTimeoutRef.current) return;
+      const remaining = getSecondsRemaining(currentRide?.createdAt);
+      if (remaining <= 0) {
+        setStatus('timeout');
+        return;
+      }
+      setSecondsLeft(remaining);
+      setDriver(null);
+      setStatus('searching');
       return;
     }
 
-    if (currentRide.status === 'driver_assigned') {
+    if (s === 'driver_assigned') {
       clearInterval(timerRef.current);
       timerRef.current = null;
       if (currentRide.driver) setDriver(currentRide.driver);
@@ -97,14 +118,14 @@ export default function ConfirmationModal({
       return;
     }
 
-    if (currentRide.status === 'timeout' || currentRide.status === 'cancelled') {
+    if (s === 'timeout' || s === 'cancelled') {
       clearInterval(timerRef.current);
       timerRef.current = null;
       setStatus('timeout');
     }
-  }, [currentRide, ridesLoading]);
+  }, [currentRide]);
 
-  // ── Countdown timer ────────────────────────────────────
+  // ── Countdown timer ──────────────────────────────────
   useEffect(() => {
     if (status !== 'searching') {
       clearInterval(timerRef.current);
@@ -114,10 +135,8 @@ export default function ConfirmationModal({
 
     clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
-      // ── Always recompute from createdAt so drift can't accumulate ──
       const remaining = getSecondsRemaining(currentRide?.createdAt);
       setSecondsLeft(remaining);
-
       if (remaining <= 0) {
         clearInterval(timerRef.current);
         timerRef.current = null;
@@ -131,21 +150,23 @@ export default function ConfirmationModal({
     return () => { clearInterval(timerRef.current); timerRef.current = null; };
   }, [status, currentRide?.createdAt]);
 
-  // ── Mark timeout in Firestore ──────────────────────────
+  // ── Mark timeout in Firestore ────────────────────────
   useEffect(() => {
     if (!rideId || status !== 'timeout') return;
-    updateDoc(doc(db, 'Rides', rideId), { status: 'timeout', timedOutAt: new Date().toISOString() })
-      .catch((err) => console.warn('[ConfirmationModal] Failed to mark timeout:', err));
+    updateDoc(doc(db, 'Rides', rideId), {
+      status: 'timeout',
+      timedOutAt: new Date().toISOString(),
+    }).catch((err) => console.warn('[ConfirmationModal] Failed to mark timeout:', err));
   }, [status, rideId]);
 
-  // ── Auto-close when assigned ───────────────────────────
+  // ── Auto-close when assigned ─────────────────────────
   useEffect(() => {
     if (status !== 'assigned') return;
     const t = setTimeout(() => { if (mountedRef.current) handleClose(); }, 1500);
     return () => clearTimeout(t);
   }, [status]);
 
-  // ── Derived display values ─────────────────────────────
+  // ── Derived display values ───────────────────────────
   const minutes  = Math.floor(secondsLeft / 60);
   const seconds  = secondsLeft % 60;
   const progress = ((SEARCH_LIMIT_SEC - secondsLeft) / SEARCH_LIMIT_SEC) * 100;
@@ -161,13 +182,10 @@ export default function ConfirmationModal({
     return Number.isFinite(value) ? value.toFixed(1) : '0.0';
   }, [currentRide]);
 
-  // ── Formatted createdAt timestamp ─────────────────────
   const createdAtLabel = useMemo(() => {
     const raw = currentRide?.createdAt;
     if (!raw) return null;
-    const date = raw instanceof Date
-      ? raw
-      : raw?.toDate?.() ?? new Date(raw);
+    const date = raw instanceof Date ? raw : raw?.toDate?.() ?? new Date(raw);
     if (isNaN(date.getTime())) return null;
     return date.toLocaleString('en-US', {
       month: 'long', day: 'numeric', year: 'numeric',
@@ -180,7 +198,7 @@ export default function ConfirmationModal({
   const dropoff   = currentRide?.dropoff   ?? '—';
   const rideLabel = currentRide?.rideLabel ?? currentRide?.rideType ?? 'Ride';
 
-  // ── Handlers ───────────────────────────────────────────
+  // ── Handlers ─────────────────────────────────────────
   const handleClose = () => {
     if (status === 'checking_payment' && rideId) {
       deleteDoc(doc(db, 'Rides', rideId))
@@ -196,6 +214,21 @@ export default function ConfirmationModal({
   const handleRetry = () => {
     setVisible(false);
     closeTimeoutRef.current = setTimeout(() => onRetry?.(), 260);
+  };
+
+  // ── Wait 7 more minutes from NOW ─────────────────────
+  const handleWaitMore = () => {
+    didTimeoutRef.current = false;
+    // Extend by writing a new searchStartedAt so getSecondsRemaining resets
+    if (rideId) {
+      updateDoc(doc(db, 'Rides', rideId), {
+        status:          'searching_driver',
+        createdAt:       new Date(),
+        timedOutAt:      null,
+      }).catch((err) => console.warn('[ConfirmationModal] Failed to extend search:', err));
+    }
+    setSecondsLeft(SEARCH_LIMIT_SEC);
+    setStatus('searching');
   };
 
   return (
@@ -218,10 +251,10 @@ export default function ConfirmationModal({
           <div style={{ padding: '40px', textAlign: 'center' }}>
             <Loader2 size={40} color={T.accent} style={{ animation: 'spin 1s linear infinite', marginBottom: '20px' }} />
             <h3 style={{ fontSize: '22px', fontWeight: 900, color: T.text, marginBottom: '8px' }}>
-              Waiting for payment...
+              Checking payment...
             </h3>
             <p style={{ fontSize: '13px', color: T.textMuted, lineHeight: 1.6, marginBottom: '24px' }}>
-              Complete the payment in Cash App to continue
+              Verifying your payment — this only takes a moment.
             </p>
             <button
               onClick={handleClose}
@@ -229,7 +262,7 @@ export default function ConfirmationModal({
               onMouseEnter={(e) => { e.target.style.background = '#F9FAFB'; e.target.style.borderColor = T.accent; }}
               onMouseLeave={(e) => { e.target.style.background = '#fff'; e.target.style.borderColor = T.border; }}
             >
-              Cancel Payment
+              Cancel
             </button>
           </div>
         )}
@@ -292,7 +325,6 @@ export default function ConfirmationModal({
                     borderRadius: '100px', transition: 'width 1s linear, background .5s ease',
                   }} />
                 </div>
-                {/* ── Booked at timestamp ── */}
                 {createdAtLabel && (
                   <div style={{ marginTop: '10px', fontSize: '11px', color: T.textMuted, fontWeight: 500 }}>
                     Booked {createdAtLabel}
@@ -381,22 +413,37 @@ export default function ConfirmationModal({
 
         {/* ── TIMEOUT ── */}
         {status === 'timeout' && (
-          <div style={{ padding: '36px 24px 26px', textAlign: 'center' }}>
+          <div style={{ padding: '36px 24px 28px', textAlign: 'center' }}>
             <div style={{ width: '76px', height: '76px', margin: '0 auto 18px', background: '#FEF2F2', border: '2px solid #FECACA', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Clock size={32} color="#EF4444" />
             </div>
-            <h3 style={{ fontSize: '22px', fontWeight: 900, color: T.text, marginBottom: '8px', letterSpacing: '-0.4px' }}>No drivers found</h3>
-            <p style={{ fontSize: '13.5px', color: T.textMuted, fontWeight: 500, marginBottom: '26px', lineHeight: 1.65 }}>
-              We couldn't find a driver in your area within 7 minutes.<br />Your ride has not been charged.
+            <h3 style={{ fontSize: '22px', fontWeight: 900, color: T.text, marginBottom: '8px', letterSpacing: '-0.4px' }}>
+              We couldn't match you with a driver
+            </h3>
+            <p style={{ fontSize: '13.5px', color: T.textMuted, fontWeight: 500, marginBottom: '10px', lineHeight: 1.65 }}>
+              No drivers were available in your area within 7 minutes.<br />
+              Would you like to wait another 7 minutes or cancel your ride?
             </p>
+            <div style={{ background: '#FFF7ED', border: '1.5px solid #FED7AA', borderRadius: '12px', padding: '11px 14px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#92400E' }}>
+                💳 You have not been charged
+              </span>
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {onRetry && (
-                <button className="cta-btn" onClick={handleRetry} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                  <RotateCcw size={15} /> Try Again
-                </button>
-              )}
-              <button onClick={handleClose} style={{ width: '100%', padding: '13px', borderRadius: '14px', border: `1.5px solid ${T.border}`, background: '#fff', fontSize: '14px', fontWeight: 700, color: T.textMuted, cursor: 'pointer' }}>
-                Cancel
+              <button
+                className="cta-btn"
+                onClick={handleWaitMore}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+              >
+                <RotateCcw size={15} /> Wait 7 More Minutes
+              </button>
+              <button
+                onClick={handleClose}
+                style={{ width: '100%', padding: '13px', borderRadius: '14px', border: `1.5px solid ${T.border}`, background: '#fff', fontSize: '14px', fontWeight: 700, color: T.textMuted, cursor: 'pointer' }}
+                onMouseEnter={(e) => { e.target.style.background = '#FEF2F2'; e.target.style.borderColor = '#FECACA'; e.target.style.color = '#EF4444'; }}
+                onMouseLeave={(e) => { e.target.style.background = '#fff'; e.target.style.borderColor = T.border; e.target.style.color = T.textMuted; }}
+              >
+                Cancel Ride
               </button>
             </div>
           </div>
