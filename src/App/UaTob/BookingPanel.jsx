@@ -70,6 +70,13 @@ status
 : 
 Object
 
+
+ <BookingPanel
+              onBookNow={handleBookNow}
+              onPayloadChange={handlePayloadChange}
+              onCancel={resetRide}
+              onPriceReady={handlePriceReady}
+            />
 // src/App/BookingPanel.jsx
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
