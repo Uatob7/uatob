@@ -14,86 +14,149 @@ exports.emailCandidateDrivers = onSchedule(
     secrets: ["SENDGRID_API_KEY"],
   },
   async () => {
-    try {
-      const apiKey = process.env.SENDGRID_API_KEY;
+    const apiKey = process.env.SENDGRID_API_KEY;
 
-      if (!apiKey) {
-        console.error("[emailCandidateDrivers] Missing SendGrid API key");
-        return;
-      }
+    if (!apiKey) {
+      console.error("[emailCandidateDrivers] Missing SendGrid API key");
+      return;
+    }
 
-      sgMail.setApiKey(apiKey);
+    sgMail.setApiKey(apiKey);
 
-      // 1. Get active rides waiting for drivers
-      const ridesSnap = await db
-        .collection("Rides")
-        .where("paymentStatus", "==", "succeeded")
-        .where("status", "==", "searching_driver")
-        .get();
+    // ─────────────────────────────────────────────
+    // 1. Get active rides ready for dispatch
+    // ─────────────────────────────────────────────
+    const ridesSnap = await db
+      .collection("Rides")
+      .where("paymentStatus", "==", "succeeded")
+      .where("status", "==", "searching_driver")
+      .get();
 
-      if (ridesSnap.empty) {
-        console.log("[emailCandidateDrivers] No active rides");
-        return;
-      }
+    if (ridesSnap.empty) {
+      console.log("[emailCandidateDrivers] No active rides");
+      return;
+    }
 
-      // 2. Get online drivers
-      const driversSnap = await db
-        .collection("Drivers")
-        .where("status", "==", "online")
-        .get();
+    // ─────────────────────────────────────────────
+    // 2. Get online drivers once
+    // ─────────────────────────────────────────────
+    const driversSnap = await db
+      .collection("Drivers")
+      .where("status", "==", "online")
+      .get();
 
-      if (driversSnap.empty) {
-        console.log("[emailCandidateDrivers] No online drivers");
-        return;
-      }
+    if (driversSnap.empty) {
+      console.log("[emailCandidateDrivers] No online drivers");
+      return;
+    }
 
-      const drivers = driversSnap.docs
-        .map((doc) => ({ uid: doc.id, ...doc.data() }))
-        .filter((d) => d.email); // only drivers with email
+    const allDrivers = driversSnap.docs.map((doc) => ({
+      uid: doc.id,
+      ...doc.data(),
+    }));
 
-      if (drivers.length === 0) {
-        console.log("[emailCandidateDrivers] No drivers with email");
-        return;
-      }
+    // helper: only drivers with email
+    const emailableDrivers = allDrivers.filter((d) => d.email);
 
-      const emailPromises = [];
+    const emailPromises = [];
 
-      ridesSnap.forEach((rideDoc) => {
-        const ride = rideDoc.data();
+    // ─────────────────────────────────────────────
+    // 3. Process each ride
+    // ─────────────────────────────────────────────
+    for (const rideDoc of ridesSnap.docs) {
+      const ride = rideDoc.data();
+      const rideRef = rideDoc.ref;
 
-        drivers.forEach((driver) => {
-          // optional safety filter: ignore stale drivers
-          const isStale =
-            driver.minutesSinceLastSeen &&
-            driver.minutesSinceLastSeen > 60 * 12; // 12 hours
+      const alreadyDispatched = ride.emailDispatchStarted === true;
+      const candidateUids = ride.candidateDriverUids || [];
 
-          if (isStale) return;
+      // ─────────────────────────────────────────
+      // FIRST TIME DISPATCH (IMMEDIATE)
+      // ─────────────────────────────────────────
+      if (!alreadyDispatched) {
+        console.log(`[DISPATCH] First wave for ride ${rideDoc.id}`);
 
+        await rideRef.update({
+          emailDispatchStarted: true,
+          emailDispatchAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // send ONLY to candidate drivers first
+        const firstWaveDrivers = emailableDrivers.filter((d) =>
+          candidateUids.includes(d.uid)
+        );
+
+        for (const driver of firstWaveDrivers) {
           emailPromises.push(
             sgMail.send({
               to: driver.email,
-              from: "no-reply@yourapp.com",
-              subject: "🚗 New Ride Request Available",
+              from: "no-reply@uatob.com",
+              subject: "🚗 New Ride Request Near You",
               text: `
-New ride available near you.
+New ride available.
 
-Pickup: ${ride.pickupLocation || "N/A"}
-Dropoff: ${ride.dropoffLocation || "N/A"}
+Pickup: ${ride.pickup || "N/A"}
+Dropoff: ${ride.dropoff || "N/A"}
+Distance: ${ride.tripDistanceMiles || "N/A"} miles
 
-Open the app to accept this ride.
+Open the app to accept this ride immediately.
               `,
             })
           );
-        });
-      });
+        }
 
-      await Promise.all(emailPromises);
+        continue;
+      }
+
+      // ─────────────────────────────────────────
+      // PROGRESSIVE EXPANSION (EVERY MINUTE)
+      // ─────────────────────────────────────────
+      const currentIndex = ride.currentDriverIndex || 0;
+
+      const batchSize = 10;
+
+      const nextBatch = emailableDrivers.slice(
+        currentIndex,
+        currentIndex + batchSize
+      );
+
+      if (nextBatch.length === 0) {
+        console.log(`[DISPATCH] No more drivers for ride ${rideDoc.id}`);
+        continue;
+      }
 
       console.log(
-        `[emailCandidateDrivers] Sent emails for ${ridesSnap.size} rides`
+        `[DISPATCH] Expanding ride ${rideDoc.id} → drivers ${currentIndex} to ${currentIndex + batchSize}`
       );
-    } catch (err) {
-      console.error("[emailCandidateDrivers] Error:", err);
+
+      for (const driver of nextBatch) {
+        emailPromises.push(
+          sgMail.send({
+            to: driver.email,
+            from: "no-reply@uatob.com",
+            subject: "🚗 New Ride Still Available",
+            text: `
+A ride is still waiting nearby.
+
+Pickup: ${ride.pickup}
+Dropoff: ${ride.dropoff}
+
+You are receiving this because nearby drivers are being notified.
+            `,
+          })
+        );
+      }
+
+      await rideRef.update({
+        currentDriverIndex: currentIndex + batchSize,
+        lastDispatchAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
     }
+
+    await Promise.allSettled(emailPromises);
+
+    console.log(
+      `[emailCandidateDrivers] Processed ${ridesSnap.size} ride(s)`
+    );
   }
 );
