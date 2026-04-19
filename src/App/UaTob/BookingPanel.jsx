@@ -9,7 +9,7 @@ import { useAuthContext } from '@/context/AuthContext';
 import { firebase_app } from '@/firebase/config';
 
 // ── Callables ─────────────────────────────────────────────────────────
-const functions        = getFunctions(firebase_app, 'us-central1');
+const functions        = getFunctions(firebase_app, 'us-east1');
 const callATOB         = httpsCallable(functions, 'ATOB');
 const callPrice        = httpsCallable(functions, 'Price');
 const callAutocomplete = httpsCallable(functions, 'Autocomplete');

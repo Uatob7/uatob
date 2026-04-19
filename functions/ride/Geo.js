@@ -5,7 +5,10 @@ const axios = require("axios");
 const GOOGLE_MAPS_KEY = defineSecret("GOOGLE_MAPS_KEY");
 
 exports.Geo = onCall(
-  { region: "us-east1", secrets: [GOOGLE_MAPS_KEY], invoker: "public" },
+ {
+    region: "us-east1",
+    secrets: [GOOGLE_MAPS_KEY],
+  },
   async (request) => {
     const numLat = Number(request.data?.lat);
     const numLng = Number(request.data?.lng);

@@ -5,7 +5,10 @@ const axios = require("axios");
 const GOOGLE_MAPS_KEY = defineSecret("GOOGLE_MAPS_KEY");
 
 exports.Autocomplete = onCall(
-    { region: "us-east1", secrets: [GOOGLE_MAPS_KEY], invoker: "public" },
+    {
+    region: "us-east1",
+    secrets: [GOOGLE_MAPS_KEY],
+  },
   async (request) => {
     const trimmed = request.data?.input?.trim();
 

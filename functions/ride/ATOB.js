@@ -35,7 +35,10 @@ async function geocodeAddress(address, apiKey) {
 }
 
 exports.ATOB = onCall(
-  { region: "us-east1", secrets: [GOOGLE_MAPS_KEY], invoker: "public" },
+  {
+    region: "us-east1",
+    secrets: [GOOGLE_MAPS_KEY],
+  },
   async (request) => {
     const origin      = String(request.data?.origin      ?? "").trim();
     const destination = String(request.data?.destination ?? "").trim();
