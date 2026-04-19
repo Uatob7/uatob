@@ -1,3 +1,75 @@
+Route data: 
+{origin: '2382 Locke Avenue, Orlando, FL', destination: '3024 North Powers Drive, Orlando, FL', distance_miles: 0.93, duration_minutes: 5, route: {…}, …}
+createdAt
+: 
+{}
+destination
+: 
+"3024 North Powers Drive, Orlando, FL"
+distance_miles
+: 
+0.93
+dropoff
+: 
+city
+: 
+"Orlando"
+lat
+: 
+28.5819909
+lng
+: 
+-81.4694363
+zip
+: 
+"32818"
+[[Prototype]]
+: 
+Object
+duration_minutes
+: 
+5
+origin
+: 
+"2382 Locke Avenue, Orlando, FL"
+pickup
+: 
+city
+: 
+"Orlando"
+lat
+: 
+28.5730545
+lng
+: 
+-81.4696329
+zip
+: 
+"32818"
+[[Prototype]]
+: 
+Object
+route
+: 
+distanceMeters
+: 
+1498
+duration_seconds
+: 
+246
+polyline
+: 
+"wtkmDp~fpNxACLI?a@GeF@s@{\\F_C?{@?qXHBjBFJIdEBTDNRT"
+[[Prototype]]
+: 
+Object
+status
+: 
+"OK"
+[[Prototype]]
+: 
+Object
+
 // src/App/BookingPanel.jsx
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
@@ -43,6 +115,8 @@ function getRideIcon(rideId) {
 async function fetchTripData(pickup, dropoff) {
   const res  = await fetch(ROUTE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ origin: pickup, destination: dropoff }) });
   const data = await res.json();
+
+  console.log('Route data:', data);
 
   if (!res.ok) throw new Error(data.error || `Route error ${res.status}`);
 

@@ -633,6 +633,8 @@ export default function UaTobApp({ uid }) {
 
   // ── Handlers ───────────────────────────────────────────────────────
   const handlePayloadChange = (payload) => {
+
+    console.log(payload)
     if (!payload) return;
     setBookingPayload(prev => ({ ...prev, ...payload }));
   };
