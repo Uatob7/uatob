@@ -3,10 +3,7 @@ const cors = require("cors")({ origin: true });
 const admin = require("firebase-admin");
 const Stripe = require("stripe");
 
-// ✅ SAFE INIT
-if (!admin.apps.length) {
-  admin.initializeApp();
-}
+
 
 const db = admin.firestore();
 
