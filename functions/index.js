@@ -34,7 +34,6 @@ const { getDriverToPickup } = require("./drivers/getDriverToPickup");
 const { onDriverCreated } = require("./drivers/email/onDriverCreated");
 const { onDriverApplicationSubmitted } = require("./drivers/email/onDriverApplicationSubmitted");
 const { ApplicationApproved } = require("./drivers/email/ApplicationApproved");
-const { onRideCreatedNotifyOnlineDrivers } = require("./drivers/email/onRideCreatedNotifyOnlineDrivers");
 const { withdraw } = require("./drivers/withdraw");
 const { processWithdrawal } = require("./drivers/processWithdrawal");
 const { updateDriverPresence } = require("./drivers/updateDriverPresence");
@@ -93,7 +92,6 @@ exports.onDriverApplicationSubmitted = onDriverApplicationSubmitted;
 exports.withdraw = withdraw;
 
 exports.processWithdrawal = processWithdrawal;
-exports.onRideCreatedNotifyOnlineDrivers = onRideCreatedNotifyOnlineDrivers;
 exports.onReviewCreated = onReviewCreated;
 exports.onDriverStatusChanged = onDriverStatusChanged;
 exports.checkDriverStripeCapability = checkDriverStripeCapability;
