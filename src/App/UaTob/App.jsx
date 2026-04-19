@@ -539,8 +539,6 @@ export default function UaTobApp({ uid }) {
 
   // ── Booking state ──────────────────────────────────────────────────
   const [bookingPayload,  setBookingPayload]  = useState(saved?.bookingPayload  ?? null);
-
-  console.log(bookingPayload)
   const [pickupCoords,    setPickupCoords]    = useState(saved?.pickupCoords    ?? null);
   const [dropoffCoords,   setDropoffCoords]   = useState(saved?.dropoffCoords   ?? null);
 
@@ -632,21 +630,30 @@ export default function UaTobApp({ uid }) {
   };
 
   // ── Handlers ───────────────────────────────────────────────────────
-  const handlePayloadChange = (payload) => {
 
-    console.log(payload)
+  // Called on every ride-type switch or address change.
+  // payload is already fully built by BookingPanel — just store it.
+  const handlePayloadChange = (payload) => {
     if (!payload) return;
-    setBookingPayload(prev => ({ ...prev, ...payload }));
+    setBookingPayload(payload);
   };
 
+  // Called when the user taps "Book Now".
+  // payload is the final, complete object from BookingPanel.
+  // Coords are pulled directly from it — no hardcoded fallbacks.
   const handleBookNow = (payload) => {
-
-    console.log(payload)
     if (!payload) return;
-    const finalPayload = { ...bookingPayload, ...payload };
-    setBookingPayload(finalPayload);
-    setPickupCoords({ x: -81.37, y: 28.53 });
-    setDropoffCoords({ x: -81.30, y: 28.45 });
+    setBookingPayload(payload);
+    setPickupCoords(
+      payload.pickupLng != null && payload.pickupLat != null
+        ? { x: payload.pickupLng, y: payload.pickupLat }
+        : null
+    );
+    setDropoffCoords(
+      payload.dropoffLng != null && payload.dropoffLat != null
+        ? { x: payload.dropoffLng, y: payload.dropoffLat }
+        : null
+    );
 
     if (resolvedUid) {
       setShowPayment(true);
