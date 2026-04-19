@@ -51,7 +51,7 @@ function calculateRidePrice(p, miles, minutes) {
 }
 
 exports.Price = onCall(
-   { region: "us-central1", invoker: "public" },
+   { region: "us-east1", invoker: "public" },
   async (request) => {
     const miles   = Number(request.data?.miles);
     const minutes = Number(request.data?.durationMin);
