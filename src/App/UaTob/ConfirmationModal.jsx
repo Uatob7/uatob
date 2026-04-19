@@ -8,6 +8,9 @@ import { firebase_app } from '@/firebase/config';
 const db = getFirestore(firebase_app);
 const SEARCH_LIMIT_SEC = 7 * 60;
 
+const CANCEL_RIDE_URL        = 'https://cancelride-ady2s2xhhq-uc.a.run.app';
+const EXTEND_RIDE_SEARCH_URL = 'https://extendridesearch-ady2s2xhhq-uc.a.run.app';
+
 function getSecondsRemaining(createdAt) {
   if (!createdAt) return SEARCH_LIMIT_SEC;
   const createdMs = createdAt instanceof Date
@@ -26,13 +29,12 @@ export default function ConfirmationModal({
   ridesLoading,
 }) {
 
-  console.log(rides);
-
   const [status,      setStatus]      = useState('checking_payment');
   const [secondsLeft, setSecondsLeft] = useState(SEARCH_LIMIT_SEC);
   const [driver,      setDriver]      = useState(null);
   const [visible,     setVisible]     = useState(false);
   const [liveRide,    setLiveRide]    = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
   const timerRef        = useRef(null);
   const closeTimeoutRef = useRef(null);
@@ -54,7 +56,8 @@ export default function ConfirmationModal({
   }, [rides]);
 
   const currentRide = liveRide ?? seedRide;
-  const rideId      = currentRide?.id ?? null;
+  const rideId      = currentRide?.id  ?? null;
+  const riderUid    = currentRide?.uid ?? null;
 
   // ── Mount / unmount ──────────────────────────────────
   useEffect(() => {
@@ -75,7 +78,6 @@ export default function ConfirmationModal({
     if (rideId === lastRideIdRef.current) return;
     lastRideIdRef.current = rideId;
 
-    // Tear down any previous listener
     unsubRef.current?.();
 
     unsubRef.current = onSnapshot(
@@ -156,7 +158,7 @@ export default function ConfirmationModal({
   useEffect(() => {
     if (!rideId || status !== 'timeout') return;
     updateDoc(doc(db, 'Rides', rideId), {
-      status: 'timeout',
+      status:    'timeout',
       timedOutAt: new Date().toISOString(),
     }).catch((err) => console.warn('[ConfirmationModal] Failed to mark timeout:', err));
   }, [status, rideId]);
@@ -201,16 +203,38 @@ export default function ConfirmationModal({
   const rideLabel = currentRide?.rideLabel ?? currentRide?.rideType ?? 'Ride';
 
   // ── Handlers ─────────────────────────────────────────
-  const handleClose = () => {
+
+  const handleClose = async () => {
+    // checking_payment cancel — just delete the ride doc locally
     if (status === 'checking_payment' && rideId) {
       deleteDoc(doc(db, 'Rides', rideId))
         .catch((err) => console.warn('[ConfirmationModal] Failed to delete pending ride:', err));
+      setVisible(false);
+      closeTimeoutRef.current = setTimeout(() => onPaymentCancelled?.(), 260);
+      return;
     }
+
+    // timeout cancel — call cancelRide function for refund
+    if (status === 'timeout' && rideId && riderUid) {
+      setActionLoading(true);
+      try {
+        const res = await fetch(CANCEL_RIDE_URL, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ rideId, uid: riderUid }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? 'Cancel failed');
+        console.log('[ConfirmationModal] ✅ Ride cancelled, refund:', data.refundStatus);
+      } catch (err) {
+        console.error('[ConfirmationModal] cancelRide error:', err);
+      } finally {
+        setActionLoading(false);
+      }
+    }
+
     setVisible(false);
-    closeTimeoutRef.current = setTimeout(() => {
-      if (status === 'checking_payment') onPaymentCancelled?.();
-      else onClose?.();
-    }, 260);
+    closeTimeoutRef.current = setTimeout(() => onClose?.(), 260);
   };
 
   const handleRetry = () => {
@@ -218,19 +242,28 @@ export default function ConfirmationModal({
     closeTimeoutRef.current = setTimeout(() => onRetry?.(), 260);
   };
 
-  // ── Wait 7 more minutes from NOW ─────────────────────
-  const handleWaitMore = () => {
-    didTimeoutRef.current = false;
-    // Extend by writing a new searchStartedAt so getSecondsRemaining resets
-    if (rideId) {
-      updateDoc(doc(db, 'Rides', rideId), {
-        status:          'searching_driver',
-        createdAt:       new Date(),
-        timedOutAt:      null,
-      }).catch((err) => console.warn('[ConfirmationModal] Failed to extend search:', err));
+  const handleWaitMore = async () => {
+    if (!rideId || !riderUid) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(EXTEND_RIDE_SEARCH_URL, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ rideId, uid: riderUid }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Extend failed');
+
+      // Reset local timer — onSnapshot will flip status back to searching_driver
+      didTimeoutRef.current = false;
+      setSecondsLeft(SEARCH_LIMIT_SEC);
+      setStatus('searching');
+      console.log('[ConfirmationModal] ✅ Search extended 7 minutes.');
+    } catch (err) {
+      console.error('[ConfirmationModal] extendRideSearch error:', err);
+    } finally {
+      setActionLoading(false);
     }
-    setSecondsLeft(SEARCH_LIMIT_SEC);
-    setStatus('searching');
   };
 
   return (
@@ -435,14 +468,20 @@ export default function ConfirmationModal({
               <button
                 className="cta-btn"
                 onClick={handleWaitMore}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                disabled={actionLoading}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', opacity: actionLoading ? 0.6 : 1 }}
               >
-                <RotateCcw size={15} /> Wait 7 More Minutes
+                {actionLoading
+                  ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />
+                  : <RotateCcw size={15} />
+                }
+                Wait 7 More Minutes
               </button>
               <button
                 onClick={handleClose}
-                style={{ width: '100%', padding: '13px', borderRadius: '14px', border: `1.5px solid ${T.border}`, background: '#fff', fontSize: '14px', fontWeight: 700, color: T.textMuted, cursor: 'pointer' }}
-                onMouseEnter={(e) => { e.target.style.background = '#FEF2F2'; e.target.style.borderColor = '#FECACA'; e.target.style.color = '#EF4444'; }}
+                disabled={actionLoading}
+                style={{ width: '100%', padding: '13px', borderRadius: '14px', border: `1.5px solid ${T.border}`, background: '#fff', fontSize: '14px', fontWeight: 700, color: T.textMuted, cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.6 : 1 }}
+                onMouseEnter={(e) => { if (!actionLoading) { e.target.style.background = '#FEF2F2'; e.target.style.borderColor = '#FECACA'; e.target.style.color = '#EF4444'; } }}
                 onMouseLeave={(e) => { e.target.style.background = '#fff'; e.target.style.borderColor = T.border; e.target.style.color = T.textMuted; }}
               >
                 Cancel Ride

@@ -10,6 +10,8 @@ const { Geo } = require("./ride/Geo");
 const { onAccountCreated } = require("./ride/email/onAccountCreated");
 const { onRidesCreated } = require("./ride/email/onRidesCreated");
 const { riderLocation } = require("./ride/riderLocation.JS");
+const { cancelRide } = require("./ride/cancelRide");
+const { extendRideSearch } = require("./ride/extendRideSearch");
 
 // Payment functions
 const { cardPayment } = require("./payments/cardPayment");
@@ -63,6 +65,8 @@ exports.ATOB = ATOB;
 exports.riderLocation = riderLocation;
 exports.Autocomplete = Autocomplete;
 exports.Price = Price;
+exports.cancelRide = cancelRide;
+exports.extendRideSearch = extendRideSearch;
 exports.Geo = Geo;
 exports.cardPayment = cardPayment;
 exports.checkDriverDeposit = checkDriverDeposit;
