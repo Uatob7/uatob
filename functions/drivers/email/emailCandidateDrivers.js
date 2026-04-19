@@ -332,10 +332,9 @@ exports.emailCandidateDrivers = onSchedule(
     // We handle the "already dispatched" check in memory below.
     const ridesSnap = await db
       .collection("Rides")
-      .where("status",           "==", "searching_driver")
-      .where("paymentStatus",    "==", "succeeded")
-      .where("driversNotified",  "==", false)
-      .where("createdAt",        ">=", cutoff)
+      .where("status",        "==", "searching_driver")
+      .where("paymentStatus", "==", "succeeded")
+      .where("createdAt",     ">=", cutoff)
       .get();
 
     if (ridesSnap.empty) {
