@@ -43,6 +43,7 @@ function getRideIcon(rideId) {
 async function fetchTripData(pickup, dropoff) {
   const res  = await fetch(ROUTE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ origin: pickup, destination: dropoff }) });
   const data = await res.json();
+
   if (!res.ok) throw new Error(data.error || `Route error ${res.status}`);
 
   let durationMin = data.duration_minutes;
