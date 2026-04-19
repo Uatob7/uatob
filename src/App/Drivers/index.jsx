@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Bell, Star, LocateFixed, Loader2, X, AlertCircle } from "lucide-react";
+import { getFunctions, httpsCallable } from "firebase/functions";      // ← NEW
 
 import CSS              from '@/App/Drivers/styles.js';
 import { C }            from '@/App/Drivers/constants.js';
@@ -19,11 +20,16 @@ import { useDriverEarnings }  from "@/App/Drivers/useDriverEarnings";
 import { useCompletedRides }  from "@/App/Drivers/useCompletedRides";
 import { useIncomingRequest } from "@/App/Drivers/useIncomingRequest";
 import { useDriverReviews }   from "@/App/Drivers/useDriverReviews";
+import { firebase_app }       from "@/firebase/config";
 
-// ── Cloud Function URLs ───────────────────────────────────────────────
-const DRIVER_STATUS_URL = "https://driverstatus-ady2s2xhhq-uc.a.run.app";
+// ── Callables ─────────────────────────────────────────────────────────
+const functions          = getFunctions(firebase_app, "us-central1");
+const callDriverStatus   = httpsCallable(functions, "driverStatus");
+const callAcceptRide     = httpsCallable(functions, "acceptRide");
+const callDeclineRide    = httpsCallable(functions, "declineRide");
+const callUpdateTrip     = httpsCallable(functions, "updateTripStatus");
 
-// ── Trip button labels (local — no Cloud Function needed) ─────────────
+// ── Trip button labels ────────────────────────────────────────────────
 const TRIP_BUTTON_LABELS = {
   driver_assigned: "Arrived at Pickup",
   arrived:         "Start Trip",
@@ -32,8 +38,8 @@ const TRIP_BUTTON_LABELS = {
 
 // ── localStorage helpers for seen review IDs ──────────────────────────
 const LS_SEEN_REVIEWS_KEY = 'uatob_driver_seen_reviews';
-function loadSeenReviews()     { try { return new Set(JSON.parse(localStorage.getItem(LS_SEEN_REVIEWS_KEY) || '[]')); } catch { return new Set(); } }
-function saveSeenReviews(set)  { try { localStorage.setItem(LS_SEEN_REVIEWS_KEY, JSON.stringify([...set])); } catch (_) {} }
+function loadSeenReviews()    { try { return new Set(JSON.parse(localStorage.getItem(LS_SEEN_REVIEWS_KEY) || '[]')); } catch { return new Set(); } }
+function saveSeenReviews(set) { try { localStorage.setItem(LS_SEEN_REVIEWS_KEY, JSON.stringify([...set])); } catch (_) {} }
 
 // ── Trip request chime ────────────────────────────────────────────────
 function playRequestChime() {
@@ -83,14 +89,10 @@ function playRequestChime() {
     noiseGain.connect(master);
     noise.start(now + 0.01);
     noise.stop(now + 0.08);
-
     setTimeout(() => ctx.close().catch(() => {}), 3000);
-  } catch (err) {
-    console.warn("Audio playback failed:", err);
-  }
+  } catch (err) { console.warn("Audio playback failed:", err); }
 }
 
-// ── Accept sound ──────────────────────────────────────────────────────
 function playAcceptSound() {
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -131,14 +133,10 @@ function playAcceptSound() {
     bodyGain.connect(master);
     bodyOsc.start(now);
     bodyOsc.stop(now + 0.12);
-
     setTimeout(() => ctx.close().catch(() => {}), 2000);
-  } catch (err) {
-    console.warn("Accept sound failed:", err);
-  }
+  } catch (err) { console.warn("Accept sound failed:", err); }
 }
 
-// ── Decline sound ─────────────────────────────────────────────────────
 function playDeclineSound() {
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -179,59 +177,30 @@ function playDeclineSound() {
     thudGain.connect(master);
     thudOsc.start(now);
     thudOsc.stop(now + 0.14);
-
     setTimeout(() => ctx.close().catch(() => {}), 2000);
-  } catch (err) {
-    console.warn("Decline sound failed:", err);
-  }
+  } catch (err) { console.warn("Decline sound failed:", err); }
 }
 
 // ── ACCOUNT SUSPENDED MODAL ───────────────────────────────────────────
 function SuspendedModal() {
   return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 1100,
-      background: "rgba(0,0,0,.5)", backdropFilter: "blur(4px)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      padding: "24px", animation: "locFadeIn .2s ease",
-    }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 1100, background: "rgba(0,0,0,.5)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px", animation: "locFadeIn .2s ease" }}>
       <style>{`
         @keyframes locFadeIn  { from { opacity:0 } to { opacity:1 } }
         @keyframes locSlideUp { from { opacity:0; transform:translateY(18px) } to { opacity:1; transform:translateY(0) } }
       `}</style>
-      <div style={{
-        background: "#fff", borderRadius: "24px", padding: "32px 24px 28px",
-        width: "100%", maxWidth: "380px", boxShadow: "0 24px 60px rgba(0,0,0,.2)",
-        animation: "locSlideUp .28s cubic-bezier(.34,1.56,.64,1)", textAlign: "center",
-      }}>
+      <div style={{ background: "#fff", borderRadius: "24px", padding: "32px 24px 28px", width: "100%", maxWidth: "380px", boxShadow: "0 24px 60px rgba(0,0,0,.2)", animation: "locSlideUp .28s cubic-bezier(.34,1.56,.64,1)", textAlign: "center" }}>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: "20px" }}>
-          <div style={{
-            width: "72px", height: "72px", borderRadius: "50%",
-            background: "rgba(220,38,38,.08)", border: "2px solid rgba(220,38,38,.25)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: "0 0 0 8px rgba(220,38,38,.05)",
-          }}>
+          <div style={{ width: "72px", height: "72px", borderRadius: "50%", background: "rgba(220,38,38,.08)", border: "2px solid rgba(220,38,38,.25)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 0 8px rgba(220,38,38,.05)" }}>
             <AlertCircle size={32} color="#DC2626" />
           </div>
         </div>
         <div style={{ marginBottom: "12px" }}>
-          <div style={{
-            fontFamily: "'Barlow Condensed', sans-serif", fontSize: "26px",
-            fontWeight: "900", color: "#111827", letterSpacing: "-0.3px", marginBottom: "8px",
-          }}>Account Suspended</div>
-          <div style={{ fontSize: "14px", color: "#6B7280", fontWeight: "500", lineHeight: "1.6" }}>
-            Your account has been suspended. For more information, please contact support.
-          </div>
+          <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "26px", fontWeight: "900", color: "#111827", letterSpacing: "-0.3px", marginBottom: "8px" }}>Account Suspended</div>
+          <div style={{ fontSize: "14px", color: "#6B7280", fontWeight: "500", lineHeight: "1.6" }}>Your account has been suspended. For more information, please contact support.</div>
         </div>
         <div style={{ marginTop: "24px" }}>
-          <a href="mailto:support@uatob.com" style={{
-            display: "inline-block", width: "100%", padding: "14px",
-            borderRadius: "12px", border: "none",
-            background: "linear-gradient(135deg,#DC2626,#991B1B)",
-            color: "#fff", fontSize: "15px", fontWeight: "800",
-            fontFamily: "'Barlow', sans-serif", cursor: "pointer",
-            boxShadow: "0 4px 14px rgba(220,38,38,.3)", textDecoration: "none",
-          }}>Contact Support</a>
+          <a href="mailto:support@uatob.com" style={{ display: "inline-block", width: "100%", padding: "14px", borderRadius: "12px", border: "none", background: "linear-gradient(135deg,#DC2626,#991B1B)", color: "#fff", fontSize: "15px", fontWeight: "800", fontFamily: "'Barlow', sans-serif", cursor: "pointer", boxShadow: "0 4px 14px rgba(220,38,38,.3)", textDecoration: "none" }}>Contact Support</a>
         </div>
       </div>
     </div>
@@ -241,81 +210,33 @@ function SuspendedModal() {
 // ── LOCATION POPUP ────────────────────────────────────────────────────
 function LocationPopup({ onAllow, onDeny, loading, error }) {
   return (
-    <div
-      onClick={e => { if (e.target === e.currentTarget) onDeny(); }}
-      style={{
-        position: "fixed", inset: 0, zIndex: 1000,
-        background: "rgba(0,0,0,.45)", backdropFilter: "blur(4px)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        padding: "24px", animation: "locFadeIn .2s ease",
-      }}
-    >
+    <div onClick={e => { if (e.target === e.currentTarget) onDeny(); }} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px", animation: "locFadeIn .2s ease" }}>
       <style>{`
         @keyframes locFadeIn  { from { opacity:0 } to { opacity:1 } }
         @keyframes locSlideUp { from { opacity:0; transform:translateY(18px) } to { opacity:1; transform:translateY(0) } }
         @keyframes locSpin    { from { transform:rotate(0deg) } to { transform:rotate(360deg) } }
       `}</style>
-      <div style={{
-        background: "#fff", borderRadius: "24px", padding: "28px 24px 24px",
-        width: "100%", maxWidth: "360px", boxShadow: "0 24px 60px rgba(0,0,0,.18)",
-        animation: "locSlideUp .28s cubic-bezier(.34,1.56,.64,1)",
-      }}>
+      <div style={{ background: "#fff", borderRadius: "24px", padding: "28px 24px 24px", width: "100%", maxWidth: "360px", boxShadow: "0 24px 60px rgba(0,0,0,.18)", animation: "locSlideUp .28s cubic-bezier(.34,1.56,.64,1)" }}>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: "20px" }}>
-          <div style={{
-            width: "68px", height: "68px", borderRadius: "50%",
-            background:  error ? "rgba(220,38,38,.08)" : "rgba(22,163,74,.1)",
-            border:      `2px solid ${error ? "rgba(220,38,38,.25)" : "rgba(22,163,74,.3)"}`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: error ? "0 0 0 8px rgba(220,38,38,.05)" : "0 0 0 8px rgba(22,163,74,.06)",
-          }}>
-            {loading
-              ? <Loader2 size={28} color="#16A34A" style={{ animation: "locSpin 1s linear infinite" }} />
-              : error
-                ? <AlertCircle size={28} color="#DC2626" />
-                : <LocateFixed size={28} color="#16A34A" />
-            }
+          <div style={{ width: "68px", height: "68px", borderRadius: "50%", background: error ? "rgba(220,38,38,.08)" : "rgba(22,163,74,.1)", border: `2px solid ${error ? "rgba(220,38,38,.25)" : "rgba(22,163,74,.3)"}`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: error ? "0 0 0 8px rgba(220,38,38,.05)" : "0 0 0 8px rgba(22,163,74,.06)" }}>
+            {loading ? <Loader2 size={28} color="#16A34A" style={{ animation: "locSpin 1s linear infinite" }} /> : error ? <AlertCircle size={28} color="#DC2626" /> : <LocateFixed size={28} color="#16A34A" />}
           </div>
         </div>
         <div style={{ textAlign: "center", marginBottom: "8px" }}>
-          <div style={{
-            fontFamily: "'Barlow Condensed', sans-serif", fontSize: "22px",
-            fontWeight: "900", color: "#111827", letterSpacing: "-0.3px", marginBottom: "6px",
-          }}>
+          <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "22px", fontWeight: "900", color: "#111827", letterSpacing: "-0.3px", marginBottom: "6px" }}>
             {loading ? "Getting your location…" : error ? "Location required" : "UaTob needs your location"}
           </div>
           <div style={{ fontSize: "13.5px", color: "#6B7280", fontWeight: "500", lineHeight: "1.6" }}>
-            {loading
-              ? "Please allow location access in your browser."
-              : error
-                ? error
-                : "To go online and receive ride requests, we need your current location."}
+            {loading ? "Please allow location access in your browser." : error ? error : "To go online and receive ride requests, we need your current location."}
           </div>
         </div>
         {!loading && (
           <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "22px" }}>
-            <button
-              onClick={onAllow}
-              style={{
-                width: "100%", padding: "15px", borderRadius: "14px", border: "none",
-                background: error ? "#DC2626" : "linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D)",
-                color: "#fff", fontSize: "15px", fontWeight: "800",
-                fontFamily: "'Barlow', sans-serif", cursor: "pointer",
-                boxShadow: error ? "0 4px 14px rgba(220,38,38,.3)" : "0 4px 14px rgba(22,163,74,.35)",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
-              }}
-            >
+            <button onClick={onAllow} style={{ width: "100%", padding: "15px", borderRadius: "14px", border: "none", background: error ? "#DC2626" : "linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D)", color: "#fff", fontSize: "15px", fontWeight: "800", fontFamily: "'Barlow', sans-serif", cursor: "pointer", boxShadow: error ? "0 4px 14px rgba(220,38,38,.3)" : "0 4px 14px rgba(22,163,74,.35)", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
               <LocateFixed size={16} />
               {error ? "Try again" : "Allow location"}
             </button>
-            <button
-              onClick={onDeny}
-              style={{
-                width: "100%", padding: "14px", borderRadius: "14px",
-                border: "1.5px solid #E5E7EB", background: "#fff",
-                color: "#6B7280", fontSize: "14px", fontWeight: "700",
-                fontFamily: "'Barlow', sans-serif", cursor: "pointer",
-              }}
-            >Cancel</button>
+            <button onClick={onDeny} style={{ width: "100%", padding: "14px", borderRadius: "14px", border: "1.5px solid #E5E7EB", background: "#fff", color: "#6B7280", fontSize: "14px", fontWeight: "700", fontFamily: "'Barlow', sans-serif", cursor: "pointer" }}>Cancel</button>
           </div>
         )}
       </div>
@@ -333,11 +254,7 @@ export default function UaTobDriverApp({ uid }) {
   const { requests, loading: reqLoading } = useIncomingRequest(uid);
   const { activeRides }                   = useActiveRides(uid);
   const { completedRides }                = useCompletedRides(uid);
-
-  // ── Reviews from riders ───────────────────────────────────────────
-  const { reviews } = useDriverReviews(uid);
-
-  console.log('completedRides:', completedRides);
+  const { reviews }                       = useDriverReviews(uid);
 
   const driverOnTrip  = driver?.trip === true;
   const sourceLoading = driverOnTrip ? reqLoading  : ridesLoading;
@@ -355,15 +272,11 @@ export default function UaTobDriverApp({ uid }) {
   const [acceptedRequestId, setAcceptedRequestId] = useState(null);
   const [actionPending,     setActionPending]     = useState(false);
   const [advancePending,    setAdvancePending]    = useState(false);
-
-  // ── Location popup state ──────────────────────────────────────────
   const [showLocationPopup, setShowLocationPopup] = useState(false);
   const [locationLoading,   setLocationLoading]   = useState(false);
   const [locationError,     setLocationError]     = useState("");
-
-  // ── Review popup state ────────────────────────────────────────────
-  const [seenReviewIds,  setSeenReviewIds]  = useState(() => loadSeenReviews());
-  const [pendingReview,  setPendingReview]  = useState(null);
+  const [seenReviewIds,     setSeenReviewIds]     = useState(() => loadSeenReviews());
+  const [pendingReview,     setPendingReview]     = useState(null);
 
   // ── Refs ──────────────────────────────────────────────────────────
   const timerRef          = useRef(null);
@@ -394,7 +307,6 @@ export default function UaTobDriverApp({ uid }) {
     prevRequestId.current = newId;
   }, [tripRequest?.id]);
 
-  // ── Mount animation ───────────────────────────────────────────────
   useEffect(() => { setMounted(true); }, []);
 
   // ── Sync active trip from Firestore ──────────────────────────────
@@ -412,11 +324,7 @@ export default function UaTobDriverApp({ uid }) {
 
   // ── Auto-popup unseen rider reviews ──────────────────────────────
   useEffect(() => {
-    if (!reviews.length) return;
-    if (pendingReview)   return;
-    if (activeTrip)      return;
-    if (tripRequest)     return;
-
+    if (!reviews.length || pendingReview || activeTrip || tripRequest) return;
     const unseen = reviews.find(r => !seenReviewIds.has(r.id));
     if (unseen) setPendingReview(unseen);
   }, [reviews, activeTrip, tripRequest]);
@@ -430,28 +338,19 @@ export default function UaTobDriverApp({ uid }) {
     setPendingReview(null);
   };
 
-  // ── Trip button label (local lookup — no Cloud Function) ──────────
   useEffect(() => {
     setTripBtnLabel(TRIP_BUTTON_LABELS[activeTrip?.status] ?? "");
   }, [activeTrip?.status]);
 
   // ── Request timer ─────────────────────────────────────────────────
   useEffect(() => {
-    if (!tripRequest) {
-      clearInterval(timerRef.current);
-      setRequestTimer(15);
-      return;
-    }
+    if (!tripRequest) { clearInterval(timerRef.current); setRequestTimer(15); return; }
     setRequestTimer(15);
     timerRef.current = setInterval(() => {
       setRequestTimer(t => {
         if (t <= 1) {
           clearInterval(timerRef.current);
-          setDismissedRequests(prev => {
-            const next = new Set(prev);
-            if (tripRequest?.id) next.add(tripRequest.id);
-            return next;
-          });
+          setDismissedRequests(prev => { const next = new Set(prev); if (tripRequest?.id) next.add(tripRequest.id); return next; });
           showNotif("Request expired", "Looking for next...");
           return 15;
         }
@@ -461,7 +360,7 @@ export default function UaTobDriverApp({ uid }) {
     return () => clearInterval(timerRef.current);
   }, [tripRequest?.id]);
 
-  // ── 60-second location ping ───────────────────────────────────────
+  // ── 60-second location ping (still uses fetch — no auth needed) ───
   useEffect(() => {
     clearInterval(locationPingRef.current);
     if (!online) return;
@@ -473,10 +372,7 @@ export default function UaTobDriverApp({ uid }) {
           })
         );
         const { latitude: lat, longitude: lng } = position.coords;
-        await fetch(DRIVER_STATUS_URL, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ uid, status: "location_ping", lat, lng }),
-        });
+        await callDriverStatus({ uid, status: "location_ping", lat, lng });
         console.log(`📍 Location ping — lat:${lat.toFixed(5)} lng:${lng.toFixed(5)}`);
       } catch (err) {
         console.warn("📍 Location ping failed:", err?.message ?? err);
@@ -491,18 +387,13 @@ export default function UaTobDriverApp({ uid }) {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  const callDriverStatusAPI = useCallback(async (status, lat = null, lng = null) => {
-    const body = { uid, status };
-    if (lat !== null && lng !== null) { body.lat = lat; body.lng = lng; }
-    const res = await fetch(DRIVER_STATUS_URL, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.error || `Status update failed (${res.status})`);
-    }
-    return res.json();
+  // ── callDriverStatus wrapper ──────────────────────────────────────
+  const callDriverStatusFn = useCallback(async (status, lat = null, lng = null) => {
+    const payload = { uid, status };
+    if (lat !== null && lng !== null) { payload.lat = lat; payload.lng = lng; }
+    const { data } = await callDriverStatus(payload);
+    if (data?.error) throw new Error(data.error);
+    return data;
   }, [uid]);
 
   // ── Go online ─────────────────────────────────────────────────────
@@ -516,7 +407,7 @@ export default function UaTobDriverApp({ uid }) {
         })
       );
       const { latitude: lat, longitude: lng } = position.coords;
-      await callDriverStatusAPI("online", lat, lng);
+      await callDriverStatusFn("online", lat, lng);
       setOnline(true);
       setShowLocationPopup(false);
       setLocationError("");
@@ -529,12 +420,12 @@ export default function UaTobDriverApp({ uid }) {
     } finally {
       setLocationLoading(false);
     }
-  }, [callDriverStatusAPI]);
+  }, [callDriverStatusFn]);
 
   // ── Online / offline toggle ───────────────────────────────────────
   const handleToggleOnline = useCallback(async () => {
     if (online) {
-      try { await callDriverStatusAPI("offline"); }
+      try { await callDriverStatusFn("offline"); }
       catch (err) { console.error("Failed to go offline:", err); }
       setOnline(false);
       setActiveTrip(null);
@@ -545,7 +436,7 @@ export default function UaTobDriverApp({ uid }) {
       setLocationError("");
       setShowLocationPopup(true);
     }
-  }, [online, callDriverStatusAPI]);
+  }, [online, callDriverStatusFn]);
 
   const handleLocationDeny = useCallback(() => {
     if (locationLoading) return;
@@ -559,14 +450,10 @@ export default function UaTobDriverApp({ uid }) {
     if (!tripRequest || actionPending) return;
     setActionPending(true);
     try {
-      const res = await fetch("https://acceptride-ady2s2xhhq-uc.a.run.app", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rideId: tripRequest.id, uid }),
-      });
-      if (!res.ok) throw new Error("Accept failed");
+      const { data } = await callAcceptRide({ rideId: tripRequest.id, uid });
+      if (data?.error) throw new Error(data.error);
 
       playAcceptSound();
-
       clearInterval(timerRef.current);
       setAcceptedRequestId(tripRequest.id);
       setDismissedRequests(prev => { const next = new Set(prev); next.add(tripRequest.id); return next; });
@@ -584,17 +471,10 @@ export default function UaTobDriverApp({ uid }) {
     if (!tripRequest || actionPending) return;
     setActionPending(true);
     try {
-      const res = await fetch("https://declineride-ady2s2xhhq-uc.a.run.app", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rideId: tripRequest.id, uid }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Decline failed");
-      }
+      const { data } = await callDeclineRide({ rideId: tripRequest.id, uid });
+      if (data?.error) throw new Error(data.error);
 
       playDeclineSound();
-
       clearInterval(timerRef.current);
       setDismissedRequests(prev => { const next = new Set(prev); next.add(tripRequest.id); return next; });
       showNotif("Declined", "Searching for next ride");
@@ -615,11 +495,8 @@ export default function UaTobDriverApp({ uid }) {
 
     setAdvancePending(true);
     try {
-      const res = await fetch("https://updatetripstatus-ady2s2xhhq-uc.a.run.app", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rideId: activeTrip.id, driverUid: uid, action }),
-      });
-      if (!res.ok) throw new Error("Update failed");
+      const { data } = await callUpdateTrip({ rideId: activeTrip.id, driverUid: uid, action });
+      if (data?.error) throw new Error(data.error);
 
       if (action === "complete") {
         await refetch();
@@ -637,19 +514,11 @@ export default function UaTobDriverApp({ uid }) {
 
   // ── Derived state ─────────────────────────────────────────────────
   const tripStage = activeTrip?.status;
-  const tripStageColor = {
-    driver_assigned: C.blue,
-    arrived:         C.onlineGreen,
-    in_progress:     C.green,
-  }[tripStage] || C.green;
+  const tripStageColor = { driver_assigned: C.blue, arrived: C.onlineGreen, in_progress: C.green }[tripStage] || C.green;
 
   // ── Render ────────────────────────────────────────────────────────
   return (
-    <div style={{
-      minHeight: "100vh", background: C.bg,
-      fontFamily: '"Barlow", system-ui, sans-serif',
-      color: C.text, position: "relative",
-    }}>
+    <div style={{ minHeight: "100vh", background: C.bg, fontFamily: '"Barlow", system-ui, sans-serif', color: C.text, position: "relative" }}>
       <style>{CSS}</style>
 
       {driver?.status === "suspended" && <SuspendedModal />}
@@ -675,69 +544,34 @@ export default function UaTobDriverApp({ uid }) {
       />
 
       {pendingReview && !activeTrip && !tripRequest && (
-        <DriverReviewModal
-          review={pendingReview}
-          onClose={handleDismissReview}
-        />
+        <DriverReviewModal review={pendingReview} onClose={handleDismissReview} />
       )}
 
       <div style={{ maxWidth: 680, margin: "0 auto", paddingBottom: 90 }}>
-
-        {/* Header */}
-        <div style={{
-          padding: "20px 20px 0", display: "flex",
-          justifyContent: "space-between", alignItems: "center",
-          animation: mounted ? "slideUp .5s ease-out forwards" : "none", opacity: 0,
-        }}>
+        <div style={{ padding: "20px 20px 0", display: "flex", justifyContent: "space-between", alignItems: "center", animation: mounted ? "slideUp .5s ease-out forwards" : "none", opacity: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <UaTobIcon size={40} online={online} />
             <div>
               <div className="condensed lbl">Driver Console</div>
-              <div style={{ fontSize: 20, fontWeight: 800 }}>
-                {driver?.firstName ?? ""}
-              </div>
+              <div style={{ fontSize: 20, fontWeight: 800 }}>{driver?.firstName ?? ""}</div>
             </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 5, background: C.surface, borderRadius: 100, padding: "6px 12px" }}>
               <Star size={11} fill="#F59E0B" color="#F59E0B" />
-              <span>
-                {driver?.averageRating != null
-                  ? driver.averageRating.toFixed(2)
-                  : "—"}
-              </span>
+              <span>{driver?.averageRating != null ? driver.averageRating.toFixed(2) : "—"}</span>
             </div>
             <button><Bell size={15} /></button>
           </div>
         </div>
 
-        {/* Tabs */}
-        {activeTab === "home" && (
-          <HomeTab
-            driver={driver}
-            online={online}
-            rides={rides}
-            activeTrip={activeTrip}
-            tripStage={tripStage}
-            tripStageColor={tripStageColor}
-            tripBtnLabel={tripBtnLabel}
-            earnings={earnings}
-            onToggleOnline={handleToggleOnline}
-            onAdvanceTrip={handleAdvanceTrip}
-            advancePending={advancePending}
-          />
-        )}
+        {activeTab === "home"     && <HomeTab driver={driver} online={online} rides={rides} activeTrip={activeTrip} tripStage={tripStage} tripStageColor={tripStageColor} tripBtnLabel={tripBtnLabel} earnings={earnings} onToggleOnline={handleToggleOnline} onAdvanceTrip={handleAdvanceTrip} advancePending={advancePending} />}
         {activeTab === "earnings" && <EarningsTab earnings={earnings} driver={driver} online={online} />}
         {activeTab === "trips"    && <TripsTab    completedRides={completedRides} online={online} />}
         {activeTab === "profile"  && <ProfileTab  driver={driver} online={online} />}
       </div>
 
-      <BottomTabBar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        online={online}
-        activeTrip={activeTrip}
-      />
+      <BottomTabBar activeTab={activeTab} setActiveTab={setActiveTab} online={online} activeTrip={activeTrip} />
     </div>
   );
 }
