@@ -186,17 +186,23 @@ export default function ConfirmationModal({
     return Number.isFinite(value) ? value.toFixed(1) : '0.0';
   }, [currentRide]);
 
-  const createdAtLabel = useMemo(() => {
-    const raw = currentRide?.createdAt;
-    if (!raw) return null;
-    const date = raw instanceof Date ? raw : raw?.toDate?.() ?? new Date(raw);
-    if (isNaN(date.getTime())) return null;
-    return date.toLocaleString('en-US', {
-      month: 'long', day: 'numeric', year: 'numeric',
-      hour: 'numeric', minute: '2-digit', second: '2-digit',
-      timeZoneName: 'shortOffset',
-    });
-  }, [currentRide?.createdAt]);
+const createdAtLabel = useMemo(() => {
+  const raw = currentRide?.createdAt;
+  if (!raw) return null;
+
+  const date = raw instanceof Date ? raw : raw?.toDate?.() ?? new Date(raw);
+  if (isNaN(date.getTime())) return null;
+
+  return date.toLocaleString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}, [currentRide?.createdAt]);
+
 
   const pickup    = currentRide?.pickup    ?? '—';
   const dropoff   = currentRide?.dropoff   ?? '—';
