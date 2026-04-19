@@ -1,5 +1,4 @@
-const { onRequest } = require("firebase-functions/v2/https");
-const cors = require("cors")({ origin: true });
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
 
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
@@ -8,42 +7,39 @@ initializeApp();
 
 const db = getFirestore();
 
-exports.declineRide = onRequest(
+// ─────────────────────────────────────────────────────────
+exports.declineRide = onCall(
   { region: "us-central1" },
-  (req, res) => {
-    cors(req, res, async () => {
-      if (req.method !== "POST") {
-        return res.status(405).json({ success: false });
+  async (request) => {
+    try {
+      const { rideId, uid } = request.data || {};
+
+      if (!rideId || !uid) {
+        throw new HttpsError(
+          "invalid-argument",
+          "Missing rideId or uid"
+        );
       }
 
-      try {
-        const { rideId, uid } = req.body;
+      await db.collection("RideDeclines").add({
+        rideId,
+        uid,
+        createdAt: FieldValue.serverTimestamp(),
+      });
 
-        if (!rideId || !uid) {
-          return res.status(400).json({
-            success: false,
-            message: "Missing rideId or uid",
-          });
-        }
+      return {
+        success: true,
+        message: "Ride declined",
+      };
+    } catch (err) {
+      console.error("[declineRide]", err);
 
-        await db.collection("RideDeclines").add({
-          rideId,
-          uid,
-          createdAt: FieldValue.serverTimestamp(),
-        });
+      if (err instanceof HttpsError) throw err;
 
-        return res.status(200).json({
-          success: true,
-          message: "Ride declined",
-        });
-
-      } catch (err) {
-        console.error("[declineRide]", err);
-        return res.status(500).json({
-          success: false,
-          message: err.message,
-        });
-      }
-    });
+      throw new HttpsError(
+        "internal",
+        err.message || "Failed to decline ride"
+      );
+    }
   }
 );

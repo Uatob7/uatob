@@ -1,6 +1,4 @@
-const { onRequest } = require("firebase-functions/v2/https");
-const cors = require("cors")({ origin: true });
-
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 
 if (!admin.apps.length) {
@@ -10,68 +8,69 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 const FieldValue = admin.firestore.FieldValue;
 
-exports.acceptRide = onRequest(
+// ─────────────────────────────────────────────────────────
+exports.acceptRide = onCall(
   { region: "us-central1" },
-  (req, res) => {
-    cors(req, res, async () => {
-      if (req.method !== "POST") {
-        return res.status(405).json({ success: false, message: "Method not allowed" });
+  async (request) => {
+    try {
+      const { rideId, uid } = request.data || {};
+
+      console.log(`[acceptRide] ride=${rideId} driver=${uid}`);
+
+      if (!rideId || !uid) {
+        throw new HttpsError(
+          "invalid-argument",
+          "Missing rideId or uid"
+        );
       }
 
-      try {
-        const { rideId, uid } = req.body || {};
+      const rideRef = db.collection("Rides").doc(rideId);
 
-        console.log(`[acceptRide] ride=${rideId} driver=${uid}`);
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(rideRef);
 
-        if (!rideId || !uid) {
-          return res.status(400).json({
-            success: false,
-            message: "Missing rideId or uid",
-          });
+        if (!snap.exists) {
+          throw new HttpsError("not-found", "Ride not found");
         }
 
-        const rideRef = db.collection("Rides").doc(rideId);
+        const ride = snap.data();
 
-        const result = await db.runTransaction(async (tx) => {
-          const snap = await tx.get(rideRef);
+        // 🚨 HARD LOCK: prevent double assignment
+        if (ride.status !== "searching_driver") {
+          throw new HttpsError(
+            "failed-precondition",
+            "Ride already claimed"
+          );
+        }
 
-          if (!snap.exists) {
-            throw new Error("Ride not found");
-          }
+        if (ride.driverUid) {
+          throw new HttpsError(
+            "failed-precondition",
+            "Ride already assigned to a driver"
+          );
+        }
 
-          const ride = snap.data();
-
-          // 🚨 HARD LOCK: prevent double assignment
-          if (ride.status !== "searching_driver") {
-            throw new Error("Ride already claimed");
-          }
-
-          if (ride.driverUid) {
-            throw new Error("Ride already assigned to a driver");
-          }
-
-          tx.update(rideRef, {
-            status: "driver_assigned",
-            driverUid: uid,
-            acceptedAt: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp(),
-          });
-
-          return true;
+        tx.update(rideRef, {
+          status: "driver_assigned",
+          driverUid: uid,
+          acceptedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         });
+      });
 
-        return res.status(200).json({
-          success: true,
-          message: "Ride accepted",
-        });
-      } catch (err) {
-        console.error("[acceptRide]", err);
+      return {
+        success: true,
+        message: "Ride accepted",
+      };
+    } catch (err) {
+      console.error("[acceptRide]", err);
 
-        return res.status(409).json({
-          success: false,
-          message: err.message || "Failed to accept ride",
-        });
-      }
-    });
+      if (err instanceof HttpsError) throw err;
+
+      throw new HttpsError(
+        "internal",
+        err.message || "Failed to accept ride"
+      );
+    }
   }
 );
