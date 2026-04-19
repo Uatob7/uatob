@@ -22,8 +22,8 @@ export function useDriverRides(uid) {
       collection(db, "Rides"),
       where("paymentStatus", "==", "succeeded"),
       where("status", "==", "searching_driver"),
-      orderBy("createdAt", "desc"),
-      limit(25)
+      orderBy("requestSentAt", "desc"),
+      limit(50)
     );
 
     const unsubscribe = onSnapshot(
@@ -35,8 +35,6 @@ export function useDriverRides(uid) {
           return {
             id: doc.id,
             ...data,
-            createdAt: data.createdAt?.toDate?.() ?? null,
-            updatedAt: data.updatedAt?.toDate?.() ?? null,
           };
         });
 
@@ -51,7 +49,7 @@ export function useDriverRides(uid) {
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [uid]);
 
   return { rides, loading, error };
 }

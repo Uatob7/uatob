@@ -1,24 +1,27 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const cors = require("cors")({ origin: true });
+
 const admin = require("firebase-admin");
-const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
 
-
-const db = getFirestore();
+const db = admin.firestore();
+const FieldValue = admin.firestore.FieldValue;
 
 exports.acceptRide = onRequest(
   { region: "us-central1" },
   (req, res) => {
     cors(req, res, async () => {
       if (req.method !== "POST") {
-        return res.status(405).json({ success: false });
+        return res.status(405).json({ success: false, message: "Method not allowed" });
       }
 
       try {
-        const { rideId, uid } = req.body;
+        const { rideId, uid } = req.body || {};
 
-        console.log(`[acceptRide] Attempting to accept ride ${rideId} for driver ${uid}`);
+        console.log(`[acceptRide] ride=${rideId} driver=${uid}`);
 
         if (!rideId || !uid) {
           return res.status(400).json({
@@ -29,17 +32,22 @@ exports.acceptRide = onRequest(
 
         const rideRef = db.collection("Rides").doc(rideId);
 
-        await db.runTransaction(async (tx) => {
-          const rideSnap = await tx.get(rideRef);
+        const result = await db.runTransaction(async (tx) => {
+          const snap = await tx.get(rideRef);
 
-          if (!rideSnap.exists) {
+          if (!snap.exists) {
             throw new Error("Ride not found");
           }
 
-          const ride = rideSnap.data();
+          const ride = snap.data();
 
+          // 🚨 HARD LOCK: prevent double assignment
           if (ride.status !== "searching_driver") {
             throw new Error("Ride already claimed");
+          }
+
+          if (ride.driverUid) {
+            throw new Error("Ride already assigned to a driver");
           }
 
           tx.update(rideRef, {
@@ -48,6 +56,8 @@ exports.acceptRide = onRequest(
             acceptedAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),
           });
+
+          return true;
         });
 
         return res.status(200).json({
@@ -56,9 +66,10 @@ exports.acceptRide = onRequest(
         });
       } catch (err) {
         console.error("[acceptRide]", err);
-        return res.status(500).json({
+
+        return res.status(409).json({
           success: false,
-          message: err.message,
+          message: err.message || "Failed to accept ride",
         });
       }
     });

@@ -1,21 +1,22 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const cors = require("cors")({ origin: true });
+const admin = require("firebase-admin");
 
-const { initializeApp } = require("firebase-admin/app");
-const { getFirestore, FieldValue } = require("firebase-admin/firestore");
-
-initializeApp();
-
-const db = getFirestore();
+const db = admin.firestore();
 
 // ─────────────────────────────────────────────────────────
 exports.updateTripStatus = onRequest(
   {
     region: "us-central1",
-    invoker: "public",
+    invoker: "public", // ✅ makes it publicly accessible
   },
-  (req, res) => {
-    cors(req, res, async () => {
+  async (req, res) => {
+    return cors(req, res, async () => {
+      // ✅ Handle preflight
+      if (req.method === "OPTIONS") {
+        return res.status(204).send("");
+      }
+
       if (req.method !== "POST") {
         return res.status(405).json({ success: false });
       }
@@ -39,12 +40,14 @@ exports.updateTripStatus = onRequest(
 
           const ride = snap.data();
 
+          // 🔐 Ensure correct driver
           if (ride.driverUid !== driverUid) {
             throw new Error("Unauthorized driver");
           }
 
           let newStatus = ride.status;
 
+          // ── STATE MACHINE ───────────────────────────────
           if (action === "arrive") {
             if (ride.status !== "driver_assigned") {
               throw new Error("Invalid transition to arrived");
@@ -64,22 +67,20 @@ exports.updateTripStatus = onRequest(
             throw new Error("Invalid action");
           }
 
-          const now = FieldValue.serverTimestamp();
-
           tx.update(rideRef, {
             status: newStatus,
-            updatedAt: now,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
 
             ...(action === "arrive" && {
-              arrivedAt: now,
+              arrivedAt: admin.firestore.FieldValue.serverTimestamp(),
             }),
 
             ...(action === "start" && {
-              startedAt: now,
+              startedAt: admin.firestore.FieldValue.serverTimestamp(),
             }),
 
             ...(action === "complete" && {
-              completedAt: now,
+              completedAt: admin.firestore.FieldValue.serverTimestamp(),
             }),
           });
         });
