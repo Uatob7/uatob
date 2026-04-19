@@ -1,5 +1,6 @@
 // src/App/BookingPanel.jsx
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import axios from 'axios';
 import {
   Navigation, Clock, Car, Users, Zap,
   ChevronRight, Loader2, AlertCircle, LocateFixed, MapPin, X,
@@ -41,10 +42,9 @@ function getRideIcon(rideId) {
 
 // ── Network helpers ───────────────────────────────────────────────────
 async function fetchTripData(pickup, dropoff) {
-  const res  = await fetch(ROUTE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ origin: pickup, destination: dropoff }) });
-  const data = await res.json();
+  const { data, status } = await axios.post(ROUTE_URL, { origin: pickup, destination: dropoff });
 
-  if (!res.ok) throw new Error(data.error || `Route error ${res.status}`);
+  if (status < 200 || status >= 300) throw new Error(data.error || `Route error ${status}`);
 
   let durationMin = data.duration_minutes;
   if (!durationMin && data.route?.duration_seconds) durationMin = Math.ceil(data.route.duration_seconds / 60);
@@ -68,17 +68,15 @@ async function fetchTripData(pickup, dropoff) {
 }
 
 async function fetchQuotesData(tripData) {
-  const res  = await fetch(PRICE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(tripData) });
-  const data = await res.json();
-  if (!res.ok || !data.ok) throw new Error(data.error || `Pricing error ${res.status}`);
+  const { data, status } = await axios.post(PRICE_URL, tripData);
+  if (status < 200 || status >= 300 || !data.ok) throw new Error(data.error || `Pricing error ${status}`);
   if (data.rides) Object.values(data.rides).forEach(r => { r.total = Number(r.total).toFixed(2); });
   return data;
 }
 
 async function reverseGeocode(lat, lng) {
-  const res  = await fetch(REVERSE_GEO_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat, lng }) });
-  const data = await res.json();
-  if (!res.ok || !data.address) throw new Error(data.error || 'Could not find your address.');
+  const { data, status } = await axios.post(REVERSE_GEO_URL, { lat, lng });
+  if (status < 200 || status >= 300 || !data.address) throw new Error(data.error || 'Could not find your address.');
   return { address: data.address };
 }
 
@@ -445,8 +443,7 @@ function PlaceInput({ isPickup, placeholder, value, onChange, onLocationRequest,
   async function fetchSuggestions(query) {
     if (!query || query.length < 2) { setSuggestions([]); setGhostText(''); return; }
     try {
-      const res   = await fetch(AUTOCOMPLETE_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ input: query }) });
-      const data  = await res.json();
+      const { data } = await axios.post(AUTOCOMPLETE_URL, { input: query });
       const preds = data.predictions || [];
       setSuggestions(preds);
       const first = preds[0]?.description || '';
@@ -629,10 +626,6 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
   const quoteRequestRef     = useRef(0);
   const lastFetchedTripRef  = useRef(saved?.tripData ? `${saved.tripData.pickup}||${saved.tripData.dropoff}` : '');
 
-  // ── Stable refs so async callbacks always see the latest values ───
-  // This is the core fix: buildPayload reads from refs instead of
-  // closing over stale state, so it is safe to call from inside async
-  // functions without being recreated on every render.
   const onPayloadChangeRef = useRef(onPayloadChange);
   const onPriceReadyRef    = useRef(onPriceReady);
   const selectedRideRef    = useRef(selectedRide);
@@ -649,9 +642,6 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
     else clearBookingForm();
   }, [pickup, dropoff, selectedRide, tripData, quotesData]);
 
-  // ── buildPayload: pure function, no stale-closure risk ───────────
-  // Takes all values explicitly so it can be called safely from async
-  // contexts (inside loadQuotes) as well as from effects / callbacks.
   const buildPayload = useCallback((trip, quote, quotes, rideId) => ({
     pickup:            trip.pickup,
     dropoff:           trip.dropoff,
@@ -673,9 +663,8 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
     polyline:          trip.polyline   || null,
     status:            'searching_driver',
     createdAt:         new Date().toISOString(),
-  }), []); // no deps — all values passed explicitly
+  }), []);
 
-  // ── Notify parent whenever ride type changes (quotes already loaded) ─
   useEffect(() => {
     if (!tripData || !quotesData) return;
     const quote = quotesData?.rides?.[selectedRide];
@@ -725,7 +714,8 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
         setTripData(trip);
       } catch (err) {
         if (tripRequestRef.current !== requestId) return;
-        setError(err.message || 'Failed to calculate route');
+        // axios wraps HTTP errors in err.response; fall back to err.message
+        setError(err.response?.data?.error || err.message || 'Failed to calculate route');
         setTripData(null); setQuotesData(null);
         lastFetchedTripRef.current = '';
       } finally {
@@ -736,9 +726,6 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
   }, [pickup, dropoff]);
 
   // ── Step 2: quotes ────────────────────────────────────────────────
-  // FIX: buildPayload and onPayloadChange are called here directly,
-  // synchronously after we know both trip and quotes, using the
-  // resolved rideId — so there is zero stale-closure risk.
   useEffect(() => {
     if (!tripData || quotesData) return;
     const requestId = ++quoteRequestRef.current;
@@ -748,33 +735,27 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
         const quotes = await fetchQuotesData(tripData);
         if (quoteRequestRef.current !== requestId) return;
 
-        // Resolve the correct ride type: prefer current selection,
-        // fall back to first available key.
         const keys           = Object.keys(quotes?.rides || {});
         const resolvedRideId = (quotes.rides?.[selectedRideRef.current])
           ? selectedRideRef.current
           : (keys[0] ?? selectedRideRef.current);
 
-        // Commit state synchronously in a single batch.
         setQuotesData(quotes);
         if (resolvedRideId !== selectedRideRef.current) setSelectedRide(resolvedRideId);
 
-        // Notify parent with guaranteed-correct payload right here,
-        // before any re-render, so onPayloadChange always receives a
-        // fully-populated object on first load.
         const quote = quotes.rides?.[resolvedRideId];
         if (quote && typeof onPayloadChangeRef.current === 'function') {
           onPayloadChangeRef.current(buildPayload(tripData, quote, quotes, resolvedRideId));
         }
 
-        // Fire onPriceReady exactly once per booking session.
         if (!priceReadyFiredRef.current) {
           priceReadyFiredRef.current = true;
           onPriceReadyRef.current?.();
         }
       } catch (err) {
         if (quoteRequestRef.current !== requestId) return;
-        setError(err.message || 'Failed to calculate prices');
+        // axios wraps HTTP errors in err.response; fall back to err.message
+        setError(err.response?.data?.error || err.message || 'Failed to calculate prices');
         setQuotesData(null);
       } finally {
         if (quoteRequestRef.current === requestId) setLoadingQuotes(false);
@@ -782,8 +763,6 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
     }
     loadQuotes();
   }, [tripData, buildPayload]);
-  // NOTE: `selectedRide` intentionally omitted — we read it via
-  // selectedRideRef to avoid re-triggering the fetch on ride switches.
 
   const rideOptions   = useMemo(() => Object.values(quotesData?.rides || {}), [quotesData]);
   const selectedQuote = useMemo(() => quotesData?.rides?.[selectedRide] || null, [quotesData, selectedRide]);
@@ -791,9 +770,6 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
   const isLoading = loadingTrip || loadingQuotes;
   const hasQuote  = !!tripData && !!quotesData && !!selectedQuote && !error && !isLoading;
 
-  // ── onPriceReady is now fired inside loadQuotes above, so we only
-  //    need this effect as a safety net for the localStorage-restore
-  //    path (where quotesData is pre-populated from saved state).
   useEffect(() => {
     if (hasQuote && !priceReadyFiredRef.current) {
       priceReadyFiredRef.current = true;

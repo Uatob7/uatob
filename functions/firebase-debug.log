@@ -1,0 +1,22 @@
+[debug] [2026-04-19T19:04:39.811Z] ----------------------------------------------------------------------
+[debug] [2026-04-19T19:04:39.815Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only functions:Autocomplete
+[debug] [2026-04-19T19:04:39.815Z] CLI Version:   15.12.0
+[debug] [2026-04-19T19:04:39.815Z] Platform:      win32
+[debug] [2026-04-19T19:04:39.815Z] Node Version:  v24.14.0
+[debug] [2026-04-19T19:04:39.816Z] Time:          Sun Apr 19 2026 15:04:39 GMT-0400 (Eastern Daylight Time)
+[debug] [2026-04-19T19:04:39.816Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-04-19T19:04:42.068Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-04-19T19:04:42.068Z] > authorizing via signed-in user (support@calltelo.com)
+[debug] [2026-04-19T19:04:42.069Z] [iam] checking project uatob-e7b4b for permissions ["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]
+[debug] [2026-04-19T19:04:42.070Z] Checked if tokens are valid: true, expires at: 1776627536477
+[debug] [2026-04-19T19:04:42.070Z] Checked if tokens are valid: true, expires at: 1776627536477
+[debug] [2026-04-19T19:04:42.072Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions [none]
+[debug] [2026-04-19T19:04:42.072Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions  x-goog-user-project=uatob-e7b4b
+[debug] [2026-04-19T19:04:42.072Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2026-04-19T19:04:42.218Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions 200
+[debug] [2026-04-19T19:04:42.218Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2026-04-19T19:04:42.219Z] Checked if tokens are valid: true, expires at: 1776627536477
+[debug] [2026-04-19T19:04:42.219Z] Checked if tokens are valid: true, expires at: 1776627536477
+[debug] [2026-04-19T19:04:42.219Z] >>> [apiv2][query] POST https://iam.googleapis.com/v1/projects/uatob-e7b4b/serviceAccounts/uatob-e7b4b@appspot.gserviceaccount.com:testIamPermissions [none]
+[debug] [2026-04-19T19:04:42.219Z] >>> [apiv2][body] POST https://iam.googleapis.com/v1/projects/uatob-e7b4b/serviceAccounts/uatob-e7b4b@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
