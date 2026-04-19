@@ -448,7 +448,7 @@ function sendDriverEmail(driver, ride, rideId, totalCandidates) {
 exports.emailCandidateDrivers = onSchedule(
   {
     schedule: "every 1 minutes",
-    region:   "us-central1",
+    region:   "us-east1",   // ← change this
     secrets:  [SENDGRID_API_KEY],
   },
   async () => {
