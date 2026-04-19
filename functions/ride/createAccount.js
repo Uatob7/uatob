@@ -1,48 +1,26 @@
-const { onRequest } = require("firebase-functions/v2/https");
-const cors = require("cors")({ origin: true });
-
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 const { FieldValue } = require("firebase-admin/firestore");
 
-// ✅ MUST initialize admin
-if (!admin.apps.length) {
-  admin.initializeApp();
-}
-
+if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
 
-exports.createAccount = onRequest((req, res) => {
-  cors(req, res, async () => {
+exports.createAccount = onCall(
+  { region: "us-east1", invoker: "public" },
+  async (request) => {
+    const { uid, email, name } = request.data || {};
+
+    if (!uid || typeof uid !== "string")
+      throw new HttpsError("invalid-argument", "Missing or invalid uid");
+
+    console.log(`[createAccount] UID: ${uid}, Email: ${email}, Name: ${name}`);
+
     try {
-      // ── Only allow POST ──────────────────────────
-      if (req.method === "OPTIONS") {
-        return res.status(204).send("");
-      }
-
-      if (req.method !== "POST") {
-        return res.status(405).json({ error: "Method not allowed" });
-      }
-
-      const { uid, email, name } = req.body || {};
-
-      // ── Validation ───────────────────────────────
-      if (!uid || typeof uid !== "string") {
-        return res.status(400).json({ error: "Missing or invalid uid" });
-      }
-
-      console.log(
-        `[createAccount] Request received — UID: ${uid}, Email: ${email}, Name: ${name}`
-      );
-
-      const accountRef = db.collection("Accounts").doc(uid);
-
-      // 🚀 Write account
-      await accountRef.set(
+      await db.collection("Accounts").doc(uid).set(
         {
           uid,
           email: email ?? null,
-          name: name ?? null,
-
+          name:  name  ?? null,
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         },
@@ -50,18 +28,10 @@ exports.createAccount = onRequest((req, res) => {
       );
 
       console.log(`[createAccount] Account saved — UID: ${uid}`);
-
-      return res.status(200).json({
-        success: true,
-        uid,
-      });
+      return { success: true, uid };
     } catch (err) {
       console.error("[createAccount] Error:", err);
-
-      return res.status(500).json({
-        error: "Internal server error",
-        details: err.message,
-      });
+      throw new HttpsError("internal", err.message || "Internal server error");
     }
-  });
-});
+  }
+);
