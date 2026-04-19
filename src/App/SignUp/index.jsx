@@ -1,3 +1,4 @@
+// src/App/SignUp/UaTobDriverSignup.jsx
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/router";
 import {
@@ -8,14 +9,15 @@ import {
 } from "lucide-react";
 import signUp from '@/firebase/auth/signup';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { getFirestore } from "firebase/firestore";
+import { getFunctions, httpsCallable } from "firebase/functions";      // ← NEW
 import { firebase_app } from "@/firebase/config";
 import { useApplicationSubmitted } from "@/App/SignUp/useApplicationSubmitted";
 
-const db = getFirestore(firebase_app);
-const storage = getStorage(firebase_app);
+const storage   = getStorage(firebase_app);
+const functions = getFunctions(firebase_app, "us-central1");           // ← NEW
 
-const CLOUD_FUNCTION_URL = "https://createdriverprofile-ady2s2xhhq-uc.a.run.app";
+// ── Callables (replace the single CLOUD_FUNCTION_URL fetch) ───────────
+const callCreateDriverProfile = httpsCallable(functions, "createDriverProfile");
 
 /* ─── localStorage helpers ───────────────────── */
 const LS_KEYS = {
@@ -56,11 +58,8 @@ const DEFAULT_DOC = {
   profilePhoto:    false, profilePhotoUrl:    "",
 };
 
-// Statuses that mean the driver has already completed signup
 const COMPLETED_STATUSES = ["approved", "online", "active", "suspended", "offline"];
-
-// ── FIX 3: Dynamic max year — never goes stale ─────────────────────────
-const MAX_VEHICLE_YEAR = new Date().getFullYear() + 1;
+const MAX_VEHICLE_YEAR   = new Date().getFullYear() + 1;
 
 /* ─── UaTob SVG Icon ─────────────────────────── */
 function UaTobIcon({ size = 38 }) {
@@ -267,16 +266,9 @@ function UploadBox({ label, hint, icon: Icon = Upload, uploaded, previewUrl, upl
 
         {previewUrl && !isPdf && (
           <div style={{ width: "100%", position: "relative" }}>
-            <img
-              src={previewUrl}
-              alt="preview"
-              style={{ width: "100%", maxHeight: 120, objectFit: "cover", borderRadius: 10, display: "block" }}
-            />
+            <img src={previewUrl} alt="preview" style={{ width: "100%", maxHeight: 120, objectFit: "cover", borderRadius: 10, display: "block" }} />
             {!uploading && onRemove && (
-              <button
-                onClick={e => { e.stopPropagation(); onRemove(); }}
-                style={{ position: "absolute", top: 6, right: 6, width: 24, height: 24, borderRadius: "50%", background: "rgba(0,0,0,.55)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-              >
+              <button onClick={e => { e.stopPropagation(); onRemove(); }} style={{ position: "absolute", top: 6, right: 6, width: 24, height: 24, borderRadius: "50%", background: "rgba(0,0,0,.55)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <X size={12} color="#fff" />
               </button>
             )}
@@ -288,37 +280,20 @@ function UploadBox({ label, hint, icon: Icon = Upload, uploaded, previewUrl, upl
             <FileText size={16} color={C.blue} />
             <span style={{ fontSize: 12.5, fontWeight: 600, color: C.blue }}>PDF uploaded</span>
             {!uploading && onRemove && (
-              <button
-                onClick={e => { e.stopPropagation(); onRemove(); }}
-                style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: C.textDim, display: "flex" }}
-              >
+              <button onClick={e => { e.stopPropagation(); onRemove(); }} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: C.textDim, display: "flex" }}>
                 <X size={14} />
               </button>
             )}
           </div>
         )}
 
-        <div style={{
-          width: 44, height: 44,
-          background: uploaded ? "rgba(22,163,74,.12)" : uploading ? C.accentGlow : C.surfaceBright,
-          borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-          transition: "background .2s", flexShrink: 0,
-        }}>
-          {uploading
-            ? (
-              <svg width="28" height="28" viewBox="0 0 44 44">
-                <circle cx="22" cy="22" r="18" fill="none" stroke={C.border} strokeWidth="4" />
-                <circle
-                  cx="22" cy="22" r="18" fill="none" stroke={C.accent} strokeWidth="4"
-                  strokeDasharray={`${(progress / 100) * 113} 113`} strokeLinecap="round"
-                  style={{ transformOrigin: "center", transform: "rotate(-90deg)", transition: "stroke-dasharray .3s" }}
-                />
-              </svg>
-            )
-            : uploaded
-              ? <Check size={20} color={C.green} />
-              : <Icon size={20} color={C.textMid} />
-          }
+        <div style={{ width: 44, height: 44, background: uploaded ? "rgba(22,163,74,.12)" : uploading ? C.accentGlow : C.surfaceBright, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", transition: "background .2s", flexShrink: 0 }}>
+          {uploading ? (
+            <svg width="28" height="28" viewBox="0 0 44 44">
+              <circle cx="22" cy="22" r="18" fill="none" stroke={C.border} strokeWidth="4" />
+              <circle cx="22" cy="22" r="18" fill="none" stroke={C.accent} strokeWidth="4" strokeDasharray={`${(progress / 100) * 113} 113`} strokeLinecap="round" style={{ transformOrigin: "center", transform: "rotate(-90deg)", transition: "stroke-dasharray .3s" }} />
+            </svg>
+          ) : uploaded ? <Check size={20} color={C.green} /> : <Icon size={20} color={C.textMid} />}
         </div>
 
         <div>
@@ -340,7 +315,7 @@ function UploadBox({ label, hint, icon: Icon = Upload, uploaded, previewUrl, upl
 
 /* ─── STEP COMPONENTS ────────────────────────── */
 
-function StepAccount({ data, setData, errors, isExistingUser }) {
+function StepAccount({ data, setData, errors }) {
   return (
     <div>
       <div style={{ display: "flex", gap: 12 }}>
@@ -355,21 +330,14 @@ function StepAccount({ data, setData, errors, isExistingUser }) {
       <InputField label="Password" placeholder="Min. 8 characters" type="password" icon={Lock} value={data.password} onChange={v => setData(d => ({ ...d, password: v }))} error={errors.password} hint="Use uppercase, lowercase, numbers, and symbols." />
       <InputField label="Confirm Password" placeholder="Re-enter password" type="password" icon={Lock} value={data.confirmPassword} onChange={v => setData(d => ({ ...d, confirmPassword: v }))} error={errors.confirmPassword} />
       <div style={{ background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", display: "flex", gap: 12, alignItems: "flex-start" }}>
-        <div
-          onClick={() => setData(d => ({ ...d, terms: !d.terms }))}
-          style={{ width: 20, height: 20, borderRadius: 6, border: `1.5px solid ${data.terms ? C.accent : C.border}`, background: data.terms ? C.accentGlow : "transparent", flexShrink: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", marginTop: 1, transition: "all .2s" }}
-        >
+        <div onClick={() => setData(d => ({ ...d, terms: !d.terms }))} style={{ width: 20, height: 20, borderRadius: 6, border: `1.5px solid ${data.terms ? C.accent : C.border}`, background: data.terms ? C.accentGlow : "transparent", flexShrink: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", marginTop: 1, transition: "all .2s" }}>
           {data.terms && <Check size={12} color={C.accent} />}
         </div>
         <div style={{ fontSize: 12.5, color: C.textMid, fontWeight: 500, lineHeight: 1.6 }}>
           I agree to UaTob's{" "}
-          <a href="/driver-terms" style={{ color: C.accent, cursor: "pointer", textDecoration: "none" }}>
-            Driver Terms of Service
-          </a>
+          <a href="/driver-terms" style={{ color: C.accent, cursor: "pointer", textDecoration: "none" }}>Driver Terms of Service</a>
           {" "}and{" "}
-          <a href="/privacy-policy" style={{ color: C.accent, cursor: "pointer", textDecoration: "none" }}>
-            Privacy Policy
-          </a>
+          <a href="/privacy-policy" style={{ color: C.accent, cursor: "pointer", textDecoration: "none" }}>Privacy Policy</a>
         </div>
       </div>
       {errors.terms && (
@@ -427,16 +395,7 @@ function StepVehicle({ data, setData, errors }) {
       </div>
       <div style={{ display: "flex", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          {/* FIX 3: Uses MAX_VEHICLE_YEAR constant derived from current year */}
-          <InputField
-            label="Year"
-            placeholder={`2010–${MAX_VEHICLE_YEAR}`}
-            type="number"
-            icon={Calendar}
-            value={data.year}
-            onChange={v => setData(d => ({ ...d, year: v }))}
-            error={errors.year}
-          />
+          <InputField label="Year" placeholder={`2010–${MAX_VEHICLE_YEAR}`} type="number" icon={Calendar} value={data.year} onChange={v => setData(d => ({ ...d, year: v }))} error={errors.year} />
         </div>
         <div style={{ flex: 1 }}>
           <InputField label="Color" placeholder="Pearl White" value={data.color} onChange={v => setData(d => ({ ...d, color: v }))} error={errors.color} />
@@ -456,19 +415,7 @@ function StepVehicle({ data, setData, errors }) {
           ].map(rt => {
             const selected = data.rideTypes?.includes(rt.id);
             return (
-              <div
-                key={rt.id}
-                onClick={() => setData(d => {
-                  const cur = d.rideTypes || [];
-                  return { ...d, rideTypes: selected ? cur.filter(r => r !== rt.id) : [...cur, rt.id] };
-                })}
-                style={{
-                  background: selected ? rt.c + "14" : C.surfaceRaised,
-                  border: `1.5px solid ${selected ? rt.c + "50" : C.border}`,
-                  borderRadius: 12, padding: "11px 16px", cursor: "pointer",
-                  transition: "all .2s", flex: "1 1 calc(50% - 4px)",
-                }}
-              >
+              <div key={rt.id} onClick={() => setData(d => { const cur = d.rideTypes || []; return { ...d, rideTypes: selected ? cur.filter(r => r !== rt.id) : [...cur, rt.id] }; })} style={{ background: selected ? rt.c + "14" : C.surfaceRaised, border: `1.5px solid ${selected ? rt.c + "50" : C.border}`, borderRadius: 12, padding: "11px 16px", cursor: "pointer", transition: "all .2s", flex: "1 1 calc(50% - 4px)" }}>
                 <div style={{ fontSize: 13, fontWeight: 800, color: selected ? rt.c : C.text, fontFamily: "'Barlow Condensed', sans-serif", letterSpacing: ".5px" }}>{rt.label}</div>
                 <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>{rt.desc}</div>
               </div>
@@ -502,51 +449,23 @@ function StepDocuments({ data, setData, errors, uid }) {
   }, []);
 
   const uploadFile = useCallback(async (slot, file) => {
-    if (!uid) {
-      console.warn("No UID yet — cannot upload to Firebase Storage");
-      return;
-    }
-
+    if (!uid) { console.warn("No UID yet — cannot upload to Firebase Storage"); return; }
     let localPreview = "";
-    if (file.type.startsWith("image/")) {
-      localPreview = URL.createObjectURL(file);
-    } else if (file.type === "application/pdf") {
-      localPreview = "data:application/pdf;placeholder";
-    }
-
+    if (file.type.startsWith("image/")) localPreview = URL.createObjectURL(file);
+    else if (file.type === "application/pdf") localPreview = "data:application/pdf;placeholder";
     setSlot(slot, { uploading: true, progress: 0, localPreview });
-
     try {
       const allowedTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
-      if (!allowedTypes.includes(file.type)) {
-        setSlot(slot, { uploading: false, progress: 0, localPreview: "" });
-        return;
-      }
+      if (!allowedTypes.includes(file.type)) { setSlot(slot, { uploading: false, progress: 0, localPreview: "" }); return; }
       const ext  = file.name.split(".").pop();
       const path = `drivers/${uid}/documents/${slot}_${Date.now()}.${ext}`;
       const storageRef = ref(storage, path);
       const task = uploadBytesResumable(storageRef, file);
-
       await new Promise((resolve, reject) => {
-        task.on(
-          "state_changed",
-          snap => {
-            const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
-            setSlot(slot, { progress: pct });
-          },
-          reject,
-          resolve
-        );
+        task.on("state_changed", snap => { const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100); setSlot(slot, { progress: pct }); }, reject, resolve);
       });
-
       const downloadURL = await getDownloadURL(task.snapshot.ref);
-
-      setData(d => ({
-        ...d,
-        [slot]: true,
-        [`${slot}Url`]: downloadURL,
-      }));
-
+      setData(d => ({ ...d, [slot]: true, [`${slot}Url`]: downloadURL }));
       setSlot(slot, { uploading: false, progress: 100, localPreview: downloadURL });
     } catch (err) {
       console.error(`Upload failed for ${slot}:`, err);
@@ -559,18 +478,14 @@ function StepDocuments({ data, setData, errors, uid }) {
     setSlot(slot, { uploading: false, progress: 0, localPreview: "" });
   }, [setData, setSlot]);
 
-  const preview = (slot) =>
-    uploadState[slot].localPreview || data[`${slot}Url`] || "";
+  const preview = (slot) => uploadState[slot].localPreview || data[`${slot}Url`] || "";
 
   const SectionLabel = ({ children }) => (
     <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, marginBottom: 12, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>
       {children}
     </div>
   );
-
-  const Divider = () => (
-    <div style={{ height: 1, background: C.border, margin: "4px 0 18px" }} />
-  );
+  const Divider = () => <div style={{ height: 1, background: C.border, margin: "4px 0 18px" }} />;
 
   return (
     <div>
@@ -580,7 +495,6 @@ function StepDocuments({ data, setData, errors, uid }) {
           All documents are <strong style={{ color: C.text }}>encrypted and stored securely</strong>. We only use them for driver verification.
         </div>
       </div>
-
       <SectionLabel>Driver's License</SectionLabel>
       <div style={{ display: "flex", gap: 10 }}>
         <div style={{ flex: 1 }}>
@@ -591,15 +505,11 @@ function StepDocuments({ data, setData, errors, uid }) {
         </div>
       </div>
       <InputField label="License Number" placeholder="D1234567" icon={FileText} value={data.licenseNumber} onChange={v => setData(d => ({ ...d, licenseNumber: v }))} hint="As shown on your license" error={errors?.licenseNumber} />
-
       <Divider />
-
       <SectionLabel>Vehicle Registration &amp; Insurance</SectionLabel>
       <UploadBox label="Vehicle Registration" hint="Photo or PDF accepted" icon={FileText} uploaded={data.registration} previewUrl={preview("registration")} uploading={uploadState.registration.uploading} progress={uploadState.registration.progress} error={errors?.registration} onFileSelect={f => uploadFile("registration", f)} onRemove={() => removeSlot("registration")} />
       <UploadBox label="Proof of Insurance" hint="Must be current &amp; valid" icon={Shield} uploaded={data.insurance} previewUrl={preview("insurance")} uploading={uploadState.insurance.uploading} progress={uploadState.insurance.progress} error={errors?.insurance} onFileSelect={f => uploadFile("insurance", f)} onRemove={() => removeSlot("insurance")} />
-
       <Divider />
-
       <SectionLabel>Profile Photo</SectionLabel>
       <UploadBox label="Your Photo" hint="Clear, recent headshot · No sunglasses" icon={Camera} uploaded={data.profilePhoto} previewUrl={preview("profilePhoto")} uploading={uploadState.profilePhoto.uploading} progress={uploadState.profilePhoto.progress} error={errors?.profilePhoto} onFileSelect={f => uploadFile("profilePhoto", f)} onRemove={() => removeSlot("profilePhoto")} />
     </div>
@@ -636,39 +546,15 @@ function StepVerify({ accountData, contactData, vehicleData, docData }) {
           <div style={{ fontSize: 11.5, color: C.textMid }}>{allDocs ? "Your application is ready to submit for review." : "You can still submit — upload remaining docs later."}</div>
         </div>
       </div>
-
-      <Section title="Account" items={[
-        { label: "Name",  val: `${accountData.firstName} ${accountData.lastName}` },
-        { label: "Email", val: accountData.email },
-      ]} />
-      <Section title="Contact" items={[
-        { label: "Phone",        val: contactData.phone },
-        { label: "Address",      val: contactData.address },
-        { label: "City / State", val: contactData.city && contactData.state ? `${contactData.city}, ${contactData.state} ${contactData.zip}` : "" },
-      ]} />
-      <Section title="Vehicle" items={[
-        { label: "Vehicle",    val: vehicleData.make && vehicleData.model ? `${vehicleData.year} ${vehicleData.make} ${vehicleData.model}` : "" },
-        { label: "Plate",      val: vehicleData.plate },
-        { label: "Ride Types", val: vehicleData.rideTypes?.join(", ") },
-      ]} />
-      <Section title="Documents" items={[
-        { label: "Driver's License", val: (docData.licenseFront && docData.licenseBack) ? "✓ Uploaded" : "Pending" },
-        { label: "Registration",     val: docData.registration ? "✓ Uploaded" : "Pending" },
-        { label: "Insurance",        val: docData.insurance    ? "✓ Uploaded" : "Pending" },
-        { label: "Profile Photo",    val: docData.profilePhoto ? "✓ Uploaded" : "Pending" },
-      ]} />
-
+      <Section title="Account"   items={[{ label: "Name", val: `${accountData.firstName} ${accountData.lastName}` }, { label: "Email", val: accountData.email }]} />
+      <Section title="Contact"   items={[{ label: "Phone", val: contactData.phone }, { label: "Address", val: contactData.address }, { label: "City / State", val: contactData.city && contactData.state ? `${contactData.city}, ${contactData.state} ${contactData.zip}` : "" }]} />
+      <Section title="Vehicle"   items={[{ label: "Vehicle", val: vehicleData.make && vehicleData.model ? `${vehicleData.year} ${vehicleData.make} ${vehicleData.model}` : "" }, { label: "Plate", val: vehicleData.plate }, { label: "Ride Types", val: vehicleData.rideTypes?.join(", ") }]} />
+      <Section title="Documents" items={[{ label: "Driver's License", val: (docData.licenseFront && docData.licenseBack) ? "✓ Uploaded" : "Pending" }, { label: "Registration", val: docData.registration ? "✓ Uploaded" : "Pending" }, { label: "Insurance", val: docData.insurance ? "✓ Uploaded" : "Pending" }, { label: "Profile Photo", val: docData.profilePhoto ? "✓ Uploaded" : "Pending" }]} />
       {(docData.licenseFrontUrl || docData.profilePhotoUrl) && (
         <div style={{ marginBottom: 18 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, marginBottom: 10, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>Document Previews</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {[
-              { url: docData.licenseFrontUrl,  label: "License Front" },
-              { url: docData.licenseBackUrl,   label: "License Back"  },
-              { url: docData.registrationUrl,  label: "Registration"  },
-              { url: docData.insuranceUrl,     label: "Insurance"     },
-              { url: docData.profilePhotoUrl,  label: "Profile Photo" },
-            ].filter(d => d.url && !d.url.startsWith("data:application/pdf")).map((d, i) => (
+            {[{ url: docData.licenseFrontUrl, label: "License Front" }, { url: docData.licenseBackUrl, label: "License Back" }, { url: docData.registrationUrl, label: "Registration" }, { url: docData.insuranceUrl, label: "Insurance" }, { url: docData.profilePhotoUrl, label: "Profile Photo" }].filter(d => d.url && !d.url.startsWith("data:application/pdf")).map((d, i) => (
               <div key={i} style={{ flex: "1 1 calc(33% - 6px)", minWidth: 90 }}>
                 <img src={d.url} alt={d.label} style={{ width: "100%", height: 70, objectFit: "cover", borderRadius: 10, display: "block", border: `1px solid ${C.border}` }} />
                 <div style={{ fontSize: 10, color: C.textDim, fontWeight: 600, textAlign: "center", marginTop: 4, fontFamily: "'Barlow Condensed', sans-serif", letterSpacing: ".5px", textTransform: "uppercase" }}>{d.label}</div>
@@ -677,7 +563,6 @@ function StepVerify({ accountData, contactData, vehicleData, docData }) {
           </div>
         </div>
       )}
-
       <div style={{ background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", display: "flex", gap: 10, alignItems: "flex-start" }}>
         <Zap size={14} color={C.accent} style={{ flexShrink: 0, marginTop: 1 }} />
         <div style={{ fontSize: 12, color: C.textMid, lineHeight: 1.6 }}>
@@ -747,22 +632,13 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
 
   const isExistingUser = Boolean(uid);
 
-  // ── ALL hooks must come before any conditional returns ─────────────
-  // FIX 1: Every useState/useEffect/useRef/useCallback is declared here
-  // unconditionally, before any early return logic. React's rules of
-  // hooks require hooks to run in the same order on every render.
-
-  const [submitted, setSubmitted] = useState(() => lsGet(LS_KEYS.submitted, false));
-  const [step,        setStep]        = useState(() => lsGet(LS_KEYS.step, 1));
-  const [createdUid,  setCreatedUid]  = useState(() => uid || lsGet(LS_KEYS.uid, null));
-  const [accountData, setAccountData] = useState(() => {
-    const saved = lsGet(LS_KEYS.account, DEFAULT_ACCOUNT);
-    return { ...DEFAULT_ACCOUNT, ...saved, password: "", confirmPassword: "" };
-  });
-  const [contactData, setContactData] = useState(() => lsGet(LS_KEYS.contact, DEFAULT_CONTACT));
-  const [vehicleData, setVehicleData] = useState(() => lsGet(LS_KEYS.vehicle, DEFAULT_VEHICLE));
-  const [docData,     setDocData]     = useState(() => lsGet(LS_KEYS.doc, DEFAULT_DOC));
-
+  const [submitted,        setSubmitted]        = useState(() => lsGet(LS_KEYS.submitted, false));
+  const [step,             setStep]             = useState(() => lsGet(LS_KEYS.step, 1));
+  const [createdUid,       setCreatedUid]       = useState(() => uid || lsGet(LS_KEYS.uid, null));
+  const [accountData,      setAccountData]      = useState(() => { const saved = lsGet(LS_KEYS.account, DEFAULT_ACCOUNT); return { ...DEFAULT_ACCOUNT, ...saved, password: "", confirmPassword: "" }; });
+  const [contactData,      setContactData]      = useState(() => lsGet(LS_KEYS.contact, DEFAULT_CONTACT));
+  const [vehicleData,      setVehicleData]      = useState(() => lsGet(LS_KEYS.vehicle, DEFAULT_VEHICLE));
+  const [docData,          setDocData]          = useState(() => lsGet(LS_KEYS.doc, DEFAULT_DOC));
   const [direction,        setDirection]        = useState("forward");
   const [animating,        setAnimating]        = useState(false);
   const [errors,           setErrors]           = useState({});
@@ -770,10 +646,9 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
   const [submitError,      setSubmitError]      = useState(null);
   const [showResumeBanner, setShowResumeBanner] = useState(() => lsGet(LS_KEYS.step, 1) > 1);
 
-  const scrollRef           = useRef(null);
-  const firestoreHydrated   = useRef(false);
+  const scrollRef         = useRef(null);
+  const firestoreHydrated = useRef(false);
 
-  // ── Guard: redirect approved/online drivers ────────────────────────
   useEffect(() => {
     const driverSignUpStatus = driverSignUp?.status;
     const driversStatus      = drivers?.[0]?.status;
@@ -782,152 +657,90 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
     if (shouldRedirect) router.push("/driver");
   }, [driverSignUp?.status, drivers, router]);
 
-  // ── Sync submitted state from Firestore status ─────────────────────
   useEffect(() => {
-    if (driverSignUp?.status === "pending") {
-      setSubmitted(true);
-      lsSet(LS_KEYS.submitted, true);
-    }
+    if (driverSignUp?.status === "pending") { setSubmitted(true); lsSet(LS_KEYS.submitted, true); }
   }, [driverSignUp?.status]);
 
-  // ── Hydrate from drivers data (Firestore) ──────────────────────────
   useEffect(() => {
     if (!drivers?.length || firestoreHydrated.current) return;
     firestoreHydrated.current = true;
-
-    const driver    = drivers[0];
+    const driver = drivers[0];
     const savedStep = driver.currentStep ?? 1;
-
-    if (savedStep > 1) {
-      setStep(s => Math.max(s, savedStep));
-      setShowResumeBanner(true);
-    }
-    if (driver.firstName || driver.lastName || driver.email) {
-      setAccountData(d => ({
-        ...d,
-        firstName: driver.firstName || d.firstName,
-        lastName:  driver.lastName  || d.lastName,
-        email:     driver.email     || d.email,
-      }));
-    }
-    if (driver.contact) {
-      setContactData(d => ({
-        ...d,
-        phone:   driver.contact.phone   || d.phone,
-        address: driver.contact.address || d.address,
-        city:    driver.contact.city    || d.city,
-        state:   driver.contact.state   || d.state,
-        zip:     driver.contact.zip     || d.zip,
-      }));
-    }
-    if (driver.vehicle) {
-      setVehicleData(d => ({
-        ...d,
-        make:      driver.vehicle.make      || d.make,
-        model:     driver.vehicle.model     || d.model,
-        year:      driver.vehicle.year      || d.year,
-        color:     driver.vehicle.color     || d.color,
-        plate:     driver.vehicle.plate     || d.plate,
-        vin:       driver.vehicle.vin       || d.vin,
-        rideTypes: driver.vehicle.rideTypes || d.rideTypes,
-      }));
-    }
-    if (driver.documents) {
-      const docs = driver.documents;
-      setDocData(d => ({
-        ...d,
-        licenseFront:    docs.licenseFront    || d.licenseFront,
-        licenseFrontUrl: docs.licenseFrontUrl || d.licenseFrontUrl,
-        licenseBack:     docs.licenseBack     || d.licenseBack,
-        licenseBackUrl:  docs.licenseBackUrl  || d.licenseBackUrl,
-        licenseNumber:   docs.licenseNumber   || d.licenseNumber,
-        registration:    docs.registration    || d.registration,
-        registrationUrl: docs.registrationUrl || d.registrationUrl,
-        insurance:       docs.insurance       || d.insurance,
-        insuranceUrl:    docs.insuranceUrl    || d.insuranceUrl,
-        profilePhoto:    docs.profilePhoto    || d.profilePhoto,
-        profilePhotoUrl: docs.profilePhotoUrl || d.profilePhotoUrl,
-      }));
-    }
+    if (savedStep > 1) { setStep(s => Math.max(s, savedStep)); setShowResumeBanner(true); }
+    if (driver.firstName || driver.lastName || driver.email) setAccountData(d => ({ ...d, firstName: driver.firstName || d.firstName, lastName: driver.lastName || d.lastName, email: driver.email || d.email }));
+    if (driver.contact)   setContactData(d => ({ ...d, phone: driver.contact.phone || d.phone, address: driver.contact.address || d.address, city: driver.contact.city || d.city, state: driver.contact.state || d.state, zip: driver.contact.zip || d.zip }));
+    if (driver.vehicle)   setVehicleData(d => ({ ...d, make: driver.vehicle.make || d.make, model: driver.vehicle.model || d.model, year: driver.vehicle.year || d.year, color: driver.vehicle.color || d.color, plate: driver.vehicle.plate || d.plate, vin: driver.vehicle.vin || d.vin, rideTypes: driver.vehicle.rideTypes || d.rideTypes }));
+    if (driver.documents) { const docs = driver.documents; setDocData(d => ({ ...d, licenseFront: docs.licenseFront || d.licenseFront, licenseFrontUrl: docs.licenseFrontUrl || d.licenseFrontUrl, licenseBack: docs.licenseBack || d.licenseBack, licenseBackUrl: docs.licenseBackUrl || d.licenseBackUrl, licenseNumber: docs.licenseNumber || d.licenseNumber, registration: docs.registration || d.registration, registrationUrl: docs.registrationUrl || d.registrationUrl, insurance: docs.insurance || d.insurance, insuranceUrl: docs.insuranceUrl || d.insuranceUrl, profilePhoto: docs.profilePhoto || d.profilePhoto, profilePhotoUrl: docs.profilePhotoUrl || d.profilePhotoUrl })); }
   }, [drivers]);
 
-  // ── Fallback hydration from driverSignUp prop ──────────────────────
   useEffect(() => {
     if (!driverSignUp || firestoreHydrated.current || drivers?.length) return;
     firestoreHydrated.current = true;
     const savedStep = driverSignUp.currentStep ?? 1;
     if (savedStep > 1) { setStep(s => Math.max(s, savedStep)); setShowResumeBanner(true); }
-    if (driverSignUp.firstName || driverSignUp.lastName || driverSignUp.email) {
-      setAccountData(d => ({ ...d, firstName: driverSignUp.firstName || d.firstName, lastName: driverSignUp.lastName || d.lastName, email: driverSignUp.email || d.email }));
-    }
+    if (driverSignUp.firstName || driverSignUp.lastName || driverSignUp.email) setAccountData(d => ({ ...d, firstName: driverSignUp.firstName || d.firstName, lastName: driverSignUp.lastName || d.lastName, email: driverSignUp.email || d.email }));
     if (driverSignUp.contactData) setContactData(d => ({ ...d, ...driverSignUp.contactData }));
     if (driverSignUp.vehicleData) setVehicleData(d => ({ ...d, ...driverSignUp.vehicleData }));
     if (driverSignUp.docData)     setDocData(d => ({ ...d, ...driverSignUp.docData }));
   }, [driverSignUp, drivers]);
 
-  // ── Persist to localStorage ────────────────────────────────────────
   useEffect(() => { lsSet(LS_KEYS.step, step); }, [step]);
   useEffect(() => { lsSet(LS_KEYS.uid,  createdUid); }, [createdUid]);
-  useEffect(() => {
-    const { password, confirmPassword, ...safe } = accountData;
-    lsSet(LS_KEYS.account, safe);
-  }, [accountData]);
+  useEffect(() => { const { password, confirmPassword, ...safe } = accountData; lsSet(LS_KEYS.account, safe); }, [accountData]);
   useEffect(() => { lsSet(LS_KEYS.contact, contactData); }, [contactData]);
   useEffect(() => { lsSet(LS_KEYS.vehicle, vehicleData); }, [vehicleData]);
   useEffect(() => { lsSet(LS_KEYS.doc,     docData); },     [docData]);
 
-  // ── NOW safe to return early after all hooks have been declared ─────
-  // FIX 1 (continued): The conditional render based on COMPLETED_STATUSES
-  // has been moved here — after every hook — so hook call order is always
-  // identical regardless of driverSignUp.status.
-  if (driverSignUp && COMPLETED_STATUSES.includes(driverSignUp.status)) {
-    return null;
-  }
+  if (driverSignUp && COMPLETED_STATUSES.includes(driverSignUp.status)) return null;
 
-  /* ── API helpers ── */
+  /* ── onCall API helpers ─────────────────────────────────────────────
+     All three calls hit the same `createDriverProfile` callable.
+     The function dispatches on the fields present in the payload —
+     the same logic your existing Cloud Function already uses.
+  ─────────────────────────────────────────────────────────────────── */
 
   const createDriverProfile = async (uid, data) => {
-    const res = await fetch(CLOUD_FUNCTION_URL, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uid, accountData: { firstName: data.firstName, lastName: data.lastName, email: data.email } }),
+    const { data: res } = await callCreateDriverProfile({
+      uid,
+      accountData: { firstName: data.firstName, lastName: data.lastName, email: data.email },
     });
-    if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error || "Failed to create driver profile"); }
-    return res.json();
+    if (res?.error) throw new Error(res.error);
+    return res;
   };
 
   const saveProgress = async (nextStep, overrideUid) => {
     const id = overrideUid ?? createdUid;
     if (!id) return;
-    const res = await fetch(CLOUD_FUNCTION_URL, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        uid: id, currentStep: nextStep,
+    try {
+      await callCreateDriverProfile({
+        uid: id,
+        currentStep: nextStep,
         accountData: { firstName: accountData.firstName, lastName: accountData.lastName, email: accountData.email },
-        contactData, vehicleData, docData,
-      }),
-    });
-    if (!res.ok) console.warn("⚠️ saveProgress CF failed silently:", await res.text().catch(() => ""));
+        contactData,
+        vehicleData,
+        docData,
+      });
+    } catch (err) {
+      console.warn("⚠️ saveProgress callable failed silently:", err.message);
+    }
   };
 
   const submitDriverData = async (uid) => {
-    const res = await fetch(CLOUD_FUNCTION_URL, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        uid, submit: true,
-        contactData: { phone: contactData.phone, address: contactData.address, city: contactData.city, state: contactData.state, zip: contactData.zip },
-        vehicleData: { make: vehicleData.make, model: vehicleData.model, year: vehicleData.year, color: vehicleData.color, plate: vehicleData.plate, vin: vehicleData.vin, rideTypes: vehicleData.rideTypes },
-        docData:     { licenseFront: docData.licenseFront, licenseFrontUrl: docData.licenseFrontUrl, licenseBack: docData.licenseBack, licenseBackUrl: docData.licenseBackUrl, licenseNumber: docData.licenseNumber, registration: docData.registration, registrationUrl: docData.registrationUrl, insurance: docData.insurance, insuranceUrl: docData.insuranceUrl, profilePhoto: docData.profilePhoto, profilePhotoUrl: docData.profilePhotoUrl },
-      }),
+    const { data: res } = await callCreateDriverProfile({
+      uid,
+      submit: true,
+      contactData: { phone: contactData.phone, address: contactData.address, city: contactData.city, state: contactData.state, zip: contactData.zip },
+      vehicleData:  { make: vehicleData.make, model: vehicleData.model, year: vehicleData.year, color: vehicleData.color, plate: vehicleData.plate, vin: vehicleData.vin, rideTypes: vehicleData.rideTypes },
+      docData:      { licenseFront: docData.licenseFront, licenseFrontUrl: docData.licenseFrontUrl, licenseBack: docData.licenseBack, licenseBackUrl: docData.licenseBackUrl, licenseNumber: docData.licenseNumber, registration: docData.registration, registrationUrl: docData.registrationUrl, insurance: docData.insurance, insuranceUrl: docData.insuranceUrl, profilePhoto: docData.profilePhoto, profilePhotoUrl: docData.profilePhotoUrl },
     });
-    if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error || "Failed to submit application"); }
-    return res.json();
+    if (res?.error) throw new Error(res.error);
+    return res;
   };
 
   /* ── Validation ── */
 
   const validate = () => {
     const e = {};
-
     if (step === 1) {
       if (!accountData.firstName.trim()) e.firstName = "Required";
       if (!accountData.lastName.trim())  e.lastName  = "Required";
@@ -936,7 +749,6 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
       if (accountData.password !== accountData.confirmPassword) e.confirmPassword = "Passwords don't match";
       if (!accountData.terms) e.terms = "You must agree to continue";
     }
-
     if (step === 2) {
       if (!contactData.phone.trim())   e.phone   = "Required";
       if (!contactData.address.trim()) e.address = "Required";
@@ -944,31 +756,18 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
       if (!contactData.zip.match(/^\d{5}(-\d{4})?$/)) e.zip = "Enter a valid ZIP code";
       if (!contactData.state)          e.state   = "Required";
     }
-
     if (step === 3) {
       if (!vehicleData.model.trim()) e.model = "Required";
-      // FIX 3: Uses MAX_VEHICLE_YEAR constant — never manually hardcoded
-      if (!vehicleData.year || vehicleData.year < 2005 || vehicleData.year > MAX_VEHICLE_YEAR) {
-        e.year = `Enter a year between 2005–${MAX_VEHICLE_YEAR}`;
-      }
+      if (!vehicleData.year || vehicleData.year < 2005 || vehicleData.year > MAX_VEHICLE_YEAR) e.year = `Enter a year between 2005–${MAX_VEHICLE_YEAR}`;
       if (!vehicleData.color.trim()) e.color = "Required";
       if (!vehicleData.plate.trim()) e.plate = "Required";
       if (!vehicleData.rideTypes?.length) e.rideTypes = "Select at least one ride type";
     }
-
-    // FIX 2: Step 4 document validation ─────────────────────────────
-    // Previously there was NO validation on this step — a driver could
-    // skip all uploads and proceed to submission. Now the three required
-    // documents (license front, license back, insurance) must be uploaded
-    // before the driver can continue. Registration and profile photo show
-    // inline errors but don't block progression, matching the UX message
-    // in StepVerify ("You can still submit — upload remaining docs later").
     if (step === 4) {
       if (!docData.licenseFront) e.licenseFront = "Required — upload front of license";
       if (!docData.licenseBack)  e.licenseBack  = "Required — upload back of license";
       if (!docData.insurance)    e.insurance    = "Required — upload proof of insurance";
     }
-
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -1016,11 +815,8 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
 
     } catch (err) {
       console.error("❌ Error:", err);
-      if (step === 1 && !isExistingUser) {
-        setErrors({ email: err.message || "Signup failed. Please try again." });
-      } else {
-        setSubmitError(err.message || "Something went wrong. Please try again.");
-      }
+      if (step === 1 && !isExistingUser) setErrors({ email: err.message || "Signup failed. Please try again." });
+      else setSubmitError(err.message || "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -1041,16 +837,11 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
 
   const restartForm = () => {
     lsClear();
-    setStep(1);
-    setCreatedUid(uid || null);
-    setAccountData(DEFAULT_ACCOUNT);
-    setContactData(DEFAULT_CONTACT);
-    setVehicleData(DEFAULT_VEHICLE);
-    setDocData(DEFAULT_DOC);
-    setErrors({});
-    setSubmitError(null);
-    setSubmitted(false);
-    setShowResumeBanner(false);
+    setStep(1); setCreatedUid(uid || null);
+    setAccountData(DEFAULT_ACCOUNT); setContactData(DEFAULT_CONTACT);
+    setVehicleData(DEFAULT_VEHICLE); setDocData(DEFAULT_DOC);
+    setErrors({}); setSubmitError(null);
+    setSubmitted(false); setShowResumeBanner(false);
     firestoreHydrated.current = false;
   };
 
@@ -1064,8 +855,6 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
       />
     );
   }
-
-  /* ── Main render ── */
 
   const mainStyles = `
     @import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800;900&family=Barlow+Condensed:wght@500;600;700;800;900&display=swap');
@@ -1081,22 +870,10 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
     @keyframes errorShake   { 0%,100% { transform: translateX(0) } 20%,60% { transform: translateX(-6px) } 40%,80% { transform: translateX(6px) } }
     @keyframes slideDown    { from { opacity: 0; transform: translateY(-10px) } to { opacity: 1; transform: translateY(0) } }
     @keyframes spin         { to { transform: rotate(360deg) } }
-    .green-btn {
-      background: linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D);
-      border: none; border-radius: 15px; color: #fff;
-      font-family: 'Barlow', sans-serif; font-weight: 800; font-size: 15px;
-      cursor: pointer; transition: all .22s; letter-spacing: .3px;
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-      animation: greenPulse 3s ease-in-out infinite;
-    }
+    .green-btn { background: linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D); border: none; border-radius: 15px; color: #fff; font-family: 'Barlow', sans-serif; font-weight: 800; font-size: 15px; cursor: pointer; transition: all .22s; letter-spacing: .3px; display: flex; align-items: center; justify-content: center; gap: 8px; animation: greenPulse 3s ease-in-out infinite; }
     .green-btn:hover    { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(22,163,74,.4) !important; }
     .green-btn:disabled { opacity: .6; cursor: not-allowed; transform: none; animation: none; }
-    .ghost-btn {
-      background: ${C.surface}; border: 1.5px solid ${C.border};
-      border-radius: 15px; color: ${C.textMid}; font-family: 'Barlow', sans-serif;
-      font-weight: 700; font-size: 14px; cursor: pointer; transition: all .2s;
-      display: flex; align-items: center; justify-content: center; gap: 6px;
-    }
+    .ghost-btn { background: ${C.surface}; border: 1.5px solid ${C.border}; border-radius: 15px; color: ${C.textMid}; font-family: 'Barlow', sans-serif; font-weight: 700; font-size: 14px; cursor: pointer; transition: all .2s; display: flex; align-items: center; justify-content: center; gap: 6px; }
     .ghost-btn:hover { border-color: ${C.accent}; color: ${C.accent}; }
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -1106,7 +883,6 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
   return (
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: '"Barlow", system-ui, sans-serif', color: C.text }}>
       <style dangerouslySetInnerHTML={{ __html: mainStyles }} />
-
       <div style={{ maxWidth: 560, margin: "0 auto", padding: "0 16px 120px", minHeight: "100vh" }}>
 
         {/* Header */}
@@ -1117,12 +893,7 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
             <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 21, fontWeight: 900, color: C.text, letterSpacing: "-0.3px" }}>Start Driving Today</div>
           </div>
           {(step > 1 || accountData.firstName) && (
-            <button
-              onClick={restartForm}
-              style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 10, padding: "7px 12px", fontSize: 11, fontWeight: 700, color: C.textDim, cursor: "pointer", fontFamily: "'Barlow Condensed', sans-serif", letterSpacing: ".5px", textTransform: "uppercase", transition: "all .2s" }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = C.red; e.currentTarget.style.color = C.red; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textDim; }}
-            >
+            <button onClick={restartForm} style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 10, padding: "7px 12px", fontSize: 11, fontWeight: 700, color: C.textDim, cursor: "pointer", fontFamily: "'Barlow Condensed', sans-serif", letterSpacing: ".5px", textTransform: "uppercase", transition: "all .2s" }} onMouseEnter={e => { e.currentTarget.style.borderColor = C.red; e.currentTarget.style.color = C.red; }} onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textDim; }}>
               Start Over
             </button>
           )}
@@ -1166,9 +937,7 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
 
         {/* Step title */}
         <div style={{ marginBottom: 22 }}>
-          <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 10, fontWeight: 700, color: C.accent, letterSpacing: "2px", textTransform: "uppercase", marginBottom: 4 }}>
-            Step {step} of {STEPS.length}
-          </div>
+          <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 10, fontWeight: 700, color: C.accent, letterSpacing: "2px", textTransform: "uppercase", marginBottom: 4 }}>Step {step} of {STEPS.length}</div>
           <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 28, fontWeight: 900, color: C.text, letterSpacing: "-0.5px", animation: "revealUp .35s ease-out" }}>
             {["Create your account", "Where are you located?", "Tell us about your vehicle", "Upload your documents", "Review & submit"][step - 1]}
           </div>
@@ -1186,10 +955,7 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
         )}
 
         {/* Step content */}
-        <div
-          ref={scrollRef}
-          style={{ animation: animating ? "fadeOut .15s ease forwards" : direction === "forward" ? "slideForward .35s cubic-bezier(.25,.46,.45,.94)" : "slideBack .35s cubic-bezier(.25,.46,.45,.94)" }}
-        >
+        <div ref={scrollRef} style={{ animation: animating ? "fadeOut .15s ease forwards" : direction === "forward" ? "slideForward .35s cubic-bezier(.25,.46,.45,.94)" : "slideBack .35s cubic-bezier(.25,.46,.45,.94)" }}>
           {step === 1 && <StepAccount   data={accountData} setData={setAccountData} errors={errors} isExistingUser={isExistingUser} />}
           {step === 2 && <StepContact   data={contactData} setData={setContactData} errors={errors} />}
           {step === 3 && <StepVehicle   data={vehicleData} setData={setVehicleData} errors={errors} />}
