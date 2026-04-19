@@ -21,12 +21,15 @@ const ACTIVE_STATUSES = [
   'arrived',
   'in_progress',
   'completed',
+  'timeout',
 ];
 
 export function useActiveRides(uid) {
   const [active, setActive] = useState([]); // active ride list
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+
 
   useEffect(() => {
     if (!uid) {

@@ -40,6 +40,7 @@ export function useUserRides(uid) {
           'pending_payment',
           'searching_driver',
           'driver_assigned',
+          'timeout',
         ]),
         orderBy('createdAt', 'desc'),
         limit(20) // ✅ prevents large reads

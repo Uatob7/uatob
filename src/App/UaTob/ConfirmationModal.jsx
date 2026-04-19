@@ -26,6 +26,8 @@ export default function ConfirmationModal({
   ridesLoading,
 }) {
 
+  console.log(rides);
+
   const [status,      setStatus]      = useState('checking_payment');
   const [secondsLeft, setSecondsLeft] = useState(SEARCH_LIMIT_SEC);
   const [driver,      setDriver]      = useState(null);

@@ -547,10 +547,7 @@ export default function UaTobApp({ uid }) {
   const [selectedPayment, setSelectedPayment] = useState(saved?.selectedPayment ?? 'card');
   const [mounted,         setMounted]         = useState(false);
   const [showDashboard,   setShowDashboard]   = useState(false);
-
-  // ── compactMode: true only after price is shown in BookingPanel ────
-  // Persisted in localStorage so refresh restores the correct view.
-  const [compactMode, setCompactMode] = useState(saved?.compactMode ?? false);
+  const [compactMode,     setCompactMode]     = useState(saved?.compactMode     ?? false);
 
   // ── Auth state ─────────────────────────────────────────────────────
   const [showAuthModal,   setShowAuthModal]   = useState(false);
@@ -569,8 +566,6 @@ export default function UaTobApp({ uid }) {
   useEffect(() => setMounted(true), []);
 
   // ── Persist session ────────────────────────────────────────────────
-  // compactMode is included so a refresh mid-booking restores the map view,
-  // and a refresh after X restores the hero view.
   useEffect(() => {
     if (bookingPayload) {
       saveSession({ bookingPayload, pickupCoords, dropoffCoords, showPayment, selectedPayment, compactMode });
@@ -586,26 +581,21 @@ export default function UaTobApp({ uid }) {
 
   const isSearching = !!activeRide && SEARCHING_STATUSES.includes(activeRide.status);
   const isTracking  = !!activeRide && TRACKING_STATUSES.includes(activeRide.status);
+  const isTimeout   = !!activeRide && activeRide.status === 'timeout';
 
-  // isCompact is now driven by the explicit compactMode flag, not just
-  // whether bookingPayload exists. This means the hero/UatobView stays
-  // visible while the user is typing addresses — it only collapses once
-  // BookingPanel calls onPriceReady (i.e. both addresses are set and the
-  // fare is calculated and displayed).
   const isCompact = compactMode && !isTracking;
 
   useEffect(() => {
     if (activeRide) setShowPayment(false);
   }, [activeRide]);
 
-  // ── Auto-prompt review for most recent unreviewed completed ride ───
+  // ── Auto-prompt review ─────────────────────────────────────────────
   useEffect(() => {
     if (!completedRides.length || reviewingRide || isTracking || isSearching) return;
     const unreviewed = completedRides.find(r => !reviewedIds.includes(r.id));
     if (unreviewed) setReviewingRide(unreviewed);
   }, [completedRides, isTracking, isSearching]);
 
-  // ── Called by BookingPanel once both addresses are set + fare shown ─
   const handlePriceReady = () => setCompactMode(true);
 
   // ── Booking-flow auth submit ───────────────────────────────────────
@@ -663,9 +653,6 @@ export default function UaTobApp({ uid }) {
 
   const handlePaymentSuccess = () => setShowPayment(false);
 
-  // resetRide fully returns to the initial state — hero + UatobView +
-  // BookingPanel + footer. compactMode is reset to false so the next
-  // refresh also lands on the hero, not the map.
   const resetRide = () => {
     clearSession();
     setBookingPayload(null);
@@ -743,7 +730,6 @@ export default function UaTobApp({ uid }) {
         </div>
 
         {/* ── INITIAL STATE: Hero + UatobView ── */}
-        {/* Shown when compactMode is false AND not actively tracking a ride */}
         {!isCompact && !isTracking && (
           <>
             {!activeRide && (
@@ -779,7 +765,6 @@ export default function UaTobApp({ uid }) {
         )}
 
         {/* ── COMPACT STATE: MapView ── */}
-        {/* Only renders once compactMode is true (price is shown in BookingPanel) */}
         {isCompact && (
           <div style={{
             marginBottom:'16px',
@@ -795,9 +780,6 @@ export default function UaTobApp({ uid }) {
           {isTracking ? (
             <LiveTrackingPanel active={active} onRideDone={resetRide} />
           ) : (
-            // onPriceReady is called by BookingPanel once both addresses are
-            // entered and the fare calculation is displayed to the user.
-            // This is the single trigger that switches the app into compact mode.
             <BookingPanel
               onBookNow={handleBookNow}
               onPayloadChange={handlePayloadChange}
@@ -810,7 +792,6 @@ export default function UaTobApp({ uid }) {
       </div>
 
       {/* ── Footer ── */}
-      {/* Hidden in compact mode and during active tracking */}
       {!isCompact && !isTracking && (
         <UaTobFooter
           onBookRideClick={() => {
@@ -861,19 +842,19 @@ export default function UaTobApp({ uid }) {
         />
       )}
 
-      {/* ── Confirmation modal ── */}
-      {isSearching && (
+      {/* ── Confirmation modal (searching + timeout) ── */}
+      {(isSearching || isTimeout) && (
         <ConfirmationModal
           rides={rides}
           ridesLoading={ridesLoading}
-          onClose={() => {}}
+          onClose={resetRide}
           onPaymentCancelled={resetRide}
           onRetry={resetRide}
         />
       )}
 
       {/* ── Review modal ── */}
-      {reviewingRide && !isTracking && !isSearching && (
+      {reviewingRide && !isTracking && !isSearching && !isTimeout && (
         <ReviewModal
           ride={reviewingRide}
           uid={resolvedUid}
