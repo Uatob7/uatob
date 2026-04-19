@@ -12,6 +12,7 @@ const { onRidesCreated } = require("./ride/email/onRidesCreated");
 const { riderLocation } = require("./ride/riderLocation.JS");
 const { cancelRide } = require("./ride/cancelRide");
 const { extendRideSearch } = require("./ride/extendRideSearch");
+const { rideTimeoutChecker } = require("./ride/rideTimeoutChecker");
 
 // Payment functions
 const { cardPayment } = require("./payments/cardPayment");
@@ -73,6 +74,7 @@ exports.checkDriverDeposit = checkDriverDeposit;
 exports.cashAppPayment = cashAppPayment;
 exports.setupDeposit = setupDeposit;
 exports.acceptRide = acceptRide;
+exports.rideTimeoutChecker = rideTimeoutChecker;
 exports.declineRide = declineRide;
 exports.updateTripStatus = updateTripStatus;
 exports.getTripButtonLabel = getTripButtonLabel;
