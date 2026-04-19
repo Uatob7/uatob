@@ -3,16 +3,26 @@ const cors = require("cors")({ origin: true });
 const admin = require("firebase-admin");
 const Stripe = require("stripe");
 
+// ✅ SAFE INIT
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
+
 const db = admin.firestore();
 
 exports.cardPayment = onRequest(
   {
     region: "us-central1",
     secrets: ["STRIPE_SECRET_KEY"],
+    invoker: "public", // ✅ MAKE PUBLIC
   },
   async (req, res) => {
     return cors(req, res, async () => {
       try {
+        if (req.method === "OPTIONS") {
+          return res.status(204).send("");
+        }
+
         if (req.method !== "POST") {
           return res.status(405).json({ success: false });
         }
@@ -22,7 +32,10 @@ exports.cardPayment = onRequest(
         const { uid, paymentMethodId, bookingPayload } = req.body;
 
         if (!uid || !paymentMethodId) {
-          return res.status(400).json({ success: false, message: "Missing fields" });
+          return res.status(400).json({
+            success: false,
+            message: "Missing fields",
+          });
         }
 
         const fareTotal = Number(bookingPayload.fareEstimate);
@@ -58,48 +71,43 @@ exports.cardPayment = onRequest(
           return res.status(402).json({ success: false });
         }
 
-        // ─────────────────────────────────────────────
-        // ✅ SAVE RIDE (INCLUDING POLYLINE)
-        // ─────────────────────────────────────────────
-        const rideRef = db.collection("Rides").doc(); // 👈 your Search DB
+        // ─────────────────────────────
+        // SAVE RIDE
+        // ─────────────────────────────
+        const rideRef = db.collection("Rides").doc();
 
         await rideRef.set({
-          // addresses
           pickup: bookingPayload.pickup ?? null,
           dropoff: bookingPayload.dropoff ?? null,
 
-          // geo
           pickupCity: bookingPayload.pickupCity ?? null,
           pickupZip: bookingPayload.pickupZip ?? null,
           pickupLat: bookingPayload.pickupLat ?? null,
           pickupLng: bookingPayload.pickupLng ?? null,
+
           dropoffCity: bookingPayload.dropoffCity ?? null,
           dropoffZip: bookingPayload.dropoffZip ?? null,
           dropoffLat: bookingPayload.dropoffLat ?? null,
           dropoffLng: bookingPayload.dropoffLng ?? null,
 
-          // 🚨 THIS IS WHAT YOU WANTED
           polyline: bookingPayload.polyline ?? null,
 
-          // ride info
           rideType: bookingPayload.rideType ?? "standard",
           rideLabel: bookingPayload.rideLabel ?? null,
 
-          // ── Fare ──────────────────────────────────────────────
           fareTotal,
           platformFee,
           driverPayout,
           payoutStatus: "pending",
+
           tripDistanceMiles: bookingPayload.tripDistanceMiles ?? null,
           tripDurationMin: bookingPayload.tripDurationMin ?? null,
           fareBreakdown: bookingPayload.breakdown ?? null,
 
-          // payment
           paymentMethod: "card",
           paymentIntentId: paymentIntent.id,
           paymentStatus: "pending",
 
-          // status
           status: "pending_payment",
           uid,
 
@@ -117,7 +125,10 @@ exports.cardPayment = onRequest(
         });
       } catch (err) {
         console.error(err);
-        return res.status(500).json({ success: false, message: err.message });
+        return res.status(500).json({
+          success: false,
+          message: err.message,
+        });
       }
     });
   }

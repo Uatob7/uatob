@@ -501,7 +501,6 @@ exports.emailCandidateDrivers = onSchedule(
       .collection("Rides")
       .where("status",           "==", "searching_driver")
       .where("paymentStatus",    "==", "succeeded")
-      .where("driversNotified",  "==", false)
       .where("createdAt",        ">=", cutoff)
       .get();
 
