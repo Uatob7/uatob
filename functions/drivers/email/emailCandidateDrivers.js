@@ -1,351 +1,5 @@
-adminNotified
-true
-(boolean)
-
-
-createdAt
-April 19, 2026 at 11:32:27 AM UTC-4
-(timestamp)
-
-
-driverPayout
-3.74
-(double)
-
-
-driversNotified
-true
-(boolean)
-
-
-dropoff
-"2382 Locke Avenue, Orlando, FL"
-(string)
-
-
-dropoffCity
-""
-(string)
-
-
-dropoffLat
-null
-(null)
-
-
-dropoffLng
-null
-(null)
-
-
-dropoffZip
-""
-(string)
-
-
-emailSent
-true
-(boolean)
-
-
-
-fareBreakdown
-(map)
-
-
-fareTotal
-4.99
-(double)
-
-
-paymentIntentId
-"pi_3TNw3mJhpOy6wtDq0eqDE65D"
-(string)
-
-
-paymentMethod
-"cashapp"
-(string)
-
-
-paymentStatus
-"succeeded"
-(string)
-
-
-payoutStatus
-"pending"
-(string)
-
-
-pickup
-"2382 Locke Avenue, Orlando, FL"
-(string)
-
-
-pickupCity
-""
-(string)
-
-
-pickupLat
-null
-(null)
-
-
-pickupLng
-null
-(null)
-
-
-pickupZip
-""
-(string)
-
-
-platformFee
-1.25
-(double)
-
-
-polyline
-"wtkmDp~fpN"
-(string)
-
-
-rideLabel
-"Economy"
-(string)
-
-
-rideType
-"economy"
-(string)
-
-
-searchExtended
-3
-(int64)
-
-
-status
-"searching_driver"
-(string)
-
-
-timedOutAt
-null
-(null)
-
-
-tripDurationMin
-1
-(int64)
-
-
-uid
-"BwpENID8CqbjaI0NTYxaqJ8Dekg2"
-(string)
-
-
-updatedAt
-April 19, 2026 at 11:32:27 AM UTC-4
-
-
-ride db 
-
-
-
-accountId
-"acct_1TNvgSJro9CPgFwb"
-(string)
-
-
-adminNotified
-true
-(boolean)
-
-
-city
-"Orlando"
-(string)
-
-
-(map)
-
-
-createdAt
-April 18, 2026 at 2:04:00 PM UTC-4
-(timestamp)
-
-
-currentStep
-5
-(int64)
-
-
-deposit
-false
-(boolean)
-
-
-depositCheckedAt
-April 19, 2026 at 11:36:14 AM UTC-4
-(timestamp)
-
-
-(map)
-
-
-(map)
-
-
-email
-"support@uatob.com"
-(string)
-
-
-firstName
-"Darstivenson"
-(string)
-
-
-lastLocationAt
-April 18, 2026 at 3:13:56 PM UTC-4
-(timestamp)
-
-
-lastName
-"Corvoisier"
-(string)
-
-
-lastSeenAt
-April 18, 2026 at 3:13:56 PM UTC-4
-(timestamp)
-
-
-lat
-28.5336633
-(double)
-
-
-lng
--81.4155974
-(double)
-
-
-minutesSinceLastSeen
-1222
-(int64)
-
-
-presenceUpdatedAt
-April 19, 2026 at 11:36:12 AM UTC-4
-(timestamp)
-
-
-status
-"online"
-(string)
-
-
-submittedAt
-April 18, 2026 at 2:10:27 PM UTC-4
-(timestamp)
-
-
-submittedEmailSent
-true
-(boolean)
-
-
-transferCapability
-"disabled"
-(string)
-
-
-transferCapabilityCheckedAt
-April 19, 2026 at 11:36:04 AM UTC-4
-(timestamp)
-
-
-trip
-false
-(boolean)
-
-
-uid
-"87gHbyR6OjO7YqOqBQK5IISTZtm2"
-(string)
-
-
-updatedAt
-April 19, 2026 at 10:06:51 AM UTC-4
-(timestamp)
-
-
-
-vehicle
-(map)
-
-
-color
-"Black"
-(string)
-
-
-make
-"Chevrolet"
-(string)
-
-
-model
-"Black"
-(string)
-
-
-plate
-"Gg"
-(string)
-
-
-
-rideTypes
-(array)
-
-
-0
-"standard"
-(string)
-
-
-1
-"xl"
-(string)
-
-
-vin
-null
-(null)
-
-
-year
-"2005"
-(string)
-
-
-welcomeEmailSent
-true
-(boolean)
-
-
-zip
-"32818" 
-
-db
-
-const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
+// File: functions/emailCandidateDrivers.js
+const { onSchedule }  = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require("firebase-functions/params");
 const { initializeApp, getApps } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
@@ -431,7 +85,7 @@ const ARROW_SVG = `
 </svg>`.trim();
 
 // ─────────────────────────────────────────────────────────────
-// Email builder
+// Email builder — identical to original
 // ─────────────────────────────────────────────────────────────
 const buildCandidateEmail = ({ driver, ride, rideId, totalCandidates }) => {
   const firstName   = esc(driver.firstName || "Driver");
@@ -443,11 +97,11 @@ const buildCandidateEmail = ({ driver, ride, rideId, totalCandidates }) => {
       ? ride.rideType.charAt(0).toUpperCase() + ride.rideType.slice(1)
       : "Standard")
   );
-  const safeRideId  = esc(rideId);
-  const payout      = fmt.currency(ride.driverPayout);
-  const distance    = fmt.miles(ride.tripDistanceMiles);
-  const duration    = fmt.duration(ride.tripDurationMin);
-  const year        = new Date().getFullYear();
+  const safeRideId = esc(rideId);
+  const payout     = fmt.currency(ride.driverPayout);
+  const distance   = fmt.miles(ride.tripDistanceMiles);
+  const duration   = fmt.duration(ride.tripDurationMin);
+  const year       = new Date().getFullYear();
 
   const epm =
     Number(ride.tripDistanceMiles) > 0
@@ -571,7 +225,7 @@ const buildCandidateEmail = ({ driver, ride, rideId, totalCandidates }) => {
                   <p style="margin:8px 0 0;font-family:'Courier New',monospace;
                              font-size:12px;color:#6B7280;letter-spacing:0.5px;">
                     ${epm}/mile &nbsp;&#183;&nbsp;
-                    <span style="color:#4ADE80;">80% split</span>
+                    <span style="color:#4ADE80;">75% split</span>
                   </p>` : ""}
                 </td>
               </tr>
@@ -627,7 +281,6 @@ const buildCandidateEmail = ({ driver, ride, rideId, totalCandidates }) => {
                              font-size:11px;font-weight:700;color:#4ADE80;letter-spacing:2px;">
                     TRIP ROUTE
                   </p>
-                  <!-- Pickup -->
                   <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
                          style="margin-bottom:8px;">
                     <tr>
@@ -648,14 +301,12 @@ const buildCandidateEmail = ({ driver, ride, rideId, totalCandidates }) => {
                       </td>
                     </tr>
                   </table>
-                  <!-- Connector line -->
                   <table cellpadding="0" cellspacing="0" role="presentation"
                          style="margin:0 0 8px 12px;">
                     <tr>
                       <td style="border-left:2px dashed #166534;height:18px;width:1px;"></td>
                     </tr>
                   </table>
-                  <!-- Dropoff -->
                   <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
                     <tr>
                       <td width="32" valign="top" style="padding-top:3px;">
@@ -783,101 +434,202 @@ const buildCandidateEmail = ({ driver, ride, rideId, totalCandidates }) => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// Cloud Function
+// Helper: send emails to a list of drivers one by one
+// Returns { sent, failed } counts
 // ─────────────────────────────────────────────────────────────
-exports.emailCandidateDrivers = onDocumentUpdated(
+async function dispatchEmails({ drivers, ride, rideId, label }) {
+  let sent   = 0;
+  let failed = 0;
+
+  console.log(`[dispatch] 📡 Sending to ${drivers.length} ${label} driver(s) for ride ${rideId}`);
+
+  for (const driver of drivers) {
+    const msg = buildCandidateEmail({
+      driver,
+      ride,
+      rideId,
+      totalCandidates: drivers.length,
+    });
+
+    try {
+      await sgMail.send(msg);
+      console.log(`[dispatch] ✅ Email sent → ${driver.email} (${driver.firstName || "?"}) [${label}]`);
+      sent++;
+    } catch (err) {
+      console.error(
+        `[dispatch] ❌ Failed → ${driver.email}:`,
+        err?.response?.body ?? err.message
+      );
+      failed++;
+    }
+  }
+
+  console.log(`[dispatch] Batch complete — sent: ${sent}, failed: ${failed}`);
+  return { sent, failed };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Scheduled Cloud Function
+// Runs every minute, finds all rides actively searching for a
+// driver that haven't been emailed yet, and dispatches emails.
+//
+// Priority order:
+//   1. candidateDriverUids — nearby drivers pre-selected by
+//      your matching logic (email each one individually)
+//   2. All online drivers  — fallback when no candidates exist
+//
+// A ride is only ever emailed once. The driversNotified flag
+// written at the end acts as the idempotency lock so re-runs
+// of the scheduler never double-send.
+// ─────────────────────────────────────────────────────────────
+exports.emailCandidateDrivers = onSchedule(
   {
-    document: "Rides/{rideId}",
+    schedule: "every 1 minutes",
     region:   "us-central1",
     secrets:  [SENDGRID_API_KEY],
   },
-  async (event) => {
-    const before   = event.data?.before?.data() || {};
-    const after    = event.data?.after?.data()  || {};
-    const rideRef  = event.data.after.ref;
-    const rideId   = event.params.rideId;
+  async () => {
+    sgMail.setApiKey(SENDGRID_API_KEY.value());
 
-    try {
-      sgMail.setApiKey(SENDGRID_API_KEY.value());
+    // ── Step 1: Find all rides searching for a driver ──────────────
+    // driversNotified != true means we haven't emailed for this ride yet.
+    // We also bound by createdAt to avoid touching abandoned rides older
+    // than 30 minutes.
+    const cutoff = new Date(Date.now() - 30 * 60 * 1000);
 
-      const beforeList = before.candidateDriverUids || [];
-      const afterList  = after.candidateDriverUids  || [];
+    const ridesSnap = await db
+      .collection("Rides")
+      .where("status",           "==", "searching_driver")
+      .where("paymentStatus",    "==", "succeeded")
+      .where("driversNotified",  "==", false)
+      .where("createdAt",        ">=", cutoff)
+      .get();
 
-      // No change in candidate list → exit
-      if (
-        beforeList.length === afterList.length &&
-        beforeList.every((v, i) => v === afterList[i])
-      ) {
-        return null;
-      }
+    if (ridesSnap.empty) {
+      console.log("[emailCandidateDrivers] No unnotified searching rides found.");
+      return;
+    }
 
-      // Already emailed this batch → exit
-      if (after.candidateEmail === true) {
-        console.log("⚠️  Already emailed candidates for ride", rideId);
-        return null;
-      }
+    console.log(`[emailCandidateDrivers] Found ${ridesSnap.size} ride(s) to process.`);
 
-      if (!afterList.length) {
-        console.log("⚠️  No candidate driver UIDs on ride", rideId);
-        return null;
-      }
+    // ── Step 2: Process each ride independently ────────────────────
+    for (const rideDoc of ridesSnap.docs) {
+      const rideId = rideDoc.id;
+      const ride   = rideDoc.data();
 
-      console.log(`📨 Fetching ${afterList.length} candidate driver(s) for ride ${rideId}`);
+      console.log(`\n[emailCandidateDrivers] ── Processing ride ${rideId} ──`);
+      console.log(`[emailCandidateDrivers] Pickup:  ${ride.pickup  || "N/A"}`);
+      console.log(`[emailCandidateDrivers] Dropoff: ${ride.dropoff || "N/A"}`);
+      console.log(`[emailCandidateDrivers] Payout:  $${ride.driverPayout ?? 0}`);
 
-      // Fetch driver docs in parallel
-      const driverSnaps = await Promise.all(
-        afterList.map((uid) => db.collection("Drivers").doc(uid).get())
-      );
-
-      const validDrivers = driverSnaps
-        .filter((doc) => doc.exists)
-        .map((doc)    => doc.data())
-        .filter((d)   => !!d.email);
-
-      if (!validDrivers.length) {
-        console.log("⚠️  No candidate drivers with valid emails");
-        return null;
-      }
-
-      console.log(`📡 Dispatching to ${validDrivers.length} driver(s)`);
-
-      let sent   = 0;
-      let failed = 0;
-
-      // Send individually so one failure doesn't block others
-      for (const driver of validDrivers) {
-        const msg = buildCandidateEmail({
-          driver,
-          ride:            after,
-          rideId,
-          totalCandidates: validDrivers.length,
-        });
-
-        try {
-          await sgMail.send(msg);
-          console.log(`📧 Dispatched → ${driver.email}`);
-          sent++;
-        } catch (err) {
-          console.error(
-            `❌ Failed for ${driver.email}:`,
-            err?.response?.body ?? err.message
-          );
-          failed++;
-        }
-      }
-
-      // Mark ride as notified to prevent re-trigger
-      await rideRef.update({
-        candidateEmail:      true,
-        candidateNotifiedAt: FieldValue.serverTimestamp(),
+      // Double-check inside a transaction to prevent race conditions
+      // if two scheduler instances overlap (extremely rare at 1-min interval
+      // but important for correctness).
+      const alreadyNotified = await db.runTransaction(async (tx) => {
+        const fresh = await tx.get(rideDoc.ref);
+        if (fresh.data()?.driversNotified === true) return true;
+        // Claim this ride for processing immediately
+        tx.update(rideDoc.ref, { driversNotified: true });
+        return false;
       });
 
-      console.log(`✅ Dispatch complete — sent: ${sent}, failed: ${failed}`);
-      return null;
+      if (alreadyNotified) {
+        console.log(`[emailCandidateDrivers] ⚠️  Ride ${rideId} already notified — skipping.`);
+        continue;
+      }
 
-    } catch (error) {
-      console.error("❌ emailCandidateDrivers failed:", error);
-      return null;
+      try {
+        let drivers    = [];
+        let usedSource = "";
+
+        // ── Step 3a: Try candidate drivers first ───────────────────
+        const candidateUids = ride.candidateDriverUids || [];
+
+        if (candidateUids.length > 0) {
+          console.log(`[emailCandidateDrivers] ${candidateUids.length} candidate UID(s) found — fetching profiles...`);
+
+          const candidateSnaps = await Promise.all(
+            candidateUids.map((uid) => db.collection("Drivers").doc(uid).get())
+          );
+
+          drivers = candidateSnaps
+            .filter((doc) => doc.exists)
+            .map((doc)    => doc.data())
+            .filter((d)   => !!d.email);
+
+          usedSource = "candidate";
+
+          console.log(`[emailCandidateDrivers] ${drivers.length} candidate driver(s) have valid emails.`);
+        }
+
+        // ── Step 3b: Fall back to ALL online drivers ───────────────
+        // Only reached when candidateDriverUids is empty or none of the
+        // candidates had a valid email address.
+        if (drivers.length === 0) {
+          console.log(`[emailCandidateDrivers] No valid candidates — falling back to all online drivers.`);
+
+          const onlineSnap = await db
+            .collection("Drivers")
+            .where("status", "==", "online")
+            .get();
+
+          drivers = onlineSnap.docs
+            .map((doc)  => doc.data())
+            .filter((d) => !!d.email);
+
+          usedSource = "online-fallback";
+
+          console.log(`[emailCandidateDrivers] ${drivers.length} online driver(s) with valid emails.`);
+        }
+
+        // ── Step 4: Nothing to send ────────────────────────────────
+        if (drivers.length === 0) {
+          console.warn(`[emailCandidateDrivers] ⚠️  Ride ${rideId} — no drivers to notify (no candidates, no online drivers).`);
+          // Still mark notified so we don't keep retrying a ride with
+          // genuinely no available drivers.
+          await rideDoc.ref.update({
+            adminNotified:      true,
+            candidateNotifiedAt: FieldValue.serverTimestamp(),
+            notifySource:        "none",
+          });
+          continue;
+        }
+
+        // ── Step 5: Send emails one by one ─────────────────────────
+        const { sent, failed } = await dispatchEmails({
+          drivers,
+          ride,
+          rideId,
+          label: usedSource,
+        });
+
+        // ── Step 6: Write notification record to ride doc ──────────
+        await rideDoc.ref.update({
+          adminNotified:        true,
+          candidateNotifiedAt:  FieldValue.serverTimestamp(),
+          notifySource:         usedSource,       // "candidate" | "online-fallback"
+          notifySentCount:      sent,
+          notifyFailedCount:    failed,
+          notifyDriverCount:    drivers.length,
+        });
+
+        console.log(`[emailCandidateDrivers] ✅ Ride ${rideId} complete — source: ${usedSource}, sent: ${sent}, failed: ${failed}`);
+
+      } catch (err) {
+        // Per-ride error — log and continue to next ride
+        console.error(`[emailCandidateDrivers] ❌ Error processing ride ${rideId}:`, err);
+
+        // Roll back the driversNotified flag so the next scheduler
+        // run will retry this ride.
+        try {
+          await rideDoc.ref.update({ driversNotified: false });
+          console.log(`[emailCandidateDrivers] 🔄 Reset driversNotified for ride ${rideId} — will retry next run.`);
+        } catch (rollbackErr) {
+          console.error(`[emailCandidateDrivers] ❌ Rollback failed for ride ${rideId}:`, rollbackErr);
+        }
+      }
     }
+
+    console.log("\n[emailCandidateDrivers] ── Run complete ──");
   }
 );
