@@ -40,7 +40,7 @@ function extractLocationData(result) {
   };
 }
 
-// 🌍 Geocode (legacy but reliable)
+// 🌍 Geocode
 async function geocodeAddress(address, apiKey) {
   try {
     const res = await axios.get(
@@ -69,11 +69,11 @@ exports.ATOB = onRequest(
   {
     region: "us-central1",
     secrets: [GOOGLE_MAPS_KEY],
+    invoker: "public", // ✅ MAKE PUBLIC
   },
   (req, res) => {
-    cors(req, res, async () => {
+    return cors(req, res, async () => {
       try {
-        // ✅ Preflight
         if (req.method === "OPTIONS") {
           return res.status(204).send("");
         }
@@ -140,7 +140,6 @@ exports.ATOB = onRequest(
         const seconds = parseInt(route.duration?.replace("s", "") || "0", 10);
         const minutes = Math.ceil(seconds / 60);
 
-        // 🧾 RESPONSE
         return res.status(200).json({
           origin,
           destination,

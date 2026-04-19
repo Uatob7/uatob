@@ -42,6 +42,8 @@ const CARD_ELEMENT_OPTIONS = {
 /* ── Card Form ───────────────────────────────────────── */
 function CardForm({ uid, bookingPayload, onSuccess, onError }) {
 
+  console.log('Booking Payload in CardForm:', bookingPayload); // Debug log
+
   const stripe   = useStripe();
   const elements = useElements();
 

@@ -9,11 +9,12 @@ exports.Autocomplete = onRequest(
   {
     region: "us-central1",
     secrets: [GOOGLE_MAPS_KEY],
+    invoker: "public", // ✅ MAKE PUBLIC
   },
   (req, res) => {
-    cors(req, res, async () => {
+    return cors(req, res, async () => {
       try {
-        // ✅ Handle preflight
+        // Preflight
         if (req.method === "OPTIONS") {
           return res.status(204).send("");
         }
@@ -25,9 +26,9 @@ exports.Autocomplete = onRequest(
         const trimmed = String(req.body?.input ?? "").trim();
 
         if (trimmed.length < 3) {
-          return res
-            .status(400)
-            .json({ error: "Input must be at least 3 characters" });
+          return res.status(400).json({
+            error: "Input must be at least 3 characters",
+          });
         }
 
         const apiKey = GOOGLE_MAPS_KEY.value();
@@ -58,12 +59,15 @@ exports.Autocomplete = onRequest(
           status: "OK",
         });
       } catch (err) {
-        console.error("Autocomplete error:", err?.response?.data || err.message);
+        console.error(
+          "Autocomplete error:",
+          err?.response?.data || err.message
+        );
 
         return res.status(500).json({
           error:
-            err?.response?.data?.error?.message ??
-            err.message ??
+            err?.response?.data?.error?.message ||
+            err.message ||
             "Autocomplete failed",
         });
       }
