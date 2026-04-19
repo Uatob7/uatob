@@ -1,5 +1,6 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const axios = require("axios");
+const cors = require("cors")({ origin: true });
 
 const { defineSecret } = require("firebase-functions/params");
 const GOOGLE_MAPS_KEY = defineSecret("GOOGLE_MAPS_KEY");
@@ -21,9 +22,11 @@ function extractLocationData(result) {
     if (!city && c.types.includes("locality")) {
       city = c.long_name;
     }
+
     if (!city && c.types.includes("administrative_area_level_2")) {
       city = c.long_name;
     }
+
     if (!zip && c.types.includes("postal_code")) {
       zip = c.long_name;
     }
@@ -37,16 +40,18 @@ function extractLocationData(result) {
   };
 }
 
-// 🌍 Geocode
+// 🌍 Geocode (legacy but reliable)
 async function geocodeAddress(address, apiKey) {
   try {
-    const { data } = await axios.get(
+    const res = await axios.get(
       "https://maps.googleapis.com/maps/api/geocode/json",
       {
         params: { address, key: apiKey },
         timeout: 8000,
       }
     );
+
+    const data = res.data;
 
     if (data.status !== "OK" || !data.results?.length) {
       return { city: "", zip: "", lat: null, lng: null };
@@ -59,116 +64,115 @@ async function geocodeAddress(address, apiKey) {
   }
 }
 
-// ── CORS helper ───────────────────────────────────────────────────────
-function setCORSHeaders(res) {
-  res.set("Access-Control-Allow-Origin", "*");
-  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.set("Access-Control-Allow-Headers", "Content-Type");
-}
-
 // 🚀 MAIN FUNCTION
 exports.ATOB = onRequest(
   {
     region: "us-central1",
     secrets: [GOOGLE_MAPS_KEY],
-    invoker: "public",
   },
-  async (req, res) => {
-    setCORSHeaders(res);
-
-    // Handle preflight
-    if (req.method === "OPTIONS") {
-      return res.status(204).send("");
-    }
-
-    if (req.method !== "POST") {
-      return res.status(405).json({ error: "Method Not Allowed" });
-    }
-
-    if (!req.body) {
-      return res.status(400).json({ error: "Missing request body" });
-    }
-
-    const origin = String(req.body.origin ?? "").trim();
-    const destination = String(req.body.destination ?? "").trim();
-
-    if (!origin || !destination) {
-      return res.status(400).json({ error: "Missing origin or destination" });
-    }
-
-    try {
-      const apiKey = GOOGLE_MAPS_KEY.value();
-
-      // 🧭 ROUTES API
-      const routePromise = axios.post(
-        "https://routes.googleapis.com/directions/v2:computeRoutes",
-        {
-          origin: { address: origin },
-          destination: { address: destination },
-          travelMode: "DRIVE",
-          routingPreference: "TRAFFIC_AWARE",
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            "X-Goog-Api-Key": apiKey,
-            "X-Goog-FieldMask":
-              "routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline",
-          },
-          timeout: 10000,
+  (req, res) => {
+    cors(req, res, async () => {
+      try {
+        // ✅ Preflight
+        if (req.method === "OPTIONS") {
+          return res.status(204).send("");
         }
-      );
 
-      // 🌍 GEOCODE IN PARALLEL
-      const geoPromise = Promise.all([
-        geocodeAddress(origin, apiKey),
-        geocodeAddress(destination, apiKey),
-      ]);
+        if (req.method !== "POST") {
+          return res.status(405).json({ error: "Method Not Allowed" });
+        }
 
-      const [routeResponse, [pickupGeo, dropoffGeo]] = await Promise.all([
-        routePromise,
-        geoPromise,
-      ]);
+        if (!req.body) {
+          return res.status(400).json({ error: "Missing request body" });
+        }
 
-      const routes = routeResponse.data?.routes;
+        const origin = String(req.body.origin ?? "").trim();
+        const destination = String(req.body.destination ?? "").trim();
 
-      if (!routes || routes.length === 0) {
-        return res.status(400).json({ error: "Route not found" });
+        if (!origin || !destination) {
+          return res.status(400).json({
+            error: "Missing origin or destination",
+          });
+        }
+
+        const apiKey = GOOGLE_MAPS_KEY.value();
+
+        // 🧭 ROUTES API
+        const routePromise = axios.post(
+          "https://routes.googleapis.com/directions/v2:computeRoutes",
+          {
+            origin: { address: origin },
+            destination: { address: destination },
+            travelMode: "DRIVE",
+            routingPreference: "TRAFFIC_AWARE",
+          },
+          {
+            headers: {
+              "Content-Type": "application/json",
+              "X-Goog-Api-Key": apiKey,
+              "X-Goog-FieldMask":
+                "routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline",
+            },
+            timeout: 10000,
+          }
+        );
+
+        // 🌍 GEOCODE IN PARALLEL
+        const geoPromise = Promise.all([
+          geocodeAddress(origin, apiKey),
+          geocodeAddress(destination, apiKey),
+        ]);
+
+        const [routeResponse, [pickupGeo, dropoffGeo]] =
+          await Promise.all([routePromise, geoPromise]);
+
+        const routes = routeResponse.data?.routes;
+
+        if (!routes || routes.length === 0) {
+          return res.status(400).json({ error: "Route not found" });
+        }
+
+        const route = routes[0];
+
+        const distanceMeters = route.distanceMeters ?? 0;
+        const miles = distanceMeters / 1609.34;
+
+        const seconds = parseInt(route.duration?.replace("s", "") || "0", 10);
+        const minutes = Math.ceil(seconds / 60);
+
+        // 🧾 RESPONSE
+        return res.status(200).json({
+          origin,
+          destination,
+
+          distance_miles: Number(miles.toFixed(2)),
+          duration_minutes: minutes,
+
+          route: {
+            distanceMeters,
+            duration_seconds: seconds,
+            polyline: route.polyline?.encodedPolyline ?? null,
+          },
+
+          pickup: pickupGeo,
+          dropoff: dropoffGeo,
+
+          createdAt: FieldValue.serverTimestamp(),
+          status: "OK",
+        });
+      } catch (error) {
+        console.error(
+          "❌ Routes API error:",
+          error?.response?.data || error.message
+        );
+
+        return res.status(500).json({
+          error:
+            error?.response?.data?.error?.message ||
+            error.message ||
+            "Route calculation failed",
+        });
       }
-
-      const route = routes[0];
-      const distanceMeters = route.distanceMeters ?? 0;
-      const miles = distanceMeters / 1609.34;
-      const seconds = parseInt(route.duration?.replace("s", "") || "0", 10);
-      const minutes = Math.ceil(seconds / 60);
-
-      return res.status(200).json({
-        origin,
-        destination,
-        distance_miles: Number(miles.toFixed(2)),
-        duration_minutes: minutes,
-        route: {
-          distanceMeters,
-          duration_seconds: seconds,
-          polyline: route.polyline?.encodedPolyline ?? null,
-        },
-        pickup: pickupGeo,
-        dropoff: dropoffGeo,
-        createdAt: FieldValue.serverTimestamp(),
-        status: "OK",
-      });
-    } catch (error) {
-      console.error(
-        "❌ Routes API error:",
-        error?.response?.data || error.message
-      );
-
-      return res.status(500).json({
-        error:
-          error?.response?.data?.error?.message ||
-          error.message ||
-          "Route calculation failed",
-      });
-    }
+    });
   }
 );
