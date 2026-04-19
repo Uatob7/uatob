@@ -1,13 +1,21 @@
 // src/App/BookingPanel.jsx
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import axios from 'axios';
 import {
   Navigation, Clock, Car, Users, Zap,
   ChevronRight, Loader2, AlertCircle, LocateFixed, MapPin, X,
 } from 'lucide-react';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useAuthContext } from '@/context/AuthContext';
+import { firebase_app } from '@/firebase/config';
 
-// ── Theme tokens — identical to MapView ──────────────────────────────
+// ── Callables ─────────────────────────────────────────────────────────
+const functions        = getFunctions(firebase_app, 'us-central1');
+const callATOB         = httpsCallable(functions, 'ATOB');
+const callPrice        = httpsCallable(functions, 'Price');
+const callAutocomplete = httpsCallable(functions, 'Autocomplete');
+const callGeo          = httpsCallable(functions, 'Geo');
+
+// ── Theme tokens ──────────────────────────────────────────────────────
 const T = {
   accent:       '#16A34A',
   accentLight:  '#F0FDF4',
@@ -18,12 +26,6 @@ const T = {
   border:       '#E5E7EB',
   surfaceAlt:   '#F9FAFB',
 };
-
-// ── URLs ──────────────────────────────────────────────────────────────
-const ROUTE_URL        = 'https://atob-ady2s2xhhq-uc.a.run.app';
-const PRICE_URL        = 'https://price-ady2s2xhhq-uc.a.run.app';
-const AUTOCOMPLETE_URL = 'https://autocomplete-ady2s2xhhq-uc.a.run.app';
-const REVERSE_GEO_URL  = 'https://geo-ady2s2xhhq-uc.a.run.app';
 
 // ── localStorage ──────────────────────────────────────────────────────
 const LS_KEY = 'uatob_booking_form';
@@ -42,12 +44,11 @@ function getRideIcon(rideId) {
 
 // ── Network helpers ───────────────────────────────────────────────────
 async function fetchTripData(pickup, dropoff) {
-  const { data, status } = await axios.post(ROUTE_URL, { origin: pickup, destination: dropoff });
-
-  if (status < 200 || status >= 300) throw new Error(data.error || `Route error ${status}`);
+  const { data } = await callATOB({ origin: pickup, destination: dropoff });
 
   let durationMin = data.duration_minutes;
-  if (!durationMin && data.route?.duration_seconds) durationMin = Math.ceil(data.route.duration_seconds / 60);
+  if (!durationMin && data.route?.duration_seconds)
+    durationMin = Math.ceil(data.route.duration_seconds / 60);
   if (!durationMin && data.duration_text) {
     const h = (data.duration_text.match(/(\d+)\s*hour/) || [])[1] || 0;
     const m = (data.duration_text.match(/(\d+)\s*min/)  || [])[1] || 0;
@@ -68,15 +69,16 @@ async function fetchTripData(pickup, dropoff) {
 }
 
 async function fetchQuotesData(tripData) {
-  const { data, status } = await axios.post(PRICE_URL, tripData);
-  if (status < 200 || status >= 300 || !data.ok) throw new Error(data.error || `Pricing error ${status}`);
-  if (data.rides) Object.values(data.rides).forEach(r => { r.total = Number(r.total).toFixed(2); });
+  const { data } = await callPrice(tripData);
+  if (!data.ok) throw new Error(data.error || 'Pricing error');
+  if (data.rides)
+    Object.values(data.rides).forEach(r => { r.total = Number(r.total).toFixed(2); });
   return data;
 }
 
 async function reverseGeocode(lat, lng) {
-  const { data, status } = await axios.post(REVERSE_GEO_URL, { lat, lng });
-  if (status < 200 || status >= 300 || !data.address) throw new Error(data.error || 'Could not find your address.');
+  const { data } = await callGeo({ lat, lng });
+  if (!data.address) throw new Error('Could not find your address.');
   return { address: data.address };
 }
 
@@ -89,295 +91,86 @@ const PANEL_CSS = `
   @keyframes bp-alertIn { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
   @keyframes bp-pulse   { 0%,100%{box-shadow:0 0 0 0 rgba(22,163,74,.25)} 50%{box-shadow:0 0 0 6px rgba(22,163,74,0)} }
 
-  .bp-card {
-    border-radius: 20px;
-    border: 1.5px solid #E5E7EB;
-    background: #fff;
-    overflow: hidden;
-    font-family: 'Outfit', system-ui, sans-serif;
-  }
-  .bp-card + .bp-card { margin-top: 10px; }
-
-  .bp-card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 13px 16px 0;
-    font-family: 'Outfit', system-ui, sans-serif;
-  }
-  .bp-card-header-label {
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 1.2px;
-    text-transform: uppercase;
-    color: #9CA3AF;
-  }
-  .bp-cancel-btn {
-    width: 26px; height: 26px;
-    border-radius: 50%;
-    background: #F3F4F6;
-    border: none;
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    color: #6B7280;
-    transition: background .15s, color .15s, transform .12s;
-    padding: 0;
-    flex-shrink: 0;
-  }
-  .bp-cancel-btn:hover  { background: #E5E7EB; color: #111827; transform: scale(1.08); }
-  .bp-cancel-btn:active { transform: scale(.94); }
-
-  .bp-route-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 13px 16px;
-    position: relative;
-  }
-  .bp-route-row + .bp-route-row {
-    border-top: 1px solid #F3F4F6;
-  }
-  .bp-icon {
-    width: 28px; height: 28px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0; transition: border-color .2s, background .2s;
-  }
-  .bp-icon.pickup  { background: #F0FDF4; border: 1.5px solid #BBF7D0; }
-  .bp-icon.dropoff { background: #F9FAFB; border: 1.5px solid #E5E7EB; }
-  .bp-icon.pickup.active  { background: #DCFCE7; border-color: #16A34A; animation: bp-pulse 1.8s ease-in-out infinite; }
-  .bp-icon.dropoff.active { background: #F3F4F6; border-color: #9CA3AF; }
-
-  .bp-input {
-    flex: 1;
-    border: none; outline: none;
-    background: transparent;
-    font-family: 'Outfit', system-ui, sans-serif;
-    font-size: 13.5px; font-weight: 600; color: #111827;
-    caret-color: #16A34A;
-    min-width: 0;
-  }
-  .bp-input::placeholder { color: #D1D5DB; font-weight: 500; }
-
-  .bp-route-connector {
-    position: absolute;
-    left: calc(16px + 13px);
-    bottom: -1px;
-    width: 1.5px;
-    height: 14px;
-    background: linear-gradient(to bottom, #BBF7D0, #E5E7EB);
-    z-index: 1;
-  }
-
-  .bp-geo-btn {
-    width: 28px; height: 28px; flex-shrink: 0;
-    background: none; border: none; cursor: pointer;
-    border-radius: 8px; display: flex; align-items: center; justify-content: center;
-    color: #9CA3AF; transition: background .15s, color .15s;
-    padding: 0;
-  }
-  .bp-geo-btn:hover { background: #F0FDF4; color: #16A34A; }
-
-  .bp-clear-btn {
-    width: 22px; height: 22px; flex-shrink: 0;
-    background: #F3F4F6; border: none; cursor: pointer;
-    border-radius: 50%; display: flex; align-items: center; justify-content: center;
-    color: #9CA3AF; transition: background .15s, color .15s;
-    padding: 0;
-  }
-  .bp-clear-btn:hover { background: #E5E7EB; color: #374151; }
-
-  .bp-dropdown {
-    position: absolute; top: calc(100% + 4px); left: 0; right: 0;
-    background: #fff; border: 1.5px solid #E5E7EB;
-    border-radius: 16px;
-    box-shadow: 0 12px 36px rgba(0,0,0,.1);
-    z-index: 200; overflow: hidden;
-  }
-  .bp-suggestion {
-    display: flex; align-items: flex-start; gap: 10px;
-    padding: 11px 16px; cursor: pointer;
-    border-bottom: 1px solid #F3F4F6;
-    transition: background .1s;
-  }
-  .bp-suggestion:last-child { border-bottom: none; }
-  .bp-suggestion:hover, .bp-suggestion.active { background: #F9FAFB; }
-  .bp-sug-main { font-size: 13px; font-weight: 700; color: #111827; }
-  .bp-sug-sub  { font-size: 11px; color: #9CA3AF; font-weight: 500; margin-top: 1px; }
-
-  .bp-ghost-wrap {
-    position: absolute; inset: 0;
-    display: flex; align-items: center;
-    padding-left: calc(16px + 28px + 12px);
-    padding-right: 16px;
-    pointer-events: none; z-index: 0;
-    font-family: 'Outfit', system-ui, sans-serif;
-    font-size: 13.5px; font-weight: 600;
-    white-space: nowrap; overflow: hidden;
-  }
-
-  .bp-ride-grid {
-    display: grid; grid-template-columns: 1fr 1fr;
-    gap: 0;
-  }
-  .bp-ride-card {
-    padding: 16px;
-    cursor: pointer;
-    border-right: 1px solid #F3F4F6;
-    border-bottom: 1px solid #F3F4F6;
-    transition: background .15s;
-    position: relative;
-  }
-  .bp-ride-card:nth-child(2n)        { border-right: none; }
-  .bp-ride-card:nth-last-child(-n+2) { border-bottom: none; }
-  .bp-ride-card:hover                { background: #FAFAFA; }
-  .bp-ride-card.active               { background: #F0FDF4; }
-  .bp-ride-card.active::after {
-    content: '';
-    position: absolute; inset: 0;
-    border: 2px solid #16A34A;
-    border-radius: 0; pointer-events: none;
-  }
-  .bp-ride-card:first-child.active::after     { border-radius: 18px 0 0 0; }
-  .bp-ride-card:nth-child(2).active::after    { border-radius: 0 18px 0 0; }
-  .bp-ride-card:nth-last-child(2).active::after { border-radius: 0 0 0 18px; }
-  .bp-ride-card:last-child.active::after      { border-radius: 0 0 18px 0; }
-
-  .bp-ride-icon-wrap {
-    width: 34px; height: 34px; border-radius: 10px;
-    display: flex; align-items: center; justify-content: center;
-    margin-bottom: 10px; transition: background .2s, border-color .2s;
-    border: 1.5px solid transparent;
-  }
-  .bp-ride-card.active .bp-ride-icon-wrap {
-    background: #DCFCE7 !important;
-    border-color: rgba(22,163,74,.3) !important;
-  }
-
-  .bp-ride-name  { font-size: 13px; font-weight: 800; color: #111827; margin-bottom: 2px; }
-  .bp-ride-desc  { font-size: 11px; color: #9CA3AF; font-weight: 500; margin-bottom: 8px; }
-  .bp-ride-price {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 17px; font-weight: 700; color: #111827;
-    transition: color .2s;
-  }
-  .bp-ride-card.active .bp-ride-price { color: #16A34A; }
-  .bp-ride-meta  {
-    display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px;
-  }
-  .bp-ride-tag {
-    display: flex; align-items: center; gap: 3px;
-    font-size: 10.5px; color: #9CA3AF; font-weight: 600;
-  }
-
-  .bp-stats { display: flex; align-items: stretch; border-top: 1.5px solid #E5E7EB; }
-  .bp-stat  { flex: 1; padding: 13px 16px; display: flex; flex-direction: column; gap: 3px; }
-  .bp-stat + .bp-stat { border-left: 1.5px solid #E5E7EB; }
-  .bp-stat-label { font-size: 10px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: #9CA3AF; }
-  .bp-stat-val   { font-size: 20px; font-weight: 900; color: #111827; letter-spacing: -.5px; line-height: 1;
-                   font-family: 'Outfit', system-ui, sans-serif; }
-  .bp-stat-val.green { color: #16A34A; }
-  .bp-stat-sub   { font-size: 11px; font-weight: 600; color: #9CA3AF; }
-
-  .bp-fare-card {
-    border-radius: 20px;
-    border: 1.5px solid #BBF7D0;
-    background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
-    overflow: hidden;
-    font-family: 'Outfit', system-ui, sans-serif;
-  }
-  .bp-fare-top {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 18px 20px 16px;
-    gap: 12px;
-  }
-  .bp-fare-amount {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 38px; font-weight: 700;
-    color: #16A34A; letter-spacing: -2px; line-height: 1;
-  }
-  .bp-fare-label { font-size: 11px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: #6B7280; margin-bottom: 4px; }
-  .bp-fare-sub   { font-size: 12px; font-weight: 500; color: #6B7280; margin-top: 4px; }
-  .bp-breakdown-toggle {
-    background: none; border: none; cursor: pointer;
-    font-family: 'Outfit', system-ui, sans-serif;
-    font-size: 11px; font-weight: 700; color: #16A34A; padding: 0;
-    margin-top: 4px; display: block;
-  }
-
-  .bp-breakdown {
-    border-top: 1px solid #BBF7D0;
-    padding: 16px 20px;
-    display: flex; flex-direction: column; gap: 10px;
-    animation: bp-fadeUp .22s ease-out;
-  }
-  .bp-bd-row { display: flex; justify-content: space-between; align-items: center; }
-  .bp-bd-label { font-size: 12.5px; color: #374151; font-weight: 600; }
-  .bp-bd-note  { font-size: 11px; color: #9CA3AF; font-weight: 500; margin-top: 1px; }
-  .bp-bd-val   { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700; color: #111827; }
-  .bp-bd-total {
-    border-top: 1px dashed #BBF7D0; padding-top: 10px;
-    display: flex; justify-content: space-between; align-items: center;
-  }
-  .bp-bd-total-label { font-size: 13px; font-weight: 800; color: #111827; }
-  .bp-bd-total-val   { font-family: 'JetBrains Mono', monospace; font-size: 16px; font-weight: 700; color: #16A34A; }
-  .bp-min-note {
-    display: flex; align-items: center; gap: 6px;
-    background: rgba(22,163,74,.07); border: 1px solid rgba(22,163,74,.18);
-    border-radius: 8px; padding: 7px 10px;
-  }
-  .bp-min-note span { font-size: 11.5px; color: #16A34A; font-weight: 700; }
-
-  .bp-book-btn {
-    width: 100%; padding: 16px;
-    background: linear-gradient(135deg, #22C55E, #16A34A 55%, #15803D);
-    color: #fff; border: none; border-radius: 16px;
-    font-family: 'Outfit', system-ui, sans-serif;
-    font-size: 15px; font-weight: 900; letter-spacing: -.2px;
-    cursor: pointer;
-    box-shadow: 0 6px 20px rgba(22,163,74,.3);
-    display: flex; align-items: center; justify-content: center; gap: 6px;
-    transition: opacity .15s, transform .12s, box-shadow .15s;
-  }
-  .bp-book-btn:hover  { opacity: .93; transform: translateY(-1px); box-shadow: 0 8px 26px rgba(22,163,74,.38); }
-  .bp-book-btn:active { opacity: .88; transform: scale(.98); }
-
-  .bp-geo-alert {
-    border-radius: 16px;
-    border: 1.5px solid #BBF7D0;
-    background: linear-gradient(135deg, #F0FDF4, #DCFCE7);
-    padding: 14px 16px;
-    animation: bp-alertIn .2s ease;
-    margin-bottom: 10px;
-  }
-  .bp-geo-alert.error {
-    border-color: #FECACA;
-    background: #FEF2F2;
-  }
-
-  .bp-status {
-    display: flex; align-items: center; gap: 10px;
-    padding: 16px 18px;
-    border-top: 1px solid #F3F4F6;
-    font-size: 13px; font-weight: 600; color: #6B7280;
-    font-family: 'Outfit', system-ui, sans-serif;
-  }
-  .bp-error {
-    display: flex; align-items: flex-start; gap: 10px;
-    background: #FEF2F2; border: 1px solid #FECACA;
-    border-radius: 14px; padding: 14px 16px;
-    font-family: 'Outfit', system-ui, sans-serif;
-  }
-  .bp-error span { font-size: 13px; color: #DC2626; font-weight: 600; }
-
-  .bp-empty {
-    padding: 22px 18px;
-    text-align: center;
-    font-size: 13px; font-weight: 500; color: #D1D5DB;
-    font-family: 'Outfit', system-ui, sans-serif;
-    border-top: 1px solid #F9FAFB;
-  }
-
-  .bp-fadeup { animation: bp-fadeUp .3s ease-out both; }
+  .bp-card { border-radius:20px; border:1.5px solid #E5E7EB; background:#fff; overflow:hidden; font-family:'Outfit',system-ui,sans-serif; }
+  .bp-card + .bp-card { margin-top:10px; }
+  .bp-card-header { display:flex; align-items:center; justify-content:space-between; padding:13px 16px 0; font-family:'Outfit',system-ui,sans-serif; }
+  .bp-card-header-label { font-size:11px; font-weight:800; letter-spacing:1.2px; text-transform:uppercase; color:#9CA3AF; }
+  .bp-cancel-btn { width:26px; height:26px; border-radius:50%; background:#F3F4F6; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; color:#6B7280; transition:background .15s,color .15s,transform .12s; padding:0; flex-shrink:0; }
+  .bp-cancel-btn:hover  { background:#E5E7EB; color:#111827; transform:scale(1.08); }
+  .bp-cancel-btn:active { transform:scale(.94); }
+  .bp-route-row { display:flex; align-items:center; gap:12px; padding:13px 16px; position:relative; }
+  .bp-route-row + .bp-route-row { border-top:1px solid #F3F4F6; }
+  .bp-icon { width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:border-color .2s,background .2s; }
+  .bp-icon.pickup  { background:#F0FDF4; border:1.5px solid #BBF7D0; }
+  .bp-icon.dropoff { background:#F9FAFB; border:1.5px solid #E5E7EB; }
+  .bp-icon.pickup.active  { background:#DCFCE7; border-color:#16A34A; animation:bp-pulse 1.8s ease-in-out infinite; }
+  .bp-icon.dropoff.active { background:#F3F4F6; border-color:#9CA3AF; }
+  .bp-input { flex:1; border:none; outline:none; background:transparent; font-family:'Outfit',system-ui,sans-serif; font-size:13.5px; font-weight:600; color:#111827; caret-color:#16A34A; min-width:0; }
+  .bp-input::placeholder { color:#D1D5DB; font-weight:500; }
+  .bp-route-connector { position:absolute; left:calc(16px + 13px); bottom:-1px; width:1.5px; height:14px; background:linear-gradient(to bottom,#BBF7D0,#E5E7EB); z-index:1; }
+  .bp-geo-btn { width:28px; height:28px; flex-shrink:0; background:none; border:none; cursor:pointer; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#9CA3AF; transition:background .15s,color .15s; padding:0; }
+  .bp-geo-btn:hover { background:#F0FDF4; color:#16A34A; }
+  .bp-clear-btn { width:22px; height:22px; flex-shrink:0; background:#F3F4F6; border:none; cursor:pointer; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#9CA3AF; transition:background .15s,color .15s; padding:0; }
+  .bp-clear-btn:hover { background:#E5E7EB; color:#374151; }
+  .bp-dropdown { position:absolute; top:calc(100% + 4px); left:0; right:0; background:#fff; border:1.5px solid #E5E7EB; border-radius:16px; box-shadow:0 12px 36px rgba(0,0,0,.1); z-index:200; overflow:hidden; }
+  .bp-suggestion { display:flex; align-items:flex-start; gap:10px; padding:11px 16px; cursor:pointer; border-bottom:1px solid #F3F4F6; transition:background .1s; }
+  .bp-suggestion:last-child { border-bottom:none; }
+  .bp-suggestion:hover, .bp-suggestion.active { background:#F9FAFB; }
+  .bp-sug-main { font-size:13px; font-weight:700; color:#111827; }
+  .bp-sug-sub  { font-size:11px; color:#9CA3AF; font-weight:500; margin-top:1px; }
+  .bp-ghost-wrap { position:absolute; inset:0; display:flex; align-items:center; padding-left:calc(16px + 28px + 12px); padding-right:16px; pointer-events:none; z-index:0; font-family:'Outfit',system-ui,sans-serif; font-size:13.5px; font-weight:600; white-space:nowrap; overflow:hidden; }
+  .bp-ride-grid { display:grid; grid-template-columns:1fr 1fr; gap:0; }
+  .bp-ride-card { padding:16px; cursor:pointer; border-right:1px solid #F3F4F6; border-bottom:1px solid #F3F4F6; transition:background .15s; position:relative; }
+  .bp-ride-card:nth-child(2n)        { border-right:none; }
+  .bp-ride-card:nth-last-child(-n+2) { border-bottom:none; }
+  .bp-ride-card:hover  { background:#FAFAFA; }
+  .bp-ride-card.active { background:#F0FDF4; }
+  .bp-ride-card.active::after { content:''; position:absolute; inset:0; border:2px solid #16A34A; border-radius:0; pointer-events:none; }
+  .bp-ride-card:first-child.active::after      { border-radius:18px 0 0 0; }
+  .bp-ride-card:nth-child(2).active::after     { border-radius:0 18px 0 0; }
+  .bp-ride-card:nth-last-child(2).active::after{ border-radius:0 0 0 18px; }
+  .bp-ride-card:last-child.active::after       { border-radius:0 0 18px 0; }
+  .bp-ride-icon-wrap { width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; margin-bottom:10px; transition:background .2s,border-color .2s; border:1.5px solid transparent; }
+  .bp-ride-card.active .bp-ride-icon-wrap { background:#DCFCE7 !important; border-color:rgba(22,163,74,.3) !important; }
+  .bp-ride-name  { font-size:13px; font-weight:800; color:#111827; margin-bottom:2px; }
+  .bp-ride-desc  { font-size:11px; color:#9CA3AF; font-weight:500; margin-bottom:8px; }
+  .bp-ride-price { font-family:'JetBrains Mono',monospace; font-size:17px; font-weight:700; color:#111827; transition:color .2s; }
+  .bp-ride-card.active .bp-ride-price { color:#16A34A; }
+  .bp-ride-meta  { display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
+  .bp-ride-tag   { display:flex; align-items:center; gap:3px; font-size:10.5px; color:#9CA3AF; font-weight:600; }
+  .bp-stats { display:flex; align-items:stretch; border-top:1.5px solid #E5E7EB; }
+  .bp-stat  { flex:1; padding:13px 16px; display:flex; flex-direction:column; gap:3px; }
+  .bp-stat + .bp-stat { border-left:1.5px solid #E5E7EB; }
+  .bp-stat-label { font-size:10px; font-weight:800; letter-spacing:1.2px; text-transform:uppercase; color:#9CA3AF; }
+  .bp-stat-val   { font-size:20px; font-weight:900; color:#111827; letter-spacing:-.5px; line-height:1; font-family:'Outfit',system-ui,sans-serif; }
+  .bp-stat-val.green { color:#16A34A; }
+  .bp-stat-sub   { font-size:11px; font-weight:600; color:#9CA3AF; }
+  .bp-fare-card  { border-radius:20px; border:1.5px solid #BBF7D0; background:linear-gradient(135deg,#F0FDF4 0%,#DCFCE7 100%); overflow:hidden; font-family:'Outfit',system-ui,sans-serif; }
+  .bp-fare-top   { display:flex; align-items:center; justify-content:space-between; padding:18px 20px 16px; gap:12px; }
+  .bp-fare-amount{ font-family:'JetBrains Mono',monospace; font-size:38px; font-weight:700; color:#16A34A; letter-spacing:-2px; line-height:1; }
+  .bp-fare-label { font-size:11px; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:#6B7280; margin-bottom:4px; }
+  .bp-fare-sub   { font-size:12px; font-weight:500; color:#6B7280; margin-top:4px; }
+  .bp-breakdown-toggle { background:none; border:none; cursor:pointer; font-family:'Outfit',system-ui,sans-serif; font-size:11px; font-weight:700; color:#16A34A; padding:0; margin-top:4px; display:block; }
+  .bp-breakdown  { border-top:1px solid #BBF7D0; padding:16px 20px; display:flex; flex-direction:column; gap:10px; animation:bp-fadeUp .22s ease-out; }
+  .bp-bd-row     { display:flex; justify-content:space-between; align-items:center; }
+  .bp-bd-label   { font-size:12.5px; color:#374151; font-weight:600; }
+  .bp-bd-note    { font-size:11px; color:#9CA3AF; font-weight:500; margin-top:1px; }
+  .bp-bd-val     { font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; color:#111827; }
+  .bp-bd-total   { border-top:1px dashed #BBF7D0; padding-top:10px; display:flex; justify-content:space-between; align-items:center; }
+  .bp-bd-total-label { font-size:13px; font-weight:800; color:#111827; }
+  .bp-bd-total-val   { font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:700; color:#16A34A; }
+  .bp-min-note   { display:flex; align-items:center; gap:6px; background:rgba(22,163,74,.07); border:1px solid rgba(22,163,74,.18); border-radius:8px; padding:7px 10px; }
+  .bp-min-note span { font-size:11.5px; color:#16A34A; font-weight:700; }
+  .bp-book-btn   { width:100%; padding:16px; background:linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D); color:#fff; border:none; border-radius:16px; font-family:'Outfit',system-ui,sans-serif; font-size:15px; font-weight:900; letter-spacing:-.2px; cursor:pointer; box-shadow:0 6px 20px rgba(22,163,74,.3); display:flex; align-items:center; justify-content:center; gap:6px; transition:opacity .15s,transform .12s,box-shadow .15s; }
+  .bp-book-btn:hover  { opacity:.93; transform:translateY(-1px); box-shadow:0 8px 26px rgba(22,163,74,.38); }
+  .bp-book-btn:active { opacity:.88; transform:scale(.98); }
+  .bp-geo-alert  { border-radius:16px; border:1.5px solid #BBF7D0; background:linear-gradient(135deg,#F0FDF4,#DCFCE7); padding:14px 16px; animation:bp-alertIn .2s ease; margin-bottom:10px; }
+  .bp-geo-alert.error { border-color:#FECACA; background:#FEF2F2; }
+  .bp-status     { display:flex; align-items:center; gap:10px; padding:16px 18px; border-top:1px solid #F3F4F6; font-size:13px; font-weight:600; color:#6B7280; font-family:'Outfit',system-ui,sans-serif; }
+  .bp-error      { display:flex; align-items:flex-start; gap:10px; background:#FEF2F2; border:1px solid #FECACA; border-radius:14px; padding:14px 16px; font-family:'Outfit',system-ui,sans-serif; }
+  .bp-error span { font-size:13px; color:#DC2626; font-weight:600; }
+  .bp-empty      { padding:22px 18px; text-align:center; font-size:13px; font-weight:500; color:#D1D5DB; font-family:'Outfit',system-ui,sans-serif; border-top:1px solid #F9FAFB; }
+  .bp-fadeup     { animation:bp-fadeUp .3s ease-out both; }
 `;
 
 // ── Location alert ────────────────────────────────────────────────────
@@ -443,7 +236,7 @@ function PlaceInput({ isPickup, placeholder, value, onChange, onLocationRequest,
   async function fetchSuggestions(query) {
     if (!query || query.length < 2) { setSuggestions([]); setGhostText(''); return; }
     try {
-      const { data } = await axios.post(AUTOCOMPLETE_URL, { input: query });
+      const { data } = await callAutocomplete({ input: query });
       const preds = data.predictions || [];
       setSuggestions(preds);
       const first = preds[0]?.description || '';
@@ -714,8 +507,7 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
         setTripData(trip);
       } catch (err) {
         if (tripRequestRef.current !== requestId) return;
-        // axios wraps HTTP errors in err.response; fall back to err.message
-        setError(err.response?.data?.error || err.message || 'Failed to calculate route');
+        setError(err.message || 'Failed to calculate route');
         setTripData(null); setQuotesData(null);
         lastFetchedTripRef.current = '';
       } finally {
@@ -754,8 +546,7 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
         }
       } catch (err) {
         if (quoteRequestRef.current !== requestId) return;
-        // axios wraps HTTP errors in err.response; fall back to err.message
-        setError(err.response?.data?.error || err.message || 'Failed to calculate prices');
+        setError(err.message || 'Failed to calculate prices');
         setQuotesData(null);
       } finally {
         if (quoteRequestRef.current === requestId) setLoadingQuotes(false);
@@ -777,17 +568,12 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
     }
   }, [hasQuote]);
 
-  // ── Cancel ───────────────────────────────────────────────────────
   const handleCancel = useCallback(() => {
     clearBookingForm();
-    setPickupRaw('');
-    setDropoffRaw('');
-    setTripData(null);
-    setQuotesData(null);
-    setError('');
-    setShowBreakdown(false);
-    setShowLocationAlert(false);
-    setLocationError('');
+    setPickupRaw(''); setDropoffRaw('');
+    setTripData(null); setQuotesData(null);
+    setError(''); setShowBreakdown(false);
+    setShowLocationAlert(false); setLocationError('');
     lastFetchedTripRef.current  = '';
     priceReadyFiredRef.current  = false;
     onCancel?.();
@@ -816,18 +602,12 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
       )}
 
       {/* ── Route input card ── */}
-      <div className="bp-card" style={{ marginBottom: 10 }}>
+      <div className="bp-card" style={{ marginBottom:10 }}>
         {showCancelBtn && (
           <div className="bp-card-header">
             <span className="bp-card-header-label">Your trip</span>
-            <button
-              type="button"
-              className="bp-cancel-btn"
-              onClick={handleCancel}
-              title="Cancel and start over"
-              aria-label="Cancel booking"
-            >
-              <X size={12} />
+            <button type="button" className="bp-cancel-btn" onClick={handleCancel} title="Cancel and start over" aria-label="Cancel booking">
+              <X size={12}/>
             </button>
           </div>
         )}
@@ -908,9 +688,7 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
               const active   = selectedRide === ride.id;
               const IconComp = getRideIcon(ride.id);
               return (
-                <div
-                  key={ride.id}
-                  className={`bp-ride-card${active ? ' active' : ''}`}
+                <div key={ride.id} className={`bp-ride-card${active ? ' active' : ''}`}
                   onClick={() => { setSelectedRide(ride.id); setShowBreakdown(false); }}
                 >
                   <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
@@ -953,14 +731,7 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
                 </button>
               </div>
               <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8, flexShrink:0 }}>
-                <div style={{
-                  display:'inline-flex', alignItems:'center', gap:5,
-                  background:'#fff', border:'1.5px solid #BBF7D0',
-                  borderRadius:100, padding:'5px 12px',
-                  fontSize:11, fontWeight:800, color:T.accent,
-                  letterSpacing:'.8px', textTransform:'uppercase',
-                  fontFamily:'Outfit,sans-serif',
-                }}>
+                <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'#fff', border:'1.5px solid #BBF7D0', borderRadius:100, padding:'5px 12px', fontSize:11, fontWeight:800, color:T.accent, letterSpacing:'.8px', textTransform:'uppercase', fontFamily:'Outfit,sans-serif' }}>
                   {selectedQuote.label}
                 </div>
                 <div style={{ fontSize:11, color:'#6B7280', fontWeight:500 }}>distance-based</div>

@@ -1,211 +1,97 @@
-const { onRequest } = require("firebase-functions/v2/https");
-const cors = require("cors")({ origin: true });
-
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 const { FieldValue } = require("firebase-admin/firestore");
 
-if (!admin.apps.length) {
-  admin.initializeApp();
-}
-
+if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
 
-// ── PRICING TABLE ────────────────────────────────────────
 const PRICING = {
-  economy: {
-    id: "economy",
-    label: "Economy",
-    desc: "Affordable everyday rides",
-    eta: "7–20 min",
-    capacity: 4,
-    base: 1.5,
-    perMile: 1.2,
-    perMin: 0.18,
-    bookingFee: 0.99,
-    minimumFare: 4.99,
-  },
-  standard: {
-    id: "standard",
-    label: "Standard",
-    desc: "Comfortable daily rides",
-    eta: "2–7 min",
-    capacity: 4,
-    base: 2.0,
-    perMile: 1.65,
-    perMin: 0.25,
-    bookingFee: 1.29,
-    minimumFare: 6.99,
-  },
-  premium: {
-    id: "premium",
-    label: "Premium",
-    desc: "Luxury rides",
-    eta: "5–10 min",
-    capacity: 4,
-    base: 4.0,
-    perMile: 3.25,
-    perMin: 0.5,
-    bookingFee: 1.99,
-    minimumFare: 11.99,
-  },
-  xl: {
-    id: "xl",
-    label: "XL",
-    desc: "Large group rides",
-    eta: "5–9 min",
-    capacity: 6,
-    base: 2.5,
-    perMile: 1.9,
-    perMin: 0.3,
-    bookingFee: 1.49,
-    minimumFare: 8.49,
-  },
+  economy:  { id: "economy",  label: "Economy",  desc: "Affordable everyday rides", eta: "7–20 min", capacity: 4, base: 1.5,  perMile: 1.2,  perMin: 0.18, bookingFee: 0.99, minimumFare: 4.99  },
+  standard: { id: "standard", label: "Standard", desc: "Comfortable daily rides",   eta: "2–7 min",  capacity: 4, base: 2.0,  perMile: 1.65, perMin: 0.25, bookingFee: 1.29, minimumFare: 6.99  },
+  premium:  { id: "premium",  label: "Premium",  desc: "Luxury rides",              eta: "5–10 min", capacity: 4, base: 4.0,  perMile: 3.25, perMin: 0.5,  bookingFee: 1.99, minimumFare: 11.99 },
+  xl:       { id: "xl",       label: "XL",       desc: "Large group rides",         eta: "5–9 min",  capacity: 6, base: 2.5,  perMile: 1.9,  perMin: 0.3,  bookingFee: 1.49, minimumFare: 8.49  },
 };
 
-// ── HELPERS ──────────────────────────────────────────────
 const round2 = (n) => Number(Number(n).toFixed(2));
-const clamp = (n, min, max) => Math.min(Math.max(Number(n), min), max);
+const clamp  = (n, min, max) => Math.min(Math.max(Number(n), min), max);
 
-// ── PRICE CALCULATION ────────────────────────────────────
 function calculateRidePrice(p, miles, minutes) {
-  const base = p.base;
+  const base     = p.base;
   const distance = round2(miles * p.perMile);
-  const time = round2(minutes * p.perMin);
-  const fee = p.bookingFee;
-
+  const time     = round2(minutes * p.perMin);
+  const fee      = p.bookingFee;
   const subtotal = round2(base + distance + time + fee);
-  const hitMin = subtotal < p.minimumFare;
-
-  const total = round2(hitMin ? p.minimumFare : subtotal);
+  const hitMin   = subtotal < p.minimumFare;
+  const total    = round2(hitMin ? p.minimumFare : subtotal);
 
   let receipt;
-
   if (!hitMin) {
     receipt = [
-      { key: "baseFare", label: "Base fare", amount: round2(base) },
-      { key: "distance", label: "Distance", amount: distance, note: `${miles} mi` },
-      { key: "time", label: "Time", amount: time, note: `${minutes} min` },
+      { key: "baseFare",   label: "Base fare",   amount: round2(base) },
+      { key: "distance",   label: "Distance",    amount: distance,   note: `${miles} mi` },
+      { key: "time",       label: "Time",        amount: time,       note: `${minutes} min` },
       { key: "bookingFee", label: "Booking fee", amount: round2(fee) },
     ];
   } else {
     const scale = total / subtotal;
-
     const baseA = round2(base * scale);
     const distA = round2(distance * scale);
     const timeA = round2(time * scale);
-    const feeA = round2(total - baseA - distA - timeA);
-
+    const feeA  = round2(total - baseA - distA - timeA);
     receipt = [
-      { key: "baseFare", label: "Base fare", amount: baseA },
-      { key: "distance", label: "Distance", amount: distA, note: `${miles} mi` },
-      { key: "time", label: "Time", amount: timeA, note: `${minutes} min` },
-      { key: "bookingFee", label: "Booking fee", amount: feeA },
-      {
-        key: "minimumFareNote",
-        label: "Minimum fare applied",
-        amount: 0,
-        note: `${p.label} minimum $${p.minimumFare}`,
-      },
+      { key: "baseFare",        label: "Base fare",            amount: baseA },
+      { key: "distance",        label: "Distance",             amount: distA, note: `${miles} mi` },
+      { key: "time",            label: "Time",                 amount: timeA, note: `${minutes} min` },
+      { key: "bookingFee",      label: "Booking fee",          amount: feeA },
+      { key: "minimumFareNote", label: "Minimum fare applied", amount: 0, note: `${p.label} minimum $${p.minimumFare}` },
     ];
   }
 
-  return {
-    id: p.id,
-    label: p.label,
-    desc: p.desc,
-    eta: p.eta,
-    capacity: p.capacity,
-    total,
-    receipt,
-  };
+  return { id: p.id, label: p.label, desc: p.desc, eta: p.eta, capacity: p.capacity, total, receipt };
 }
 
-// ── VALIDATION ───────────────────────────────────────────
-function validate(miles, minutes) {
-  if (miles == null || minutes == null) return "Missing fields";
+exports.Price = onCall(
+   { region: "us-central1", invoker: "public" },
+  async (request) => {
+    const miles   = Number(request.data?.miles);
+    const minutes = Number(request.data?.durationMin);
 
-  const m = Number(miles);
-  const n = Number(minutes);
+    if (!Number.isFinite(miles) || !Number.isFinite(minutes))
+      throw new HttpsError("invalid-argument", "Invalid numbers");
+    if (miles < 0 || minutes < 0)
+      throw new HttpsError("invalid-argument", "Negative values not allowed");
+    if (miles > 300)
+      throw new HttpsError("invalid-argument", "Miles too large");
+    if (minutes > 600)
+      throw new HttpsError("invalid-argument", "Minutes too large");
 
-  if (!Number.isFinite(m) || !Number.isFinite(n)) return "Invalid numbers";
-  if (m < 0 || n < 0) return "Negative values not allowed";
-  if (m > 300) return "Miles too large";
-  if (n > 600) return "Minutes too large";
+    const cleanMiles   = clamp(round2(miles),   0, 300);
+    const cleanMinutes = clamp(round2(minutes), 0, 600);
 
-  return null;
-}
+    const rides = Object.fromEntries(
+      Object.entries(PRICING).map(([k, v]) => [k, calculateRidePrice(v, cleanMiles, cleanMinutes)])
+    );
 
-// ── MAIN FUNCTION ────────────────────────────────────────
-exports.Price = onRequest(
-  {
-    region: "us-central1",
-    invoker: "public",
-  },
-  (req, res) => {
-    cors(req, res, async () => {
-      try {
-        if (req.method === "OPTIONS") {
-          return res.status(204).send("");
-        }
+    try {
+      await db.collection("Search").add({
+        pickup:    request.data?.pickup    ?? null,
+        dropoff:   request.data?.dropoff   ?? null,
+        miles:     cleanMiles,
+        minutes:   cleanMinutes,
+        polyline:  request.data?.polyline  ?? null,
+        rides,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    } catch (dbErr) {
+      console.error("Firestore write failed:", dbErr.message);
+    }
 
-        if (req.method !== "POST") {
-          return res.status(405).json({ error: "Method Not Allowed" });
-        }
-
-        if (!req.body) {
-          return res.status(400).json({ error: "Missing request body" });
-        }
-
-        const miles = Number(req.body.miles);
-        const minutes = Number(req.body.durationMin);
-
-        const err = validate(miles, minutes);
-        if (err) return res.status(400).json({ error: err });
-
-        const cleanMiles = clamp(round2(miles), 0, 300);
-        const cleanMinutes = clamp(round2(minutes), 0, 600);
-
-        const rides = Object.fromEntries(
-          Object.entries(PRICING).map(([k, v]) => [
-            k,
-            calculateRidePrice(v, cleanMiles, cleanMinutes),
-          ])
-        );
-
-        // ✅ SAFE FIRESTORE WRITE
-        try {
-          await db.collection("Search").add({
-            pickup: req.body.pickup ?? null,
-            dropoff: req.body.dropoff ?? null,
-
-            pickupData: req.body.pickup ?? null,   // match ATOB structure
-            dropoffData: req.body.dropoff ?? null,
-
-            miles: cleanMiles,
-            minutes: cleanMinutes,
-
-            polyline: req.body.polyline ?? null,
-            rides,
-
-            createdAt: FieldValue.serverTimestamp(),
-          });
-        } catch (dbErr) {
-          console.error("Firestore write failed:", dbErr.message);
-        }
-
-        return res.status(200).json({
-          trip: { miles: cleanMiles, minutes: cleanMinutes },
-          rides,
-          currency: "USD",
-          ok: true,
-          generatedAt: new Date().toISOString(),
-        });
-      } catch (e) {
-        console.error(e);
-        return res.status(500).json({
-          error: e.message || "Server error",
-        });
-      }
-    });
+    return {
+      trip:        { miles: cleanMiles, minutes: cleanMinutes },
+      rides,
+      currency:    "USD",
+      ok:          true,
+      generatedAt: new Date().toISOString(),
+    };
   }
 );
