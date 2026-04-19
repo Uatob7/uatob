@@ -1,18 +1,29 @@
 // File: functions/cardChecker.js
+
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { defineSecret } = require("firebase-functions/params");
 const admin = require("firebase-admin");
 const Stripe = require("stripe");
 
+// ── INIT ADMIN ─────────────────────────────────────
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
 const db = admin.firestore();
 
+// ── SECRET (PROPER V2 WAY) ─────────────────────────
+const STRIPE_SECRET_KEY = defineSecret("STRIPE_SECRET_KEY");
+
+// ── MAIN FUNCTION ──────────────────────────────────
 exports.cardChecker = onSchedule(
   {
     schedule: "every 1 minutes",
-    region:   "us-central1",
-    secrets:  ["STRIPE_SECRET_KEY"],
+    region: "us-central1",
+    secrets: [STRIPE_SECRET_KEY],
   },
-  async () => {
-    const stripeKey = process.env.STRIPE_SECRET_KEY;
+  async (event) => {
+    const stripeKey = STRIPE_SECRET_KEY.value();
+
     if (!stripeKey) {
       console.error("[cardChecker] Stripe key not configured");
       return;
@@ -20,7 +31,7 @@ exports.cardChecker = onSchedule(
 
     const stripe = new Stripe(stripeKey);
 
-    // Pull all rides stuck in pending payment
+    // ── FIND PENDING RIDES ─────────────────────────
     const snapshot = await db
       .collection("Rides")
       .where("paymentStatus", "==", "pending")
@@ -32,38 +43,38 @@ exports.cardChecker = onSchedule(
       return;
     }
 
-    console.log(`[cardChecker] Checking ${snapshot.size} pending ride(s)...`);
+    console.log(`[cardChecker] Checking ${snapshot.size} ride(s)...`);
 
+    // ── PROCESS RIDES ──────────────────────────────
     const checks = snapshot.docs.map(async (doc) => {
       const rideId = doc.id;
-      const data   = doc.data();
+      const data = doc.data();
 
       if (!data.paymentIntentId) {
-        console.warn(`[cardChecker] Ride ${rideId} missing paymentIntentId — skipping`);
+        console.warn(`[cardChecker] Ride ${rideId} missing paymentIntentId`);
         return;
       }
-
-      console.log(`[cardChecker] Ride ${rideId} | PI: ${data.paymentIntentId}`);
 
       try {
         const paymentIntent = await stripe.paymentIntents.retrieve(
           data.paymentIntentId
         );
 
-        if (paymentIntent.status !== "succeeded") {
-          console.log(
-            `[cardChecker] Ride ${rideId} PI status: ${paymentIntent.status} — no update`
-          );
-          return;
-        }
+        console.log(
+          `[cardChecker] Ride ${rideId} status: ${paymentIntent.status}`
+        );
+
+        if (paymentIntent.status !== "succeeded") return;
 
         await doc.ref.update({
           paymentStatus: "succeeded",
-          status:        "searching_driver",
-          updatedAt:     admin.firestore.FieldValue.serverTimestamp(),
+          status: "searching_driver",
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
-        console.log(`[cardChecker] ✅ Ride ${rideId} confirmed — status → searching_driver`);
+        console.log(
+          `[cardChecker] ✅ Ride ${rideId} moved → searching_driver`
+        );
       } catch (err) {
         console.error(`[cardChecker] ❌ Error on ride ${rideId}:`, err);
       }
