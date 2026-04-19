@@ -8,6 +8,7 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useAuthContext } from '@/context/AuthContext';
 import { firebase_app } from '@/firebase/config';
 
+
 // ── Callables ─────────────────────────────────────────────────────────
 const functions        = getFunctions(firebase_app, 'us-east1');
 const callATOB         = httpsCallable(functions, 'ATOB');
