@@ -24,7 +24,7 @@ import { firebase_app }       from "@/firebase/config";
 
 // ── Callables ─────────────────────────────────────────────────────────
 const functions          = getFunctions(firebase_app, "us-central1");
-const callDriverStatus   = httpsCallable(functions, "driverStatus");
+const callDriverStatus   = httpsCallable(functions, "DriverStatus");
 const callAcceptRide     = httpsCallable(functions, "acceptRide");
 const callDeclineRide    = httpsCallable(functions, "declineRide");
 const callUpdateTrip     = httpsCallable(functions, "updateTripStatus");
