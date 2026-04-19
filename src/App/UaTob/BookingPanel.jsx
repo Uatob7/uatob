@@ -1,82 +1,3 @@
-Route data: 
-{origin: '2382 Locke Avenue, Orlando, FL', destination: '3024 North Powers Drive, Orlando, FL', distance_miles: 0.93, duration_minutes: 5, route: {…}, …}
-createdAt
-: 
-{}
-destination
-: 
-"3024 North Powers Drive, Orlando, FL"
-distance_miles
-: 
-0.93
-dropoff
-: 
-city
-: 
-"Orlando"
-lat
-: 
-28.5819909
-lng
-: 
--81.4694363
-zip
-: 
-"32818"
-[[Prototype]]
-: 
-Object
-duration_minutes
-: 
-5
-origin
-: 
-"2382 Locke Avenue, Orlando, FL"
-pickup
-: 
-city
-: 
-"Orlando"
-lat
-: 
-28.5730545
-lng
-: 
--81.4696329
-zip
-: 
-"32818"
-[[Prototype]]
-: 
-Object
-route
-: 
-distanceMeters
-: 
-1498
-duration_seconds
-: 
-246
-polyline
-: 
-"wtkmDp~fpNxACLI?a@GeF@s@{\\F_C?{@?qXHBjBFJIdEBTDNRT"
-[[Prototype]]
-: 
-Object
-status
-: 
-"OK"
-[[Prototype]]
-: 
-Object
-
-
- <BookingPanel
-              onBookNow={handleBookNow}
-              onPayloadChange={handlePayloadChange}
-              onCancel={resetRide}
-              onPriceReady={handlePriceReady}
-            />
 // src/App/BookingPanel.jsx
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
@@ -123,8 +44,6 @@ async function fetchTripData(pickup, dropoff) {
   const res  = await fetch(ROUTE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ origin: pickup, destination: dropoff }) });
   const data = await res.json();
 
-  console.log('Route data:', data);
-
   if (!res.ok) throw new Error(data.error || `Route error ${res.status}`);
 
   let durationMin = data.duration_minutes;
@@ -140,10 +59,10 @@ async function fetchTripData(pickup, dropoff) {
     miles:        round2(data.distance_miles ?? 0),
     durationMin:  Math.max(1, Number(durationMin || 0)),
     durationText: data.duration_text || `${Math.max(1, Number(durationMin || 0))} min`,
-    pickupCity:   data.pickupCity  ?? '',  pickupZip:   data.pickupZip   ?? '',
-    pickupLat:    data.pickupLat   ?? null, pickupLng:  data.pickupLng   ?? null,
-    dropoffCity:  data.dropoffCity ?? '',  dropoffZip:  data.dropoffZip  ?? '',
-    dropoffLat:   data.dropoffLat  ?? null, dropoffLng: data.dropoffLng  ?? null,
+    pickupCity:   data.pickup?.city  ?? '',  pickupZip:  data.pickup?.zip  ?? '',
+    pickupLat:    data.pickup?.lat   ?? null, pickupLng: data.pickup?.lng  ?? null,
+    dropoffCity:  data.dropoff?.city ?? '',  dropoffZip: data.dropoff?.zip ?? '',
+    dropoffLat:   data.dropoff?.lat  ?? null, dropoffLng: data.dropoff?.lng ?? null,
     polyline:     data.route?.polyline ?? null,
   };
 }
