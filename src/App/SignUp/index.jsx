@@ -9,17 +9,17 @@ import {
 } from "lucide-react";
 import signUp from '@/firebase/auth/signup';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { getFunctions, httpsCallable } from "firebase/functions";      // ← NEW
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { firebase_app } from "@/firebase/config";
 import { useApplicationSubmitted } from "@/App/SignUp/useApplicationSubmitted";
 
 const storage   = getStorage(firebase_app);
-const functions = getFunctions(firebase_app, "us-central1");           // ← NEW
+const functions = getFunctions(firebase_app, "us-central1");
 
-// ── Callables (replace the single CLOUD_FUNCTION_URL fetch) ───────────
+// ── Callables ─────────────────────────────────────────────────────────
 const callCreateDriverProfile = httpsCallable(functions, "createDriverProfile");
 
-/* ─── localStorage helpers ───────────────────── */
+/* ─── localStorage helpers ───────────────────────────────────────────── */
 const LS_KEYS = {
   step:      "uatob_driver_step",
   account:   "uatob_driver_account",
@@ -45,7 +45,7 @@ function lsClear() {
   Object.values(LS_KEYS).forEach(k => localStorage.removeItem(k));
 }
 
-/* ─── Default state values ───────────────────── */
+/* ─── Default state values ───────────────────────────────────────────── */
 const DEFAULT_ACCOUNT = { firstName: "", lastName: "", email: "", password: "", confirmPassword: "", terms: false };
 const DEFAULT_CONTACT = { phone: "", address: "", city: "", state: "", zip: "" };
 const DEFAULT_VEHICLE = { make: "", model: "", year: "", color: "", plate: "", vin: "", rideTypes: [] };
@@ -61,7 +61,7 @@ const DEFAULT_DOC = {
 const COMPLETED_STATUSES = ["approved", "online", "active", "suspended", "offline"];
 const MAX_VEHICLE_YEAR   = new Date().getFullYear() + 1;
 
-/* ─── UaTob SVG Icon ─────────────────────────── */
+/* ─── UaTob SVG Icon ─────────────────────────────────────────────────── */
 function UaTobIcon({ size = 38 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
@@ -91,7 +91,7 @@ function UaTobIcon({ size = 38 }) {
   );
 }
 
-/* ─── Design tokens ──────────────────────────── */
+/* ─── Design tokens ──────────────────────────────────────────────────── */
 const C = {
   bg: "#FAFAFA", surface: "#FFFFFF", surfaceRaised: "#F9FAFB",
   surfaceBright: "#F3F4F6", border: "#E5E7EB", borderBright: "#D1D5DB",
@@ -138,7 +138,7 @@ const ALL_STATES = [
   { value: "WI", label: "Wisconsin" },      { value: "WY", label: "Wyoming" },
 ];
 
-/* ─── FIELD COMPONENTS ───────────────────────── */
+/* ─── FIELD COMPONENTS ───────────────────────────────────────────────── */
 
 function InputField({ label, placeholder, type = "text", icon: Icon, value, onChange, error, hint, suffix }) {
   const [focused, setFocused] = useState(false);
@@ -232,7 +232,7 @@ function SelectField({ label, value, onChange, options, icon: Icon }) {
   );
 }
 
-/* ─── UPLOAD BOX ─────────────────────────────── */
+/* ─── UPLOAD BOX ─────────────────────────────────────────────────────── */
 
 function UploadBox({ label, hint, icon: Icon = Upload, uploaded, previewUrl, uploading, progress = 0, error, onFileSelect, onRemove }) {
   const inputRef = useRef(null);
@@ -313,7 +313,7 @@ function UploadBox({ label, hint, icon: Icon = Upload, uploaded, previewUrl, upl
   );
 }
 
-/* ─── STEP COMPONENTS ────────────────────────── */
+/* ─── STEP COMPONENTS ────────────────────────────────────────────────── */
 
 function StepAccount({ data, setData, errors }) {
   return (
@@ -433,7 +433,7 @@ function StepVehicle({ data, setData, errors }) {
   );
 }
 
-/* ─── STEP 4: DOCUMENTS ──────────────────────── */
+/* ─── STEP 4: DOCUMENTS ──────────────────────────────────────────────── */
 
 function StepDocuments({ data, setData, errors, uid }) {
   const [uploadState, setUploadState] = useState({
@@ -516,7 +516,7 @@ function StepDocuments({ data, setData, errors, uid }) {
   );
 }
 
-/* ─── STEP 5: VERIFY ─────────────────────────── */
+/* ─── STEP 5: VERIFY ─────────────────────────────────────────────────── */
 
 function StepVerify({ accountData, contactData, vehicleData, docData }) {
   const allDocs = docData.licenseFront && docData.licenseBack && docData.registration && docData.insurance && docData.profilePhoto;
@@ -573,7 +573,7 @@ function StepVerify({ accountData, contactData, vehicleData, docData }) {
   );
 }
 
-/* ─── PENDING SCREEN ─────────────────────────── */
+/* ─── PENDING SCREEN ─────────────────────────────────────────────────── */
 
 function PendingScreen({ firstName, email }) {
   return (
@@ -624,7 +624,7 @@ function PendingScreen({ firstName, email }) {
   );
 }
 
-/* ─── MAIN COMPONENT ─────────────────────────── */
+/* ─── MAIN COMPONENT ─────────────────────────────────────────────────── */
 
 export default function UaTobDriverSignup({ uid, driverSignUp }) {
   const router = useRouter();
@@ -679,9 +679,9 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
     const savedStep = driverSignUp.currentStep ?? 1;
     if (savedStep > 1) { setStep(s => Math.max(s, savedStep)); setShowResumeBanner(true); }
     if (driverSignUp.firstName || driverSignUp.lastName || driverSignUp.email) setAccountData(d => ({ ...d, firstName: driverSignUp.firstName || d.firstName, lastName: driverSignUp.lastName || d.lastName, email: driverSignUp.email || d.email }));
-    if (driverSignUp.contactData) setContactData(d => ({ ...d, ...driverSignUp.contactData }));
-    if (driverSignUp.vehicleData) setVehicleData(d => ({ ...d, ...driverSignUp.vehicleData }));
-    if (driverSignUp.docData)     setDocData(d => ({ ...d, ...driverSignUp.docData }));
+    if (driverSignUp.contact) setContactData(d => ({ ...d, ...driverSignUp.contact }));
+    if (driverSignUp.vehicle) setVehicleData(d => ({ ...d, ...driverSignUp.vehicle }));
+    if (driverSignUp.documents) setDocData(d => ({ ...d, ...driverSignUp.documents }));
   }, [driverSignUp, drivers]);
 
   useEffect(() => { lsSet(LS_KEYS.step, step); }, [step]);
@@ -693,10 +693,12 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
 
   if (driverSignUp && COMPLETED_STATUSES.includes(driverSignUp.status)) return null;
 
-  /* ── onCall API helpers ─────────────────────────────────────────────
-     All three calls hit the same `createDriverProfile` callable.
-     The function dispatches on the fields present in the payload —
-     the same logic your existing Cloud Function already uses.
+  /* ── onCall API helpers ──────────────────────────────────────────────
+     FIX: saveProgress now uses `contact`, `vehicle`, and `documents`
+     as Firestore field keys — matching exactly what the hydration
+     useEffects read back (driver.contact / driver.vehicle /
+     driver.documents). The old keys (contactData / vehicleData /
+     docData) were stored under different names and never hydrated.
   ─────────────────────────────────────────────────────────────────── */
 
   const createDriverProfile = async (uid, data) => {
@@ -708,6 +710,7 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
     return res;
   };
 
+  // FIX: keys renamed to match hydration (contact / vehicle / documents)
   const saveProgress = async (nextStep, overrideUid) => {
     const id = overrideUid ?? createdUid;
     if (!id) return;
@@ -716,9 +719,9 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
         uid: id,
         currentStep: nextStep,
         accountData: { firstName: accountData.firstName, lastName: accountData.lastName, email: accountData.email },
-        contactData,
-        vehicleData,
-        docData,
+        contact:   contactData,   // was: contactData  →  matches driver.contact  in hydration
+        vehicle:   vehicleData,   // was: vehicleData  →  matches driver.vehicle  in hydration
+        documents: docData,       // was: docData      →  matches driver.documents in hydration
       });
     } catch (err) {
       console.warn("⚠️ saveProgress callable failed silently:", err.message);
@@ -729,9 +732,35 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
     const { data: res } = await callCreateDriverProfile({
       uid,
       submit: true,
-      contactData: { phone: contactData.phone, address: contactData.address, city: contactData.city, state: contactData.state, zip: contactData.zip },
-      vehicleData:  { make: vehicleData.make, model: vehicleData.model, year: vehicleData.year, color: vehicleData.color, plate: vehicleData.plate, vin: vehicleData.vin, rideTypes: vehicleData.rideTypes },
-      docData:      { licenseFront: docData.licenseFront, licenseFrontUrl: docData.licenseFrontUrl, licenseBack: docData.licenseBack, licenseBackUrl: docData.licenseBackUrl, licenseNumber: docData.licenseNumber, registration: docData.registration, registrationUrl: docData.registrationUrl, insurance: docData.insurance, insuranceUrl: docData.insuranceUrl, profilePhoto: docData.profilePhoto, profilePhotoUrl: docData.profilePhotoUrl },
+      contact: {
+        phone:   contactData.phone,
+        address: contactData.address,
+        city:    contactData.city,
+        state:   contactData.state,
+        zip:     contactData.zip,
+      },
+      vehicle: {
+        make:      vehicleData.make,
+        model:     vehicleData.model,
+        year:      vehicleData.year,
+        color:     vehicleData.color,
+        plate:     vehicleData.plate,
+        vin:       vehicleData.vin,
+        rideTypes: vehicleData.rideTypes,
+      },
+      documents: {
+        licenseFront:    docData.licenseFront,
+        licenseFrontUrl: docData.licenseFrontUrl,
+        licenseBack:     docData.licenseBack,
+        licenseBackUrl:  docData.licenseBackUrl,
+        licenseNumber:   docData.licenseNumber,
+        registration:    docData.registration,
+        registrationUrl: docData.registrationUrl,
+        insurance:       docData.insurance,
+        insuranceUrl:    docData.insuranceUrl,
+        profilePhoto:    docData.profilePhoto,
+        profilePhotoUrl: docData.profilePhotoUrl,
+      },
     });
     if (res?.error) throw new Error(res.error);
     return res;
@@ -779,7 +808,9 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
     setSubmitError(null);
     try {
       setLoading(true);
+
       if (step === 1) {
+        // ── Create account or save existing user progress ────────────
         if (isExistingUser) {
           await saveProgress(2, uid);
         } else if (!createdUid) {
@@ -792,7 +823,21 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
         } else {
           await saveProgress(2);
         }
+
+      } else if (step === 2) {
+        // ── FIX: explicit branch — saves contact to Firestore ────────
+        await saveProgress(3);
+
+      } else if (step === 3) {
+        // ── FIX: explicit branch — saves vehicle to Firestore ────────
+        await saveProgress(4);
+
+      } else if (step === 4) {
+        // ── Saves documents to Firestore ─────────────────────────────
+        await saveProgress(5);
+
       } else if (step === 5) {
+        // ── Final submission ─────────────────────────────────────────
         const id = createdUid;
         if (!id) throw new Error("Missing user ID — please restart signup.");
         await submitDriverData(id);
@@ -800,8 +845,6 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
         lsSet(LS_KEYS.submitted, true);
         setSubmitted(true);
         return;
-      } else {
-        await saveProgress(step + 1);
       }
 
       setDirection("forward");
