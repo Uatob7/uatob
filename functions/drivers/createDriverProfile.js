@@ -6,16 +6,14 @@ initializeApp();
 const db = getFirestore();
 
 exports.createDriverProfile = onCall(
-  {
-    region: "us-central1",
-  },
+  { region: "us-central1" },
   async (request) => {
     const {
       uid,
       accountData,
-      contactData,
-      vehicleData,
-      docData,
+      contact,     // was: contactData
+      vehicle,     // was: vehicleData
+      documents,   // was: docData
       submit,
       currentStep,
     } = request.data;
@@ -26,12 +24,12 @@ exports.createDriverProfile = onCall(
 
     const driverRef = db.collection("Drivers").doc(uid);
 
-    // ── STEP 1 ─────────────────────────────────────────────────────────
+    // ── STEP 1 ──────────────────────────────────────────────────────────
     if (
       accountData &&
-      !contactData &&
-      !vehicleData &&
-      !docData &&
+      !contact &&    // was: !contactData
+      !vehicle &&    // was: !vehicleData
+      !documents &&  // was: !docData
       !submit &&
       (!currentStep || currentStep === 1)
     ) {
@@ -88,32 +86,32 @@ exports.createDriverProfile = onCall(
       if (email)     update.email     = email;
     }
 
-    if (contactData) {
-      const { phone, address, city, state, zip } = contactData;
+    if (contact) {                                           // was: contactData
+      const { phone, address, city, state, zip } = contact; // was: contactData
       if (!phone || !address || !city || !state || !zip) {
         throw new HttpsError("invalid-argument", "Missing contact fields");
       }
       update.contact = { phone, address, city, state, zip };
     }
 
-    if (vehicleData) {
-      const { make, model, year, color, plate, vin, rideTypes } = vehicleData;
+    if (vehicle) {                                                        // was: vehicleData
+      const { make, model, year, color, plate, vin, rideTypes } = vehicle; // was: vehicleData
       if (!model || !year || !color || !plate) {
         throw new HttpsError("invalid-argument", "Missing vehicle fields");
       }
       update.vehicle = {
-        make:      make  || null,
+        make:      make      || null,
         model,
         year,
         color,
         plate,
-        vin:       vin   || null,
+        vin:       vin       || null,
         rideTypes: rideTypes || [],
       };
     }
 
-    if (docData) {
-      update.documents = docData;
+    if (documents) {               // was: docData
+      update.documents = documents; // was: docData
     }
 
     await driverRef.update(update);
