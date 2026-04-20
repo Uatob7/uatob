@@ -1,9 +1,15 @@
 // src/App/PaymentModal.jsx
 import React, { useMemo, useState } from 'react';
-import axios from 'axios';
 import { X, CreditCard, Check, Loader2, ShieldCheck, Wallet, Smartphone } from 'lucide-react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { firebase_app } from '@/firebase/config';
+
+// ── Callables ─────────────────────────────────────────────────────────
+const functions          = getFunctions(firebase_app, "us-central1");
+const callCardPayment    = httpsCallable(functions, "cardPayment");
+const callCashAppPayment = httpsCallable(functions, "cashAppPayment");
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
 
@@ -65,10 +71,11 @@ function CardForm({ uid, bookingPayload, onSuccess, onError }) {
 
       if (createError) throw new Error(createError.message);
 
-      const { data } = await axios.post(
-        'https://cardpayment-ady2s2xhhq-uc.a.run.app',
-        { uid, paymentMethodId: paymentMethod.id, bookingPayload }
-      );
+      const { data } = await callCardPayment({
+        uid,
+        paymentMethodId: paymentMethod.id,
+        bookingPayload,
+      });
 
       // 3D Secure flow
       if (data.requiresAction && data.clientSecret) {
@@ -82,7 +89,7 @@ function CardForm({ uid, bookingPayload, onSuccess, onError }) {
       if (!data.success) throw new Error(data.message || 'Payment failed.');
       onSuccess?.({ method: 'card', rideId: data.rideId, paymentIntent: data.paymentIntent || null });
     } catch (err) {
-      const msg = err.response?.data?.message || err.message || 'Payment failed';
+      const msg = err.message || 'Payment failed';
       setError(msg);
       onError?.(msg);
     } finally {
@@ -170,13 +177,9 @@ function PaymentModalInner({
     setTopError('');
     setCashLoading(true);
     try {
-      const res = await fetch('https://cashapppayment-ady2s2xhhq-uc.a.run.app', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uid, bookingPayload }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.clientSecret) throw new Error(data.message || 'Failed to initiate Cash App payment.');
+      const { data } = await callCashAppPayment({ uid, bookingPayload });
+
+      if (!data.clientSecret) throw new Error(data.message || 'Failed to initiate Cash App payment.');
 
       const { error: stripeError } = await stripe.confirmCashappPayment(data.clientSecret, {
         payment_method: { cashapp: {} },
@@ -231,12 +234,11 @@ function PaymentModalInner({
             boxShadow: '0 -12px 60px rgba(0,0,0,0.18)',
             border: '1px solid rgba(229,231,235,.9)', borderBottom: 'none',
             display: 'flex', flexDirection: 'column',
-            position: 'relative',          // ← needed for the close button
+            position: 'relative',
           }}
         >
           <div className="sheet-handle" />
 
-          {/* Close button — positioned relative to the sheet, not the scroll area */}
           <button
             onClick={onClose}
             style={{
