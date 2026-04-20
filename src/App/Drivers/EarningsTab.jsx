@@ -1,6 +1,13 @@
 import { useState } from 'react';
 import { ArrowDownToLine, BadgeDollarSign } from 'lucide-react';
 import { C } from '@/App/Drivers/constants.js';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { firebase_app } from '@/firebase/config';
+
+// ── Callables ─────────────────────────────────────────────────────────
+const functions           = getFunctions(firebase_app, "us-central1");
+const callSetupDeposit    = httpsCallable(functions, "setupDeposit");
+const callProcessWithdraw = httpsCallable(functions, "processWithdrawal");
 
 export default function EarningsTab({ earnings, online, driver }) {
   const [isSettingUpDeposit, setIsSettingUpDeposit] = useState(false);
@@ -27,20 +34,12 @@ export default function EarningsTab({ earnings, online, driver }) {
 
   const showSetupGate = !driver?.accountId || withdrawal !== true;
 
-  // ── Stripe deposit setup ──────────────────────────────────────
+  // ── Stripe deposit setup ──────────────────────────────────────────
   const handleSetupDeposit = async () => {
     setIsSettingUpDeposit(true);
     try {
-      const response = await fetch(
-        "https://setupdeposit-ady2s2xhhq-uc.a.run.app",
-        {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ email: driver.email, uid: driver.uid }),
-        }
-      );
-      const data = await response.json();
-      if (data.success && data.accountLink) {
+      const { data } = await callSetupDeposit({ email: driver.email, uid: driver.uid });
+      if (data?.success && data?.accountLink) {
         window.location.href = data.accountLink;
       } else {
         alert("Failed to start Stripe onboarding.");
@@ -53,24 +52,16 @@ export default function EarningsTab({ earnings, online, driver }) {
     }
   };
 
-  // ── Process withdrawal ────────────────────────────────────────
+  // ── Process withdrawal ────────────────────────────────────────────
   const handleWithdraw = async () => {
     if (nothingPending || isWithdrawing) return;
     setIsWithdrawing(true);
     try {
-      const response = await fetch(
-        "https://processwithdrawal-ady2s2xhhq-uc.a.run.app",
-        {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ uid: driver.uid }),
-        }
-      );
-      const data = await response.json();
-      if (data.success) {
+      const { data } = await callProcessWithdraw({ uid: driver.uid });
+      if (data?.success) {
         alert(`✅ $${data.totalPayout} paid out across ${data.rideCount} ride(s).`);
       } else {
-        alert(`Withdrawal failed: ${data.error}`);
+        alert(`Withdrawal failed: ${data?.error}`);
       }
     } catch (err) {
       console.error(err);
