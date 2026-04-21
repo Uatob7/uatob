@@ -116,6 +116,7 @@ export default function UaTobAdminDashboard() {
         return (
           <HomeTab
             totalAccounts={totalAccounts}
+            allApprovals={allApprovals}
             uatobdrivers={uatobdrivers}
             activeRides={activeRides}
             searchingRides={searchingRides}

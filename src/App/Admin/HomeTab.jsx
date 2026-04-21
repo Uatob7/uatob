@@ -30,6 +30,7 @@ const STATUS_META = {
 
 export function HomeTab({
   liveRides = [],
+  allApprovals = [],
   totalAccounts = 0,
   uatobdrivers = [],
   activeRides = [],
@@ -41,6 +42,8 @@ export function HomeTab({
   onToast,
 }) {
   console.log(approvals);
+
+
   const [refreshing, setRefreshing] = useState(false);
 
   const handleRefresh = () => {
@@ -92,7 +95,7 @@ export function HomeTab({
         <StatCard label="Total Rides"        value={totalRides ?? liveRides.length} icon={Activity}    color={C.blue}  delay={80}  />
         <StatCard label="Active Drivers"     value={activeDrivers.length}           icon={Car}         color={C.green} delay={130} />
         <StatCard label="Revenue Today"      value={revenue != null ? `${revenue.toFixed(2)}` : "—"} icon={DollarSign} color={C.amber} delay={180} />
-        <StatCard label="Pending Approvals"  value={pendingApprovals.length}        icon={Shield}      color={C.red}   delay={230} />
+        <StatCard label="Pending Approvals"  value={allApprovals.length}        icon={Shield}      color={C.red}   delay={230} />
       </div>
 
       {/* Live rides list */}
