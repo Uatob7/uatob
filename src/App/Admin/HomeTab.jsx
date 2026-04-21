@@ -2,11 +2,10 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import {
   Activity, DollarSign, Car, Shield,
   RefreshCw, Filter, Search, X, ChevronDown, TrendingUp,
+  Users, MapPin, Clock,
 } from "lucide-react";
 import { C } from '@/App/Admin/Tokens';
 import { StatCard, Avatar } from '@/App/Admin/UI';
-
-const REQUEST_TIMEOUT_SEC = 7 * 60; // 7 minutes
 
 // ── Helpers ───────────────────────────────────────────────────────────
 function timeAgo(ts) {
@@ -52,7 +51,7 @@ const PAYOUT_META = {
 };
 
 const ACCENT_BAR = {
-  searching_driver: null, // handled separately with timer
+  searching_driver: null, // handled by SearchTimerBar
   in_progress:      "linear-gradient(90deg,#639922,#8DC53E)",
   arrived:          "linear-gradient(90deg,#185FA5,#3B82F6)",
   completed:        "#D1D5DB",
@@ -62,21 +61,30 @@ const ACCENT_BAR = {
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 // ── Search Timer Bar ──────────────────────────────────────────────────
-function SearchTimerBar({ requestSentAt }) {
-  const [pct, setPct] = useState(100);
-  const [secsLeft, setSecsLeft] = useState(REQUEST_TIMEOUT_SEC);
+// Uses expiresAt as the hard deadline.
+// Derives the total window from (expiresAt - createdAt) to calculate %.
+function SearchTimerBar({ expiresAt, createdAt }) {
+  const [pct,      setPct]      = useState(100);
+  const [secsLeft, setSecsLeft] = useState(null);
   const rafRef = useRef(null);
 
   useEffect(() => {
-    const sentMs = tsToMs(requestSentAt);
-    if (!sentMs) return;
+    const expiresMs = tsToMs(expiresAt);
+    if (!expiresMs) return;
+
+    // Total window: expiresAt − createdAt (fallback to 25 min if createdAt missing)
+    const createdMs  = tsToMs(createdAt) || (expiresMs - 25 * 60 * 1000);
+    const totalMs    = expiresMs - createdMs;
 
     const tick = () => {
-      const elapsed = (Date.now() - sentMs) / 1000;
-      const remaining = Math.max(REQUEST_TIMEOUT_SEC - elapsed, 0);
-      const percent   = (remaining / REQUEST_TIMEOUT_SEC) * 100;
+      const now       = Date.now();
+      const remaining = Math.max((expiresMs - now) / 1000, 0);
+      const elapsed   = Math.max((now - createdMs) / 1000, 0);
+      const percent   = Math.max(((totalMs / 1000 - elapsed) / (totalMs / 1000)) * 100, 0);
+
       setPct(percent);
       setSecsLeft(Math.ceil(remaining));
+
       if (remaining > 0) {
         rafRef.current = requestAnimationFrame(tick);
       }
@@ -84,54 +92,136 @@ function SearchTimerBar({ requestSentAt }) {
 
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [requestSentAt]);
+  }, [expiresAt, createdAt]);
+
+  if (secsLeft === null) {
+    return <div style={{ height: 3, background: "#F3F3F0" }} />;
+  }
 
   const minsLeft = Math.floor(secsLeft / 60);
   const sLeft    = secsLeft % 60;
   const timeStr  = `${minsLeft}:${String(sLeft).padStart(2, "0")}`;
 
-  // Color shifts amber → red as time runs out
   const barColor = pct > 50
     ? "linear-gradient(90deg,#BA7517,#F0A733)"
     : pct > 20
       ? "linear-gradient(90deg,#C2410C,#EA580C)"
       : "linear-gradient(90deg,#E24B4A,#F87171)";
 
+  const badgeBg = pct > 20 ? "#BA7517" : "#E24B4A";
+
   return (
-    <div style={{ position: "relative", height: 3, background: "#F3F3F0", overflow: "hidden" }}>
-      {/* Moving bar — starts full width and shrinks left */}
+    <div style={{ position: "relative", height: 3, background: "#F3F3F0", overflow: "visible" }}>
+      {/* Shrinking bar */}
       <div style={{
-        position:   "absolute",
-        top:        0, left: 0, bottom: 0,
-        width:      `${pct}%`,
-        background: barColor,
-        transition: "background .5s",
+        position:     "absolute",
+        top: 0, left: 0, bottom: 0,
+        width:        `${pct}%`,
+        background:   barColor,
+        transition:   "background .5s",
         borderRadius: "0 2px 2px 0",
       }} />
 
-      {/* Countdown badge riding the bar edge */}
+      {/* Countdown badge riding the leading edge */}
       {secsLeft > 0 && (
         <div style={{
-          position:   "absolute",
-          top:        "50%",
-          left:       `${pct}%`,
-          transform:  "translate(-50%, -50%)",
-          background: pct > 20 ? "#BA7517" : "#E24B4A",
-          color:      "#fff",
-          fontSize:   8,
-          fontWeight: 800,
-          padding:    "1px 4px",
+          position:     "absolute",
+          top:          "50%",
+          left:         `${pct}%`,
+          transform:    "translate(-50%, -50%)",
+          background:   badgeBg,
+          color:        "#fff",
+          fontSize:     8,
+          fontWeight:   800,
+          padding:      "1px 4px",
           borderRadius: 4,
-          whiteSpace: "nowrap",
-          pointerEvents: "none",
-          marginTop:  12,
-          fontFamily: "monospace",
-          boxShadow:  "0 1px 4px rgba(0,0,0,.2)",
-          zIndex:     2,
+          whiteSpace:   "nowrap",
+          pointerEvents:"none",
+          marginTop:    12,
+          fontFamily:   "monospace",
+          boxShadow:    "0 1px 4px rgba(0,0,0,.2)",
+          zIndex:       2,
         }}>
           {timeStr}
         </div>
       )}
+
+      {/* Expired label */}
+      {secsLeft === 0 && (
+        <div style={{
+          position:   "absolute", top: "50%", left: "50%",
+          transform:  "translate(-50%, -50%)",
+          color:      "#E24B4A", fontSize: 8, fontWeight: 800,
+          marginTop:  12, fontFamily: "monospace",
+        }}>
+          EXPIRED
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Driver Info Banner ────────────────────────────────────────────────
+// Shown inside searching_driver cards when ride.driverInfo is populated.
+function DriverInfoBanner({ driverInfo }) {
+  if (!driverInfo) return null;
+
+  const { driverCount, etaLabel, nearestMiles, stale } = driverInfo;
+
+  return (
+    <div style={{
+      margin:       "0 0 12px",
+      padding:      "10px 14px",
+      background:   stale ? "#FFF8EE" : "#FFFBF0",
+      border:       `1px solid ${stale ? "#F0C974" : "#E9D98A"}`,
+      borderRadius: 10,
+      display:      "flex",
+      alignItems:   "center",
+      gap:          12,
+      flexWrap:     "wrap",
+    }}>
+      {/* Left: pulsing dot + label */}
+      <div style={{ display: "flex", alignItems: "center", gap: 7, flex: 1, minWidth: 0 }}>
+        <div style={{
+          width: 8, height: 8, borderRadius: "50%",
+          background: stale ? "#BA7517" : "#EAB308",
+          boxShadow:  stale ? "0 0 0 3px #FAEEDA" : "0 0 0 3px #FEF9C3",
+          flexShrink: 0,
+          animation:  "pulse 1.6s ease-in-out infinite",
+        }} />
+        <span style={{ fontSize: 11, fontWeight: 700, color: "#854F0B" }}>
+          Notified {driverCount} driver{driverCount !== 1 ? "s" : ""}
+        </span>
+        {stale && (
+          <span style={{
+            fontSize: 9, fontWeight: 800, padding: "1px 6px",
+            background: "#BA7517", color: "#fff", borderRadius: 4,
+            letterSpacing: ".3px",
+          }}>
+            STALE
+          </span>
+        )}
+      </div>
+
+      {/* Right: nearest distance + ETA */}
+      <div style={{ display: "flex", gap: 12 }}>
+        {nearestMiles != null && (
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <MapPin size={11} color="#BA7517" />
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#854F0B", fontFamily: "monospace" }}>
+              {nearestMiles.toFixed(1)} mi
+            </span>
+          </div>
+        )}
+        {etaLabel && (
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <Clock size={11} color="#BA7517" />
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#854F0B" }}>
+              {etaLabel}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -342,7 +432,7 @@ export function HomeTab({
   const [showFilters, setShowFilters] = useState(false);
   const [filters,     setFilters]     = useState(DEFAULT_FILTERS);
 
-  const handleRefresh     = () => { setRefreshing(true); setTimeout(() => { setRefreshing(false); onToast?.("Data refreshed"); }, 1100); };
+  const handleRefresh      = () => { setRefreshing(true); setTimeout(() => { setRefreshing(false); onToast?.("Data refreshed"); }, 1100); };
   const handleFilterChange = (key, value) => setFilters(prev => ({ ...prev, [key]: value }));
   const handleClearFilters = () => setFilters(DEFAULT_FILTERS);
   const activeFilterCount  = Object.values(filters).filter(Boolean).length;
@@ -453,7 +543,7 @@ function RideCard({ ride, delay }) {
     >
       {/* ── Accent bar / Timer bar ── */}
       {isSearching
-        ? <SearchTimerBar requestSentAt={ride.requestSentAt} />
+        ? <SearchTimerBar expiresAt={ride.expiresAt} createdAt={ride.createdAt} />
         : <div style={{ height: 3, background: ACCENT_BAR[ride.status] ?? "#D1D5DB" }} />
       }
 
@@ -481,6 +571,11 @@ function RideCard({ ride, delay }) {
             </span>
           </div>
         </div>
+
+        {/* ── Driver Info Banner (searching only) ── */}
+        {isSearching && ride.driverInfo && (
+          <DriverInfoBanner driverInfo={ride.driverInfo} />
+        )}
 
         {/* Route */}
         <div style={{ background: "#F9F9F7", border: "1px solid #EBEBEA", borderRadius: 12, padding: "12px 14px", marginBottom: 12, position: "relative" }}>
