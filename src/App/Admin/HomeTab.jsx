@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import {
   Activity, DollarSign, Car, Shield,
   RefreshCw, Filter, Search, X, ChevronDown, TrendingUp,
-  MapPin, Clock,
+  MapPin, Clock, Mail, Users,
 } from "lucide-react";
 import { C } from '@/App/Admin/Tokens';
 import { StatCard, Avatar } from '@/App/Admin/UI';
@@ -61,8 +61,8 @@ const PAYOUT_META = {
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 // ── Search Timer Bar (searching_driver) ──────────────────────────────
-// Shrinks left→right as expiry approaches.
-function SearchTimerBar({ expiresAt, createdAt }) {
+// Uses emailDispatchAt as the window start (accurate for re-searches).
+function SearchTimerBar({ expiresAt, emailDispatchAt, createdAt }) {
   const [pct,      setPct]      = useState(100);
   const [secsLeft, setSecsLeft] = useState(null);
   const rafRef = useRef(null);
@@ -70,13 +70,14 @@ function SearchTimerBar({ expiresAt, createdAt }) {
   useEffect(() => {
     const expiresMs = tsToMs(expiresAt);
     if (!expiresMs) return;
-    const createdMs = tsToMs(createdAt) || (expiresMs - 25 * 60 * 1000);
-    const totalMs   = expiresMs - createdMs;
+    // emailDispatchAt = start of THIS search round; fallback to createdAt or 25-min window
+    const startMs = tsToMs(emailDispatchAt) || tsToMs(createdAt) || (expiresMs - 25 * 60 * 1000);
+    const totalMs = expiresMs - startMs;
 
     const tick = () => {
       const now       = Date.now();
       const remaining = Math.max((expiresMs - now) / 1000, 0);
-      const elapsed   = Math.max((now - createdMs) / 1000, 0);
+      const elapsed   = Math.max((now - startMs) / 1000, 0);
       const percent   = Math.max(((totalMs / 1000 - elapsed) / (totalMs / 1000)) * 100, 0);
       setPct(percent);
       setSecsLeft(Math.ceil(remaining));
@@ -84,7 +85,7 @@ function SearchTimerBar({ expiresAt, createdAt }) {
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [expiresAt, createdAt]);
+  }, [expiresAt, emailDispatchAt, createdAt]);
 
   if (secsLeft === null) return <div style={{ height: 3, background: "#F3F3F0" }} />;
 
@@ -113,8 +114,6 @@ function SearchTimerBar({ expiresAt, createdAt }) {
 }
 
 // ── Driver Assigned Bar (driver_assigned) ─────────────────────────────
-// Fills left→right from acceptedAt toward acceptedAt + etaMin.
-// Badge shows elapsed time and ETA; turns amber near end, red if late.
 function DriverAssignedBar({ acceptedAt, etaMin }) {
   const [elapsed, setElapsed] = useState(0);
   const rafRef = useRef(null);
@@ -140,10 +139,8 @@ function DriverAssignedBar({ acceptedAt, etaMin }) {
     : pct > 80
       ? "linear-gradient(90deg,#C2410C,#EA580C)"
       : "linear-gradient(90deg,#185FA5,#3B82F6)";
-
   const badgeBg = isLate ? "#E24B4A" : pct > 80 ? "#C2410C" : "#185FA5";
-
-  const label = isLate
+  const label   = isLate
     ? `+${fmtMMSS(overBy)} late`
     : `${fmtMMSS(elapsed)} elapsed${etaMin != null ? ` / ~${etaMin} min ETA` : ""}`;
 
@@ -158,7 +155,6 @@ function DriverAssignedBar({ acceptedAt, etaMin }) {
 }
 
 // ── Arrived Bar (arrived) ─────────────────────────────────────────────
-// Full solid green bar — driver is on site, nothing to count.
 function ArrivedBar() {
   return (
     <div style={{ position: "relative", height: 3, background: "#F3F3F0", overflow: "visible" }}>
@@ -171,8 +167,6 @@ function ArrivedBar() {
 }
 
 // ── In Progress Bar (in_progress) ────────────────────────────────────
-// Fills left→right from startedAt toward startedAt + tripDurationMin.
-// Badge counts down remaining time; turns amber at 80%, red when over.
 function InProgressBar({ startedAt, tripDurationMin }) {
   const [elapsed, setElapsed] = useState(0);
   const rafRef = useRef(null);
@@ -199,12 +193,8 @@ function InProgressBar({ startedAt, tripDurationMin }) {
     : pct > 80
       ? "linear-gradient(90deg,#BA7517,#F0A733)"
       : "linear-gradient(90deg,#639922,#8DC53E)";
-
   const badgeBg = isOver ? "#E24B4A" : pct > 80 ? "#BA7517" : "#639922";
-
-  const label = isOver
-    ? `+${fmtMMSS(overBy)} over`
-    : `${fmtMMSS(remaining)} left`;
+  const label   = isOver ? `+${fmtMMSS(overBy)} over` : `${fmtMMSS(remaining)} left`;
 
   return (
     <div style={{ position: "relative", height: 3, background: "#F3F3F0", overflow: "visible" }}>
@@ -216,36 +206,68 @@ function InProgressBar({ startedAt, tripDurationMin }) {
   );
 }
 
-// ── Driver Info Banner ────────────────────────────────────────────────
-function DriverInfoBanner({ driverInfo }) {
+// ── Driver Info Banner (searching_driver) ─────────────────────────────
+// Shows candidate pool size, how many were emailed this round, ETA, distance.
+function DriverInfoBanner({ driverInfo, candidateDriverUids = [], emailSentToDrivers = {} }) {
   if (!driverInfo) return null;
-  const { driverCount, etaLabel, nearestMiles, stale } = driverInfo;
+  const { etaLabel, nearestMiles, stale } = driverInfo;
+
+  const candidateCount = candidateDriverUids.length;
+  const emailedCount   = Object.keys(emailSentToDrivers).length;
 
   return (
-    <div style={{ margin: "0 0 12px", padding: "10px 14px", background: stale ? "#FFF8EE" : "#FFFBF0", border: `1px solid ${stale ? "#F0C974" : "#E9D98A"}`, borderRadius: 10, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 7, flex: 1, minWidth: 0 }}>
-        <div style={{ width: 8, height: 8, borderRadius: "50%", background: stale ? "#BA7517" : "#EAB308", boxShadow: stale ? "0 0 0 3px #FAEEDA" : "0 0 0 3px #FEF9C3", flexShrink: 0, animation: "pulse 1.6s ease-in-out infinite" }} />
-        <span style={{ fontSize: 11, fontWeight: 700, color: "#854F0B" }}>
-          Notified {driverCount} driver{driverCount !== 1 ? "s" : ""}
-        </span>
-        {stale && (
-          <span style={{ fontSize: 9, fontWeight: 800, padding: "1px 6px", background: "#BA7517", color: "#fff", borderRadius: 4, letterSpacing: ".3px" }}>STALE</span>
-        )}
+    <div style={{
+      margin: "0 0 12px", padding: "10px 14px",
+      background: stale ? "#FFF8EE" : "#FFFBF0",
+      border: `1px solid ${stale ? "#F0C974" : "#E9D98A"}`,
+      borderRadius: 10,
+    }}>
+
+      {/* Row 1: pulsing dot + candidate / emailed counts */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: nearestMiles != null || etaLabel ? 8 : 0, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: stale ? "#BA7517" : "#EAB308", boxShadow: stale ? "0 0 0 3px #FAEEDA" : "0 0 0 3px #FEF9C3", flexShrink: 0, animation: "pulse 1.6s ease-in-out infinite" }} />
+          {stale && (
+            <span style={{ fontSize: 9, fontWeight: 800, padding: "1px 6px", background: "#BA7517", color: "#fff", borderRadius: 4, letterSpacing: ".3px" }}>STALE</span>
+          )}
+        </div>
+
+        {/* Candidate pool */}
+        <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 8px", background: "#FEF3C7", borderRadius: 6, border: "1px solid #FDE68A" }}>
+          <Users size={10} color="#92400E" />
+          <span style={{ fontSize: 10, fontWeight: 800, color: "#92400E", fontFamily: "monospace" }}>
+            {candidateCount} candidate{candidateCount !== 1 ? "s" : ""}
+          </span>
+        </div>
+
+        {/* Emailed this round */}
+        <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 8px", background: emailedCount > 0 ? "#EAF3DE" : "#F3F4F6", borderRadius: 6, border: `1px solid ${emailedCount > 0 ? "#BFE0A0" : "#E5E7EB"}` }}>
+          <Mail size={10} color={emailedCount > 0 ? "#3B6D11" : "#9CA3AF"} />
+          <span style={{ fontSize: 10, fontWeight: 800, color: emailedCount > 0 ? "#3B6D11" : "#9CA3AF", fontFamily: "monospace" }}>
+            {emailedCount} emailed
+          </span>
+        </div>
       </div>
-      <div style={{ display: "flex", gap: 12 }}>
-        {nearestMiles != null && (
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <MapPin size={11} color="#BA7517" />
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#854F0B", fontFamily: "monospace" }}>{nearestMiles.toFixed(1)} mi</span>
-          </div>
-        )}
-        {etaLabel && (
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <Clock size={11} color="#BA7517" />
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#854F0B" }}>{etaLabel}</span>
-          </div>
-        )}
-      </div>
+
+      {/* Row 2: nearest distance + ETA */}
+      {(nearestMiles != null || etaLabel) && (
+        <div style={{ display: "flex", gap: 14, paddingTop: 6, borderTop: "1px solid #F0C97488" }}>
+          {nearestMiles != null && (
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <MapPin size={11} color="#BA7517" />
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#854F0B", fontFamily: "monospace" }}>
+                {nearestMiles.toFixed(1)} mi nearest
+              </span>
+            </div>
+          )}
+          {etaLabel && (
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <Clock size={11} color="#BA7517" />
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#854F0B" }}>{etaLabel}</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -535,11 +557,16 @@ function RideCard({ ride, delay }) {
   const pm = PAYMENT_META[ride.paymentStatus] ?? { bg: "#F3F4F6", color: "#6B7280", label: ride.paymentStatus };
   const po = PAYOUT_META[ride.payoutStatus]   ?? { bg: "#F3F4F6", color: "#6B7280", label: ride.payoutStatus  };
 
-  // ── Status-aware top bar ──────────────────────────────────────────
   function TopBar() {
     switch (ride.status) {
       case "searching_driver":
-        return <SearchTimerBar expiresAt={ride.expiresAt} createdAt={ride.createdAt} />;
+        return (
+          <SearchTimerBar
+            expiresAt={ride.expiresAt}
+            emailDispatchAt={ride.emailDispatchAt}
+            createdAt={ride.createdAt}
+          />
+        );
       case "driver_assigned":
         return <DriverAssignedBar acceptedAt={ride.acceptedAt} etaMin={ride.driverInfo?.etaMin} />;
       case "arrived":
@@ -588,8 +615,12 @@ function RideCard({ ride, delay }) {
         </div>
 
         {/* Driver Info Banner (searching only) */}
-        {ride.status === "searching_driver" && ride.driverInfo && (
-          <DriverInfoBanner driverInfo={ride.driverInfo} />
+        {ride.status === "searching_driver" && (
+          <DriverInfoBanner
+            driverInfo={ride.driverInfo}
+            candidateDriverUids={ride.candidateDriverUids ?? []}
+            emailSentToDrivers={ride.emailSentToDrivers ?? {}}
+          />
         )}
 
         {/* Route */}
