@@ -93,24 +93,6 @@ const PANEL_CSS = `
   @keyframes bp-pulse   { 0%,100%{box-shadow:0 0 0 0 rgba(22,163,74,.25)} 50%{box-shadow:0 0 0 6px rgba(22,163,74,0)} }
   @keyframes bp-dotPulse { 0%,100%{opacity:.3;transform:scale(.8)} 50%{opacity:1;transform:scale(1)} }
 
-  /* ── Single-driver growing ring animation ── */
-  @keyframes bp-sonar-1 {
-    0%   { transform:scale(1);   opacity:.7; }
-    100% { transform:scale(3.2); opacity:0;  }
-  }
-  @keyframes bp-sonar-2 {
-    0%   { transform:scale(1);   opacity:.5; }
-    100% { transform:scale(2.4); opacity:0;  }
-  }
-  @keyframes bp-sonar-3 {
-    0%   { transform:scale(1);   opacity:.35; }
-    100% { transform:scale(1.7); opacity:0;  }
-  }
-  @keyframes bp-core-breathe {
-    0%,100% { transform:scale(1);   box-shadow:0 0 0 0 rgba(22,163,74,.5); }
-    50%     { transform:scale(1.12); box-shadow:0 0 12px 4px rgba(22,163,74,.25); }
-  }
-
   .bp-card { border-radius:20px; border:1.5px solid #E5E7EB; background:#fff; overflow:hidden; font-family:'Outfit',system-ui,sans-serif; }
   .bp-card + .bp-card { margin-top:10px; }
   .bp-card-header { display:flex; align-items:center; justify-content:space-between; padding:13px 16px 0; font-family:'Outfit',system-ui,sans-serif; }
@@ -193,109 +175,13 @@ const PANEL_CSS = `
   .bp-empty      { padding:22px 18px; text-align:center; font-size:13px; font-weight:500; color:#D1D5DB; font-family:'Outfit',system-ui,sans-serif; border-top:1px solid #F9FAFB; }
   .bp-fadeup     { animation:bp-fadeUp .3s ease-out both; }
 
-  /* ── Driver banner base ── */
-  .bp-driver-banner {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    border-top: 1px solid #F3F4F6;
-    background: #FAFFFE;
-  }
-  .bp-driver-banner.stale {
-    background: #FAFAFA;
-  }
-
-  /* ── Multi-driver dot (simple pulse) ── */
-  .bp-driver-dot-multi {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #16A34A;
-    flex-shrink: 0;
-    animation: bp-dotPulse 1.6s ease-in-out infinite;
-  }
-  .bp-driver-dot-multi.stale {
-    background: #9CA3AF;
-    animation: none;
-  }
-
-  /* ── Single-driver sonar ── */
-  .bp-sonar-wrap {
-    position: relative;
-    width: 36px;
-    height: 36px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .bp-sonar-ring {
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    background: rgba(22, 163, 74, 0.18);
-    animation: bp-sonar-1 2.2s ease-out infinite;
-  }
-  .bp-sonar-ring-2 {
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    background: rgba(22, 163, 74, 0.14);
-    animation: bp-sonar-2 2.2s ease-out infinite;
-    animation-delay: 0.55s;
-  }
-  .bp-sonar-ring-3 {
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    background: rgba(22, 163, 74, 0.1);
-    animation: bp-sonar-3 2.2s ease-out infinite;
-    animation-delay: 1.1s;
-  }
-  .bp-sonar-core {
-    position: relative;
-    z-index: 2;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: #16A34A;
-    animation: bp-core-breathe 2.2s ease-in-out infinite;
-  }
-
-  .bp-driver-text {
-    font-size: 12.5px;
-    font-weight: 700;
-    color: #111827;
-    font-family: 'Outfit', sans-serif;
-    line-height: 1.3;
-  }
-  .bp-driver-text.stale { color: #9CA3AF; }
-  .bp-driver-sub {
-    font-size: 11px;
-    font-weight: 500;
-    color: #9CA3AF;
-    font-family: 'Outfit', sans-serif;
-    margin-top: 1px;
-  }
-  .bp-driver-miles {
-    margin-left: auto;
-    font-size: 11px;
-    font-weight: 700;
-    color: #16A34A;
-    font-family: 'Outfit', sans-serif;
-    background: #F0FDF4;
-    border: 1px solid #BBF7D0;
-    border-radius: 100px;
-    padding: 3px 10px;
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-  .bp-driver-miles.stale {
-    color: #9CA3AF;
-    background: #F9FAFB;
-    border-color: #E5E7EB;
-  }
+  /* ── Driver banner ── */
+  .bp-driver-banner { display:flex; align-items:center; gap:10px; padding:10px 14px; border-top:1px solid #F3F4F6; background:#FAFAFA; }
+  .bp-driver-dot { width:7px; height:7px; border-radius:50%; background:#16A34A; flex-shrink:0; animation:bp-dotPulse 1.6s ease-in-out infinite; }
+  .bp-driver-dot.stale { background:#9CA3AF; animation:none; }
+  .bp-driver-text { font-size:11.5px; font-weight:700; color:#374151; font-family:'Outfit',sans-serif; }
+  .bp-driver-text.stale { color:#9CA3AF; }
+  .bp-driver-sub { font-size:10.5px; font-weight:500; color:#9CA3AF; font-family:'Outfit',sans-serif; margin-left:auto; }
 `;
 
 // ── Location alert ────────────────────────────────────────────────────
@@ -343,47 +229,20 @@ function LocationAlert({ onAllow, onDeny, loading, error }) {
 // ── Driver availability banner ────────────────────────────────────────
 function DriverBanner({ driverInfo }) {
   if (!driverInfo) return null;
-
   const stale = driverInfo.stale;
   const count = driverInfo.driverCount ?? 1;
   const miles = driverInfo.nearestMiles;
-  const isSingle = count === 1;
 
   return (
-    <div className={`bp-driver-banner${stale ? ' stale' : ''}`}>
-
-      {/* ── Indicator: sonar for 1 driver, simple dot for 2+ ── */}
-      {isSingle && !stale ? (
-        <div className="bp-sonar-wrap">
-          <div className="bp-sonar-ring"   />
-          <div className="bp-sonar-ring-2" />
-          <div className="bp-sonar-ring-3" />
-          <div className="bp-sonar-core"   />
-        </div>
-      ) : (
-        <div className={`bp-driver-dot-multi${stale ? ' stale' : ''}`} />
-      )}
-
-      {/* ── Text ── */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div className={`bp-driver-text${stale ? ' stale' : ''}`}>
-          {isSingle
-            ? stale ? '1 driver nearby · estimated location' : '1 driver nearby'
-            : stale ? `${count} drivers nearby · estimated locations` : `${count} drivers nearby`}
-        </div>
-        {isSingle && !stale && (
-          <div className="bp-driver-sub">Ready to pick you up</div>
-        )}
-        {stale && (
-          <div className="bp-driver-sub">Location may be out of date</div>
-        )}
-      </div>
-
-      {/* ── Distance pill ── */}
+    <div className="bp-driver-banner">
+      <div className={`bp-driver-dot${stale ? ' stale' : ''}`}/>
+      <span className={`bp-driver-text${stale ? ' stale' : ''}`}>
+        {stale
+          ? `${count} driver nearby · estimated location`
+          : `${count} driver${count !== 1 ? 's' : ''} nearby`}
+      </span>
       {miles != null && (
-        <div className={`bp-driver-miles${stale ? ' stale' : ''}`}>
-          {miles} mi away
-        </div>
+        <span className="bp-driver-sub">{miles} mi away</span>
       )}
     </div>
   );
@@ -849,7 +708,7 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
             </div>
 
             {/* ── Driver availability banner ── */}
-            <DriverBanner driverInfo={driverInfo} />
+            <DriverBanner driverInfo={driverInfo}/>
           </>
         )}
 
