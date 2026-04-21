@@ -70,3 +70,37 @@ export function RidersTab({ useriders, onBack }) {
     </div>
   );
 }
+
+data set 1yLA7icXzLaTSXB7MKF0kVRjwG73
+adminNotified
+true
+(boolean)
+
+
+createdAt
+April 21, 2026 at 7:32:28 PM UTC-4
+(timestamp)
+
+
+email
+"dfdfddf@live.com"
+(string)
+
+
+name
+"dfdfdfdfdfd"
+(string)
+
+
+uid
+"1yLA7icXzLaTSXB7MKF0kVRjwG73"
+(string)
+
+
+updatedAt
+April 21, 2026 at 7:32:28 PM UTC-4
+(timestamp)
+
+
+welcomeEmailSent
+true
