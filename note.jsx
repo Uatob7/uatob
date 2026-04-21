@@ -1,32 +1,52 @@
-(default)
 
-Accounts
+acceptedAt
+April 20, 2026 at 10:59:28 PM UTC-4
+(timestamp)
 
-Drivers
 
-Reviews
-
-Rides
-
-Search
-Rides
-
-2UZfrJTnVhV0EhfLEFjB
-
-ImCNAcwhgztFgKqpPxcb
-
-ZkFABK63y6PUspBK5Mzm
-
-nfT2rQ0SC7HBsFptoc0y
-ImCNAcwhgztFgKqpPxcb
 adminNotified
 true
 (boolean)
 
 
+
+candidateDriverUids
+(array)
+
+
+0
+"87gHbyR6OjO7YqOqBQK5IISTZtm2"
+(string)
+
+
+
+candidateDrivers
+(array)
+
+
+
+0
+(map)
+
+
+distance
+0.00036940212408934114
+(double)
+
+
+uid
+"87gHbyR6OjO7YqOqBQK5IISTZtm2"
+(string)
+
+
 createdAt
 April 20, 2026 at 10:36:54 PM UTC-4
 (timestamp)
+
+
+currentDriverIndex
+0
+(int64)
 
 
 
@@ -64,6 +84,11 @@ driverPayout
 (double)
 
 
+driverUid
+"87gHbyR6OjO7YqOqBQK5IISTZtm2"
+(string)
+
+
 dropoff
 "3024 North Powers Drive, Orlando, FL, USA"
 (string)
@@ -87,6 +112,21 @@ dropoffLng
 dropoffZip
 "32818"
 (string)
+
+
+emailDispatchAt
+April 20, 2026 at 10:59:02 PM UTC-4
+(timestamp)
+
+
+emailDispatchStarted
+true
+(boolean)
+
+
+
+emailSentToDrivers
+(map)
 
 
 expiresAt
@@ -159,6 +199,11 @@ polyline
 (string)
 
 
+requestSentAt
+April 20, 2026 at 10:59:04 PM UTC-4
+(timestamp)
+
+
 rideLabel
 "XL"
 (string)
@@ -170,7 +215,7 @@ rideType
 
 
 status
-"searching_driver"
+"driver_assigned"
 (string)
 
 
@@ -195,4 +240,16 @@ uid
 
 
 updatedAt
-April 20, 2026 at 10:02:54 PM UTC-4
+April 20, 2026 at 10:59:28 PM UTC-4
+
+\\and status
+"arrived" and status
+"in_progress"
+(string)
+
+
+and status
+"completed"
+(string)
+
+
