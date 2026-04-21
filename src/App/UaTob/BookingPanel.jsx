@@ -140,7 +140,7 @@ const PANEL_CSS = `
   .bp-ride-card.active .bp-ride-price { color:#16A34A; }
   .bp-ride-meta  { display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
   .bp-ride-tag   { display:flex; align-items:center; gap:3px; font-size:10.5px; color:#9CA3AF; font-weight:600; }
-  .bp-ride-tag.stale { color:#D97706; }
+  .bp-ride-tag.stale { color:#9CA3AF; }
   .bp-stats { display:flex; align-items:stretch; border-top:1.5px solid #E5E7EB; }
   .bp-stat  { flex:1; padding:13px 16px; display:flex; flex-direction:column; gap:3px; }
   .bp-stat + .bp-stat { border-left:1.5px solid #E5E7EB; }
@@ -178,9 +178,9 @@ const PANEL_CSS = `
   /* ── Driver banner ── */
   .bp-driver-banner { display:flex; align-items:center; gap:10px; padding:10px 14px; border-top:1px solid #F3F4F6; background:#FAFAFA; }
   .bp-driver-dot { width:7px; height:7px; border-radius:50%; background:#16A34A; flex-shrink:0; animation:bp-dotPulse 1.6s ease-in-out infinite; }
-  .bp-driver-dot.stale { background:#D97706; animation:none; }
+  .bp-driver-dot.stale { background:#9CA3AF; animation:none; }
   .bp-driver-text { font-size:11.5px; font-weight:700; color:#374151; font-family:'Outfit',sans-serif; }
-  .bp-driver-text.stale { color:#D97706; }
+  .bp-driver-text.stale { color:#9CA3AF; }
   .bp-driver-sub { font-size:10.5px; font-weight:500; color:#9CA3AF; font-family:'Outfit',sans-serif; margin-left:auto; }
 `;
 
@@ -723,7 +723,7 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
           <div style={{ padding:'14px 16px 0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
             <span style={{ fontSize:11, fontWeight:800, letterSpacing:'1.2px', textTransform:'uppercase', color:'#9CA3AF', fontFamily:'Outfit,sans-serif' }}>Choose Ride</span>
             {driverInfo?.stale && (
-              <span style={{ fontSize:10.5, fontWeight:700, color:'#D97706', fontFamily:'Outfit,sans-serif' }}>
+              <span style={{ fontSize:10.5, fontWeight:700, color:'#9CA3AF', fontFamily:'Outfit,sans-serif' }}>
                 ⚠ Estimated wait times
               </span>
             )}
@@ -778,7 +778,7 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
                   {selectedQuote.eta && (
                     <span style={{
                       marginLeft: 8,
-                      color: driverInfo?.stale ? '#D97706' : T.accent,
+                      color: driverInfo?.stale ? '#9CA3AF' : T.accent,
                       fontWeight: 700,
                     }}>
                       · {selectedQuote.eta} pickup

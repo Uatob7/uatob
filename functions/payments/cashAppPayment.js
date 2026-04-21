@@ -28,8 +28,8 @@ exports.cashAppPayment = onCall(
     const stripe = new Stripe(stripeKey);
 
     try {
-      const fareTotal    = Number(bookingPayload.fareEstimate);
-      const amountCents  = Math.round(fareTotal * 100);
+      const fareTotal   = Number(bookingPayload.fareEstimate);
+      const amountCents = Math.round(fareTotal * 100);
 
       if (amountCents < 50) {
         throw new HttpsError("invalid-argument", "Amount too low (minimum $0.50)");
@@ -38,7 +38,7 @@ exports.cashAppPayment = onCall(
       const platformFee  = +(fareTotal * 0.25).toFixed(2);
       const driverPayout = +(fareTotal * 0.75).toFixed(2);
 
-      // ── Stripe Payment Intent ─────────────────────────────────────
+      // ── Stripe Payment Intent ──────────────────────────────────────
       const paymentIntent = await stripe.paymentIntents.create({
         amount:               amountCents,
         currency:             "usd",
@@ -55,10 +55,16 @@ exports.cashAppPayment = onCall(
           dropoffCity:       bookingPayload.dropoffCity       ?? "",
           platformFee:       String(platformFee),
           driverPayout:      String(driverPayout),
+          // driver info snapshot
+          driverCount:       String(bookingPayload.driverInfo?.driverCount  ?? ""),
+          driverEtaMin:      String(bookingPayload.driverInfo?.etaMin       ?? ""),
+          driverEtaLabel:    bookingPayload.driverInfo?.etaLabel            ?? "",
+          driverNearestMi:   String(bookingPayload.driverInfo?.nearestMiles ?? ""),
+          driverStale:       String(bookingPayload.driverInfo?.stale        ?? ""),
         },
       });
 
-      // ── Save ride ─────────────────────────────────────────────────
+      // ── Save ride ──────────────────────────────────────────────────
       const rideRef = db.collection("Rides").doc();
 
       await rideRef.set({
@@ -75,7 +81,7 @@ exports.cashAppPayment = onCall(
         dropoffLat:  bookingPayload.dropoffLat  ?? null,
         dropoffLng:  bookingPayload.dropoffLng  ?? null,
 
-        polyline:  bookingPayload.polyline  ?? null,
+        polyline:  bookingPayload.polyline ?? null,
 
         rideType:  bookingPayload.rideType  ?? "standard",
         rideLabel: bookingPayload.rideLabel ?? null,
@@ -93,6 +99,17 @@ exports.cashAppPayment = onCall(
         paymentIntentId: paymentIntent.id,
         paymentStatus:   "pending",
 
+        // ── Driver availability at time of booking ─────────────────
+        driverInfo: bookingPayload.driverInfo
+          ? {
+              driverCount:  bookingPayload.driverInfo.driverCount  ?? null,
+              etaLabel:     bookingPayload.driverInfo.etaLabel      ?? null,
+              etaMin:       bookingPayload.driverInfo.etaMin        ?? null,
+              nearestMiles: bookingPayload.driverInfo.nearestMiles  ?? null,
+              stale:        bookingPayload.driverInfo.stale         ?? null,
+            }
+          : null,
+
         status: "pending_payment",
         uid,
 
@@ -100,7 +117,7 @@ exports.cashAppPayment = onCall(
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      console.log(`[cashAppPayment] Ride ${rideRef.id} created — uid: ${uid} | fare: $${fareTotal}`);
+      console.log(`[cashAppPayment] Ride ${rideRef.id} created — uid: ${uid} | fare: $${fareTotal} | driverEta: ${bookingPayload.driverInfo?.etaLabel ?? "unknown"}`);
 
       return {
         success:      true,
