@@ -25,7 +25,7 @@ import { useLiveRides }       from "@/App/Admin/useLiveRides";
 import { useFleetDrivers }    from "@/App/Admin/useFleetDrivers";
 import { useApprovals }       from "@/App/Admin/useApprovals";
 import { useRideAnalytics } from "@/App/Admin/useRideAnalytics";
-
+import { useRiders } from "@/App/Admin/useRiders";
 
 
 
@@ -43,6 +43,8 @@ export default function UaTobAdminDashboard() {
   const [activeTab,   setActiveTab]   = useState("home");
   const [drawerOpen,  setDrawerOpen]  = useState(false);
   const [toast,       setToast]       = useState(null);
+  const useriders = useRiders();
+
 
   console.log(toast);
 
@@ -108,6 +110,7 @@ export default function UaTobAdminDashboard() {
     };
   }, []);
 
+  console.log(totalAccounts);
   // All data vars that any tab consumes must live in this dep array,
   // otherwise Firestore updates won't trigger a re-render.
   const CurrentTab = useMemo(() => {
@@ -154,7 +157,7 @@ export default function UaTobAdminDashboard() {
           />
         );
       case "riders":
-        return <RidersTab onBack={() => setActiveTab("home")} />;
+        return <RidersTab useriders={useriders} onBack={() => setActiveTab("home")} />;
       case "compliance":
         return <ComplianceTab onBack={() => setActiveTab("home")} />;
       case "settings":
@@ -192,7 +195,7 @@ export default function UaTobAdminDashboard() {
 
       <Toast msg={toast} />
 
-      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} onNavigate={setActiveTab} />
+      <Drawer useriders={useriders} open={drawerOpen} onClose={() => setDrawerOpen(false)} onNavigate={setActiveTab} />
 
       <TopBar
         title={TAB_TITLES[activeTab]}

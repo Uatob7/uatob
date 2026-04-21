@@ -10,7 +10,8 @@ const NAV_LINKS = [
   { icon: Settings,  label: "Settings", tab: "settings" },
 ];
 
-export function DrawerNav({ onNavigate, onClose }) {
+export function DrawerNav({useriders, onNavigate, onClose }) {
+
   return (
     <div style={{ padding: "10px 10px", flex: 1 }}>
       {NAV_LINKS.map(({ icon: Icon, label, tab }) => (
