@@ -75,8 +75,11 @@ function LightStatusPill({ status }) {
   );
 }
 
+// FIX: Safe avatar with fallback palette
 function DriverAvatar({ name, size = 44, idx = 0 }) {
-  const palette = AVATAR_PALETTES[idx % AVATAR_PALETTES.length];
+  // Ensure idx is non‑negative and within bounds
+  const safeIdx = Math.abs(idx) % AVATAR_PALETTES.length;
+  const palette = AVATAR_PALETTES[safeIdx] ?? AVATAR_PALETTES[0];
   return (
     <div style={{
       width: size, height: size, borderRadius: size * 0.28,
@@ -117,7 +120,7 @@ export function DriversTab({ fleet = [], onToast }) {
     return (
       <DriverDetail
         driver={selected}
-        driverIdx={fleet.indexOf(selected)}
+        driverIdx={fleet.indexOf(selected)}   // may be -1, but we'll handle inside DriverDetail
         onBack={() => setSelected(null)}
         onToast={onToast}
       />
@@ -486,7 +489,8 @@ function DriverDetail({ driver: d, driverIdx, onBack, onToast }) {
 
           <div style={{ display: "flex", alignItems: "flex-start", gap: 15, marginBottom: 18 }}>
             <div style={{ position: "relative" }}>
-              <DriverAvatar name={name} size={58} idx={driverIdx} />
+              {/* FIX: use Math.max(0, driverIdx) to avoid negative index */}
+              <DriverAvatar name={name} size={58} idx={Math.max(0, driverIdx)} />
               {d.status === "online" && (
                 <div style={{
                   position: "absolute", bottom: 1, right: 1,
