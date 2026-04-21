@@ -1,84 +1,198 @@
-function playRequestChime() {
-  try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    const ctx = new AudioCtx();
+(default)
 
-    const master = ctx.createGain();
-    master.gain.value = 0.18;
-    master.connect(ctx.destination);
+Accounts
 
-    const playTone = ({ freq, type = "sine", start, duration, volume = 0.25 }) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
+Drivers
 
-      osc.type = type;
-      osc.frequency.setValueAtTime(freq, start);
+Reviews
 
-      osc.connect(gain);
-      gain.connect(master);
+Rides
 
-      gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime(volume, start + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+Search
+Rides
 
-      osc.start(start);
-      osc.stop(start + duration);
-    };
+2UZfrJTnVhV0EhfLEFjB
 
-    const now = ctx.currentTime + 0.02;
+ImCNAcwhgztFgKqpPxcb
 
-    // Dispatch-style 3-part repeating tone
-    const pattern = [
-      { t: 0.00, f1: 740,  f2: 1110, d: 0.18 },
-      { t: 0.24, f1: 880,  f2: 1320, d: 0.18 },
-      { t: 0.48, f1: 1047, f2: 1568, d: 0.26 },
+ZkFABK63y6PUspBK5Mzm
 
-      { t: 0.95, f1: 740,  f2: 1110, d: 0.18 },
-      { t: 1.19, f1: 880,  f2: 1320, d: 0.18 },
-      { t: 1.43, f1: 1047, f2: 1568, d: 0.30 },
-    ];
+nfT2rQ0SC7HBsFptoc0y
+ImCNAcwhgztFgKqpPxcb
+adminNotified
+true
+(boolean)
 
-    pattern.forEach(({ t, f1, f2, d }) => {
-      playTone({
-        freq: f1,
-        type: "sine",
-        start: now + t,
-        duration: d,
-        volume: 0.22,
-      });
 
-      playTone({
-        freq: f2,
-        type: "triangle",
-        start: now + t,
-        duration: d,
-        volume: 0.12,
-      });
-    });
+createdAt
+April 20, 2026 at 10:36:54 PM UTC-4
+(timestamp)
 
-    // subtle "tap" click for urgency
-    const noise = ctx.createBufferSource();
-    const buffer = ctx.createBuffer(1, ctx.sampleRate * 0.08, ctx.sampleRate);
-    const data = buffer.getChannelData(0);
 
-    for (let i = 0; i < data.length; i++) {
-      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / 1800);
-    }
 
-    noise.buffer = buffer;
+driverInfo
+(map)
 
-    const noiseGain = ctx.createGain();
-    noiseGain.gain.value = 0.03;
-    noise.connect(noiseGain);
-    noiseGain.connect(master);
 
-    noise.start(now + 0.01);
-    noise.stop(now + 0.08);
+driverCount
+1
+(int64)
 
-    setTimeout(() => {
-      ctx.close().catch(() => {});
-    }, 3000);
-  } catch (err) {
-    console.warn("Audio playback failed:", err);
-  }
-}
+
+etaLabel
+"~28–33 min"
+(string)
+
+
+etaMin
+28
+(int64)
+
+
+nearestMiles
+5.82
+(double)
+
+
+stale
+true
+(boolean)
+
+
+driverPayout
+6.37
+(double)
+
+
+dropoff
+"3024 North Powers Drive, Orlando, FL, USA"
+(string)
+
+
+dropoffCity
+"Orlando"
+(string)
+
+
+dropoffLat
+28.5819909
+(double)
+
+
+dropoffLng
+-81.4694363
+(double)
+
+
+dropoffZip
+"32818"
+(string)
+
+
+expiresAt
+April 20, 2026 at 11:30:54 PM UTC-4
+(timestamp)
+
+
+
+fareBreakdown
+(map)
+
+
+fareTotal
+8.49
+(double)
+
+
+paymentIntentId
+"pi_3TOTeLJhpOy6wtDq1ksc0Z7n"
+(string)
+
+
+paymentMethod
+"cashapp"
+(string)
+
+
+paymentStatus
+"succeeded"
+(string)
+
+
+payoutStatus
+"pending"
+(string)
+
+
+pickup
+"2382 Locke Avenue, Orlando, FL, USA"
+(string)
+
+
+pickupCity
+"Orlando"
+(string)
+
+
+pickupLat
+28.5730545
+(double)
+
+
+pickupLng
+-81.4696329
+(double)
+
+
+pickupZip
+"32818"
+(string)
+
+
+platformFee
+2.12
+(double)
+
+
+polyline
+"wtkmDp~fpNxACLI?a@GeF@s@{\F_C?{@?qXHBjBFJIdEBTDNRT"
+(string)
+
+
+rideLabel
+"XL"
+(string)
+
+
+rideType
+"xl"
+(string)
+
+
+status
+"searching_driver"
+(string)
+
+
+timeoutMinutes
+25
+(int64)
+
+
+tripDistanceMiles
+0.93
+(double)
+
+
+tripDurationMin
+4
+(int64)
+
+
+uid
+"0oCPLicokVd5B2z999pf6LqOq6G3"
+(string)
+
+
+updatedAt
+April 20, 2026 at 10:02:54 PM UTC-4
