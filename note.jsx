@@ -1,4 +1,4 @@
-
+ImCNAcwhgztFgKqpPxcb
 acceptedAt
 April 20, 2026 at 10:59:28 PM UTC-4
 (timestamp)
@@ -7,6 +7,11 @@ April 20, 2026 at 10:59:28 PM UTC-4
 adminNotified
 true
 (boolean)
+
+
+arrivedAt
+April 20, 2026 at 11:17:45 PM UTC-4
+(timestamp)
 
 
 
@@ -30,7 +35,7 @@ candidateDrivers
 
 
 distance
-0.00036940212408934114
+0.0004918917022216081
 (double)
 
 
@@ -39,12 +44,27 @@ uid
 (string)
 
 
+completedAt
+April 20, 2026 at 11:22:57 PM UTC-4
+(timestamp)
+
+
 createdAt
 April 20, 2026 at 10:36:54 PM UTC-4
 (timestamp)
 
 
 currentDriverIndex
+0
+(int64)
+
+
+driverDistanceMiles
+0
+(int64)
+
+
+driverEtaMin
 0
 (int64)
 
@@ -79,6 +99,16 @@ true
 (boolean)
 
 
+driverLat
+28.5730613
+(double)
+
+
+driverLng
+-81.4696305
+(double)
+
+
 driverPayout
 6.37
 (double)
@@ -99,6 +129,16 @@ dropoffCity
 (string)
 
 
+dropoffDistanceMiles
+0.93
+(double)
+
+
+dropoffEtaMin
+4
+(int64)
+
+
 dropoffLat
 28.5819909
 (double)
@@ -115,7 +155,7 @@ dropoffZip
 
 
 emailDispatchAt
-April 20, 2026 at 10:59:02 PM UTC-4
+April 20, 2026 at 11:26:02 PM UTC-4
 (timestamp)
 
 
@@ -127,6 +167,11 @@ true
 
 emailSentToDrivers
 (map)
+
+
+87gHbyR6OjO7YqOqBQK5IISTZtm2
+true
+(boolean)
 
 
 expiresAt
@@ -160,7 +205,7 @@ paymentStatus
 
 
 payoutStatus
-"pending"
+"processing"
 (string)
 
 
@@ -200,7 +245,7 @@ polyline
 
 
 requestSentAt
-April 20, 2026 at 10:59:04 PM UTC-4
+April 20, 2026 at 11:26:04 PM UTC-4
 (timestamp)
 
 
@@ -214,8 +259,13 @@ rideType
 (string)
 
 
+startedAt
+April 20, 2026 at 11:18:00 PM UTC-4
+(timestamp)
+
+
 status
-"driver_assigned"
+"searching_driver"
 (string)
 
 
@@ -240,16 +290,22 @@ uid
 
 
 updatedAt
-April 20, 2026 at 10:59:28 PM UTC-4
+April 20, 2026 at 11:26:06 PM UTC-4
 
-\\and status
-"arrived" and status
-"in_progress"
-(string)
-
-
-and status
-"completed"
-(string)
+when shearching for drivers we can use the emailDispatchAt
+April 20, 2026 at 11:26:02 PM UTC-4
+(timestamp)
 
 
+emailDispatchStarted
+true
+(boolean)
+
+
+
+emailSentToDrivers
+(map)
+
+
+87gHbyR6OjO7YqOqBQK5IISTZtm2
+true
