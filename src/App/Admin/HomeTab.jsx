@@ -2,12 +2,172 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import {
   Activity, DollarSign, Car, Shield,
   RefreshCw, Filter, Search, X, ChevronDown, TrendingUp,
-  MapPin, Clock, Mail, Users,
+  MapPin, Clock, Mail, Users, ArrowUpRight, Zap,
 } from "lucide-react";
 import { C } from '@/App/Admin/Tokens';
 import { StatCard, Avatar } from '@/App/Admin/UI';
 
-// ── Helpers ───────────────────────────────────────────────────────────
+/* ─── Google Fonts + Global Styles ─────────────────────────────── */
+const GLOBAL_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800;900&family=Syne:wght@700;800&display=swap');
+
+:root {
+  --ink: #0F1117;
+  --ink2: #374151;
+  --muted: #6B7280;
+  --dim: #9CA3AF;
+  --border: #E5E7EB;
+  --border2: #F3F4F6;
+  --surf: #FFFFFF;
+  --surf2: #F9FAFB;
+  --surf3: #F3F4F6;
+  --green: #16A34A;
+  --green-bg: #DCFCE7;
+  --green-mid: #4ADE80;
+  --amber: #D97706;
+  --amber-bg: #FEF3C7;
+  --blue: #2563EB;
+  --blue-bg: #EFF6FF;
+  --red: #DC2626;
+  --red-bg: #FEF2F2;
+  --radius-card: 20px;
+  --radius-sm: 10px;
+  --shadow-card: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.05);
+  --shadow-hover: 0 2px 8px rgba(0,0,0,.08), 0 8px 32px rgba(0,0,0,.08);
+  --font: 'Figtree', sans-serif;
+  --font-display: 'Syne', sans-serif;
+}
+
+.ht-root * { box-sizing: border-box; margin: 0; padding: 0; }
+.ht-root { font-family: var(--font); color: var(--ink); }
+
+/* Fade-up animation */
+@keyframes htFadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.ht-fade { animation: htFadeUp .45s cubic-bezier(.22,1,.36,1) both; }
+
+/* Spin */
+@keyframes htSpin { to { transform: rotate(360deg); } }
+.ht-spin { animation: htSpin 1s linear infinite; }
+
+/* Pulse dot */
+@keyframes htPulse {
+  0%,100% { box-shadow: 0 0 0 0 currentColor; }
+  50%      { box-shadow: 0 0 0 5px transparent; }
+}
+
+/* Card base */
+.ht-card {
+  background: var(--surf);
+  border: 1.5px solid var(--border2);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  transition: box-shadow .2s, border-color .2s, transform .2s;
+}
+.ht-card:hover { box-shadow: var(--shadow-hover); }
+
+/* Ride card hover lift */
+.ht-ride-card { cursor: default; }
+.ht-ride-card:hover { transform: translateY(-2px); border-color: var(--border); }
+
+/* Stat pill */
+.ht-stat-pill {
+  background: var(--surf2);
+  border: 1.5px solid var(--border2);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 6px;
+  transition: border-color .2s, box-shadow .2s;
+}
+.ht-stat-pill:hover { border-color: var(--border); box-shadow: 0 2px 12px rgba(0,0,0,.06); }
+
+/* Filter pill */
+.ht-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 13px; border-radius: 100px;
+  border: 1.5px solid var(--border);
+  background: var(--surf); font-family: var(--font);
+  font-size: 12px; font-weight: 700; color: var(--muted);
+  cursor: pointer; white-space: nowrap;
+  transition: all .15s;
+}
+.ht-pill.active { border-color: var(--green); background: var(--green-bg); color: var(--green); }
+.ht-pill:not(.active):hover { border-color: #D1D5DB; color: var(--ink2); }
+
+/* Tag chip */
+.ht-tag {
+  display: inline-flex; align-items: center;
+  font-size: 10px; font-weight: 700;
+  padding: 3px 9px; border-radius: 6px;
+  letter-spacing: .2px;
+}
+
+/* Search input */
+.ht-search-wrap {
+  display: flex; align-items: center; gap: 9px;
+  background: var(--surf); border: 1.5px solid var(--border);
+  border-radius: 12px; padding: 0 14px; height: 42px;
+  transition: border-color .2s, box-shadow .2s;
+}
+.ht-search-wrap:focus-within {
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(22,163,74,.08);
+}
+.ht-search-wrap input {
+  flex: 1; border: none; outline: none; background: transparent;
+  font-family: var(--font); font-size: 13px; color: var(--ink);
+}
+.ht-search-wrap input::placeholder { color: var(--dim); }
+
+/* Select */
+.ht-select-wrap { position: relative; flex: 1; min-width: 120px; }
+.ht-select-wrap select {
+  width: 100%; padding: 8px 28px 8px 11px;
+  border-radius: 10px; border: 1.5px solid var(--border);
+  font-size: 11px; font-weight: 600; color: var(--muted);
+  background: var(--surf2); appearance: none; outline: none;
+  cursor: pointer; font-family: var(--font);
+  transition: border-color .2s;
+}
+.ht-select-wrap select:focus { border-color: var(--green); }
+
+/* Route line */
+.ht-route-line {
+  background: var(--surf2); border: 1.5px solid var(--border2);
+  border-radius: 14px; padding: 12px 14px;
+  position: relative;
+}
+
+/* Status badge */
+.ht-status {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 700; padding: 4px 10px;
+  border-radius: 100px; letter-spacing: .3px;
+  white-space: nowrap;
+}
+
+/* Bar chart bar */
+.ht-bar {
+  border-radius: 6px 6px 3px 3px;
+  transition: height .5s cubic-bezier(.22,1,.36,1), background .15s;
+}
+
+/* Action btn */
+.ht-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 10px; border: 1.5px solid var(--border);
+  background: var(--surf); font-family: var(--font);
+  font-size: 12px; font-weight: 700; color: var(--muted);
+  cursor: pointer; transition: all .15s;
+}
+.ht-btn:hover { border-color: #D1D5DB; color: var(--ink2); background: var(--surf2); }
+.ht-btn.active { border-color: var(--green); background: var(--green-bg); color: var(--green); }
+`;
+
+/* ─── Helpers ───────────────────────────────────────────────────── */
 function timeAgo(ts) {
   if (!ts) return "—";
   const seconds = ts?.seconds ?? Math.floor(ts / 1000);
@@ -16,254 +176,173 @@ function timeAgo(ts) {
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   return `${Math.floor(diff / 3600)}h ago`;
 }
-
-function shortAddress(addr = "") {
-  return addr.split(",")[0] || addr;
-}
-
+function shortAddress(addr = "") { return addr.split(",")[0] || addr; }
 function tsToMs(ts) {
   if (!ts) return 0;
   if (ts?.seconds) return ts.seconds * 1000;
   if (typeof ts === "number") return ts;
   return 0;
 }
-
 function fmtMMSS(totalSecs) {
   const abs = Math.abs(Math.round(totalSecs));
-  const m   = Math.floor(abs / 60);
-  const s   = abs % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
+  return `${Math.floor(abs / 60)}:${String(abs % 60).padStart(2, "0")}`;
 }
 
-// ── Status maps ───────────────────────────────────────────────────────
+/* ─── Status maps ───────────────────────────────────────────────── */
 const STATUS_META = {
-  searching_driver: { label: "Searching driver", dot: "#BA7517", bg: "#FAEEDA", color: "#854F0B" },
-  driver_assigned:  { label: "Driver assigned",  dot: "#185FA5", bg: "#E6F1FB", color: "#185FA5" },
-  arrived:          { label: "Arrived",           dot: "#639922", bg: "#EAF3DE", color: "#3B6D11" },
-  in_progress:      { label: "In progress",       dot: "#639922", bg: "#EAF3DE", color: "#3B6D11" },
-  completed:        { label: "Completed",         dot: "#888780", bg: "#F1EFE8", color: "#5F5E5A" },
-  cancelled:        { label: "Cancelled",         dot: "#E24B4A", bg: "#FCEBEB", color: "#A32D2D" },
+  searching_driver: { label: "Searching",     dot: "#D97706", bg: "#FEF3C7", color: "#92400E",  bar: ["#D97706","#F59E0B"] },
+  driver_assigned:  { label: "Assigned",      dot: "#2563EB", bg: "#EFF6FF", color: "#1E40AF",  bar: ["#2563EB","#60A5FA"] },
+  arrived:          { label: "Arrived",       dot: "#16A34A", bg: "#DCFCE7", color: "#14532D",  bar: ["#16A34A","#4ADE80"] },
+  in_progress:      { label: "In Progress",   dot: "#16A34A", bg: "#DCFCE7", color: "#14532D",  bar: ["#16A34A","#4ADE80"] },
+  completed:        { label: "Completed",     dot: "#6B7280", bg: "#F3F4F6", color: "#374151",  bar: ["#9CA3AF","#D1D5DB"] },
+  cancelled:        { label: "Cancelled",     dot: "#DC2626", bg: "#FEF2F2", color: "#991B1B",  bar: ["#DC2626","#F87171"] },
 };
-
 const PAYMENT_META = {
-  succeeded: { bg: "#EAF3DE", color: "#3B6D11", label: "Payment succeeded" },
-  pending:   { bg: "#FAEEDA", color: "#854F0B", label: "Payment pending"   },
-  failed:    { bg: "#FCEBEB", color: "#A32D2D", label: "Payment failed"    },
+  succeeded: { bg: "#DCFCE7", color: "#14532D", label: "Paid" },
+  pending:   { bg: "#FEF3C7", color: "#92400E", label: "Pending" },
+  failed:    { bg: "#FEF2F2", color: "#991B1B", label: "Failed" },
 };
-
 const PAYOUT_META = {
-  processing: { bg: "#E6F1FB", color: "#185FA5", label: "Payout processing" },
-  pending:    { bg: "#FAEEDA", color: "#854F0B", label: "Payout pending"    },
-  paid:       { bg: "#EAF3DE", color: "#3B6D11", label: "Paid out"          },
-  failed:     { bg: "#FCEBEB", color: "#A32D2D", label: "Payout failed"     },
+  processing: { bg: "#EFF6FF", color: "#1E40AF", label: "Processing" },
+  pending:    { bg: "#FEF3C7", color: "#92400E", label: "Payout Pending" },
+  paid:       { bg: "#DCFCE7", color: "#14532D", label: "Paid Out" },
+  failed:     { bg: "#FEF2F2", color: "#991B1B", label: "Payout Failed" },
 };
+const DAY_LABELS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
-const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-// ── Search Timer Bar (searching_driver) ──────────────────────────────
-// Uses emailDispatchAt as the window start (accurate for re-searches).
+/* ─── Live Timer Bars ───────────────────────────────────────────── */
 function SearchTimerBar({ expiresAt, emailDispatchAt, createdAt }) {
-  const [pct,      setPct]      = useState(100);
+  const [pct, setPct]           = useState(100);
   const [secsLeft, setSecsLeft] = useState(null);
-  const rafRef = useRef(null);
+  const rafRef                  = useRef(null);
 
   useEffect(() => {
     const expiresMs = tsToMs(expiresAt);
     if (!expiresMs) return;
-    // emailDispatchAt = start of THIS search round; fallback to createdAt or 25-min window
     const startMs = tsToMs(emailDispatchAt) || tsToMs(createdAt) || (expiresMs - 25 * 60 * 1000);
     const totalMs = expiresMs - startMs;
-
     const tick = () => {
       const now       = Date.now();
       const remaining = Math.max((expiresMs - now) / 1000, 0);
       const elapsed   = Math.max((now - startMs) / 1000, 0);
       const percent   = Math.max(((totalMs / 1000 - elapsed) / (totalMs / 1000)) * 100, 0);
-      setPct(percent);
-      setSecsLeft(Math.ceil(remaining));
+      setPct(percent); setSecsLeft(Math.ceil(remaining));
       if (remaining > 0) rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
   }, [expiresAt, emailDispatchAt, createdAt]);
 
-  if (secsLeft === null) return <div style={{ height: 3, background: "#F3F3F0" }} />;
-
-  const barColor = pct > 50
-    ? "linear-gradient(90deg,#BA7517,#F0A733)"
-    : pct > 20
-      ? "linear-gradient(90deg,#C2410C,#EA580C)"
-      : "linear-gradient(90deg,#E24B4A,#F87171)";
-  const badgeBg = pct > 20 ? "#BA7517" : "#E24B4A";
-
+  if (secsLeft === null) return <BarTrack />;
+  const color = pct > 50 ? "#D97706" : pct > 20 ? "#EA580C" : "#DC2626";
   return (
-    <div style={{ position: "relative", height: 3, background: "#F3F3F0", overflow: "visible" }}>
-      <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: `${pct}%`, background: barColor, transition: "background .5s", borderRadius: "0 2px 2px 0" }} />
-      {secsLeft > 0 && (
-        <div style={{ position: "absolute", top: "50%", left: `${pct}%`, transform: "translate(-50%, -50%)", background: badgeBg, color: "#fff", fontSize: 8, fontWeight: 800, padding: "1px 4px", borderRadius: 4, whiteSpace: "nowrap", pointerEvents: "none", marginTop: 12, fontFamily: "monospace", boxShadow: "0 1px 4px rgba(0,0,0,.2)", zIndex: 2 }}>
-          {fmtMMSS(secsLeft)}
-        </div>
-      )}
-      {secsLeft === 0 && (
-        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", color: "#E24B4A", fontSize: 8, fontWeight: 800, marginTop: 12, fontFamily: "monospace" }}>
-          EXPIRED
-        </div>
-      )}
-    </div>
+    <BarTrack color={color} pct={pct}
+      label={secsLeft > 0 ? fmtMMSS(secsLeft) : "EXPIRED"}
+      labelColor={color} />
   );
 }
 
-// ── Driver Assigned Bar (driver_assigned) ─────────────────────────────
 function DriverAssignedBar({ acceptedAt, etaMin }) {
   const [elapsed, setElapsed] = useState(0);
   const rafRef = useRef(null);
-
   useEffect(() => {
-    const acceptedMs = tsToMs(acceptedAt);
-    if (!acceptedMs) return;
-    const tick = () => {
-      setElapsed(Math.floor((Date.now() - acceptedMs) / 1000));
-      rafRef.current = requestAnimationFrame(tick);
-    };
+    const ms = tsToMs(acceptedAt);
+    if (!ms) return;
+    const tick = () => { setElapsed(Math.floor((Date.now() - ms) / 1000)); rafRef.current = requestAnimationFrame(tick); };
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
   }, [acceptedAt]);
-
-  const totalSecs = (etaMin ?? 0) * 60;
-  const pct       = totalSecs > 0 ? Math.min((elapsed / totalSecs) * 100, 100) : 0;
-  const isLate    = totalSecs > 0 && elapsed > totalSecs;
-  const overBy    = elapsed - totalSecs;
-
-  const barColor = isLate
-    ? "linear-gradient(90deg,#E24B4A,#F87171)"
-    : pct > 80
-      ? "linear-gradient(90deg,#C2410C,#EA580C)"
-      : "linear-gradient(90deg,#185FA5,#3B82F6)";
-  const badgeBg = isLate ? "#E24B4A" : pct > 80 ? "#C2410C" : "#185FA5";
-  const label   = isLate
-    ? `+${fmtMMSS(overBy)} late`
-    : `${fmtMMSS(elapsed)} elapsed${etaMin != null ? ` / ~${etaMin} min ETA` : ""}`;
-
-  return (
-    <div style={{ position: "relative", height: 3, background: "#F3F3F0", overflow: "visible" }}>
-      <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: `${pct}%`, background: barColor, transition: "background .5s", borderRadius: "0 2px 2px 0" }} />
-      <div style={{ position: "absolute", top: "50%", left: `${Math.min(Math.max(pct, 4), 92)}%`, transform: "translate(-50%, -50%)", background: badgeBg, color: "#fff", fontSize: 8, fontWeight: 800, padding: "1px 5px", borderRadius: 4, whiteSpace: "nowrap", pointerEvents: "none", marginTop: 12, fontFamily: "monospace", boxShadow: "0 1px 4px rgba(0,0,0,.2)", zIndex: 2 }}>
-        {label}
-      </div>
-    </div>
-  );
+  const total = (etaMin ?? 0) * 60;
+  const pct   = total > 0 ? Math.min((elapsed / total) * 100, 100) : 0;
+  const isLate= total > 0 && elapsed > total;
+  const color = isLate ? "#DC2626" : pct > 80 ? "#EA580C" : "#2563EB";
+  const label = isLate ? `+${fmtMMSS(elapsed - total)} late` : etaMin != null ? `~${etaMin} min ETA` : `${fmtMMSS(elapsed)}`;
+  return <BarTrack color={color} pct={pct} label={label} labelColor={color} />;
 }
 
-// ── Arrived Bar (arrived) ─────────────────────────────────────────────
 function ArrivedBar() {
-  return (
-    <div style={{ position: "relative", height: 3, background: "#F3F3F0", overflow: "visible" }}>
-      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg,#639922,#8DC53E)" }} />
-      <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "#639922", color: "#fff", fontSize: 8, fontWeight: 800, padding: "1px 6px", borderRadius: 4, whiteSpace: "nowrap", pointerEvents: "none", marginTop: 12, fontFamily: "monospace", boxShadow: "0 1px 4px rgba(0,0,0,.2)", letterSpacing: ".5px", zIndex: 2 }}>
-        DRIVER ARRIVED
-      </div>
-    </div>
-  );
+  return <BarTrack color="#16A34A" pct={100} label="DRIVER ARRIVED" labelColor="#16A34A" />;
 }
 
-// ── In Progress Bar (in_progress) ────────────────────────────────────
 function InProgressBar({ startedAt, tripDurationMin }) {
   const [elapsed, setElapsed] = useState(0);
   const rafRef = useRef(null);
-
   useEffect(() => {
-    const startMs = tsToMs(startedAt);
-    if (!startMs) return;
-    const tick = () => {
-      setElapsed(Math.floor((Date.now() - startMs) / 1000));
-      rafRef.current = requestAnimationFrame(tick);
-    };
+    const ms = tsToMs(startedAt);
+    if (!ms) return;
+    const tick = () => { setElapsed(Math.floor((Date.now() - ms) / 1000)); rafRef.current = requestAnimationFrame(tick); };
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
   }, [startedAt]);
+  const total     = (tripDurationMin ?? 0) * 60;
+  const pct       = total > 0 ? Math.min((elapsed / total) * 100, 100) : 0;
+  const isOver    = total > 0 && elapsed > total;
+  const remaining = Math.max(total - elapsed, 0);
+  const color     = isOver ? "#DC2626" : pct > 80 ? "#D97706" : "#16A34A";
+  const label     = isOver ? `+${fmtMMSS(elapsed - total)} over` : `${fmtMMSS(remaining)} left`;
+  return <BarTrack color={color} pct={pct} label={label} labelColor={color} />;
+}
 
-  const totalSecs = (tripDurationMin ?? 0) * 60;
-  const pct       = totalSecs > 0 ? Math.min((elapsed / totalSecs) * 100, 100) : 0;
-  const remaining = Math.max(totalSecs - elapsed, 0);
-  const isOver    = totalSecs > 0 && elapsed > totalSecs;
-  const overBy    = elapsed - totalSecs;
-
-  const barColor = isOver
-    ? "linear-gradient(90deg,#E24B4A,#F87171)"
-    : pct > 80
-      ? "linear-gradient(90deg,#BA7517,#F0A733)"
-      : "linear-gradient(90deg,#639922,#8DC53E)";
-  const badgeBg = isOver ? "#E24B4A" : pct > 80 ? "#BA7517" : "#639922";
-  const label   = isOver ? `+${fmtMMSS(overBy)} over` : `${fmtMMSS(remaining)} left`;
-
+function BarTrack({ color = "#E5E7EB", pct = 0, label, labelColor }) {
   return (
-    <div style={{ position: "relative", height: 3, background: "#F3F3F0", overflow: "visible" }}>
-      <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: `${pct}%`, background: barColor, transition: "background .5s", borderRadius: "0 2px 2px 0" }} />
-      <div style={{ position: "absolute", top: "50%", left: `${Math.min(Math.max(pct, 6), 94)}%`, transform: "translate(-50%, -50%)", background: badgeBg, color: "#fff", fontSize: 8, fontWeight: 800, padding: "1px 5px", borderRadius: 4, whiteSpace: "nowrap", pointerEvents: "none", marginTop: 12, fontFamily: "monospace", boxShadow: "0 1px 4px rgba(0,0,0,.2)", zIndex: 2 }}>
-        {label}
-      </div>
+    <div style={{ height: 3, background: "#F3F4F6", position: "relative", overflow: "visible" }}>
+      <div style={{
+        position: "absolute", top: 0, left: 0, bottom: 0,
+        width: `${pct}%`, borderRadius: "0 2px 2px 0",
+        background: color, transition: "background .4s",
+      }} />
+      {label && (
+        <div style={{
+          position: "absolute", top: "50%", left: `${Math.min(Math.max(pct, 4), 88)}%`,
+          transform: "translate(-50%, 7px)",
+          background: labelColor ?? color, color: "#fff",
+          fontSize: 8, fontWeight: 800, padding: "1px 6px",
+          borderRadius: 4, whiteSpace: "nowrap",
+          fontFamily: "monospace", letterSpacing: ".5px",
+          boxShadow: "0 1px 4px rgba(0,0,0,.18)", zIndex: 2,
+          pointerEvents: "none",
+        }}>{label}</div>
+      )}
     </div>
   );
 }
 
-// ── Driver Info Banner (searching_driver) ─────────────────────────────
-// Shows candidate pool size, how many were emailed this round, ETA, distance.
+/* ─── Driver Info Banner ────────────────────────────────────────── */
 function DriverInfoBanner({ driverInfo, candidateDriverUids = [], emailSentToDrivers = {} }) {
   if (!driverInfo) return null;
   const { etaLabel, nearestMiles, stale } = driverInfo;
-
   const candidateCount = candidateDriverUids.length;
   const emailedCount   = Object.keys(emailSentToDrivers).length;
-
   return (
     <div style={{
       margin: "0 0 12px", padding: "10px 14px",
-      background: stale ? "#FFF8EE" : "#FFFBF0",
-      border: `1px solid ${stale ? "#F0C974" : "#E9D98A"}`,
-      borderRadius: 10,
+      background: stale ? "#FFFBEB" : "#FEFCE8",
+      border: `1.5px solid ${stale ? "#FDE68A" : "#FEF08A"}`,
+      borderRadius: 12,
     }}>
-
-      {/* Row 1: pulsing dot + candidate / emailed counts */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: nearestMiles != null || etaLabel ? 8 : 0, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: stale ? "#BA7517" : "#EAB308", boxShadow: stale ? "0 0 0 3px #FAEEDA" : "0 0 0 3px #FEF9C3", flexShrink: 0, animation: "pulse 1.6s ease-in-out infinite" }} />
-          {stale && (
-            <span style={{ fontSize: 9, fontWeight: 800, padding: "1px 6px", background: "#BA7517", color: "#fff", borderRadius: 4, letterSpacing: ".3px" }}>STALE</span>
-          )}
-        </div>
-
-        {/* Candidate pool */}
-        <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 8px", background: "#FEF3C7", borderRadius: 6, border: "1px solid #FDE68A" }}>
-          <Users size={10} color="#92400E" />
-          <span style={{ fontSize: 10, fontWeight: 800, color: "#92400E", fontFamily: "monospace" }}>
-            {candidateCount} candidate{candidateCount !== 1 ? "s" : ""}
-          </span>
-        </div>
-
-        {/* Emailed this round */}
-        <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 8px", background: emailedCount > 0 ? "#EAF3DE" : "#F3F4F6", borderRadius: 6, border: `1px solid ${emailedCount > 0 ? "#BFE0A0" : "#E5E7EB"}` }}>
-          <Mail size={10} color={emailedCount > 0 ? "#3B6D11" : "#9CA3AF"} />
-          <span style={{ fontSize: 10, fontWeight: 800, color: emailedCount > 0 ? "#3B6D11" : "#9CA3AF", fontFamily: "monospace" }}>
-            {emailedCount} emailed
-          </span>
-        </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: (nearestMiles != null || etaLabel) ? 8 : 0 }}>
+        <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#D97706", flexShrink: 0,
+          boxShadow: "0 0 0 3px #FDE68A" }} />
+        {stale && <span style={{ fontSize: 9, fontWeight: 800, padding: "1px 6px", background: "#D97706", color: "#fff", borderRadius: 4 }}>STALE</span>}
+        <span className="ht-tag" style={{ background: "#FEF3C7", color: "#92400E" }}>
+          <Users size={9} style={{ marginRight: 4 }} />{candidateCount} candidate{candidateCount !== 1 ? "s" : ""}
+        </span>
+        <span className="ht-tag" style={{ background: emailedCount > 0 ? "#DCFCE7" : "#F3F4F6", color: emailedCount > 0 ? "#14532D" : "#9CA3AF" }}>
+          <Mail size={9} style={{ marginRight: 4 }} />{emailedCount} emailed
+        </span>
       </div>
-
-      {/* Row 2: nearest distance + ETA */}
       {(nearestMiles != null || etaLabel) && (
-        <div style={{ display: "flex", gap: 14, paddingTop: 6, borderTop: "1px solid #F0C97488" }}>
+        <div style={{ display: "flex", gap: 14, paddingTop: 7, borderTop: "1px solid #FDE68A66" }}>
           {nearestMiles != null && (
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <MapPin size={11} color="#BA7517" />
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#854F0B", fontFamily: "monospace" }}>
-                {nearestMiles.toFixed(1)} mi nearest
-              </span>
+              <MapPin size={11} color="#D97706" />
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#92400E", fontFamily: "monospace" }}>{nearestMiles.toFixed(1)} mi nearest</span>
             </div>
           )}
           {etaLabel && (
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <Clock size={11} color="#BA7517" />
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#854F0B" }}>{etaLabel}</span>
+              <Clock size={11} color="#D97706" />
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#92400E" }}>{etaLabel}</span>
             </div>
           )}
         </div>
@@ -272,7 +351,7 @@ function DriverInfoBanner({ driverInfo, candidateDriverUids = [], emailSentToDri
   );
 }
 
-// ── Weekly Summary ────────────────────────────────────────────────────
+/* ─── Weekly Summary ────────────────────────────────────────────── */
 function WeeklySummary({ allRides = [] }) {
   const now     = new Date();
   const dayOfWk = now.getDay();
@@ -285,25 +364,23 @@ function WeeklySummary({ allRides = [] }) {
     d.setDate(sunday.getDate() + i);
     return {
       label: DAY_LABELS[d.getDay()], dateStr: d.toDateString(),
-      isToday: d.toDateString() === now.toDateString(), isFuture: d > now,
+      isToday: d.toDateString() === now.toDateString(),
+      isFuture: d > now,
       rides: 0, fareTotal: 0, platformFee: 0, driverPayout: 0,
     };
   });
 
-  allRides
-    .filter(r => r.status === "completed")
-    .forEach(r => {
-      const ms = tsToMs(r.completedAt ?? r.updatedAt ?? r.createdAt);
-      if (!ms) return;
-      const d = new Date(ms);
-      d.setHours(0, 0, 0, 0);
-      const idx = buckets.findIndex(b => b.dateStr === d.toDateString());
-      if (idx === -1) return;
-      buckets[idx].rides        += 1;
-      buckets[idx].fareTotal    += Number(r.fareTotal    ?? 0);
-      buckets[idx].platformFee  += Number(r.platformFee  ?? 0);
-      buckets[idx].driverPayout += Number(r.driverPayout ?? 0);
-    });
+  allRides.filter(r => r.status === "completed").forEach(r => {
+    const ms = tsToMs(r.completedAt ?? r.updatedAt ?? r.createdAt);
+    if (!ms) return;
+    const d = new Date(ms); d.setHours(0, 0, 0, 0);
+    const idx = buckets.findIndex(b => b.dateStr === d.toDateString());
+    if (idx === -1) return;
+    buckets[idx].rides        += 1;
+    buckets[idx].fareTotal    += Number(r.fareTotal    ?? 0);
+    buckets[idx].platformFee  += Number(r.platformFee  ?? 0);
+    buckets[idx].driverPayout += Number(r.driverPayout ?? 0);
+  });
 
   const totalRides        = buckets.reduce((s, b) => s + b.rides,        0);
   const totalFare         = buckets.reduce((s, b) => s + b.fareTotal,    0);
@@ -315,66 +392,95 @@ function WeeklySummary({ allRides = [] }) {
   const hovered = hoveredIdx !== null ? buckets[hoveredIdx] : null;
 
   return (
-    <div className="card fade-up" style={{ marginBottom: 16, padding: 0, overflow: "hidden", border: "1px solid #EBEBEA", borderRadius: 16, boxShadow: "0 2px 12px rgba(0,0,0,.06)", animationDelay: "20ms", opacity: 0 }}>
-      <div style={{ padding: "16px 18px 12px", borderBottom: "1px solid #F3F4F6", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+    <div className="ht-card ht-fade" style={{ marginBottom: 14, animationDelay: "60ms" }}>
+      {/* Header */}
+      <div style={{ padding: "16px 20px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
-            <TrendingUp size={14} color="#639922" />
-            <span style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Rides This Week</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 2 }}>
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: "var(--green-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <TrendingUp size={13} color="var(--green)" />
+            </div>
+            <span style={{ fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 800, color: "var(--ink)" }}>This Week</span>
           </div>
-          <div style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 600 }}>{totalRides} completed ride{totalRides !== 1 ? "s" : ""}</div>
+          <div style={{ fontSize: 11, color: "var(--dim)", fontWeight: 600, paddingLeft: 35 }}>
+            {totalRides} completed ride{totalRides !== 1 ? "s" : ""}
+          </div>
         </div>
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 22, fontWeight: 900, color: "#111827", letterSpacing: "-0.8px", fontFamily: "monospace" }}>${totalFare.toFixed(2)}</div>
-          <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 600 }}>total fare</div>
+          <div style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 800, color: "var(--ink)", letterSpacing: "-1px", lineHeight: 1 }}>
+            ${totalFare.toFixed(2)}
+          </div>
+          <div style={{ fontSize: 10, color: "var(--dim)", fontWeight: 600, marginTop: 2 }}>total fare</div>
         </div>
       </div>
 
-      <div style={{ padding: "16px 18px 10px" }}>
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 90 }}>
+      {/* Chart */}
+      <div style={{ padding: "0 20px 14px" }}>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 5, height: 80 }}>
           {buckets.map((b, i) => {
-            const pct   = b.isFuture ? 0 : Math.max((b.fareTotal / maxFare) * 100, b.rides > 0 ? 8 : 0);
+            const pct   = b.isFuture ? 0 : Math.max((b.fareTotal / maxFare) * 100, b.rides > 0 ? 10 : 0);
             const isHov = hoveredIdx === i;
             return (
-              <div key={b.label} onMouseEnter={() => setHoveredIdx(i)} onMouseLeave={() => setHoveredIdx(null)}
-                style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, cursor: "default" }}>
+              <div key={b.label}
+                onMouseEnter={() => setHoveredIdx(i)}
+                onMouseLeave={() => setHoveredIdx(null)}
+                style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, cursor: "default" }}
+              >
                 {!b.isFuture && b.rides > 0
-                  ? <div style={{ fontSize: 9, fontWeight: 700, color: b.isToday ? "#639922" : "#9CA3AF", opacity: isHov ? 1 : 0.85 }}>${b.fareTotal.toFixed(0)}</div>
+                  ? <div style={{ fontSize: 9, fontWeight: 700, color: b.isToday ? "var(--green)" : "var(--dim)" }}>${b.fareTotal.toFixed(0)}</div>
                   : <div style={{ flex: 1 }} />
                 }
-                <div style={{ width: "100%", height: b.isFuture ? 6 : `${Math.max(pct, 6)}%`, background: b.isFuture ? "#F3F4F6" : b.isToday ? (isHov ? "linear-gradient(180deg,#8DC53E,#639922)" : "linear-gradient(180deg,#639922,#4d7a1a)") : isHov ? "linear-gradient(180deg,#6B7280,#374151)" : "linear-gradient(180deg,#D1D5DB,#9CA3AF)", borderRadius: "5px 5px 3px 3px", transition: "height .45s ease-out, background .15s", boxShadow: b.isToday && !b.isFuture ? "0 0 10px rgba(99,153,34,.35)" : "none", border: b.isToday && !b.isFuture ? "1px solid rgba(99,153,34,.25)" : "1px solid transparent", opacity: b.isFuture ? 0.3 : 1, minHeight: 6 }} />
-                <div style={{ fontSize: 10, fontWeight: 700, color: b.isToday ? "#639922" : "#9CA3AF", letterSpacing: ".4px" }}>{b.label.toUpperCase()}</div>
+                <div className="ht-bar" style={{
+                  width: "100%",
+                  height: b.isFuture ? 5 : `${Math.max(pct, 8)}%`,
+                  background: b.isFuture ? "var(--border2)"
+                    : b.isToday ? (isHov ? "linear-gradient(180deg,#22C55E,#16A34A)" : "linear-gradient(180deg,#16A34A,#15803D)")
+                    : isHov ? "linear-gradient(180deg,#6B7280,#374151)"
+                    : "linear-gradient(180deg,#D1D5DB,#E5E7EB)",
+                  opacity: b.isFuture ? 0.35 : 1,
+                  boxShadow: b.isToday && !b.isFuture ? "0 0 12px rgba(22,163,74,.3)" : "none",
+                  border: `1.5px solid ${b.isToday && !b.isFuture ? "rgba(22,163,74,.2)" : "transparent"}`,
+                  minHeight: 5,
+                }} />
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".5px", color: b.isToday ? "var(--green)" : "var(--dim)" }}>
+                  {b.label.toUpperCase()}
+                </div>
               </div>
             );
           })}
         </div>
       </div>
 
+      {/* Hover detail */}
       {hovered && !hovered.isFuture && (
-        <div style={{ margin: "0 18px 12px", padding: "10px 14px", background: "#F9F9F7", border: "1px solid #EBEBEA", borderRadius: 10, display: "flex", gap: 16, flexWrap: "wrap" }}>
+        <div style={{ margin: "0 20px 14px", padding: "11px 14px", background: "var(--surf2)", border: "1.5px solid var(--border2)", borderRadius: 12, display: "flex", gap: 18, flexWrap: "wrap" }}>
           {[
-            { label: hovered.label, val: `${hovered.rides} ride${hovered.rides !== 1 ? "s" : ""}`, color: "#111827" },
-            { label: "Fare",        val: `$${hovered.fareTotal.toFixed(2)}`,                        color: "#111827" },
-            { label: "Platform",    val: `$${hovered.platformFee.toFixed(2)}`,                      color: "#185FA5" },
-            { label: "Driver",      val: `$${hovered.driverPayout.toFixed(2)}`,                     color: "#639922" },
+            { label: hovered.label,  val: `${hovered.rides} ride${hovered.rides !== 1 ? "s" : ""}`, color: "var(--ink)" },
+            { label: "Fare",         val: `$${hovered.fareTotal.toFixed(2)}`,                        color: "var(--ink)" },
+            { label: "Platform",     val: `$${hovered.platformFee.toFixed(2)}`,                      color: "var(--blue)" },
+            { label: "Driver",       val: `$${hovered.driverPayout.toFixed(2)}`,                     color: "var(--green)" },
           ].map(item => (
             <div key={item.label}>
-              <div style={{ fontSize: 9, color: "#9CA3AF", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".5px" }}>{item.label}</div>
-              <div style={{ fontSize: 13, fontWeight: 800, color: item.color }}>{item.val}</div>
+              <div style={{ fontSize: 9, color: "var(--dim)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".6px", marginBottom: 2 }}>{item.label}</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: item.color }}>{item.val}</div>
             </div>
           ))}
         </div>
       )}
 
-      <div style={{ padding: "12px 18px", borderTop: "1px solid #F3F4F6", display: "flex" }}>
+      {/* Footer totals */}
+      <div style={{ display: "flex", borderTop: "1.5px solid var(--border2)" }}>
         {[
-          { label: "Total Fare",    val: `$${totalFare.toFixed(2)}`,         color: "#111827" },
-          { label: "Platform Fee",  val: `$${totalPlatformFee.toFixed(2)}`,  color: "#185FA5" },
-          { label: "Driver Payout", val: `$${totalDriverPayout.toFixed(2)}`, color: "#639922" },
+          { label: "Total Fare",     val: `$${totalFare.toFixed(2)}`,         color: "var(--ink)" },
+          { label: "Platform Fee",   val: `$${totalPlatformFee.toFixed(2)}`,  color: "var(--blue)" },
+          { label: "Driver Payout",  val: `$${totalDriverPayout.toFixed(2)}`, color: "var(--green)" },
         ].map((item, i) => (
-          <div key={item.label} style={{ flex: 1, textAlign: "center", borderRight: i < 2 ? "1px solid #F3F4F6" : "none", padding: "0 8px" }}>
-            <div style={{ fontSize: 9, color: "#9CA3AF", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 3 }}>{item.label}</div>
-            <div style={{ fontSize: 14, fontWeight: 900, color: item.color, fontFamily: "monospace", letterSpacing: "-0.3px" }}>{item.val}</div>
+          <div key={item.label} style={{
+            flex: 1, textAlign: "center", padding: "12px 8px",
+            borderRight: i < 2 ? "1.5px solid var(--border2)" : "none",
+          }}>
+            <div style={{ fontSize: 9, color: "var(--dim)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".6px", marginBottom: 3 }}>{item.label}</div>
+            <div style={{ fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 800, color: item.color }}>{item.val}</div>
           </div>
         ))}
       </div>
@@ -382,28 +488,26 @@ function WeeklySummary({ allRides = [] }) {
   );
 }
 
-// ── Filter Panel ──────────────────────────────────────────────────────
+/* ─── Filter Panel ──────────────────────────────────────────────── */
 function FilterPanel({ filters, onChange, onClear, resultCount }) {
   return (
-    <div style={{ background: "#F9F9F7", border: "1px solid #EBEBEA", borderRadius: 14, padding: "14px 16px", marginBottom: 14, display: "flex", flexDirection: "column", gap: 10 }}>
-      <div style={{ position: "relative" }}>
-        <Search size={13} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "#9CA3AF" }} />
+    <div style={{ background: "var(--surf2)", border: "1.5px solid var(--border2)", borderRadius: 16, padding: "14px 16px", marginBottom: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+      <div className="ht-search-wrap">
+        <Search size={13} color="var(--dim)" />
         <input
           value={filters.search}
           onChange={e => onChange("search", e.target.value)}
           placeholder="Search address, city, zip…"
-          style={{ width: "100%", padding: "9px 12px 9px 32px", borderRadius: 10, border: "1px solid #E5E7EB", fontSize: 12, fontWeight: 500, color: "#111827", background: "#fff", outline: "none", boxSizing: "border-box", fontFamily: "inherit" }}
         />
         {filters.search && (
-          <button onClick={() => onChange("search", "")} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#9CA3AF", display: "flex", padding: 0 }}>
+          <button onClick={() => onChange("search", "")} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--dim)", display: "flex", padding: 0 }}>
             <X size={13} />
           </button>
         )}
       </div>
-
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
         <FilterSelect value={filters.status}        onChange={v => onChange("status", v)}
-          options={[{ value: "", label: "All statuses" }, { value: "searching_driver", label: "Searching" }, { value: "driver_assigned", label: "Assigned" }, { value: "arrived", label: "Arrived" }, { value: "in_progress", label: "In progress" }, { value: "completed", label: "Completed" }, { value: "cancelled", label: "Cancelled" }]} />
+          options={[{ value: "", label: "All statuses" }, { value: "searching_driver", label: "Searching" }, { value: "driver_assigned", label: "Assigned" }, { value: "arrived", label: "Arrived" }, { value: "in_progress", label: "In Progress" }, { value: "completed", label: "Completed" }, { value: "cancelled", label: "Cancelled" }]} />
         <FilterSelect value={filters.paymentMethod} onChange={v => onChange("paymentMethod", v)}
           options={[{ value: "", label: "All payments" }, { value: "card", label: "Card" }, { value: "cashapp", label: "Cash App" }]} />
         <FilterSelect value={filters.paymentStatus} onChange={v => onChange("paymentStatus", v)}
@@ -411,10 +515,9 @@ function FilterPanel({ filters, onChange, onClear, resultCount }) {
         <FilterSelect value={filters.payoutStatus}  onChange={v => onChange("payoutStatus", v)}
           options={[{ value: "", label: "Payout status" }, { value: "processing", label: "Processing" }, { value: "pending", label: "Pending" }, { value: "paid", label: "Paid" }, { value: "failed", label: "Failed" }]} />
       </div>
-
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 600 }}>{resultCount} ride{resultCount !== 1 ? "s" : ""} found</span>
-        <button onClick={onClear} style={{ fontSize: 11, fontWeight: 700, color: "#E24B4A", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Clear all</button>
+        <span style={{ fontSize: 11, color: "var(--dim)", fontWeight: 600 }}>{resultCount} ride{resultCount !== 1 ? "s" : ""} found</span>
+        <button onClick={onClear} style={{ fontSize: 11, fontWeight: 700, color: "var(--red)", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "var(--font)" }}>Clear all</button>
       </div>
     </div>
   );
@@ -422,34 +525,22 @@ function FilterPanel({ filters, onChange, onClear, resultCount }) {
 
 function FilterSelect({ value, onChange, options }) {
   return (
-    <div style={{ position: "relative", flex: 1, minWidth: 120 }}>
-      <select value={value} onChange={e => onChange(e.target.value)}
-        style={{ width: "100%", padding: "8px 28px 8px 10px", borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 11, fontWeight: 600, color: value ? "#111827" : "#9CA3AF", background: value ? "#fff" : "#F9F9F7", appearance: "none", outline: "none", cursor: "pointer", fontFamily: "inherit" }}>
+    <div className="ht-select-wrap">
+      <select value={value} onChange={e => onChange(e.target.value)}>
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
-      <ChevronDown size={11} style={{ position: "absolute", right: 9, top: "50%", transform: "translateY(-50%)", color: "#9CA3AF", pointerEvents: "none" }} />
+      <ChevronDown size={11} style={{ position: "absolute", right: 9, top: "50%", transform: "translateY(-50%)", color: "var(--dim)", pointerEvents: "none" }} />
     </div>
   );
 }
 
-// ── HomeTab ───────────────────────────────────────────────────────────
-const DEFAULT_FILTERS = {
-  search: "", status: "", paymentMethod: "", paymentStatus: "", payoutStatus: "",
-};
+/* ─── HomeTab ───────────────────────────────────────────────────── */
+const DEFAULT_FILTERS = { search: "", status: "", paymentMethod: "", paymentStatus: "", payoutStatus: "" };
 
 export function HomeTab({
-  liveRides = [],
-  allRides = [],
-  allApprovals = [],
-  totalAccounts = 0,
-  uatobdrivers = [],
-  activeRides = [],
-  searchingRides = [],
-  totalRides = 0,
-  activeDrivers = [],
-  revenue = 0,
-  approvals = [],
-  onToast,
+  liveRides = [], allRides = [], allApprovals = [], totalAccounts = 0,
+  uatobdrivers = [], activeRides = [], searchingRides = [],
+  totalRides = 0, activeDrivers = [], revenue = 0, approvals = [], onToast,
 }) {
   const [refreshing,  setRefreshing]  = useState(false);
   const [showFilters, setShowFilters] = useState(false);
@@ -464,8 +555,9 @@ export function HomeTab({
     return liveRides.filter(ride => {
       if (filters.search) {
         const q = filters.search.toLowerCase();
-        const searchable = [ride.pickup, ride.dropoff, ride.pickupCity, ride.dropoffCity, ride.pickupZip, ride.dropoffZip].map(v => (v ?? "").toLowerCase()).join(" ");
-        if (!searchable.includes(q)) return false;
+        const s = [ride.pickup, ride.dropoff, ride.pickupCity, ride.dropoffCity, ride.pickupZip, ride.dropoffZip]
+          .map(v => (v ?? "").toLowerCase()).join(" ");
+        if (!s.includes(q)) return false;
       }
       if (filters.status        && ride.status        !== filters.status)        return false;
       if (filters.paymentMethod && ride.paymentMethod !== filters.paymentMethod) return false;
@@ -476,145 +568,170 @@ export function HomeTab({
   }, [liveRides, filters]);
 
   return (
-    <div style={{ padding: "0 16px 16px" }}>
+    <>
+      <style>{GLOBAL_CSS}</style>
+      <div className="ht-root" style={{ padding: "0 16px 24px" }}>
 
-      {/* ── Live status bar ── */}
-      <div className="card fade-up" style={{ padding: "11px 16px", marginBottom: 16, animationDelay: "40ms", opacity: 0, boxShadow: "0 1px 6px rgba(0,0,0,.05)" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-            {[
-              { dot: "#639922", label: `${totalAccounts} accounts`          },
-              { dot: "#BA7517", label: `${uatobdrivers.length} drivers`     },
-              { dot: "#639922", label: `${activeRides.length} active rides` },
-              { dot: "#BA7517", label: `${searchingRides.length} searching` },
-            ].map(({ dot, label }) => (
-              <div key={label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <div style={{ width: 7, height: 7, borderRadius: "50%", background: dot, flexShrink: 0 }} />
-                <span style={{ fontSize: 12, fontWeight: 600 }}>{label}</span>
-              </div>
-            ))}
+        {/* ── Live status bar ── */}
+        <div className="ht-card ht-fade" style={{ padding: "12px 16px", marginBottom: 12, animationDelay: "0ms" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+              {[
+                { dot: "#16A34A", label: `${totalAccounts}`, sub: "accounts" },
+                { dot: "#D97706", label: `${uatobdrivers.length}`, sub: "drivers" },
+                { dot: "#16A34A", label: `${activeRides.length}`, sub: "active" },
+                { dot: "#D97706", label: `${searchingRides.length}`, sub: "searching" },
+              ].map(({ dot, label, sub }, i) => (
+                <div key={sub} style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "5px 12px", borderRadius: 8,
+                  borderRight: i < 3 ? "1.5px solid var(--border2)" : "none",
+                  paddingRight: i < 3 ? 12 : 0,
+                }}>
+                  <div style={{ width: 7, height: 7, borderRadius: "50%", background: dot, flexShrink: 0 }} />
+                  <span style={{ fontFamily: "var(--font-display)", fontSize: 14, fontWeight: 800, color: "var(--ink)" }}>{label}</span>
+                  <span style={{ fontSize: 11, color: "var(--dim)", fontWeight: 600 }}>{sub}</span>
+                </div>
+              ))}
+            </div>
+            <button onClick={handleRefresh} style={{ width: 32, height: 32, borderRadius: 8, border: "1.5px solid var(--border)", background: "var(--surf2)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--muted)", transition: "all .15s" }}>
+              <RefreshCw size={13} className={refreshing ? "ht-spin" : ""} />
+            </button>
           </div>
-          <button onClick={handleRefresh} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, display: "flex", padding: 0 }}>
-            <RefreshCw size={15} style={{ animation: refreshing ? "spinAnim 1s linear infinite" : "none" }} />
+        </div>
+
+        {/* ── Stat cards ── */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9, marginBottom: 12 }}>
+          {[
+            { label: "Total Rides",       val: totalRides ?? liveRides.length, icon: Activity,   accent: "#2563EB", accentBg: "#EFF6FF",  delay: 40  },
+            { label: "Active Drivers",    val: activeDrivers.length,           icon: Car,        accent: "#16A34A", accentBg: "#DCFCE7",  delay: 80  },
+            { label: "Revenue Today",     val: revenue != null ? `$${revenue.toFixed(2)}` : "—", icon: DollarSign, accent: "#D97706", accentBg: "#FEF3C7", delay: 120 },
+            { label: "Pending Approvals", val: allApprovals.length,            icon: Shield,     accent: "#DC2626", accentBg: "#FEF2F2",  delay: 160 },
+          ].map(({ label, val, icon: Icon, accent, accentBg, delay }) => (
+            <div key={label} className="ht-stat-pill ht-fade" style={{ animationDelay: `${delay}ms` }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ width: 30, height: 30, borderRadius: 9, background: accentBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Icon size={13} color={accent} />
+                </div>
+                <ArrowUpRight size={12} color="var(--dim)" />
+              </div>
+              <div style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 800, color: "var(--ink)", letterSpacing: "-0.5px", lineHeight: 1 }}>{val}</div>
+              <div style={{ fontSize: 11, color: "var(--dim)", fontWeight: 600 }}>{label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Weekly Chart ── */}
+        <WeeklySummary allRides={allRides.length > 0 ? allRides : liveRides} />
+
+        {/* ── Live Rides header ── */}
+        <div className="ht-fade" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, animationDelay: "200ms" }}>
+          <div>
+            <div style={{ fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 800, color: "var(--ink)" }}>
+              Live Rides
+            </div>
+            {liveRides.length > 0 && (
+              <div style={{ fontSize: 11, color: "var(--dim)", fontWeight: 600, marginTop: 1 }}>
+                {filteredRides.length} of {liveRides.length} shown
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => setShowFilters(p => !p)}
+            className={`ht-btn ${showFilters || activeFilterCount > 0 ? "active" : ""}`}
+          >
+            <Filter size={11} />
+            Filter
+            {activeFilterCount > 0 && (
+              <span style={{ width: 17, height: 17, borderRadius: "50%", background: "var(--green)", color: "#fff", fontSize: 9, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {activeFilterCount}
+              </span>
+            )}
           </button>
         </div>
-      </div>
 
-      {/* ── Stats grid ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-        <StatCard label="Total Rides"       value={totalRides ?? liveRides.length} icon={Activity}   color={C.blue}  delay={80}  />
-        <StatCard label="Active Drivers"    value={activeDrivers.length}           icon={Car}        color={C.green} delay={130} />
-        <StatCard label="Revenue Today"     value={revenue != null ? `${revenue.toFixed(2)}` : "—"} icon={DollarSign} color={C.amber} delay={180} />
-        <StatCard label="Pending Approvals" value={allApprovals.length}            icon={Shield}     color={C.red}   delay={230} />
-      </div>
-
-      {/* ── Weekly Summary ── */}
-      <WeeklySummary allRides={allRides.length > 0 ? allRides : liveRides} />
-
-      {/* ── Section header + filter toggle ── */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>
-          Live Rides{liveRides.length ? ` (${filteredRides.length}/${liveRides.length})` : ""}
-        </span>
-        <button
-          onClick={() => setShowFilters(p => !p)}
-          style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, border: `1px solid ${activeFilterCount > 0 ? "#639922" : "#E5E7EB"}`, background: activeFilterCount > 0 ? "#EAF3DE" : "#fff", color: activeFilterCount > 0 ? "#3B6D11" : "#6B7280", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
-        >
-          <Filter size={11} />
-          Filter
-          {activeFilterCount > 0 && (
-            <span style={{ width: 16, height: 16, borderRadius: "50%", background: "#639922", color: "#fff", fontSize: 9, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {activeFilterCount}
-            </span>
-          )}
-        </button>
-      </div>
-
-      {showFilters && (
-        <FilterPanel filters={filters} onChange={handleFilterChange} onClear={handleClearFilters} resultCount={filteredRides.length} />
-      )}
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {filteredRides.length === 0 && (
-          <div style={{ textAlign: "center", padding: "32px 0", color: C.textMuted, fontSize: 13 }}>
-            {activeFilterCount > 0 ? "No rides match your filters" : "No rides yet"}
-          </div>
+        {showFilters && (
+          <FilterPanel filters={filters} onChange={handleFilterChange} onClear={handleClearFilters} resultCount={filteredRides.length} />
         )}
-        {filteredRides.map((ride, i) => (
-          <RideCard key={ride.id} ride={ride} delay={280 + i * 55} />
-        ))}
+
+        {/* ── Ride list ── */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {filteredRides.length === 0 && (
+            <div style={{ textAlign: "center", padding: "40px 0", color: "var(--dim)", fontSize: 13 }}>
+              <div style={{ fontSize: 28, marginBottom: 10 }}>🚗</div>
+              {activeFilterCount > 0 ? "No rides match your filters" : "No rides yet"}
+            </div>
+          )}
+          {filteredRides.map((ride, i) => (
+            <RideCard key={ride.id} ride={ride} delay={240 + i * 45} />
+          ))}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
-// ── RideCard ──────────────────────────────────────────────────────────
+/* ─── RideCard ──────────────────────────────────────────────────── */
 function RideCard({ ride, delay }) {
   const riderLabel  = ride.riderName  ?? `Rider …${ride.uid?.slice(-4) ?? "?"}`;
   const driverLabel = ride.driverName ?? (ride.driverUid ? `Driver …${ride.driverUid.slice(-4)}` : "No driver yet");
 
-  const s  = STATUS_META[ride.status]         ?? { label: ride.status,         dot: "#888780", bg: "#F1EFE8", color: "#5F5E5A" };
-  const pm = PAYMENT_META[ride.paymentStatus] ?? { bg: "#F3F4F6", color: "#6B7280", label: ride.paymentStatus };
-  const po = PAYOUT_META[ride.payoutStatus]   ?? { bg: "#F3F4F6", color: "#6B7280", label: ride.payoutStatus  };
+  const s  = STATUS_META[ride.status]         ?? { label: ride.status,         dot: "#9CA3AF", bg: "#F3F4F6", color: "#6B7280" };
+  const pm = PAYMENT_META[ride.paymentStatus] ?? { bg: "#F3F4F6", color: "#6B7280", label: ride.paymentStatus ?? "—" };
+  const po = PAYOUT_META[ride.payoutStatus]   ?? { bg: "#F3F4F6", color: "#6B7280", label: ride.payoutStatus  ?? "—" };
 
   function TopBar() {
     switch (ride.status) {
-      case "searching_driver":
-        return (
-          <SearchTimerBar
-            expiresAt={ride.expiresAt}
-            emailDispatchAt={ride.emailDispatchAt}
-            createdAt={ride.createdAt}
-          />
-        );
-      case "driver_assigned":
-        return <DriverAssignedBar acceptedAt={ride.acceptedAt} etaMin={ride.driverInfo?.etaMin} />;
-      case "arrived":
-        return <ArrivedBar />;
-      case "in_progress":
-        return <InProgressBar startedAt={ride.startedAt} tripDurationMin={ride.tripDurationMin} />;
-      case "completed":
-        return <div style={{ height: 3, background: "#D1D5DB" }} />;
-      case "cancelled":
-        return <div style={{ height: 3, background: "linear-gradient(90deg,#E24B4A,#F87171)" }} />;
-      default:
-        return <div style={{ height: 3, background: "#F3F3F0" }} />;
+      case "searching_driver": return <SearchTimerBar expiresAt={ride.expiresAt} emailDispatchAt={ride.emailDispatchAt} createdAt={ride.createdAt} />;
+      case "driver_assigned":  return <DriverAssignedBar acceptedAt={ride.acceptedAt} etaMin={ride.driverInfo?.etaMin} />;
+      case "arrived":          return <ArrivedBar />;
+      case "in_progress":      return <InProgressBar startedAt={ride.startedAt} tripDurationMin={ride.tripDurationMin} />;
+      case "completed":        return <div style={{ height: 3, background: "var(--border2)" }} />;
+      case "cancelled":        return <div style={{ height: 3, background: "linear-gradient(90deg,#DC2626,#F87171)" }} />;
+      default:                 return <div style={{ height: 3, background: "var(--border2)" }} />;
     }
   }
 
   return (
-    <div
-      className="card fade-up"
-      style={{ padding: 0, animationDelay: `${delay}ms`, opacity: 0, overflow: "hidden", border: "1px solid #EBEBEA", borderRadius: 16, boxShadow: "0 2px 12px rgba(0,0,0,.06)" }}
-    >
+    <div className="ht-card ht-ride-card ht-fade" style={{ padding: 0, animationDelay: `${delay}ms` }}>
       <TopBar />
 
-      <div style={{ padding: "14px 16px" }}>
+      <div style={{ padding: "14px 16px 12px" }}>
 
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <Avatar name={riderLabel} size={38} colorIdx={1} />
+        {/* Header row */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12, gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+            {/* Avatar */}
+            <div style={{
+              width: 38, height: 38, borderRadius: 11,
+              background: "var(--green-bg)", color: "var(--green)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontFamily: "var(--font-display)", fontSize: 14, fontWeight: 800,
+              flexShrink: 0,
+            }}>
+              {riderLabel.charAt(0).toUpperCase()}
+            </div>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>{riderLabel}</div>
-              <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
-                <Car size={10} />
+              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)", marginBottom: 3 }}>{riderLabel}</div>
+              <div style={{ fontSize: 11, color: "var(--dim)", display: "flex", alignItems: "center", gap: 4 }}>
+                <Car size={10} color="var(--dim)" />
                 {driverLabel}
               </div>
             </div>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 20, background: s.bg, color: s.color, letterSpacing: ".3px" }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.dot, flexShrink: 0, boxShadow: `0 0 5px ${s.dot}` }} />
+
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5, flexShrink: 0 }}>
+            <span className="ht-status" style={{ background: s.bg, color: s.color }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.dot, flexShrink: 0 }} />
               {s.label}
             </span>
-            <span style={{ fontSize: 20, fontWeight: 800, color: "#111827", letterSpacing: "-0.5px", fontFamily: "monospace" }}>
+            <span style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 800, color: "var(--ink)", letterSpacing: "-0.5px", lineHeight: 1 }}>
               ${ride.fareTotal?.toFixed(2) ?? "—"}
             </span>
           </div>
         </div>
 
-        {/* Driver Info Banner (searching only) */}
+        {/* Driver banner for searching rides */}
         {ride.status === "searching_driver" && (
           <DriverInfoBanner
             driverInfo={ride.driverInfo}
@@ -624,20 +741,20 @@ function RideCard({ ride, delay }) {
         )}
 
         {/* Route */}
-        <div style={{ background: "#F9F9F7", border: "1px solid #EBEBEA", borderRadius: 12, padding: "12px 14px", marginBottom: 12, position: "relative" }}>
-          <div style={{ position: "absolute", left: 20, top: 22, bottom: 22, width: 1.5, background: "linear-gradient(180deg,#639922,#E24B4A)", borderRadius: 2 }} />
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div className="ht-route-line" style={{ marginBottom: 11 }}>
+          <div style={{ position: "absolute", left: 23, top: 20, bottom: 20, width: 1.5, background: "linear-gradient(180deg,#16A34A,#DC2626)", borderRadius: 2 }} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
             {[
-              { dot: "#639922", label: "Pickup",  addr: shortAddress(ride.pickup),  city: ride.pickupCity,  zip: ride.pickupZip  },
-              { dot: "#E24B4A", label: "Dropoff", addr: shortAddress(ride.dropoff), city: ride.dropoffCity, zip: ride.dropoffZip },
+              { dot: "#16A34A", label: "PICKUP",  addr: shortAddress(ride.pickup),  city: ride.pickupCity,  zip: ride.pickupZip  },
+              { dot: "#DC2626", label: "DROPOFF", addr: shortAddress(ride.dropoff), city: ride.dropoffCity, zip: ride.dropoffZip },
             ].map(({ dot, label, addr, city, zip }) => (
               <div key={label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 9, height: 9, borderRadius: "50%", background: dot, flexShrink: 0, boxShadow: `0 0 6px ${dot}88`, border: "2px solid #fff", zIndex: 1 }} />
+                <div style={{ width: 9, height: 9, borderRadius: "50%", background: dot, flexShrink: 0, border: "2px solid var(--surf)", zIndex: 1, boxShadow: `0 0 0 2px ${dot}33` }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px" }}>{label}</div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  <div style={{ fontSize: 9, color: "var(--dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".7px", marginBottom: 1 }}>{label}</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {addr}
-                    {city && <span style={{ color: "#9CA3AF", fontWeight: 400 }}> · {city}{zip ? ` ${zip}` : ""}</span>}
+                    {city && <span style={{ color: "var(--dim)", fontWeight: 400 }}> · {city}{zip ? ` ${zip}` : ""}</span>}
                   </div>
                 </div>
               </div>
@@ -645,33 +762,34 @@ function RideCard({ ride, delay }) {
           </div>
         </div>
 
-        {/* Trip stats */}
-        <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+        {/* Trip meta chips */}
+        <div style={{ display: "flex", gap: 5, marginBottom: 11, flexWrap: "wrap" }}>
           {[
             ride.rideLabel ?? ride.rideType,
             `${ride.tripDistanceMiles ?? 0} mi`,
             `~${ride.tripDurationMin ?? 0} min`,
             timeAgo(ride.createdAt),
-          ].map(label => (
-            <span key={label} style={{ fontSize: 10, fontWeight: 600, padding: "3px 9px", borderRadius: 6, background: "#F3F4F6", color: "#6B7280" }}>
-              {label}
-            </span>
+          ].filter(Boolean).map(label => (
+            <span key={label} className="ht-tag" style={{ background: "var(--surf3)", color: "var(--muted)" }}>{label}</span>
           ))}
         </div>
 
         {/* Footer */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 10, borderTop: "1px solid #F3F4F6", flexWrap: "wrap", gap: 6 }}>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 6, background: ride.paymentMethod === "cashapp" ? "#EAF3DE" : "#E6F1FB", color: ride.paymentMethod === "cashapp" ? "#3B6D11" : "#185FA5" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 10, borderTop: "1.5px solid var(--border2)", flexWrap: "wrap", gap: 6 }}>
+          <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+            <span className="ht-tag" style={{
+              background: ride.paymentMethod === "cashapp" ? "#DCFCE7" : "#EFF6FF",
+              color:       ride.paymentMethod === "cashapp" ? "#14532D"  : "#1E40AF",
+            }}>
               {ride.paymentMethod === "cashapp" ? "Cash App" : ride.paymentMethod ?? "Card"}
             </span>
-            <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 6, background: pm.bg, color: pm.color }}>{pm.label}</span>
-            <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 6, background: po.bg, color: po.color }}>{po.label}</span>
+            <span className="ht-tag" style={{ background: pm.bg, color: pm.color }}>{pm.label}</span>
+            <span className="ht-tag" style={{ background: po.bg, color: po.color }}>{po.label}</span>
           </div>
-          <div style={{ fontSize: 10, color: "#9CA3AF" }}>
-            <span style={{ color: "#374151", fontWeight: 700 }}>${ride.driverPayout?.toFixed(2) ?? "—"}</span>
+          <div style={{ fontSize: 11, color: "var(--dim)", fontWeight: 500 }}>
+            <span style={{ color: "var(--green)", fontWeight: 700 }}>${ride.driverPayout?.toFixed(2) ?? "—"}</span>
             {" driver · "}
-            <span style={{ color: "#374151", fontWeight: 700 }}>${ride.platformFee?.toFixed(2) ?? "—"}</span>
+            <span style={{ color: "var(--blue)", fontWeight: 700 }}>${ride.platformFee?.toFixed(2) ?? "—"}</span>
             {" fee"}
           </div>
         </div>
