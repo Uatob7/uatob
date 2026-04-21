@@ -3,447 +3,461 @@ import {
   Activity, DollarSign, Car, Shield,
   RefreshCw, Filter, Search, X, ChevronDown, TrendingUp,
   MapPin, Clock, Mail, Users, ArrowUpRight, Zap,
+  Navigation, CircleDot, CheckCircle2, XCircle, AlertCircle,
+  Radio, Gauge, Layers,
 } from "lucide-react";
-import { C } from '@/App/Admin/Tokens';
-import { StatCard, Avatar } from '@/App/Admin/UI';
 
-/* ─── Google Fonts + Global Styles ─────────────────────────────── */
-const GLOBAL_CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800;900&family=Syne:wght@700;800&display=swap');
+/* ─── Design Tokens ─────────────────────────────────────────────── */
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800&family=Bebas+Neue&display=swap');
 
 :root {
-  --ink: #0F1117;
-  --ink2: #374151;
-  --muted: #6B7280;
-  --dim: #9CA3AF;
-  --border: #E5E7EB;
-  --border2: #F3F4F6;
-  --surf: #FFFFFF;
-  --surf2: #F9FAFB;
-  --surf3: #F3F4F6;
-  --green: #16A34A;
-  --green-bg: #DCFCE7;
-  --green-mid: #4ADE80;
-  --amber: #D97706;
-  --amber-bg: #FEF3C7;
-  --blue: #2563EB;
-  --blue-bg: #EFF6FF;
-  --red: #DC2626;
-  --red-bg: #FEF2F2;
-  --radius-card: 20px;
-  --radius-sm: 10px;
-  --shadow-card: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.05);
-  --shadow-hover: 0 2px 8px rgba(0,0,0,.08), 0 8px 32px rgba(0,0,0,.08);
-  --font: 'Figtree', sans-serif;
-  --font-display: 'Syne', sans-serif;
+  --bg:          #080C10;
+  --bg2:         #0D1318;
+  --bg3:         #111820;
+  --bg4:         #161E28;
+  --surface:     #1A2332;
+  --surface2:    #1F2A3A;
+  --border:      rgba(255,255,255,.06);
+  --border2:     rgba(255,255,255,.10);
+  --border3:     rgba(255,255,255,.16);
+
+  --ink:         #F0F4F8;
+  --ink2:        #B8C4D0;
+  --ink3:        #6E8094;
+  --ink4:        #3E5068;
+
+  --green:       #00E87A;
+  --green2:      #00C466;
+  --green-dim:   rgba(0,232,122,.12);
+  --green-glow:  rgba(0,232,122,.25);
+
+  --blue:        #3D9BFF;
+  --blue-dim:    rgba(61,155,255,.12);
+
+  --amber:       #F59E0B;
+  --amber-dim:   rgba(245,158,11,.12);
+
+  --red:         #FF4D4D;
+  --red-dim:     rgba(255,77,77,.12);
+
+  --violet:      #A78BFA;
+  --violet-dim:  rgba(167,139,250,.12);
+
+  --radius:      16px;
+  --radius-sm:   10px;
+  --radius-xs:   7px;
+  --font:        'DM Sans', sans-serif;
+  --mono:        'Space Mono', monospace;
+  --display:     'Bebas Neue', sans-serif;
 }
 
-.ht-root * { box-sizing: border-box; margin: 0; padding: 0; }
-.ht-root { font-family: var(--font); color: var(--ink); }
+.ht * { box-sizing: border-box; margin: 0; padding: 0; }
+.ht {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+}
 
-/* Fade-up animation */
-@keyframes htFadeUp {
-  from { opacity: 0; transform: translateY(16px); }
+/* ── Animations ───────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.ht-fade { animation: htFadeUp .45s cubic-bezier(.22,1,.36,1) both; }
-
-/* Spin */
-@keyframes htSpin { to { transform: rotate(360deg); } }
-.ht-spin { animation: htSpin 1s linear infinite; }
-
-/* Pulse dot */
-@keyframes htPulse {
-  0%,100% { box-shadow: 0 0 0 0 currentColor; }
-  50%      { box-shadow: 0 0 0 5px transparent; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse-ring {
+  0%   { transform: scale(.85); opacity: .7; }
+  70%  { transform: scale(1.5); opacity: 0; }
+  100% { transform: scale(.85); opacity: 0; }
+}
+@keyframes scanline {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(400%); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
 }
 
-/* Card base */
-.ht-card {
-  background: var(--surf);
-  border: 1.5px solid var(--border2);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
+.fade-up { animation: fadeUp .5s cubic-bezier(.22,1,.36,1) both; }
+.spin     { animation: spin 1.1s linear infinite; }
+
+/* ── Panel / Card ─────────────────────────────── */
+.panel {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   overflow: hidden;
-  transition: box-shadow .2s, border-color .2s, transform .2s;
+  position: relative;
 }
-.ht-card:hover { box-shadow: var(--shadow-hover); }
+.panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, rgba(255,255,255,.025) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+}
+.panel > * { position: relative; z-index: 1; }
 
-/* Ride card hover lift */
-.ht-ride-card { cursor: default; }
-.ht-ride-card:hover { transform: translateY(-2px); border-color: var(--border); }
+.panel-hover {
+  transition: border-color .2s, transform .2s, box-shadow .2s;
+}
+.panel-hover:hover {
+  border-color: var(--border2);
+  transform: translateY(-1px);
+  box-shadow: 0 12px 40px rgba(0,0,0,.4), 0 0 0 1px rgba(0,232,122,.04);
+}
 
-/* Stat pill */
-.ht-stat-pill {
-  background: var(--surf2);
-  border: 1.5px solid var(--border2);
-  border-radius: 14px;
-  padding: 14px 16px;
-  display: flex; flex-direction: column; gap: 6px;
+/* ── Stat pill ─────────────────────────────────── */
+.stat-pill {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 16px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  overflow: hidden;
   transition: border-color .2s, box-shadow .2s;
 }
-.ht-stat-pill:hover { border-color: var(--border); box-shadow: 0 2px 12px rgba(0,0,0,.06); }
+.stat-pill::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.06), transparent);
+}
+.stat-pill:hover {
+  border-color: var(--border2);
+  box-shadow: 0 4px 24px rgba(0,0,0,.3);
+}
 
-/* Filter pill */
-.ht-pill {
+/* ── Pill / chip ─────────────────────────────── */
+.chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 600; letter-spacing: .3px;
+  padding: 3px 9px; border-radius: 5px;
+  font-family: var(--font);
+}
+.filter-pill {
   display: inline-flex; align-items: center; gap: 5px;
-  padding: 6px 13px; border-radius: 100px;
-  border: 1.5px solid var(--border);
-  background: var(--surf); font-family: var(--font);
-  font-size: 12px; font-weight: 700; color: var(--muted);
+  padding: 6px 14px; border-radius: 100px;
+  border: 1px solid var(--border2);
+  background: var(--bg4); font-family: var(--font);
+  font-size: 12px; font-weight: 600; color: var(--ink3);
   cursor: pointer; white-space: nowrap;
   transition: all .15s;
 }
-.ht-pill.active { border-color: var(--green); background: var(--green-bg); color: var(--green); }
-.ht-pill:not(.active):hover { border-color: #D1D5DB; color: var(--ink2); }
+.filter-pill.active { border-color: var(--green); background: var(--green-dim); color: var(--green); }
+.filter-pill:not(.active):hover { border-color: var(--border3); color: var(--ink2); }
 
-/* Tag chip */
-.ht-tag {
-  display: inline-flex; align-items: center;
-  font-size: 10px; font-weight: 700;
-  padding: 3px 9px; border-radius: 6px;
-  letter-spacing: .2px;
+/* ── Status dot ───────────────────────────────── */
+.live-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  flex-shrink: 0; position: relative;
+}
+.live-dot::after {
+  content: '';
+  position: absolute;
+  inset: -4px; border-radius: 50%;
+  border: 1.5px solid currentColor;
+  animation: pulse-ring 2s ease-out infinite;
+  opacity: 0;
 }
 
-/* Search input */
-.ht-search-wrap {
+/* ── Status badge ─────────────────────────────── */
+.status-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 700; padding: 3px 10px;
+  border-radius: 100px; letter-spacing: .4px;
+  white-space: nowrap; text-transform: uppercase;
+}
+
+/* ── Search input ─────────────────────────────── */
+.search-wrap {
   display: flex; align-items: center; gap: 9px;
-  background: var(--surf); border: 1.5px solid var(--border);
-  border-radius: 12px; padding: 0 14px; height: 42px;
+  background: var(--bg4); border: 1px solid var(--border2);
+  border-radius: var(--radius-sm); padding: 0 14px; height: 42px;
   transition: border-color .2s, box-shadow .2s;
 }
-.ht-search-wrap:focus-within {
+.search-wrap:focus-within {
   border-color: var(--green);
-  box-shadow: 0 0 0 3px rgba(22,163,74,.08);
+  box-shadow: 0 0 0 3px var(--green-dim);
 }
-.ht-search-wrap input {
+.search-wrap input {
   flex: 1; border: none; outline: none; background: transparent;
   font-family: var(--font); font-size: 13px; color: var(--ink);
 }
-.ht-search-wrap input::placeholder { color: var(--dim); }
+.search-wrap input::placeholder { color: var(--ink4); }
 
-/* Select */
-.ht-select-wrap { position: relative; flex: 1; min-width: 120px; }
-.ht-select-wrap select {
+/* ── Select ─────────────────────────────────── */
+.sel-wrap { position: relative; flex: 1; min-width: 120px; }
+.sel-wrap select {
   width: 100%; padding: 8px 28px 8px 11px;
-  border-radius: 10px; border: 1.5px solid var(--border);
-  font-size: 11px; font-weight: 600; color: var(--muted);
-  background: var(--surf2); appearance: none; outline: none;
+  border-radius: 8px; border: 1px solid var(--border2);
+  font-size: 11px; font-weight: 600; color: var(--ink3);
+  background: var(--bg4); appearance: none; outline: none;
   cursor: pointer; font-family: var(--font);
   transition: border-color .2s;
 }
-.ht-select-wrap select:focus { border-color: var(--green); }
+.sel-wrap select:focus { border-color: var(--green); }
 
-/* Route line */
-.ht-route-line {
-  background: var(--surf2); border: 1.5px solid var(--border2);
-  border-radius: 14px; padding: 12px 14px;
+/* ── Action btn ──────────────────────────────── */
+.action-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border2);
+  background: var(--bg4); font-family: var(--font);
+  font-size: 12px; font-weight: 600; color: var(--ink3);
+  cursor: pointer; transition: all .15s;
+}
+.action-btn:hover { border-color: var(--border3); color: var(--ink2); background: var(--surface); }
+.action-btn.active { border-color: var(--green); background: var(--green-dim); color: var(--green); }
+
+/* ── Route line ─────────────────────────────── */
+.route-box {
+  background: var(--bg4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
   position: relative;
 }
 
-/* Status badge */
-.ht-status {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-size: 10px; font-weight: 700; padding: 4px 10px;
-  border-radius: 100px; letter-spacing: .3px;
-  white-space: nowrap;
+/* ── Monospace data ───────────────────────────── */
+.mono { font-family: var(--mono); }
+
+/* ── Bar chart ─────────────────────────────────── */
+.chart-bar {
+  border-radius: 4px 4px 2px 2px;
+  transition: all .5s cubic-bezier(.22,1,.36,1);
 }
 
-/* Bar chart bar */
-.ht-bar {
-  border-radius: 6px 6px 3px 3px;
-  transition: height .5s cubic-bezier(.22,1,.36,1), background .15s;
-}
-
-/* Action btn */
-.ht-btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 7px 14px; border-radius: 10px; border: 1.5px solid var(--border);
-  background: var(--surf); font-family: var(--font);
-  font-size: 12px; font-weight: 700; color: var(--muted);
-  cursor: pointer; transition: all .15s;
-}
-.ht-btn:hover { border-color: #D1D5DB; color: var(--ink2); background: var(--surf2); }
-.ht-btn.active { border-color: var(--green); background: var(--green-bg); color: var(--green); }
+/* ── Scrollbar ───────────────────────────────── */
+.ht ::-webkit-scrollbar { width: 4px; }
+.ht ::-webkit-scrollbar-track { background: transparent; }
+.ht ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 `;
 
-/* ─── Helpers ───────────────────────────────────────────────────── */
+/* ─── Helpers ────────────────────────────────────────────────────── */
 function timeAgo(ts) {
   if (!ts) return "—";
   const seconds = ts?.seconds ?? Math.floor(ts / 1000);
-  const diff = Math.floor(Date.now() / 1000) - seconds;
-  if (diff < 60)   return `${diff}s ago`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  return `${Math.floor(diff / 3600)}h ago`;
+  const diff    = Math.floor(Date.now() / 1000) - seconds;
+  if (diff < 60)   return `${diff}s`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+  return `${Math.floor(diff / 3600)}h`;
 }
-function shortAddress(addr = "") { return addr.split(",")[0] || addr; }
+function shortAddr(addr = "") { return addr.split(",")[0] || addr; }
 function tsToMs(ts) {
   if (!ts) return 0;
   if (ts?.seconds) return ts.seconds * 1000;
   if (typeof ts === "number") return ts;
   return 0;
 }
-function fmtMMSS(totalSecs) {
-  const abs = Math.abs(Math.round(totalSecs));
-  return `${Math.floor(abs / 60)}:${String(abs % 60).padStart(2, "0")}`;
+function fmtMMSS(s) {
+  const a = Math.abs(Math.round(s));
+  return `${Math.floor(a / 60)}:${String(a % 60).padStart(2, "0")}`;
+}
+function initials(name = "") {
+  return name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() || "?";
 }
 
-/* ─── Status maps ───────────────────────────────────────────────── */
-const STATUS_META = {
-  searching_driver: { label: "Searching",     dot: "#D97706", bg: "#FEF3C7", color: "#92400E",  bar: ["#D97706","#F59E0B"] },
-  driver_assigned:  { label: "Assigned",      dot: "#2563EB", bg: "#EFF6FF", color: "#1E40AF",  bar: ["#2563EB","#60A5FA"] },
-  arrived:          { label: "Arrived",       dot: "#16A34A", bg: "#DCFCE7", color: "#14532D",  bar: ["#16A34A","#4ADE80"] },
-  in_progress:      { label: "In Progress",   dot: "#16A34A", bg: "#DCFCE7", color: "#14532D",  bar: ["#16A34A","#4ADE80"] },
-  completed:        { label: "Completed",     dot: "#6B7280", bg: "#F3F4F6", color: "#374151",  bar: ["#9CA3AF","#D1D5DB"] },
-  cancelled:        { label: "Cancelled",     dot: "#DC2626", bg: "#FEF2F2", color: "#991B1B",  bar: ["#DC2626","#F87171"] },
+/* ─── Status Configs ─────────────────────────────────────────────── */
+const STATUS = {
+  searching_driver: { label: "SEARCHING",   accent: "#F59E0B", bg: "rgba(245,158,11,.12)",  border: "rgba(245,158,11,.2)"  },
+  driver_assigned:  { label: "ASSIGNED",    accent: "#3D9BFF", bg: "rgba(61,155,255,.12)",  border: "rgba(61,155,255,.2)"  },
+  arrived:          { label: "ARRIVED",     accent: "#00E87A", bg: "rgba(0,232,122,.12)",   border: "rgba(0,232,122,.2)"   },
+  in_progress:      { label: "IN PROGRESS", accent: "#00E87A", bg: "rgba(0,232,122,.12)",   border: "rgba(0,232,122,.2)"   },
+  completed:        { label: "COMPLETED",   accent: "#6E8094", bg: "rgba(110,128,148,.10)", border: "rgba(110,128,148,.18)" },
+  cancelled:        { label: "CANCELLED",   accent: "#FF4D4D", bg: "rgba(255,77,77,.12)",   border: "rgba(255,77,77,.2)"   },
 };
-const PAYMENT_META = {
-  succeeded: { bg: "#DCFCE7", color: "#14532D", label: "Paid" },
-  pending:   { bg: "#FEF3C7", color: "#92400E", label: "Pending" },
-  failed:    { bg: "#FEF2F2", color: "#991B1B", label: "Failed" },
+const PAY_STATUS = {
+  succeeded: { bg: "rgba(0,232,122,.12)",  color: "#00E87A", label: "PAID"    },
+  pending:   { bg: "rgba(245,158,11,.12)", color: "#F59E0B", label: "PENDING" },
+  failed:    { bg: "rgba(255,77,77,.12)",  color: "#FF4D4D", label: "FAILED"  },
 };
-const PAYOUT_META = {
-  processing: { bg: "#EFF6FF", color: "#1E40AF", label: "Processing" },
-  pending:    { bg: "#FEF3C7", color: "#92400E", label: "Payout Pending" },
-  paid:       { bg: "#DCFCE7", color: "#14532D", label: "Paid Out" },
-  failed:     { bg: "#FEF2F2", color: "#991B1B", label: "Payout Failed" },
+const PAYOUT = {
+  processing: { bg: "rgba(61,155,255,.12)",  color: "#3D9BFF", label: "PROCESSING" },
+  pending:    { bg: "rgba(245,158,11,.12)",  color: "#F59E0B", label: "PENDING"    },
+  paid:       { bg: "rgba(0,232,122,.12)",   color: "#00E87A", label: "PAID OUT"   },
+  failed:     { bg: "rgba(255,77,77,.12)",   color: "#FF4D4D", label: "FAILED"     },
 };
-const DAY_LABELS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const DAYS = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
 
-/* ─── Live Timer Bars ───────────────────────────────────────────── */
-function SearchTimerBar({ expiresAt, emailDispatchAt, createdAt }) {
-  const [pct, setPct]           = useState(100);
-  const [secsLeft, setSecsLeft] = useState(null);
-  const rafRef                  = useRef(null);
-
-  useEffect(() => {
-    const expiresMs = tsToMs(expiresAt);
-    if (!expiresMs) return;
-    const startMs = tsToMs(emailDispatchAt) || tsToMs(createdAt) || (expiresMs - 25 * 60 * 1000);
-    const totalMs = expiresMs - startMs;
-    const tick = () => {
-      const now       = Date.now();
-      const remaining = Math.max((expiresMs - now) / 1000, 0);
-      const elapsed   = Math.max((now - startMs) / 1000, 0);
-      const percent   = Math.max(((totalMs / 1000 - elapsed) / (totalMs / 1000)) * 100, 0);
-      setPct(percent); setSecsLeft(Math.ceil(remaining));
-      if (remaining > 0) rafRef.current = requestAnimationFrame(tick);
-    };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [expiresAt, emailDispatchAt, createdAt]);
-
-  if (secsLeft === null) return <BarTrack />;
-  const color = pct > 50 ? "#D97706" : pct > 20 ? "#EA580C" : "#DC2626";
+/* ─── Progress Bar Engine ────────────────────────────────────────── */
+function ProgressBar({ pct = 0, color = "#00E87A", label, height = 2 }) {
   return (
-    <BarTrack color={color} pct={pct}
-      label={secsLeft > 0 ? fmtMMSS(secsLeft) : "EXPIRED"}
-      labelColor={color} />
-  );
-}
-
-function DriverAssignedBar({ acceptedAt, etaMin }) {
-  const [elapsed, setElapsed] = useState(0);
-  const rafRef = useRef(null);
-  useEffect(() => {
-    const ms = tsToMs(acceptedAt);
-    if (!ms) return;
-    const tick = () => { setElapsed(Math.floor((Date.now() - ms) / 1000)); rafRef.current = requestAnimationFrame(tick); };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [acceptedAt]);
-  const total = (etaMin ?? 0) * 60;
-  const pct   = total > 0 ? Math.min((elapsed / total) * 100, 100) : 0;
-  const isLate= total > 0 && elapsed > total;
-  const color = isLate ? "#DC2626" : pct > 80 ? "#EA580C" : "#2563EB";
-  const label = isLate ? `+${fmtMMSS(elapsed - total)} late` : etaMin != null ? `~${etaMin} min ETA` : `${fmtMMSS(elapsed)}`;
-  return <BarTrack color={color} pct={pct} label={label} labelColor={color} />;
-}
-
-function ArrivedBar() {
-  return <BarTrack color="#16A34A" pct={100} label="DRIVER ARRIVED" labelColor="#16A34A" />;
-}
-
-function InProgressBar({ startedAt, tripDurationMin }) {
-  const [elapsed, setElapsed] = useState(0);
-  const rafRef = useRef(null);
-  useEffect(() => {
-    const ms = tsToMs(startedAt);
-    if (!ms) return;
-    const tick = () => { setElapsed(Math.floor((Date.now() - ms) / 1000)); rafRef.current = requestAnimationFrame(tick); };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [startedAt]);
-  const total     = (tripDurationMin ?? 0) * 60;
-  const pct       = total > 0 ? Math.min((elapsed / total) * 100, 100) : 0;
-  const isOver    = total > 0 && elapsed > total;
-  const remaining = Math.max(total - elapsed, 0);
-  const color     = isOver ? "#DC2626" : pct > 80 ? "#D97706" : "#16A34A";
-  const label     = isOver ? `+${fmtMMSS(elapsed - total)} over` : `${fmtMMSS(remaining)} left`;
-  return <BarTrack color={color} pct={pct} label={label} labelColor={color} />;
-}
-
-function BarTrack({ color = "#E5E7EB", pct = 0, label, labelColor }) {
-  return (
-    <div style={{ height: 3, background: "#F3F4F6", position: "relative", overflow: "visible" }}>
+    <div style={{ height, background: "rgba(255,255,255,.06)", position: "relative", overflow: "visible" }}>
       <div style={{
         position: "absolute", top: 0, left: 0, bottom: 0,
-        width: `${pct}%`, borderRadius: "0 2px 2px 0",
-        background: color, transition: "background .4s",
+        width: `${Math.min(Math.max(pct, 0), 100)}%`,
+        background: color,
+        borderRadius: "0 2px 2px 0",
+        boxShadow: `0 0 8px ${color}66`,
+        transition: "background .3s",
       }} />
       {label && (
         <div style={{
-          position: "absolute", top: "50%", left: `${Math.min(Math.max(pct, 4), 88)}%`,
-          transform: "translate(-50%, 7px)",
-          background: labelColor ?? color, color: "#fff",
-          fontSize: 8, fontWeight: 800, padding: "1px 6px",
-          borderRadius: 4, whiteSpace: "nowrap",
-          fontFamily: "monospace", letterSpacing: ".5px",
-          boxShadow: "0 1px 4px rgba(0,0,0,.18)", zIndex: 2,
-          pointerEvents: "none",
+          position: "absolute", top: "50%",
+          left: `${Math.min(Math.max(pct, 4), 86)}%`,
+          transform: "translate(-50%, 6px)",
+          background: color, color: "#000",
+          fontSize: 8, fontWeight: 700,
+          padding: "2px 6px", borderRadius: 3,
+          whiteSpace: "nowrap", fontFamily: "var(--mono)",
+          letterSpacing: ".5px", pointerEvents: "none",
+          zIndex: 10, boxShadow: `0 2px 8px ${color}66`,
         }}>{label}</div>
       )}
     </div>
   );
 }
 
-/* ─── Driver Info Banner ────────────────────────────────────────── */
-function DriverInfoBanner({ driverInfo, candidateDriverUids = [], emailSentToDrivers = {} }) {
-  if (!driverInfo) return null;
-  const { etaLabel, nearestMiles, stale } = driverInfo;
-  const candidateCount = candidateDriverUids.length;
-  const emailedCount   = Object.keys(emailSentToDrivers).length;
-  return (
-    <div style={{
-      margin: "0 0 12px", padding: "10px 14px",
-      background: stale ? "#FFFBEB" : "#FEFCE8",
-      border: `1.5px solid ${stale ? "#FDE68A" : "#FEF08A"}`,
-      borderRadius: 12,
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: (nearestMiles != null || etaLabel) ? 8 : 0 }}>
-        <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#D97706", flexShrink: 0,
-          boxShadow: "0 0 0 3px #FDE68A" }} />
-        {stale && <span style={{ fontSize: 9, fontWeight: 800, padding: "1px 6px", background: "#D97706", color: "#fff", borderRadius: 4 }}>STALE</span>}
-        <span className="ht-tag" style={{ background: "#FEF3C7", color: "#92400E" }}>
-          <Users size={9} style={{ marginRight: 4 }} />{candidateCount} candidate{candidateCount !== 1 ? "s" : ""}
-        </span>
-        <span className="ht-tag" style={{ background: emailedCount > 0 ? "#DCFCE7" : "#F3F4F6", color: emailedCount > 0 ? "#14532D" : "#9CA3AF" }}>
-          <Mail size={9} style={{ marginRight: 4 }} />{emailedCount} emailed
-        </span>
-      </div>
-      {(nearestMiles != null || etaLabel) && (
-        <div style={{ display: "flex", gap: 14, paddingTop: 7, borderTop: "1px solid #FDE68A66" }}>
-          {nearestMiles != null && (
-            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <MapPin size={11} color="#D97706" />
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#92400E", fontFamily: "monospace" }}>{nearestMiles.toFixed(1)} mi nearest</span>
-            </div>
-          )}
-          {etaLabel && (
-            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <Clock size={11} color="#D97706" />
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#92400E" }}>{etaLabel}</span>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
+function SearchTimerBar({ expiresAt, emailDispatchAt, createdAt }) {
+  const [pct, setPct]     = useState(100);
+  const [left, setLeft]   = useState(null);
+  const raf               = useRef(null);
+  useEffect(() => {
+    const exMs   = tsToMs(expiresAt); if (!exMs) return;
+    const startMs = tsToMs(emailDispatchAt) || tsToMs(createdAt) || (exMs - 25 * 60 * 1000);
+    const totalMs = exMs - startMs;
+    const tick = () => {
+      const now = Date.now();
+      const rem = Math.max((exMs - now) / 1000, 0);
+      setPct(Math.max(((exMs - now) / totalMs) * 100, 0));
+      setLeft(Math.ceil(rem));
+      if (rem > 0) raf.current = requestAnimationFrame(tick);
+    };
+    raf.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf.current);
+  }, [expiresAt, emailDispatchAt, createdAt]);
+  const c = left === null ? "#6E8094" : left > 300 ? "#F59E0B" : left > 60 ? "#EA580C" : "#FF4D4D";
+  return <ProgressBar pct={pct} color={c} label={left != null ? (left > 0 ? fmtMMSS(left) : "EXPIRED") : "…"} />;
 }
 
-/* ─── Weekly Summary ────────────────────────────────────────────── */
-function WeeklySummary({ allRides = [] }) {
-  const now     = new Date();
-  const dayOfWk = now.getDay();
-  const sunday  = new Date(now);
-  sunday.setHours(0, 0, 0, 0);
-  sunday.setDate(now.getDate() - dayOfWk);
+function AssignedBar({ acceptedAt, etaMin }) {
+  const [elapsed, setElapsed] = useState(0);
+  const raf = useRef(null);
+  useEffect(() => {
+    const ms = tsToMs(acceptedAt); if (!ms) return;
+    const tick = () => { setElapsed(Math.floor((Date.now() - ms) / 1000)); raf.current = requestAnimationFrame(tick); };
+    raf.current = requestAnimationFrame(tick); return () => cancelAnimationFrame(raf.current);
+  }, [acceptedAt]);
+  const total = (etaMin ?? 0) * 60;
+  const pct   = total > 0 ? Math.min((elapsed / total) * 100, 100) : 0;
+  const isLate = total > 0 && elapsed > total;
+  const c = isLate ? "#FF4D4D" : pct > 80 ? "#EA580C" : "#3D9BFF";
+  return <ProgressBar pct={pct} color={c} label={isLate ? `+${fmtMMSS(elapsed - total)}` : etaMin != null ? `~${etaMin}m ETA` : `${fmtMMSS(elapsed)}`} />;
+}
+
+function TripBar({ startedAt, tripDurationMin }) {
+  const [elapsed, setElapsed] = useState(0);
+  const raf = useRef(null);
+  useEffect(() => {
+    const ms = tsToMs(startedAt); if (!ms) return;
+    const tick = () => { setElapsed(Math.floor((Date.now() - ms) / 1000)); raf.current = requestAnimationFrame(tick); };
+    raf.current = requestAnimationFrame(tick); return () => cancelAnimationFrame(raf.current);
+  }, [startedAt]);
+  const total = (tripDurationMin ?? 0) * 60;
+  const pct   = total > 0 ? Math.min((elapsed / total) * 100, 100) : 0;
+  const rem   = Math.max(total - elapsed, 0);
+  const c = pct > 90 ? "#FF4D4D" : pct > 70 ? "#F59E0B" : "#00E87A";
+  return <ProgressBar pct={pct} color={c} label={total > 0 ? (elapsed > total ? `+${fmtMMSS(elapsed - total)}` : `${fmtMMSS(rem)} left`) : `${fmtMMSS(elapsed)}`} />;
+}
+
+/* ─── Weekly Summary ─────────────────────────────────────────────── */
+function WeekChart({ allRides = [] }) {
+  const now    = new Date();
+  const sunday = new Date(now);
+  sunday.setHours(0,0,0,0);
+  sunday.setDate(now.getDate() - now.getDay());
 
   const buckets = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(sunday);
-    d.setDate(sunday.getDate() + i);
-    return {
-      label: DAY_LABELS[d.getDay()], dateStr: d.toDateString(),
+    const d = new Date(sunday); d.setDate(sunday.getDate() + i);
+    return { label: DAYS[d.getDay()], dateStr: d.toDateString(),
       isToday: d.toDateString() === now.toDateString(),
-      isFuture: d > now,
-      rides: 0, fareTotal: 0, platformFee: 0, driverPayout: 0,
-    };
+      isFuture: d > now, rides: 0, fare: 0, platform: 0, payout: 0 };
   });
 
   allRides.filter(r => r.status === "completed").forEach(r => {
     const ms = tsToMs(r.completedAt ?? r.updatedAt ?? r.createdAt);
     if (!ms) return;
-    const d = new Date(ms); d.setHours(0, 0, 0, 0);
+    const d = new Date(ms); d.setHours(0,0,0,0);
     const idx = buckets.findIndex(b => b.dateStr === d.toDateString());
     if (idx === -1) return;
-    buckets[idx].rides        += 1;
-    buckets[idx].fareTotal    += Number(r.fareTotal    ?? 0);
-    buckets[idx].platformFee  += Number(r.platformFee  ?? 0);
-    buckets[idx].driverPayout += Number(r.driverPayout ?? 0);
+    buckets[idx].rides++;
+    buckets[idx].fare     += Number(r.fareTotal    ?? 0);
+    buckets[idx].platform += Number(r.platformFee  ?? 0);
+    buckets[idx].payout   += Number(r.driverPayout ?? 0);
   });
 
-  const totalRides        = buckets.reduce((s, b) => s + b.rides,        0);
-  const totalFare         = buckets.reduce((s, b) => s + b.fareTotal,    0);
-  const totalPlatformFee  = buckets.reduce((s, b) => s + b.platformFee,  0);
-  const totalDriverPayout = buckets.reduce((s, b) => s + b.driverPayout, 0);
-  const maxFare           = Math.max(...buckets.map(b => b.fareTotal), 1);
+  const totalFare     = buckets.reduce((s, b) => s + b.fare, 0);
+  const totalRides    = buckets.reduce((s, b) => s + b.rides, 0);
+  const totalPlatform = buckets.reduce((s, b) => s + b.platform, 0);
+  const totalPayout   = buckets.reduce((s, b) => s + b.payout, 0);
+  const maxFare       = Math.max(...buckets.map(b => b.fare), 1);
 
-  const [hoveredIdx, setHoveredIdx] = useState(null);
-  const hovered = hoveredIdx !== null ? buckets[hoveredIdx] : null;
+  const [hov, setHov] = useState(null);
+  const h = hov !== null ? buckets[hov] : null;
 
   return (
-    <div className="ht-card ht-fade" style={{ marginBottom: 14, animationDelay: "60ms" }}>
+    <div className="panel fade-up" style={{ marginBottom: 10, animationDelay: "60ms" }}>
       {/* Header */}
-      <div style={{ padding: "16px 20px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ padding: "18px 20px 0", display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 2 }}>
-            <div style={{ width: 28, height: 28, borderRadius: 8, background: "var(--green-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <TrendingUp size={13} color="var(--green)" />
-            </div>
-            <span style={{ fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 800, color: "var(--ink)" }}>This Week</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--green)", animation: "pulse-ring 2s ease-out infinite", boxShadow: "0 0 0 3px var(--green-dim)" }} />
+            <span style={{ fontFamily: "var(--display)", fontSize: 20, letterSpacing: "1px", color: "var(--ink)" }}>THIS WEEK</span>
           </div>
-          <div style={{ fontSize: 11, color: "var(--dim)", fontWeight: 600, paddingLeft: 35 }}>
-            {totalRides} completed ride{totalRides !== 1 ? "s" : ""}
+          <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--ink4)", letterSpacing: ".5px" }}>
+            {totalRides} COMPLETED RIDES
           </div>
         </div>
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 800, color: "var(--ink)", letterSpacing: "-1px", lineHeight: 1 }}>
+          <div style={{ fontFamily: "var(--display)", fontSize: 36, color: "var(--green)", letterSpacing: "1px", lineHeight: 1 }}>
             ${totalFare.toFixed(2)}
           </div>
-          <div style={{ fontSize: 10, color: "var(--dim)", fontWeight: 600, marginTop: 2 }}>total fare</div>
+          <div style={{ fontFamily: "var(--mono)", fontSize: 9, color: "var(--ink4)", letterSpacing: ".5px", marginTop: 2 }}>TOTAL FARE</div>
         </div>
       </div>
 
       {/* Chart */}
-      <div style={{ padding: "0 20px 14px" }}>
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 5, height: 80 }}>
+      <div style={{ padding: "20px 20px 0" }}>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 90 }}>
           {buckets.map((b, i) => {
-            const pct   = b.isFuture ? 0 : Math.max((b.fareTotal / maxFare) * 100, b.rides > 0 ? 10 : 0);
-            const isHov = hoveredIdx === i;
+            const pct = b.isFuture ? 0 : Math.max((b.fare / maxFare) * 100, b.rides > 0 ? 8 : 0);
+            const isH = hov === i;
             return (
-              <div key={b.label}
-                onMouseEnter={() => setHoveredIdx(i)}
-                onMouseLeave={() => setHoveredIdx(null)}
-                style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, cursor: "default" }}
-              >
-                {!b.isFuture && b.rides > 0
-                  ? <div style={{ fontSize: 9, fontWeight: 700, color: b.isToday ? "var(--green)" : "var(--dim)" }}>${b.fareTotal.toFixed(0)}</div>
-                  : <div style={{ flex: 1 }} />
-                }
-                <div className="ht-bar" style={{
+              <div key={b.label} onMouseEnter={() => setHov(i)} onMouseLeave={() => setHov(null)}
+                style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: "default", paddingBottom: 0 }}>
+                {!b.isFuture && b.rides > 0 && (
+                  <div style={{ fontFamily: "var(--mono)", fontSize: 8, color: b.isToday ? "var(--green)" : "var(--ink4)", letterSpacing: ".3px" }}>
+                    ${b.fare.toFixed(0)}
+                  </div>
+                )}
+                {b.isFuture || b.rides === 0 ? <div style={{ flex: 1 }} /> : null}
+                <div className="chart-bar" style={{
                   width: "100%",
-                  height: b.isFuture ? 5 : `${Math.max(pct, 8)}%`,
-                  background: b.isFuture ? "var(--border2)"
-                    : b.isToday ? (isHov ? "linear-gradient(180deg,#22C55E,#16A34A)" : "linear-gradient(180deg,#16A34A,#15803D)")
-                    : isHov ? "linear-gradient(180deg,#6B7280,#374151)"
-                    : "linear-gradient(180deg,#D1D5DB,#E5E7EB)",
-                  opacity: b.isFuture ? 0.35 : 1,
-                  boxShadow: b.isToday && !b.isFuture ? "0 0 12px rgba(22,163,74,.3)" : "none",
-                  border: `1.5px solid ${b.isToday && !b.isFuture ? "rgba(22,163,74,.2)" : "transparent"}`,
-                  minHeight: 5,
+                  height: b.isFuture ? 3 : `${Math.max(pct, 6)}%`,
+                  minHeight: 3,
+                  background: b.isFuture
+                    ? "var(--bg4)"
+                    : b.isToday
+                    ? isH ? "linear-gradient(0deg,#00C466,#00E87A,#7FFFD4)" : "linear-gradient(0deg,#00A855,#00E87A)"
+                    : isH ? "linear-gradient(0deg,#3E5068,#6E8094)" : "linear-gradient(0deg,#1A2332,#2A3A50)",
+                  boxShadow: b.isToday && !b.isFuture ? "0 0 16px rgba(0,232,122,.35)" : "none",
+                  border: isH && !b.isFuture ? `1px solid ${b.isToday ? "rgba(0,232,122,.4)" : "var(--border3)"}` : "1px solid transparent",
                 }} />
-                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".5px", color: b.isToday ? "var(--green)" : "var(--dim)" }}>
-                  {b.label.toUpperCase()}
+                <div style={{ fontFamily: "var(--mono)", fontSize: 8, letterSpacing: ".8px", color: b.isToday ? "var(--green)" : "var(--ink4)", fontWeight: b.isToday ? 700 : 400 }}>
+                  {b.label}
                 </div>
               </div>
             );
@@ -452,35 +466,32 @@ function WeeklySummary({ allRides = [] }) {
       </div>
 
       {/* Hover detail */}
-      {hovered && !hovered.isFuture && (
-        <div style={{ margin: "0 20px 14px", padding: "11px 14px", background: "var(--surf2)", border: "1.5px solid var(--border2)", borderRadius: 12, display: "flex", gap: 18, flexWrap: "wrap" }}>
+      {h && !h.isFuture && (
+        <div style={{ margin: "10px 20px 0", padding: "10px 14px", background: "var(--bg4)", border: "1px solid var(--border2)", borderRadius: 10, display: "flex", gap: 20, flexWrap: "wrap" }}>
           {[
-            { label: hovered.label,  val: `${hovered.rides} ride${hovered.rides !== 1 ? "s" : ""}`, color: "var(--ink)" },
-            { label: "Fare",         val: `$${hovered.fareTotal.toFixed(2)}`,                        color: "var(--ink)" },
-            { label: "Platform",     val: `$${hovered.platformFee.toFixed(2)}`,                      color: "var(--blue)" },
-            { label: "Driver",       val: `$${hovered.driverPayout.toFixed(2)}`,                     color: "var(--green)" },
-          ].map(item => (
-            <div key={item.label}>
-              <div style={{ fontSize: 9, color: "var(--dim)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".6px", marginBottom: 2 }}>{item.label}</div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: item.color }}>{item.val}</div>
+            { label: h.label,      val: `${h.rides} ride${h.rides !== 1 ? "s" : ""}`, color: "var(--ink)"  },
+            { label: "FARE",       val: `$${h.fare.toFixed(2)}`,                        color: "var(--ink)"  },
+            { label: "PLATFORM",   val: `$${h.platform.toFixed(2)}`,                   color: "var(--blue)" },
+            { label: "DRIVER",     val: `$${h.payout.toFixed(2)}`,                     color: "var(--green)" },
+          ].map(it => (
+            <div key={it.label}>
+              <div style={{ fontFamily: "var(--mono)", fontSize: 8, color: "var(--ink4)", letterSpacing: ".6px", marginBottom: 3 }}>{it.label}</div>
+              <div style={{ fontFamily: "var(--display)", fontSize: 18, color: it.color, letterSpacing: ".5px" }}>{it.val}</div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Footer totals */}
-      <div style={{ display: "flex", borderTop: "1.5px solid var(--border2)" }}>
+      {/* Footer */}
+      <div style={{ display: "flex", borderTop: "1px solid var(--border)", marginTop: 16 }}>
         {[
-          { label: "Total Fare",     val: `$${totalFare.toFixed(2)}`,         color: "var(--ink)" },
-          { label: "Platform Fee",   val: `$${totalPlatformFee.toFixed(2)}`,  color: "var(--blue)" },
-          { label: "Driver Payout",  val: `$${totalDriverPayout.toFixed(2)}`, color: "var(--green)" },
-        ].map((item, i) => (
-          <div key={item.label} style={{
-            flex: 1, textAlign: "center", padding: "12px 8px",
-            borderRight: i < 2 ? "1.5px solid var(--border2)" : "none",
-          }}>
-            <div style={{ fontSize: 9, color: "var(--dim)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".6px", marginBottom: 3 }}>{item.label}</div>
-            <div style={{ fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 800, color: item.color }}>{item.val}</div>
+          { label: "TOTAL FARE",    val: `$${totalFare.toFixed(2)}`,     color: "var(--ink)"   },
+          { label: "PLATFORM FEE",  val: `$${totalPlatform.toFixed(2)}`, color: "var(--blue)"  },
+          { label: "DRIVER PAYOUT", val: `$${totalPayout.toFixed(2)}`,   color: "var(--green)" },
+        ].map((it, i) => (
+          <div key={it.label} style={{ flex: 1, textAlign: "center", padding: "14px 8px", borderRight: i < 2 ? "1px solid var(--border)" : "none" }}>
+            <div style={{ fontFamily: "var(--mono)", fontSize: 8, color: "var(--ink4)", letterSpacing: ".7px", marginBottom: 5 }}>{it.label}</div>
+            <div style={{ fontFamily: "var(--display)", fontSize: 20, color: it.color, letterSpacing: ".5px" }}>{it.val}</div>
           </div>
         ))}
       </div>
@@ -488,273 +499,163 @@ function WeeklySummary({ allRides = [] }) {
   );
 }
 
-/* ─── Filter Panel ──────────────────────────────────────────────── */
-function FilterPanel({ filters, onChange, onClear, resultCount }) {
+/* ─── Filter Panel ───────────────────────────────────────────────── */
+function FilterPanel({ filters, onChange, onClear, count }) {
   return (
-    <div style={{ background: "var(--surf2)", border: "1.5px solid var(--border2)", borderRadius: 16, padding: "14px 16px", marginBottom: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-      <div className="ht-search-wrap">
-        <Search size={13} color="var(--dim)" />
-        <input
-          value={filters.search}
-          onChange={e => onChange("search", e.target.value)}
-          placeholder="Search address, city, zip…"
-        />
+    <div style={{ background: "var(--bg4)", border: "1px solid var(--border2)", borderRadius: 14, padding: "14px", marginBottom: 10, display: "flex", flexDirection: "column", gap: 10 }}>
+      <div className="search-wrap">
+        <Search size={13} color="var(--ink4)" />
+        <input value={filters.search} onChange={e => onChange("search", e.target.value)} placeholder="Search address, city, zip…" />
         {filters.search && (
-          <button onClick={() => onChange("search", "")} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--dim)", display: "flex", padding: 0 }}>
+          <button onClick={() => onChange("search", "")} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ink4)", display: "flex", padding: 0 }}>
             <X size={13} />
           </button>
         )}
       </div>
-      <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
-        <FilterSelect value={filters.status}        onChange={v => onChange("status", v)}
-          options={[{ value: "", label: "All statuses" }, { value: "searching_driver", label: "Searching" }, { value: "driver_assigned", label: "Assigned" }, { value: "arrived", label: "Arrived" }, { value: "in_progress", label: "In Progress" }, { value: "completed", label: "Completed" }, { value: "cancelled", label: "Cancelled" }]} />
-        <FilterSelect value={filters.paymentMethod} onChange={v => onChange("paymentMethod", v)}
-          options={[{ value: "", label: "All payments" }, { value: "card", label: "Card" }, { value: "cashapp", label: "Cash App" }]} />
-        <FilterSelect value={filters.paymentStatus} onChange={v => onChange("paymentStatus", v)}
-          options={[{ value: "", label: "Payment status" }, { value: "succeeded", label: "Succeeded" }, { value: "pending", label: "Pending" }, { value: "failed", label: "Failed" }]} />
-        <FilterSelect value={filters.payoutStatus}  onChange={v => onChange("payoutStatus", v)}
-          options={[{ value: "", label: "Payout status" }, { value: "processing", label: "Processing" }, { value: "pending", label: "Pending" }, { value: "paid", label: "Paid" }, { value: "failed", label: "Failed" }]} />
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {[
+          { key: "status", opts: [["","All statuses"],["searching_driver","Searching"],["driver_assigned","Assigned"],["arrived","Arrived"],["in_progress","In Progress"],["completed","Completed"],["cancelled","Cancelled"]] },
+          { key: "paymentMethod", opts: [["","All payments"],["card","Card"],["cashapp","Cash App"]] },
+          { key: "paymentStatus", opts: [["","Pay status"],["succeeded","Paid"],["pending","Pending"],["failed","Failed"]] },
+          { key: "payoutStatus",  opts: [["","Payout status"],["processing","Processing"],["pending","Pending"],["paid","Paid"],["failed","Failed"]] },
+        ].map(({ key, opts }) => (
+          <div className="sel-wrap" key={key}>
+            <select value={filters[key]} onChange={e => onChange(key, e.target.value)}>
+              {opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+            <ChevronDown size={10} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", color: "var(--ink4)", pointerEvents: "none" }} />
+          </div>
+        ))}
       </div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 11, color: "var(--dim)", fontWeight: 600 }}>{resultCount} ride{resultCount !== 1 ? "s" : ""} found</span>
-        <button onClick={onClear} style={{ fontSize: 11, fontWeight: 700, color: "var(--red)", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "var(--font)" }}>Clear all</button>
+        <span style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--ink4)", letterSpacing: ".4px" }}>{count} RIDE{count !== 1 ? "S" : ""} FOUND</span>
+        <button onClick={onClear} style={{ fontFamily: "var(--mono)", fontSize: 10, fontWeight: 700, color: "var(--red)", background: "none", border: "none", cursor: "pointer", letterSpacing: ".4px" }}>CLEAR ALL</button>
       </div>
     </div>
   );
 }
 
-function FilterSelect({ value, onChange, options }) {
+/* ─── Driver Search Banner ───────────────────────────────────────── */
+function SearchBanner({ driverInfo, candidates = [], emailed = {} }) {
+  if (!driverInfo && candidates.length === 0) return null;
   return (
-    <div className="ht-select-wrap">
-      <select value={value} onChange={e => onChange(e.target.value)}>
-        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-      <ChevronDown size={11} style={{ position: "absolute", right: 9, top: "50%", transform: "translateY(-50%)", color: "var(--dim)", pointerEvents: "none" }} />
-    </div>
-  );
-}
-
-/* ─── HomeTab ───────────────────────────────────────────────────── */
-const DEFAULT_FILTERS = { search: "", status: "", paymentMethod: "", paymentStatus: "", payoutStatus: "" };
-
-export function HomeTab({
-  liveRides = [], allRides = [], allApprovals = [], totalAccounts = 0,
-  uatobdrivers = [], activeRides = [], searchingRides = [],
-  totalRides = 0, activeDrivers = [], revenue = 0, approvals = [], onToast,
-}) {
-  const [refreshing,  setRefreshing]  = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
-  const [filters,     setFilters]     = useState(DEFAULT_FILTERS);
-
-  const handleRefresh      = () => { setRefreshing(true); setTimeout(() => { setRefreshing(false); onToast?.("Data refreshed"); }, 1100); };
-  const handleFilterChange = (key, value) => setFilters(prev => ({ ...prev, [key]: value }));
-  const handleClearFilters = () => setFilters(DEFAULT_FILTERS);
-  const activeFilterCount  = Object.values(filters).filter(Boolean).length;
-
-  const filteredRides = useMemo(() => {
-    return liveRides.filter(ride => {
-      if (filters.search) {
-        const q = filters.search.toLowerCase();
-        const s = [ride.pickup, ride.dropoff, ride.pickupCity, ride.dropoffCity, ride.pickupZip, ride.dropoffZip]
-          .map(v => (v ?? "").toLowerCase()).join(" ");
-        if (!s.includes(q)) return false;
-      }
-      if (filters.status        && ride.status        !== filters.status)        return false;
-      if (filters.paymentMethod && ride.paymentMethod !== filters.paymentMethod) return false;
-      if (filters.paymentStatus && ride.paymentStatus !== filters.paymentStatus) return false;
-      if (filters.payoutStatus  && ride.payoutStatus  !== filters.payoutStatus)  return false;
-      return true;
-    });
-  }, [liveRides, filters]);
-
-  return (
-    <>
-      <style>{GLOBAL_CSS}</style>
-      <div className="ht-root" style={{ padding: "0 16px 24px" }}>
-
-        {/* ── Live status bar ── */}
-        <div className="ht-card ht-fade" style={{ padding: "12px 16px", marginBottom: 12, animationDelay: "0ms" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
-              {[
-                { dot: "#16A34A", label: `${totalAccounts}`, sub: "accounts" },
-                { dot: "#D97706", label: `${uatobdrivers.length}`, sub: "drivers" },
-                { dot: "#16A34A", label: `${activeRides.length}`, sub: "active" },
-                { dot: "#D97706", label: `${searchingRides.length}`, sub: "searching" },
-              ].map(({ dot, label, sub }, i) => (
-                <div key={sub} style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "5px 12px", borderRadius: 8,
-                  borderRight: i < 3 ? "1.5px solid var(--border2)" : "none",
-                  paddingRight: i < 3 ? 12 : 0,
-                }}>
-                  <div style={{ width: 7, height: 7, borderRadius: "50%", background: dot, flexShrink: 0 }} />
-                  <span style={{ fontFamily: "var(--font-display)", fontSize: 14, fontWeight: 800, color: "var(--ink)" }}>{label}</span>
-                  <span style={{ fontSize: 11, color: "var(--dim)", fontWeight: 600 }}>{sub}</span>
-                </div>
-              ))}
-            </div>
-            <button onClick={handleRefresh} style={{ width: 32, height: 32, borderRadius: 8, border: "1.5px solid var(--border)", background: "var(--surf2)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--muted)", transition: "all .15s" }}>
-              <RefreshCw size={13} className={refreshing ? "ht-spin" : ""} />
-            </button>
-          </div>
-        </div>
-
-        {/* ── Stat cards ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9, marginBottom: 12 }}>
-          {[
-            { label: "Total Rides",       val: totalRides ?? liveRides.length, icon: Activity,   accent: "#2563EB", accentBg: "#EFF6FF",  delay: 40  },
-            { label: "Active Drivers",    val: activeDrivers.length,           icon: Car,        accent: "#16A34A", accentBg: "#DCFCE7",  delay: 80  },
-            { label: "Revenue Today",     val: revenue != null ? `$${revenue.toFixed(2)}` : "—", icon: DollarSign, accent: "#D97706", accentBg: "#FEF3C7", delay: 120 },
-            { label: "Pending Approvals", val: allApprovals.length,            icon: Shield,     accent: "#DC2626", accentBg: "#FEF2F2",  delay: 160 },
-          ].map(({ label, val, icon: Icon, accent, accentBg, delay }) => (
-            <div key={label} className="ht-stat-pill ht-fade" style={{ animationDelay: `${delay}ms` }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div style={{ width: 30, height: 30, borderRadius: 9, background: accentBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Icon size={13} color={accent} />
-                </div>
-                <ArrowUpRight size={12} color="var(--dim)" />
-              </div>
-              <div style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 800, color: "var(--ink)", letterSpacing: "-0.5px", lineHeight: 1 }}>{val}</div>
-              <div style={{ fontSize: 11, color: "var(--dim)", fontWeight: 600 }}>{label}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* ── Weekly Chart ── */}
-        <WeeklySummary allRides={allRides.length > 0 ? allRides : liveRides} />
-
-        {/* ── Live Rides header ── */}
-        <div className="ht-fade" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, animationDelay: "200ms" }}>
-          <div>
-            <div style={{ fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 800, color: "var(--ink)" }}>
-              Live Rides
-            </div>
-            {liveRides.length > 0 && (
-              <div style={{ fontSize: 11, color: "var(--dim)", fontWeight: 600, marginTop: 1 }}>
-                {filteredRides.length} of {liveRides.length} shown
-              </div>
-            )}
-          </div>
-          <button
-            onClick={() => setShowFilters(p => !p)}
-            className={`ht-btn ${showFilters || activeFilterCount > 0 ? "active" : ""}`}
-          >
-            <Filter size={11} />
-            Filter
-            {activeFilterCount > 0 && (
-              <span style={{ width: 17, height: 17, borderRadius: "50%", background: "var(--green)", color: "#fff", fontSize: 9, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
-        </div>
-
-        {showFilters && (
-          <FilterPanel filters={filters} onChange={handleFilterChange} onClear={handleClearFilters} resultCount={filteredRides.length} />
+    <div style={{ marginBottom: 12, padding: "10px 13px", background: "rgba(245,158,11,.06)", border: "1px solid rgba(245,158,11,.2)", borderRadius: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#F59E0B", flexShrink: 0, boxShadow: "0 0 8px rgba(245,158,11,.6)" }} />
+        <span style={{ fontFamily: "var(--mono)", fontSize: 9, color: "#F59E0B", letterSpacing: ".5px" }}>SEARCHING</span>
+        <span className="chip" style={{ background: "rgba(245,158,11,.12)", color: "#F59E0B" }}>
+          <Users size={8} /> {candidates.length} candidate{candidates.length !== 1 ? "s" : ""}
+        </span>
+        <span className="chip" style={{ background: Object.keys(emailed).length > 0 ? "rgba(0,232,122,.12)" : "rgba(110,128,148,.10)", color: Object.keys(emailed).length > 0 ? "#00E87A" : "var(--ink4)" }}>
+          <Mail size={8} /> {Object.keys(emailed).length} emailed
+        </span>
+        {driverInfo?.nearestMiles != null && (
+          <span className="chip" style={{ background: "rgba(245,158,11,.08)", color: "var(--ink3)" }}>
+            <Navigation size={8} /> {driverInfo.nearestMiles.toFixed(1)} mi nearest
+          </span>
         )}
-
-        {/* ── Ride list ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {filteredRides.length === 0 && (
-            <div style={{ textAlign: "center", padding: "40px 0", color: "var(--dim)", fontSize: 13 }}>
-              <div style={{ fontSize: 28, marginBottom: 10 }}>🚗</div>
-              {activeFilterCount > 0 ? "No rides match your filters" : "No rides yet"}
-            </div>
-          )}
-          {filteredRides.map((ride, i) => (
-            <RideCard key={ride.id} ride={ride} delay={240 + i * 45} />
-          ))}
-        </div>
+        {driverInfo?.etaLabel && (
+          <span className="chip" style={{ background: "rgba(245,158,11,.08)", color: "var(--ink3)" }}>
+            <Clock size={8} /> {driverInfo.etaLabel}
+          </span>
+        )}
       </div>
-    </>
+    </div>
   );
 }
 
-/* ─── RideCard ──────────────────────────────────────────────────── */
-function RideCard({ ride, delay }) {
-  const riderLabel  = ride.riderName  ?? `Rider …${ride.uid?.slice(-4) ?? "?"}`;
-  const driverLabel = ride.driverName ?? (ride.driverUid ? `Driver …${ride.driverUid.slice(-4)}` : "No driver yet");
+/* ─── Ride Card ──────────────────────────────────────────────────── */
+function RideCard({ ride, index }) {
+  const riderLabel  = ride.riderName  ?? `Rider ···${ride.uid?.slice(-4) ?? "?"}`;
+  const driverLabel = ride.driverName ?? (ride.driverUid ? `Driver ···${ride.driverUid.slice(-4)}` : null);
 
-  const s  = STATUS_META[ride.status]         ?? { label: ride.status,         dot: "#9CA3AF", bg: "#F3F4F6", color: "#6B7280" };
-  const pm = PAYMENT_META[ride.paymentStatus] ?? { bg: "#F3F4F6", color: "#6B7280", label: ride.paymentStatus ?? "—" };
-  const po = PAYOUT_META[ride.payoutStatus]   ?? { bg: "#F3F4F6", color: "#6B7280", label: ride.payoutStatus  ?? "—" };
+  const s  = STATUS[ride.status]          ?? { label: ride.status ?? "UNKNOWN", accent: "#6E8094", bg: "rgba(110,128,148,.10)", border: "rgba(110,128,148,.2)" };
+  const pm = PAY_STATUS[ride.paymentStatus] ?? { bg: "rgba(110,128,148,.10)", color: "var(--ink4)", label: ride.paymentStatus ?? "—" };
+  const po = PAYOUT[ride.payoutStatus]    ?? { bg: "rgba(110,128,148,.10)", color: "var(--ink4)", label: ride.payoutStatus ?? "—" };
 
-  function TopBar() {
+  function StatusBar() {
     switch (ride.status) {
       case "searching_driver": return <SearchTimerBar expiresAt={ride.expiresAt} emailDispatchAt={ride.emailDispatchAt} createdAt={ride.createdAt} />;
-      case "driver_assigned":  return <DriverAssignedBar acceptedAt={ride.acceptedAt} etaMin={ride.driverInfo?.etaMin} />;
-      case "arrived":          return <ArrivedBar />;
-      case "in_progress":      return <InProgressBar startedAt={ride.startedAt} tripDurationMin={ride.tripDurationMin} />;
-      case "completed":        return <div style={{ height: 3, background: "var(--border2)" }} />;
-      case "cancelled":        return <div style={{ height: 3, background: "linear-gradient(90deg,#DC2626,#F87171)" }} />;
-      default:                 return <div style={{ height: 3, background: "var(--border2)" }} />;
+      case "driver_assigned":  return <AssignedBar acceptedAt={ride.acceptedAt} etaMin={ride.driverInfo?.etaMin} />;
+      case "arrived":          return <ProgressBar pct={100} color="#00E87A" label="ARRIVED" />;
+      case "in_progress":      return <TripBar startedAt={ride.startedAt} tripDurationMin={ride.tripDurationMin} />;
+      case "completed":        return <div style={{ height: 2, background: "rgba(110,128,148,.15)" }} />;
+      case "cancelled":        return <div style={{ height: 2, background: "linear-gradient(90deg,#FF4D4D,#FF4D4D44)" }} />;
+      default:                 return <div style={{ height: 2, background: "var(--border)" }} />;
     }
   }
 
   return (
-    <div className="ht-card ht-ride-card ht-fade" style={{ padding: 0, animationDelay: `${delay}ms` }}>
-      <TopBar />
+    <div className="panel panel-hover fade-up" style={{ animationDelay: `${200 + index * 50}ms`, padding: 0 }}>
+      <StatusBar />
+      <div style={{ padding: "14px 16px 14px" }}>
 
-      <div style={{ padding: "14px 16px 12px" }}>
-
-        {/* Header row */}
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12, gap: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+        {/* ── Top row ── */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 13, gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
             {/* Avatar */}
             <div style={{
-              width: 38, height: 38, borderRadius: 11,
-              background: "var(--green-bg)", color: "var(--green)",
+              width: 40, height: 40, borderRadius: 11, flexShrink: 0,
+              background: "var(--green-dim)", border: "1px solid var(--green-glow)",
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontFamily: "var(--font-display)", fontSize: 14, fontWeight: 800,
-              flexShrink: 0,
+              fontFamily: "var(--display)", fontSize: 16, color: "var(--green)", letterSpacing: ".5px",
             }}>
-              {riderLabel.charAt(0).toUpperCase()}
+              {initials(riderLabel)}
             </div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)", marginBottom: 3 }}>{riderLabel}</div>
-              <div style={{ fontSize: 11, color: "var(--dim)", display: "flex", alignItems: "center", gap: 4 }}>
-                <Car size={10} color="var(--dim)" />
-                {driverLabel}
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)", marginBottom: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{riderLabel}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                {driverLabel
+                  ? <><Car size={10} color="var(--ink4)" /><span style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--ink4)", letterSpacing: ".3px" }}>{driverLabel}</span></>
+                  : <span style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--ink4)", letterSpacing: ".3px" }}>NO DRIVER YET</span>
+                }
               </div>
             </div>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5, flexShrink: 0 }}>
-            <span className="ht-status" style={{ background: s.bg, color: s.color }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.dot, flexShrink: 0 }} />
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, flexShrink: 0 }}>
+            <div style={{
+              display: "inline-flex", alignItems: "center", gap: 5,
+              fontSize: 9, fontWeight: 700, letterSpacing: ".5px",
+              padding: "3px 9px", borderRadius: 100,
+              background: s.bg, color: s.accent,
+              border: `1px solid ${s.border}`,
+              fontFamily: "var(--mono)",
+            }}>
+              <span style={{ width: 5, height: 5, borderRadius: "50%", background: s.accent, boxShadow: `0 0 6px ${s.accent}` }} />
               {s.label}
-            </span>
-            <span style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 800, color: "var(--ink)", letterSpacing: "-0.5px", lineHeight: 1 }}>
-              ${ride.fareTotal?.toFixed(2) ?? "—"}
-            </span>
+            </div>
+            <div style={{ fontFamily: "var(--display)", fontSize: 26, color: "var(--ink)", letterSpacing: ".5px", lineHeight: 1 }}>
+              {ride.fareTotal != null ? `$${ride.fareTotal.toFixed(2)}` : "—"}
+            </div>
           </div>
         </div>
 
-        {/* Driver banner for searching rides */}
+        {/* ── Search banner ── */}
         {ride.status === "searching_driver" && (
-          <DriverInfoBanner
+          <SearchBanner
             driverInfo={ride.driverInfo}
-            candidateDriverUids={ride.candidateDriverUids ?? []}
-            emailSentToDrivers={ride.emailSentToDrivers ?? {}}
+            candidates={ride.candidateDriverUids ?? []}
+            emailed={ride.emailSentToDrivers ?? {}}
           />
         )}
 
-        {/* Route */}
-        <div className="ht-route-line" style={{ marginBottom: 11 }}>
-          <div style={{ position: "absolute", left: 23, top: 20, bottom: 20, width: 1.5, background: "linear-gradient(180deg,#16A34A,#DC2626)", borderRadius: 2 }} />
-          <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+        {/* ── Route ── */}
+        <div className="route-box" style={{ marginBottom: 11 }}>
+          {/* Vertical connector line */}
+          <div style={{ position: "absolute", left: 21, top: 22, bottom: 22, width: 1, background: "linear-gradient(180deg,#00E87A,#FF4D4D)", opacity: .4 }} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {[
-              { dot: "#16A34A", label: "PICKUP",  addr: shortAddress(ride.pickup),  city: ride.pickupCity,  zip: ride.pickupZip  },
-              { dot: "#DC2626", label: "DROPOFF", addr: shortAddress(ride.dropoff), city: ride.dropoffCity, zip: ride.dropoffZip },
-            ].map(({ dot, label, addr, city, zip }) => (
-              <div key={label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 9, height: 9, borderRadius: "50%", background: dot, flexShrink: 0, border: "2px solid var(--surf)", zIndex: 1, boxShadow: `0 0 0 2px ${dot}33` }} />
+              { dot: "#00E87A", lbl: "PICKUP",  addr: shortAddr(ride.pickup),  city: ride.pickupCity,  zip: ride.pickupZip  },
+              { dot: "#FF4D4D", lbl: "DROPOFF", addr: shortAddr(ride.dropoff), city: ride.dropoffCity, zip: ride.dropoffZip },
+            ].map(({ dot, lbl, addr, city, zip }) => (
+              <div key={lbl} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: dot, flexShrink: 0, border: "2px solid var(--bg4)", zIndex: 1, boxShadow: `0 0 8px ${dot}66` }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 9, color: "var(--dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".7px", marginBottom: 1 }}>{label}</div>
+                  <div style={{ fontFamily: "var(--mono)", fontSize: 8, color: "var(--ink4)", letterSpacing: ".7px", marginBottom: 2 }}>{lbl}</div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {addr}
-                    {city && <span style={{ color: "var(--dim)", fontWeight: 400 }}> · {city}{zip ? ` ${zip}` : ""}</span>}
+                    {city && <span style={{ color: "var(--ink4)", fontWeight: 400 }}> · {city}{zip ? ` ${zip}` : ""}</span>}
                   </div>
                 </div>
               </div>
@@ -762,41 +663,181 @@ function RideCard({ ride, delay }) {
           </div>
         </div>
 
-        {/* Trip meta chips */}
-        <div style={{ display: "flex", gap: 5, marginBottom: 11, flexWrap: "wrap" }}>
+        {/* ── Meta chips ── */}
+        <div style={{ display: "flex", gap: 4, marginBottom: 12, flexWrap: "wrap" }}>
           {[
             ride.rideLabel ?? ride.rideType,
-            `${ride.tripDistanceMiles ?? 0} mi`,
-            `~${ride.tripDurationMin ?? 0} min`,
-            timeAgo(ride.createdAt),
-          ].filter(Boolean).map(label => (
-            <span key={label} className="ht-tag" style={{ background: "var(--surf3)", color: "var(--muted)" }}>{label}</span>
+            ride.tripDistanceMiles != null ? `${ride.tripDistanceMiles} MI` : null,
+            ride.tripDurationMin != null ? `~${ride.tripDurationMin} MIN` : null,
+            `${timeAgo(ride.createdAt)} AGO`,
+          ].filter(Boolean).map(l => (
+            <span key={l} className="chip mono" style={{ background: "var(--bg4)", color: "var(--ink3)", border: "1px solid var(--border)", fontSize: 9, letterSpacing: ".5px" }}>{l}</span>
           ))}
         </div>
 
-        {/* Footer */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 10, borderTop: "1.5px solid var(--border2)", flexWrap: "wrap", gap: 6 }}>
-          <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-            <span className="ht-tag" style={{
-              background: ride.paymentMethod === "cashapp" ? "#DCFCE7" : "#EFF6FF",
-              color:       ride.paymentMethod === "cashapp" ? "#14532D"  : "#1E40AF",
+        {/* ── Footer ── */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 11, borderTop: "1px solid var(--border)", flexWrap: "wrap", gap: 6 }}>
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            <span className="chip" style={{
+              background: ride.paymentMethod === "cashapp" ? "rgba(0,232,122,.10)" : "rgba(61,155,255,.10)",
+              color: ride.paymentMethod === "cashapp" ? "#00E87A" : "#3D9BFF",
             }}>
-              {ride.paymentMethod === "cashapp" ? "Cash App" : ride.paymentMethod ?? "Card"}
+              {ride.paymentMethod === "cashapp" ? "CASH APP" : (ride.paymentMethod ?? "CARD").toUpperCase()}
             </span>
-            <span className="ht-tag" style={{ background: pm.bg, color: pm.color }}>{pm.label}</span>
-            <span className="ht-tag" style={{ background: po.bg, color: po.color }}>{po.label}</span>
+            <span className="chip" style={{ background: pm.bg, color: pm.color }}>{pm.label}</span>
+            <span className="chip" style={{ background: po.bg, color: po.color }}>{po.label}</span>
           </div>
-          <div style={{ fontSize: 11, color: "var(--dim)", fontWeight: 500 }}>
+          <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--ink4)", letterSpacing: ".3px" }}>
             <span style={{ color: "var(--green)", fontWeight: 700 }}>${ride.driverPayout?.toFixed(2) ?? "—"}</span>
-            {" driver · "}
+            <span style={{ color: "var(--ink4)" }}> DRV · </span>
             <span style={{ color: "var(--blue)", fontWeight: 700 }}>${ride.platformFee?.toFixed(2) ?? "—"}</span>
-            {" fee"}
+            <span style={{ color: "var(--ink4)" }}> FEE</span>
           </div>
         </div>
 
-        {/* Ride ID */}
-        <div style={{ marginTop: 8, fontSize: 9, color: "#D1D5DB", fontFamily: "monospace", letterSpacing: ".4px" }}>{ride.id}</div>
+        {/* ID */}
+        <div style={{ marginTop: 9, fontFamily: "var(--mono)", fontSize: 8, color: "var(--ink4)", letterSpacing: ".5px", opacity: .6 }}>
+          {ride.id}
+        </div>
       </div>
     </div>
+  );
+}
+
+/* ─── HomeTab ────────────────────────────────────────────────────── */
+const DEFAULT_FILTERS = { search: "", status: "", paymentMethod: "", paymentStatus: "", payoutStatus: "" };
+
+export function HomeTab({
+  liveRides = [], allRides = [], allApprovals = [], totalAccounts = 0,
+  uatobdrivers = [], activeRides = [], searchingRides = [],
+  totalRides = 0, activeDrivers = [], revenue = 0, onToast,
+}) {
+  const [refreshing,  setRefreshing]  = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters,     setFilters]     = useState(DEFAULT_FILTERS);
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    setTimeout(() => { setRefreshing(false); onToast?.("Data refreshed"); }, 1100);
+  };
+  const onChange    = (k, v) => setFilters(p => ({ ...p, [k]: v }));
+  const onClear     = () => setFilters(DEFAULT_FILTERS);
+  const activeCount = Object.values(filters).filter(Boolean).length;
+
+  const filtered = useMemo(() => liveRides.filter(ride => {
+    if (filters.search) {
+      const q = filters.search.toLowerCase();
+      const s = [ride.pickup, ride.dropoff, ride.pickupCity, ride.dropoffCity, ride.pickupZip, ride.dropoffZip].map(v => (v ?? "").toLowerCase()).join(" ");
+      if (!s.includes(q)) return false;
+    }
+    if (filters.status        && ride.status        !== filters.status)        return false;
+    if (filters.paymentMethod && ride.paymentMethod !== filters.paymentMethod) return false;
+    if (filters.paymentStatus && ride.paymentStatus !== filters.paymentStatus) return false;
+    if (filters.payoutStatus  && ride.payoutStatus  !== filters.payoutStatus)  return false;
+    return true;
+  }), [liveRides, filters]);
+
+  const statRows = [
+    { label: "TOTAL RIDES",    val: totalRides ?? liveRides.length, accent: "#3D9BFF",  Icon: Activity,  delay: 0   },
+    { label: "ACTIVE DRIVERS", val: activeDrivers.length,           accent: "#00E87A",  Icon: Car,       delay: 50  },
+    { label: "REVENUE TODAY",  val: revenue != null ? `$${revenue.toFixed(2)}` : "—", accent: "#F59E0B", Icon: DollarSign, delay: 100 },
+    { label: "PENDING APPROV", val: allApprovals.length,            accent: "#FF4D4D",  Icon: Shield,    delay: 150 },
+  ];
+
+  return (
+    <>
+      <style>{CSS}</style>
+      <div className="ht" style={{ padding: "0 14px 32px" }}>
+
+        {/* ── Command bar ── */}
+        <div className="panel fade-up" style={{ padding: "13px 16px", marginBottom: 10, animationDelay: "0ms" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <div style={{ display: "flex", gap: 0, overflowX: "auto" }}>
+              {[
+                { val: totalAccounts,          sub: "ACCOUNTS", dot: "#00E87A" },
+                { val: uatobdrivers.length,    sub: "DRIVERS",  dot: "#3D9BFF" },
+                { val: activeRides.length,     sub: "ACTIVE",   dot: "#00E87A" },
+                { val: searchingRides.length,  sub: "SRCHING",  dot: "#F59E0B" },
+              ].map(({ val, sub, dot }, i) => (
+                <div key={sub} style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  padding: "5px 14px",
+                  borderRight: i < 3 ? "1px solid var(--border)" : "none",
+                  flexShrink: 0,
+                }}>
+                  <div className="live-dot" style={{ background: dot, color: dot }} />
+                  <span style={{ fontFamily: "var(--display)", fontSize: 18, color: "var(--ink)", letterSpacing: ".5px" }}>{val}</span>
+                  <span style={{ fontFamily: "var(--mono)", fontSize: 9, color: "var(--ink4)", letterSpacing: ".5px" }}>{sub}</span>
+                </div>
+              ))}
+            </div>
+            <button onClick={handleRefresh} style={{
+              width: 34, height: 34, borderRadius: 9,
+              border: "1px solid var(--border2)", background: "var(--bg4)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", color: "var(--ink3)", flexShrink: 0,
+              transition: "all .15s",
+            }}>
+              <RefreshCw size={13} className={refreshing ? "spin" : ""} />
+            </button>
+          </div>
+        </div>
+
+        {/* ── Stat pills ── */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
+          {statRows.map(({ label, val, accent, Icon, delay }) => (
+            <div key={label} className="stat-pill fade-up" style={{ animationDelay: `${delay}ms` }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ width: 30, height: 30, borderRadius: 9, background: `${accent}15`, border: `1px solid ${accent}30`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Icon size={13} color={accent} />
+                </div>
+                <ArrowUpRight size={11} color="var(--ink4)" />
+              </div>
+              <div style={{ fontFamily: "var(--display)", fontSize: 28, color: "var(--ink)", letterSpacing: ".5px", lineHeight: 1 }}>{val}</div>
+              <div style={{ fontFamily: "var(--mono)", fontSize: 9, color: "var(--ink4)", letterSpacing: ".6px" }}>{label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Weekly chart ── */}
+        <WeekChart allRides={allRides.length > 0 ? allRides : liveRides} />
+
+        {/* ── Rides header ── */}
+        <div className="fade-up" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, animationDelay: "180ms" }}>
+          <div>
+            <div style={{ fontFamily: "var(--display)", fontSize: 22, color: "var(--ink)", letterSpacing: "1px" }}>LIVE RIDES</div>
+            {liveRides.length > 0 && (
+              <div style={{ fontFamily: "var(--mono)", fontSize: 9, color: "var(--ink4)", letterSpacing: ".4px", marginTop: 2 }}>
+                {filtered.length} / {liveRides.length} SHOWN
+              </div>
+            )}
+          </div>
+          <button onClick={() => setShowFilters(p => !p)} className={`action-btn ${showFilters || activeCount > 0 ? "active" : ""}`}>
+            <Filter size={11} />
+            FILTER
+            {activeCount > 0 && (
+              <span style={{ width: 17, height: 17, borderRadius: "50%", background: "var(--green)", color: "#000", fontSize: 9, fontWeight: 800, fontFamily: "var(--mono)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {activeCount}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {showFilters && <FilterPanel filters={filters} onChange={onChange} onClear={onClear} count={filtered.length} />}
+
+        {/* ── Ride list ── */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {filtered.length === 0 && (
+            <div style={{ textAlign: "center", padding: "48px 0", color: "var(--ink4)" }}>
+              <div style={{ fontFamily: "var(--display)", fontSize: 40, letterSpacing: "3px", marginBottom: 8, opacity: .3 }}>NO RIDES</div>
+              <div style={{ fontFamily: "var(--mono)", fontSize: 10, letterSpacing: ".5px" }}>
+                {activeCount > 0 ? "NO RIDES MATCH YOUR FILTERS" : "WAITING FOR RIDES…"}
+              </div>
+            </div>
+          )}
+          {filtered.map((ride, i) => <RideCard key={ride.id} ride={ride} index={i} />)}
+        </div>
+      </div>
+    </>
   );
 }
