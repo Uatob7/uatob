@@ -12,37 +12,37 @@ const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800&family=Bebas+Neue&display=swap');
 
 :root {
-  --bg:          #080C10;
-  --bg2:         #0D1318;
-  --bg3:         #111820;
-  --bg4:         #161E28;
-  --surface:     #1A2332;
-  --surface2:    #1F2A3A;
-  --border:      rgba(255,255,255,.06);
-  --border2:     rgba(255,255,255,.10);
-  --border3:     rgba(255,255,255,.16);
+  --bg:          #F0F4F0;
+  --bg2:         #E8EEE8;
+  --bg3:         #FFFFFF;
+  --bg4:         #F5F8F5;
+  --surface:     #FFFFFF;
+  --surface2:    #F0F4F0;
+  --border:      rgba(0,0,0,.07);
+  --border2:     rgba(0,0,0,.11);
+  --border3:     rgba(0,0,0,.18);
 
-  --ink:         #F0F4F8;
-  --ink2:        #B8C4D0;
-  --ink3:        #6E8094;
-  --ink4:        #3E5068;
+  --ink:         #0F1A0F;
+  --ink2:        #2D3D2D;
+  --ink3:        #5A7060;
+  --ink4:        #8AA090;
 
-  --green:       #00E87A;
-  --green2:      #00C466;
-  --green-dim:   rgba(0,232,122,.12);
-  --green-glow:  rgba(0,232,122,.25);
+  --green:       #16A34A;
+  --green2:      #15803D;
+  --green-dim:   rgba(22,163,74,.10);
+  --green-glow:  rgba(22,163,74,.20);
 
-  --blue:        #3D9BFF;
-  --blue-dim:    rgba(61,155,255,.12);
+  --blue:        #2563EB;
+  --blue-dim:    rgba(37,99,235,.10);
 
-  --amber:       #F59E0B;
-  --amber-dim:   rgba(245,158,11,.12);
+  --amber:       #D97706;
+  --amber-dim:   rgba(217,119,6,.10);
 
-  --red:         #FF4D4D;
-  --red-dim:     rgba(255,77,77,.12);
+  --red:         #DC2626;
+  --red-dim:     rgba(220,38,38,.10);
 
-  --violet:      #A78BFA;
-  --violet-dim:  rgba(167,139,250,.12);
+  --violet:      #7C3AED;
+  --violet-dim:  rgba(124,58,237,.10);
 
   --radius:      16px;
   --radius-sm:   10px;
@@ -100,7 +100,7 @@ const CSS = `
   position: absolute;
   inset: 0;
   border-radius: var(--radius);
-  background: linear-gradient(135deg, rgba(255,255,255,.025) 0%, transparent 60%);
+  background: linear-gradient(135deg, rgba(255,255,255,.8) 0%, transparent 60%);
   pointer-events: none;
   z-index: 0;
 }
@@ -112,7 +112,7 @@ const CSS = `
 .panel-hover:hover {
   border-color: var(--border2);
   transform: translateY(-1px);
-  box-shadow: 0 12px 40px rgba(0,0,0,.4), 0 0 0 1px rgba(0,232,122,.04);
+  box-shadow: 0 8px 32px rgba(0,0,0,.10), 0 0 0 1px rgba(22,163,74,.06);
 }
 
 /* ── Stat pill ─────────────────────────────────── */
@@ -133,11 +133,11 @@ const CSS = `
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,.06), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.9), transparent);
 }
 .stat-pill:hover {
   border-color: var(--border2);
-  box-shadow: 0 4px 24px rgba(0,0,0,.3);
+  box-shadow: 0 4px 20px rgba(0,0,0,.08);
 }
 
 /* ── Pill / chip ─────────────────────────────── */
@@ -272,23 +272,23 @@ function initials(name = "") {
 
 /* ─── Status Configs ─────────────────────────────────────────────── */
 const STATUS = {
-  searching_driver: { label: "SEARCHING",   accent: "#F59E0B", bg: "rgba(245,158,11,.12)",  border: "rgba(245,158,11,.2)"  },
-  driver_assigned:  { label: "ASSIGNED",    accent: "#3D9BFF", bg: "rgba(61,155,255,.12)",  border: "rgba(61,155,255,.2)"  },
-  arrived:          { label: "ARRIVED",     accent: "#00E87A", bg: "rgba(0,232,122,.12)",   border: "rgba(0,232,122,.2)"   },
-  in_progress:      { label: "IN PROGRESS", accent: "#00E87A", bg: "rgba(0,232,122,.12)",   border: "rgba(0,232,122,.2)"   },
-  completed:        { label: "COMPLETED",   accent: "#6E8094", bg: "rgba(110,128,148,.10)", border: "rgba(110,128,148,.18)" },
-  cancelled:        { label: "CANCELLED",   accent: "#FF4D4D", bg: "rgba(255,77,77,.12)",   border: "rgba(255,77,77,.2)"   },
+  searching_driver: { label: "SEARCHING",   accent: "#B45309", bg: "rgba(217,119,6,.09)",   border: "rgba(217,119,6,.22)"  },
+  driver_assigned:  { label: "ASSIGNED",    accent: "#1D4ED8", bg: "rgba(37,99,235,.09)",   border: "rgba(37,99,235,.22)"  },
+  arrived:          { label: "ARRIVED",     accent: "#15803D", bg: "rgba(22,163,74,.09)",   border: "rgba(22,163,74,.22)"  },
+  in_progress:      { label: "IN PROGRESS", accent: "#15803D", bg: "rgba(22,163,74,.09)",   border: "rgba(22,163,74,.22)"  },
+  completed:        { label: "COMPLETED",   accent: "#5A7060", bg: "rgba(90,112,96,.08)",   border: "rgba(90,112,96,.18)"  },
+  cancelled:        { label: "CANCELLED",   accent: "#B91C1C", bg: "rgba(220,38,38,.09)",   border: "rgba(220,38,38,.22)"  },
 };
 const PAY_STATUS = {
-  succeeded: { bg: "rgba(0,232,122,.12)",  color: "#00E87A", label: "PAID"    },
-  pending:   { bg: "rgba(245,158,11,.12)", color: "#F59E0B", label: "PENDING" },
-  failed:    { bg: "rgba(255,77,77,.12)",  color: "#FF4D4D", label: "FAILED"  },
+  succeeded: { bg: "rgba(22,163,74,.09)",  color: "#15803D", label: "PAID"    },
+  pending:   { bg: "rgba(217,119,6,.09)",  color: "#B45309", label: "PENDING" },
+  failed:    { bg: "rgba(220,38,38,.09)",  color: "#B91C1C", label: "FAILED"  },
 };
 const PAYOUT = {
-  processing: { bg: "rgba(61,155,255,.12)",  color: "#3D9BFF", label: "PROCESSING" },
-  pending:    { bg: "rgba(245,158,11,.12)",  color: "#F59E0B", label: "PENDING"    },
-  paid:       { bg: "rgba(0,232,122,.12)",   color: "#00E87A", label: "PAID OUT"   },
-  failed:     { bg: "rgba(255,77,77,.12)",   color: "#FF4D4D", label: "FAILED"     },
+  processing: { bg: "rgba(37,99,235,.09)",  color: "#1D4ED8", label: "PROCESSING" },
+  pending:    { bg: "rgba(217,119,6,.09)",  color: "#B45309", label: "PENDING"    },
+  paid:       { bg: "rgba(22,163,74,.09)",  color: "#15803D", label: "PAID OUT"   },
+  failed:     { bg: "rgba(220,38,38,.09)",  color: "#B91C1C", label: "FAILED"     },
 };
 const DAYS = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
 
@@ -301,7 +301,7 @@ function ProgressBar({ pct = 0, color = "#00E87A", label, height = 2 }) {
         width: `${Math.min(Math.max(pct, 0), 100)}%`,
         background: color,
         borderRadius: "0 2px 2px 0",
-        boxShadow: `0 0 8px ${color}66`,
+        boxShadow: `0 0 6px ${color}55`,
         transition: "background .3s",
       }} />
       {label && (
@@ -339,7 +339,7 @@ function SearchTimerBar({ expiresAt, emailDispatchAt, createdAt }) {
     raf.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf.current);
   }, [expiresAt, emailDispatchAt, createdAt]);
-  const c = left === null ? "#6E8094" : left > 300 ? "#F59E0B" : left > 60 ? "#EA580C" : "#FF4D4D";
+  const c = left === null ? "#8AA090" : left > 300 ? "#D97706" : left > 60 ? "#EA580C" : "#DC2626";
   return <ProgressBar pct={pct} color={c} label={left != null ? (left > 0 ? fmtMMSS(left) : "EXPIRED") : "…"} />;
 }
 
@@ -354,7 +354,7 @@ function AssignedBar({ acceptedAt, etaMin }) {
   const total = (etaMin ?? 0) * 60;
   const pct   = total > 0 ? Math.min((elapsed / total) * 100, 100) : 0;
   const isLate = total > 0 && elapsed > total;
-  const c = isLate ? "#FF4D4D" : pct > 80 ? "#EA580C" : "#3D9BFF";
+  const c = isLate ? "#DC2626" : pct > 80 ? "#EA580C" : "#2563EB";
   return <ProgressBar pct={pct} color={c} label={isLate ? `+${fmtMMSS(elapsed - total)}` : etaMin != null ? `~${etaMin}m ETA` : `${fmtMMSS(elapsed)}`} />;
 }
 
@@ -369,7 +369,7 @@ function TripBar({ startedAt, tripDurationMin }) {
   const total = (tripDurationMin ?? 0) * 60;
   const pct   = total > 0 ? Math.min((elapsed / total) * 100, 100) : 0;
   const rem   = Math.max(total - elapsed, 0);
-  const c = pct > 90 ? "#FF4D4D" : pct > 70 ? "#F59E0B" : "#00E87A";
+  const c = pct > 90 ? "#DC2626" : pct > 70 ? "#D97706" : "#16A34A";
   return <ProgressBar pct={pct} color={c} label={total > 0 ? (elapsed > total ? `+${fmtMMSS(elapsed - total)}` : `${fmtMMSS(rem)} left`) : `${fmtMMSS(elapsed)}`} />;
 }
 
@@ -449,11 +449,11 @@ function WeekChart({ allRides = [] }) {
                   height: b.isFuture ? 3 : `${Math.max(pct, 6)}%`,
                   minHeight: 3,
                   background: b.isFuture
-                    ? "var(--bg4)"
+                    ? "var(--bg2)"
                     : b.isToday
-                    ? isH ? "linear-gradient(0deg,#00C466,#00E87A,#7FFFD4)" : "linear-gradient(0deg,#00A855,#00E87A)"
-                    : isH ? "linear-gradient(0deg,#3E5068,#6E8094)" : "linear-gradient(0deg,#1A2332,#2A3A50)",
-                  boxShadow: b.isToday && !b.isFuture ? "0 0 16px rgba(0,232,122,.35)" : "none",
+                    ? isH ? "linear-gradient(0deg,#15803D,#16A34A,#4ADE80)" : "linear-gradient(0deg,#15803D,#16A34A)"
+                    : isH ? "linear-gradient(0deg,#8AA090,#5A7060)" : "linear-gradient(0deg,#D1D5DB,#E5E7EB)",
+                  boxShadow: b.isToday && !b.isFuture ? "0 0 12px rgba(22,163,74,.25)" : "none",
                   border: isH && !b.isFuture ? `1px solid ${b.isToday ? "rgba(0,232,122,.4)" : "var(--border3)"}` : "1px solid transparent",
                 }} />
                 <div style={{ fontFamily: "var(--mono)", fontSize: 8, letterSpacing: ".8px", color: b.isToday ? "var(--green)" : "var(--ink4)", fontWeight: b.isToday ? 700 : 400 }}>
@@ -650,7 +650,7 @@ function RideCard({ ride, index }) {
               { dot: "#FF4D4D", lbl: "DROPOFF", addr: shortAddr(ride.dropoff), city: ride.dropoffCity, zip: ride.dropoffZip },
             ].map(({ dot, lbl, addr, city, zip }) => (
               <div key={lbl} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: dot, flexShrink: 0, border: "2px solid var(--bg4)", zIndex: 1, boxShadow: `0 0 8px ${dot}66` }} />
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: dot, flexShrink: 0, border: "2px solid #F5F8F5", zIndex: 1, boxShadow: `0 0 6px ${dot}55` }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: "var(--mono)", fontSize: 8, color: "var(--ink4)", letterSpacing: ".7px", marginBottom: 2 }}>{lbl}</div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -679,8 +679,8 @@ function RideCard({ ride, index }) {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 11, borderTop: "1px solid var(--border)", flexWrap: "wrap", gap: 6 }}>
           <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
             <span className="chip" style={{
-              background: ride.paymentMethod === "cashapp" ? "rgba(0,232,122,.10)" : "rgba(61,155,255,.10)",
-              color: ride.paymentMethod === "cashapp" ? "#00E87A" : "#3D9BFF",
+              background: ride.paymentMethod === "cashapp" ? "rgba(22,163,74,.10)" : "rgba(37,99,235,.10)",
+              color: ride.paymentMethod === "cashapp" ? "#15803D" : "#1D4ED8",
             }}>
               {ride.paymentMethod === "cashapp" ? "CASH APP" : (ride.paymentMethod ?? "CARD").toUpperCase()}
             </span>
@@ -738,10 +738,10 @@ export function HomeTab({
   }), [liveRides, filters]);
 
   const statRows = [
-    { label: "TOTAL RIDES",    val: totalRides ?? liveRides.length, accent: "#3D9BFF",  Icon: Activity,  delay: 0   },
-    { label: "ACTIVE DRIVERS", val: activeDrivers.length,           accent: "#00E87A",  Icon: Car,       delay: 50  },
-    { label: "REVENUE TODAY",  val: revenue != null ? `$${revenue.toFixed(2)}` : "—", accent: "#F59E0B", Icon: DollarSign, delay: 100 },
-    { label: "PENDING APPROV", val: allApprovals.length,            accent: "#FF4D4D",  Icon: Shield,    delay: 150 },
+    { label: "TOTAL RIDES",    val: totalRides ?? liveRides.length, accent: "#2563EB",  Icon: Activity,  delay: 0   },
+    { label: "ACTIVE DRIVERS", val: activeDrivers.length,           accent: "#16A34A",  Icon: Car,       delay: 50  },
+    { label: "REVENUE TODAY",  val: revenue != null ? `$${revenue.toFixed(2)}` : "—", accent: "#D97706", Icon: DollarSign, delay: 100 },
+    { label: "PENDING APPROV", val: allApprovals.length,            accent: "#DC2626",  Icon: Shield,    delay: 150 },
   ];
 
   return (
@@ -754,10 +754,10 @@ export function HomeTab({
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
             <div style={{ display: "flex", gap: 0, overflowX: "auto" }}>
               {[
-                { val: totalAccounts,          sub: "ACCOUNTS", dot: "#00E87A" },
-                { val: uatobdrivers.length,    sub: "DRIVERS",  dot: "#3D9BFF" },
-                { val: activeRides.length,     sub: "ACTIVE",   dot: "#00E87A" },
-                { val: searchingRides.length,  sub: "SRCHING",  dot: "#F59E0B" },
+                { val: totalAccounts,          sub: "ACCOUNTS", dot: "#16A34A" },
+                { val: uatobdrivers.length,    sub: "DRIVERS",  dot: "#2563EB" },
+                { val: activeRides.length,     sub: "ACTIVE",   dot: "#16A34A" },
+                { val: searchingRides.length,  sub: "SRCHING",  dot: "#D97706" },
               ].map(({ val, sub, dot }, i) => (
                 <div key={sub} style={{
                   display: "flex", alignItems: "center", gap: 8,
@@ -816,7 +816,7 @@ export function HomeTab({
             <Filter size={11} />
             FILTER
             {activeCount > 0 && (
-              <span style={{ width: 17, height: 17, borderRadius: "50%", background: "var(--green)", color: "#000", fontSize: 9, fontWeight: 800, fontFamily: "var(--mono)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ width: 17, height: 17, borderRadius: "50%", background: "var(--green)", color: "#fff", fontSize: 9, fontWeight: 800, fontFamily: "var(--mono)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 {activeCount}
               </span>
             )}
