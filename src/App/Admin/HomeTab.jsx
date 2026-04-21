@@ -1,10 +1,12 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import {
   Activity, DollarSign, Car, Shield,
   RefreshCw, Filter, Search, X, ChevronDown, TrendingUp,
 } from "lucide-react";
 import { C } from '@/App/Admin/Tokens';
-import { StatCard, SectionHeader, Avatar } from '@/App/Admin/UI';
+import { StatCard, Avatar } from '@/App/Admin/UI';
+
+const REQUEST_TIMEOUT_SEC = 7 * 60; // 7 minutes
 
 // ── Helpers ───────────────────────────────────────────────────────────
 function timeAgo(ts) {
@@ -50,7 +52,7 @@ const PAYOUT_META = {
 };
 
 const ACCENT_BAR = {
-  searching_driver: "linear-gradient(90deg,#BA7517,#F0A733)",
+  searching_driver: null, // handled separately with timer
   in_progress:      "linear-gradient(90deg,#639922,#8DC53E)",
   arrived:          "linear-gradient(90deg,#185FA5,#3B82F6)",
   completed:        "#D1D5DB",
@@ -59,11 +61,85 @@ const ACCENT_BAR = {
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+// ── Search Timer Bar ──────────────────────────────────────────────────
+function SearchTimerBar({ requestSentAt }) {
+  const [pct, setPct] = useState(100);
+  const [secsLeft, setSecsLeft] = useState(REQUEST_TIMEOUT_SEC);
+  const rafRef = useRef(null);
+
+  useEffect(() => {
+    const sentMs = tsToMs(requestSentAt);
+    if (!sentMs) return;
+
+    const tick = () => {
+      const elapsed = (Date.now() - sentMs) / 1000;
+      const remaining = Math.max(REQUEST_TIMEOUT_SEC - elapsed, 0);
+      const percent   = (remaining / REQUEST_TIMEOUT_SEC) * 100;
+      setPct(percent);
+      setSecsLeft(Math.ceil(remaining));
+      if (remaining > 0) {
+        rafRef.current = requestAnimationFrame(tick);
+      }
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [requestSentAt]);
+
+  const minsLeft = Math.floor(secsLeft / 60);
+  const sLeft    = secsLeft % 60;
+  const timeStr  = `${minsLeft}:${String(sLeft).padStart(2, "0")}`;
+
+  // Color shifts amber → red as time runs out
+  const barColor = pct > 50
+    ? "linear-gradient(90deg,#BA7517,#F0A733)"
+    : pct > 20
+      ? "linear-gradient(90deg,#C2410C,#EA580C)"
+      : "linear-gradient(90deg,#E24B4A,#F87171)";
+
+  return (
+    <div style={{ position: "relative", height: 3, background: "#F3F3F0", overflow: "hidden" }}>
+      {/* Moving bar — starts full width and shrinks left */}
+      <div style={{
+        position:   "absolute",
+        top:        0, left: 0, bottom: 0,
+        width:      `${pct}%`,
+        background: barColor,
+        transition: "background .5s",
+        borderRadius: "0 2px 2px 0",
+      }} />
+
+      {/* Countdown badge riding the bar edge */}
+      {secsLeft > 0 && (
+        <div style={{
+          position:   "absolute",
+          top:        "50%",
+          left:       `${pct}%`,
+          transform:  "translate(-50%, -50%)",
+          background: pct > 20 ? "#BA7517" : "#E24B4A",
+          color:      "#fff",
+          fontSize:   8,
+          fontWeight: 800,
+          padding:    "1px 4px",
+          borderRadius: 4,
+          whiteSpace: "nowrap",
+          pointerEvents: "none",
+          marginTop:  12,
+          fontFamily: "monospace",
+          boxShadow:  "0 1px 4px rgba(0,0,0,.2)",
+          zIndex:     2,
+        }}>
+          {timeStr}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Weekly Summary ────────────────────────────────────────────────────
 function WeeklySummary({ allRides = [] }) {
-  // Build 7-day buckets starting from last Sunday
   const now     = new Date();
-  const dayOfWk = now.getDay(); // 0=Sun
+  const dayOfWk = now.getDay();
   const sunday  = new Date(now);
   sunday.setHours(0, 0, 0, 0);
   sunday.setDate(now.getDate() - dayOfWk);
@@ -83,7 +159,6 @@ function WeeklySummary({ allRides = [] }) {
     };
   });
 
-  // Filter only completed rides this week and bucket them
   allRides
     .filter(r => r.status === "completed")
     .forEach(r => {
@@ -103,32 +178,19 @@ function WeeklySummary({ allRides = [] }) {
   const totalFare         = buckets.reduce((s, b) => s + b.fareTotal,    0);
   const totalPlatformFee  = buckets.reduce((s, b) => s + b.platformFee,  0);
   const totalDriverPayout = buckets.reduce((s, b) => s + b.driverPayout, 0);
-
-  const maxFare = Math.max(...buckets.map(b => b.fareTotal), 1);
+  const maxFare           = Math.max(...buckets.map(b => b.fareTotal), 1);
 
   const [hoveredIdx, setHoveredIdx] = useState(null);
   const hovered = hoveredIdx !== null ? buckets[hoveredIdx] : null;
 
   return (
-    <div
-      className="card fade-up"
-      style={{
-        marginBottom: 16,
-        padding: 0,
-        overflow: "hidden",
-        border: "1px solid #EBEBEA",
-        borderRadius: 16,
-        boxShadow: "0 2px 12px rgba(0,0,0,.06)",
-        animationDelay: "20ms",
-        opacity: 0,
-      }}
-    >
-      {/* Header */}
-      <div style={{
-        padding: "16px 18px 12px",
-        borderBottom: "1px solid #F3F4F6",
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-      }}>
+    <div className="card fade-up" style={{
+      marginBottom: 16, padding: 0, overflow: "hidden",
+      border: "1px solid #EBEBEA", borderRadius: 16,
+      boxShadow: "0 2px 12px rgba(0,0,0,.06)",
+      animationDelay: "20ms", opacity: 0,
+    }}>
+      <div style={{ padding: "16px 18px 12px", borderBottom: "1px solid #F3F4F6", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
             <TrendingUp size={14} color="#639922" />
@@ -146,52 +208,32 @@ function WeeklySummary({ allRides = [] }) {
         </div>
       </div>
 
-      {/* Bar chart */}
       <div style={{ padding: "16px 18px 10px" }}>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 90 }}>
           {buckets.map((b, i) => {
-            const pct     = b.isFuture ? 0 : Math.max((b.fareTotal / maxFare) * 100, b.rides > 0 ? 8 : 0);
-            const isHov   = hoveredIdx === i;
+            const pct   = b.isFuture ? 0 : Math.max((b.fareTotal / maxFare) * 100, b.rides > 0 ? 8 : 0);
+            const isHov = hoveredIdx === i;
             return (
-              <div
-                key={b.label}
-                onMouseEnter={() => setHoveredIdx(i)}
-                onMouseLeave={() => setHoveredIdx(null)}
+              <div key={b.label} onMouseEnter={() => setHoveredIdx(i)} onMouseLeave={() => setHoveredIdx(null)}
                 style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, cursor: "default" }}
               >
-                {/* Value label on top */}
-                {!b.isFuture && b.rides > 0 && (
-                  <div style={{ fontSize: 9, fontWeight: 700, color: b.isToday ? "#639922" : "#9CA3AF", opacity: isHov ? 1 : 0.85 }}>
-                    ${b.fareTotal.toFixed(0)}
-                  </div>
-                )}
-                {(b.isFuture || b.rides === 0) && <div style={{ flex: 1 }} />}
-
-                {/* Bar */}
+                {!b.isFuture && b.rides > 0
+                  ? <div style={{ fontSize: 9, fontWeight: 700, color: b.isToday ? "#639922" : "#9CA3AF", opacity: isHov ? 1 : 0.85 }}>${b.fareTotal.toFixed(0)}</div>
+                  : <div style={{ flex: 1 }} />
+                }
                 <div style={{
                   width: "100%",
                   height: b.isFuture ? 6 : `${Math.max(pct, 6)}%`,
-                  background: b.isFuture
-                    ? "#F3F4F6"
-                    : b.isToday
-                      ? (isHov ? "linear-gradient(180deg,#8DC53E,#639922)" : "linear-gradient(180deg,#639922,#4d7a1a)")
-                      : isHov
-                        ? "linear-gradient(180deg,#6B7280,#374151)"
-                        : "linear-gradient(180deg,#D1D5DB,#9CA3AF)",
+                  background: b.isFuture ? "#F3F4F6" : b.isToday
+                    ? (isHov ? "linear-gradient(180deg,#8DC53E,#639922)" : "linear-gradient(180deg,#639922,#4d7a1a)")
+                    : isHov ? "linear-gradient(180deg,#6B7280,#374151)" : "linear-gradient(180deg,#D1D5DB,#9CA3AF)",
                   borderRadius: "5px 5px 3px 3px",
                   transition: "height .45s ease-out, background .15s",
                   boxShadow: b.isToday && !b.isFuture ? "0 0 10px rgba(99,153,34,.35)" : "none",
                   border: b.isToday && !b.isFuture ? "1px solid rgba(99,153,34,.25)" : "1px solid transparent",
-                  opacity: b.isFuture ? 0.3 : 1,
-                  minHeight: 6,
+                  opacity: b.isFuture ? 0.3 : 1, minHeight: 6,
                 }} />
-
-                {/* Day label */}
-                <div style={{
-                  fontSize: 10, fontWeight: 700,
-                  color: b.isToday ? "#639922" : "#9CA3AF",
-                  letterSpacing: ".4px",
-                }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: b.isToday ? "#639922" : "#9CA3AF", letterSpacing: ".4px" }}>
                   {b.label.toUpperCase()}
                 </div>
               </div>
@@ -200,57 +242,31 @@ function WeeklySummary({ allRides = [] }) {
         </div>
       </div>
 
-      {/* Hover tooltip */}
       {hovered && !hovered.isFuture && (
-        <div style={{
-          margin: "0 18px 12px",
-          padding: "10px 14px",
-          background: "#F9F9F7",
-          border: "1px solid #EBEBEA",
-          borderRadius: 10,
-          display: "flex", gap: 16, flexWrap: "wrap",
-        }}>
-          <div>
-            <div style={{ fontSize: 9, color: "#9CA3AF", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".5px" }}>{hovered.label}</div>
-            <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>{hovered.rides} ride{hovered.rides !== 1 ? "s" : ""}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 9, color: "#9CA3AF", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".5px" }}>Fare</div>
-            <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>${hovered.fareTotal.toFixed(2)}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 9, color: "#9CA3AF", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".5px" }}>Platform</div>
-            <div style={{ fontSize: 13, fontWeight: 800, color: "#185FA5" }}>${hovered.platformFee.toFixed(2)}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 9, color: "#9CA3AF", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".5px" }}>Driver</div>
-            <div style={{ fontSize: 13, fontWeight: 800, color: "#639922" }}>${hovered.driverPayout.toFixed(2)}</div>
-          </div>
+        <div style={{ margin: "0 18px 12px", padding: "10px 14px", background: "#F9F9F7", border: "1px solid #EBEBEA", borderRadius: 10, display: "flex", gap: 16, flexWrap: "wrap" }}>
+          {[
+            { label: hovered.label,   val: `${hovered.rides} ride${hovered.rides !== 1 ? "s" : ""}`, color: "#111827" },
+            { label: "Fare",          val: `$${hovered.fareTotal.toFixed(2)}`,                        color: "#111827" },
+            { label: "Platform",      val: `$${hovered.platformFee.toFixed(2)}`,                      color: "#185FA5" },
+            { label: "Driver",        val: `$${hovered.driverPayout.toFixed(2)}`,                     color: "#639922" },
+          ].map(item => (
+            <div key={item.label}>
+              <div style={{ fontSize: 9, color: "#9CA3AF", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".5px" }}>{item.label}</div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: item.color }}>{item.val}</div>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Totals footer */}
-      <div style={{
-        padding: "12px 18px",
-        borderTop: "1px solid #F3F4F6",
-        display: "flex", gap: 0,
-      }}>
+      <div style={{ padding: "12px 18px", borderTop: "1px solid #F3F4F6", display: "flex" }}>
         {[
           { label: "Total Fare",    val: `$${totalFare.toFixed(2)}`,         color: "#111827" },
           { label: "Platform Fee",  val: `$${totalPlatformFee.toFixed(2)}`,  color: "#185FA5" },
           { label: "Driver Payout", val: `$${totalDriverPayout.toFixed(2)}`, color: "#639922" },
         ].map((item, i) => (
-          <div key={item.label} style={{
-            flex: 1, textAlign: "center",
-            borderRight: i < 2 ? "1px solid #F3F4F6" : "none",
-            padding: "0 8px",
-          }}>
-            <div style={{ fontSize: 9, color: "#9CA3AF", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 3 }}>
-              {item.label}
-            </div>
-            <div style={{ fontSize: 14, fontWeight: 900, color: item.color, fontFamily: "monospace", letterSpacing: "-0.3px" }}>
-              {item.val}
-            </div>
+          <div key={item.label} style={{ flex: 1, textAlign: "center", borderRight: i < 2 ? "1px solid #F3F4F6" : "none", padding: "0 8px" }}>
+            <div style={{ fontSize: 9, color: "#9CA3AF", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 3 }}>{item.label}</div>
+            <div style={{ fontSize: 14, fontWeight: 900, color: item.color, fontFamily: "monospace", letterSpacing: "-0.3px" }}>{item.val}</div>
           </div>
         ))}
       </div>
@@ -261,29 +277,14 @@ function WeeklySummary({ allRides = [] }) {
 // ── Filter Panel ──────────────────────────────────────────────────────
 function FilterPanel({ filters, onChange, onClear, resultCount }) {
   return (
-    <div style={{
-      background: "#F9F9F7",
-      border: "1px solid #EBEBEA",
-      borderRadius: 14,
-      padding: "14px 16px",
-      marginBottom: 14,
-      display: "flex",
-      flexDirection: "column",
-      gap: 10,
-    }}>
+    <div style={{ background: "#F9F9F7", border: "1px solid #EBEBEA", borderRadius: 14, padding: "14px 16px", marginBottom: 14, display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ position: "relative" }}>
         <Search size={13} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "#9CA3AF" }} />
         <input
           value={filters.search}
           onChange={e => onChange("search", e.target.value)}
           placeholder="Search address, city, zip…"
-          style={{
-            width: "100%", padding: "9px 12px 9px 32px",
-            borderRadius: 10, border: "1px solid #E5E7EB",
-            fontSize: 12, fontWeight: 500, color: "#111827",
-            background: "#fff", outline: "none",
-            boxSizing: "border-box", fontFamily: "inherit",
-          }}
+          style={{ width: "100%", padding: "9px 12px 9px 32px", borderRadius: 10, border: "1px solid #E5E7EB", fontSize: 12, fontWeight: 500, color: "#111827", background: "#fff", outline: "none", boxSizing: "border-box", fontFamily: "inherit" }}
         />
         {filters.search && (
           <button onClick={() => onChange("search", "")} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#9CA3AF", display: "flex", padding: 0 }}>
@@ -293,41 +294,15 @@ function FilterPanel({ filters, onChange, onClear, resultCount }) {
       </div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <FilterSelect value={filters.status} onChange={v => onChange("status", v)} options={[
-          { value: "",                 label: "All statuses" },
-          { value: "searching_driver", label: "Searching"    },
-          { value: "in_progress",      label: "In progress"  },
-          { value: "arrived",          label: "Arrived"      },
-          { value: "completed",        label: "Completed"    },
-          { value: "cancelled",        label: "Cancelled"    },
-        ]} />
-        <FilterSelect value={filters.paymentMethod} onChange={v => onChange("paymentMethod", v)} options={[
-          { value: "",        label: "All payments" },
-          { value: "card",    label: "Card"         },
-          { value: "cashapp", label: "Cash App"     },
-        ]} />
-        <FilterSelect value={filters.paymentStatus} onChange={v => onChange("paymentStatus", v)} options={[
-          { value: "",          label: "Payment status" },
-          { value: "succeeded", label: "Succeeded"      },
-          { value: "pending",   label: "Pending"        },
-          { value: "failed",    label: "Failed"         },
-        ]} />
-        <FilterSelect value={filters.payoutStatus} onChange={v => onChange("payoutStatus", v)} options={[
-          { value: "",           label: "Payout status" },
-          { value: "processing", label: "Processing"    },
-          { value: "pending",    label: "Pending"       },
-          { value: "paid",       label: "Paid"          },
-          { value: "failed",     label: "Failed"        },
-        ]} />
+        <FilterSelect value={filters.status}        onChange={v => onChange("status", v)}        options={[{ value: "", label: "All statuses" }, { value: "searching_driver", label: "Searching" }, { value: "in_progress", label: "In progress" }, { value: "arrived", label: "Arrived" }, { value: "completed", label: "Completed" }, { value: "cancelled", label: "Cancelled" }]} />
+        <FilterSelect value={filters.paymentMethod} onChange={v => onChange("paymentMethod", v)} options={[{ value: "", label: "All payments" }, { value: "card", label: "Card" }, { value: "cashapp", label: "Cash App" }]} />
+        <FilterSelect value={filters.paymentStatus} onChange={v => onChange("paymentStatus", v)} options={[{ value: "", label: "Payment status" }, { value: "succeeded", label: "Succeeded" }, { value: "pending", label: "Pending" }, { value: "failed", label: "Failed" }]} />
+        <FilterSelect value={filters.payoutStatus}  onChange={v => onChange("payoutStatus", v)}  options={[{ value: "", label: "Payout status" }, { value: "processing", label: "Processing" }, { value: "pending", label: "Pending" }, { value: "paid", label: "Paid" }, { value: "failed", label: "Failed" }]} />
       </div>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 600 }}>
-          {resultCount} ride{resultCount !== 1 ? "s" : ""} found
-        </span>
-        <button onClick={onClear} style={{ fontSize: 11, fontWeight: 700, color: "#E24B4A", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-          Clear all
-        </button>
+        <span style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 600 }}>{resultCount} ride{resultCount !== 1 ? "s" : ""} found</span>
+        <button onClick={onClear} style={{ fontSize: 11, fontWeight: 700, color: "#E24B4A", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Clear all</button>
       </div>
     </div>
   );
@@ -336,21 +311,8 @@ function FilterPanel({ filters, onChange, onClear, resultCount }) {
 function FilterSelect({ value, onChange, options }) {
   return (
     <div style={{ position: "relative", flex: 1, minWidth: 120 }}>
-      <select
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        style={{
-          width: "100%", padding: "8px 28px 8px 10px",
-          borderRadius: 8, border: "1px solid #E5E7EB",
-          fontSize: 11, fontWeight: 600, color: value ? "#111827" : "#9CA3AF",
-          background: value ? "#fff" : "#F9F9F7",
-          appearance: "none", outline: "none", cursor: "pointer",
-          fontFamily: "inherit",
-        }}
-      >
-        {options.map(o => (
-          <option key={o.value} value={o.value}>{o.label}</option>
-        ))}
+      <select value={value} onChange={e => onChange(e.target.value)} style={{ width: "100%", padding: "8px 28px 8px 10px", borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 11, fontWeight: 600, color: value ? "#111827" : "#9CA3AF", background: value ? "#fff" : "#F9F9F7", appearance: "none", outline: "none", cursor: "pointer", fontFamily: "inherit" }}>
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
       <ChevronDown size={11} style={{ position: "absolute", right: 9, top: "50%", transform: "translateY(-50%)", color: "#9CA3AF", pointerEvents: "none" }} />
     </div>
@@ -359,11 +321,7 @@ function FilterSelect({ value, onChange, options }) {
 
 // ── HomeTab ───────────────────────────────────────────────────────────
 const DEFAULT_FILTERS = {
-  search:        "",
-  status:        "",
-  paymentMethod: "",
-  paymentStatus: "",
-  payoutStatus:  "",
+  search: "", status: "", paymentMethod: "", paymentStatus: "", payoutStatus: "",
 };
 
 export function HomeTab({
@@ -384,11 +342,7 @@ export function HomeTab({
   const [showFilters, setShowFilters] = useState(false);
   const [filters,     setFilters]     = useState(DEFAULT_FILTERS);
 
-  const handleRefresh = () => {
-    setRefreshing(true);
-    setTimeout(() => { setRefreshing(false); onToast?.("Data refreshed"); }, 1100);
-  };
-
+  const handleRefresh     = () => { setRefreshing(true); setTimeout(() => { setRefreshing(false); onToast?.("Data refreshed"); }, 1100); };
   const handleFilterChange = (key, value) => setFilters(prev => ({ ...prev, [key]: value }));
   const handleClearFilters = () => setFilters(DEFAULT_FILTERS);
   const activeFilterCount  = Object.values(filters).filter(Boolean).length;
@@ -397,11 +351,7 @@ export function HomeTab({
     return liveRides.filter(ride => {
       if (filters.search) {
         const q = filters.search.toLowerCase();
-        const searchable = [
-          ride.pickup, ride.dropoff,
-          ride.pickupCity, ride.dropoffCity,
-          ride.pickupZip, ride.dropoffZip,
-        ].map(v => (v ?? "").toLowerCase()).join(" ");
+        const searchable = [ride.pickup, ride.dropoff, ride.pickupCity, ride.dropoffCity, ride.pickupZip, ride.dropoffZip].map(v => (v ?? "").toLowerCase()).join(" ");
         if (!searchable.includes(q)) return false;
       }
       if (filters.status        && ride.status        !== filters.status)        return false;
@@ -455,14 +405,7 @@ export function HomeTab({
         </span>
         <button
           onClick={() => setShowFilters(p => !p)}
-          style={{
-            display: "flex", alignItems: "center", gap: 6,
-            padding: "6px 12px", borderRadius: 8,
-            border: `1px solid ${activeFilterCount > 0 ? "#639922" : "#E5E7EB"}`,
-            background: activeFilterCount > 0 ? "#EAF3DE" : "#fff",
-            color: activeFilterCount > 0 ? "#3B6D11" : "#6B7280",
-            fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-          }}
+          style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, border: `1px solid ${activeFilterCount > 0 ? "#639922" : "#E5E7EB"}`, background: activeFilterCount > 0 ? "#EAF3DE" : "#fff", color: activeFilterCount > 0 ? "#3B6D11" : "#6B7280", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
         >
           <Filter size={11} />
           Filter
@@ -474,17 +417,10 @@ export function HomeTab({
         </button>
       </div>
 
-      {/* ── Filter panel ── */}
       {showFilters && (
-        <FilterPanel
-          filters={filters}
-          onChange={handleFilterChange}
-          onClear={handleClearFilters}
-          resultCount={filteredRides.length}
-        />
+        <FilterPanel filters={filters} onChange={handleFilterChange} onClear={handleClearFilters} resultCount={filteredRides.length} />
       )}
 
-      {/* ── Rides list ── */}
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {filteredRides.length === 0 && (
           <div style={{ textAlign: "center", padding: "32px 0", color: C.textMuted, fontSize: 13 }}>
@@ -508,16 +444,18 @@ function RideCard({ ride, delay }) {
   const pm = PAYMENT_META[ride.paymentStatus] ?? { bg: "#F3F4F6", color: "#6B7280", label: ride.paymentStatus };
   const po = PAYOUT_META[ride.payoutStatus]   ?? { bg: "#F3F4F6", color: "#6B7280", label: ride.payoutStatus  };
 
+  const isSearching = ride.status === "searching_driver";
+
   return (
     <div
       className="card fade-up"
-      style={{
-        padding: 0, animationDelay: `${delay}ms`, opacity: 0,
-        overflow: "hidden", border: "1px solid #EBEBEA",
-        borderRadius: 16, boxShadow: "0 2px 12px rgba(0,0,0,.06)",
-      }}
+      style={{ padding: 0, animationDelay: `${delay}ms`, opacity: 0, overflow: "hidden", border: "1px solid #EBEBEA", borderRadius: 16, boxShadow: "0 2px 12px rgba(0,0,0,.06)" }}
     >
-      <div style={{ height: 3, background: ACCENT_BAR[ride.status] ?? "#D1D5DB" }} />
+      {/* ── Accent bar / Timer bar ── */}
+      {isSearching
+        ? <SearchTimerBar requestSentAt={ride.requestSentAt} />
+        : <div style={{ height: 3, background: ACCENT_BAR[ride.status] ?? "#D1D5DB" }} />
+      }
 
       <div style={{ padding: "14px 16px" }}>
 
@@ -534,11 +472,7 @@ function RideCard({ ride, delay }) {
             </div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-            <span style={{
-              display: "inline-flex", alignItems: "center", gap: 5,
-              fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 20,
-              background: s.bg, color: s.color, letterSpacing: ".3px",
-            }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 20, background: s.bg, color: s.color, letterSpacing: ".3px" }}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.dot, flexShrink: 0, boxShadow: `0 0 5px ${s.dot}` }} />
               {s.label}
             </span>
@@ -549,26 +483,15 @@ function RideCard({ ride, delay }) {
         </div>
 
         {/* Route */}
-        <div style={{
-          background: "#F9F9F7", border: "1px solid #EBEBEA",
-          borderRadius: 12, padding: "12px 14px", marginBottom: 12, position: "relative",
-        }}>
-          <div style={{
-            position: "absolute", left: 20, top: 22, bottom: 22,
-            width: 1.5, background: "linear-gradient(180deg,#639922,#E24B4A)", borderRadius: 2,
-          }} />
+        <div style={{ background: "#F9F9F7", border: "1px solid #EBEBEA", borderRadius: 12, padding: "12px 14px", marginBottom: 12, position: "relative" }}>
+          <div style={{ position: "absolute", left: 20, top: 22, bottom: 22, width: 1.5, background: "linear-gradient(180deg,#639922,#E24B4A)", borderRadius: 2 }} />
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {[
               { dot: "#639922", label: "Pickup",  addr: shortAddress(ride.pickup),  city: ride.pickupCity,  zip: ride.pickupZip  },
               { dot: "#E24B4A", label: "Dropoff", addr: shortAddress(ride.dropoff), city: ride.dropoffCity, zip: ride.dropoffZip },
             ].map(({ dot, label, addr, city, zip }) => (
               <div key={label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{
-                  width: 9, height: 9, borderRadius: "50%",
-                  background: dot, flexShrink: 0,
-                  boxShadow: `0 0 6px ${dot}88`,
-                  border: "2px solid #fff", zIndex: 1,
-                }} />
+                <div style={{ width: 9, height: 9, borderRadius: "50%", background: dot, flexShrink: 0, boxShadow: `0 0 6px ${dot}88`, border: "2px solid #fff", zIndex: 1 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px" }}>{label}</div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -589,34 +512,20 @@ function RideCard({ ride, delay }) {
             `~${ride.tripDurationMin ?? 0} min`,
             timeAgo(ride.createdAt),
           ].map(label => (
-            <span key={label} style={{
-              fontSize: 10, fontWeight: 600, padding: "3px 9px", borderRadius: 6,
-              background: "#F3F4F6", color: "#6B7280",
-            }}>
+            <span key={label} style={{ fontSize: 10, fontWeight: 600, padding: "3px 9px", borderRadius: 6, background: "#F3F4F6", color: "#6B7280" }}>
               {label}
             </span>
           ))}
         </div>
 
         {/* Footer */}
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          paddingTop: 10, borderTop: "1px solid #F3F4F6", flexWrap: "wrap", gap: 6,
-        }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 10, borderTop: "1px solid #F3F4F6", flexWrap: "wrap", gap: 6 }}>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            <span style={{
-              fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 6,
-              background: ride.paymentMethod === "cashapp" ? "#EAF3DE" : "#E6F1FB",
-              color:      ride.paymentMethod === "cashapp" ? "#3B6D11" : "#185FA5",
-            }}>
+            <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 6, background: ride.paymentMethod === "cashapp" ? "#EAF3DE" : "#E6F1FB", color: ride.paymentMethod === "cashapp" ? "#3B6D11" : "#185FA5" }}>
               {ride.paymentMethod === "cashapp" ? "Cash App" : ride.paymentMethod ?? "Card"}
             </span>
-            <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 6, background: pm.bg, color: pm.color }}>
-              {pm.label}
-            </span>
-            <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 6, background: po.bg, color: po.color }}>
-              {po.label}
-            </span>
+            <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 6, background: pm.bg, color: pm.color }}>{pm.label}</span>
+            <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 6, background: po.bg, color: po.color }}>{po.label}</span>
           </div>
           <div style={{ fontSize: 10, color: "#9CA3AF" }}>
             <span style={{ color: "#374151", fontWeight: 700 }}>${ride.driverPayout?.toFixed(2) ?? "—"}</span>
@@ -627,9 +536,7 @@ function RideCard({ ride, delay }) {
         </div>
 
         {/* Ride ID */}
-        <div style={{ marginTop: 8, fontSize: 9, color: "#D1D5DB", fontFamily: "monospace", letterSpacing: ".4px" }}>
-          {ride.id}
-        </div>
+        <div style={{ marginTop: 8, fontSize: 9, color: "#D1D5DB", fontFamily: "monospace", letterSpacing: ".4px" }}>{ride.id}</div>
       </div>
     </div>
   );
