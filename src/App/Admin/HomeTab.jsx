@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import {
   Activity, DollarSign, Car, Shield,
   RefreshCw, Filter, Search, X, ChevronDown, TrendingUp,
-  Users, MapPin, Clock,
+  MapPin, Clock,
 } from "lucide-react";
 import { C } from '@/App/Admin/Tokens';
 import { StatCard, Avatar } from '@/App/Admin/UI';
@@ -28,11 +28,19 @@ function tsToMs(ts) {
   return 0;
 }
 
+function fmtMMSS(totalSecs) {
+  const abs = Math.abs(Math.round(totalSecs));
+  const m   = Math.floor(abs / 60);
+  const s   = abs % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
 // ── Status maps ───────────────────────────────────────────────────────
 const STATUS_META = {
   searching_driver: { label: "Searching driver", dot: "#BA7517", bg: "#FAEEDA", color: "#854F0B" },
-  in_progress:      { label: "In progress",      dot: "#639922", bg: "#EAF3DE", color: "#3B6D11" },
-  arrived:          { label: "Arrived",           dot: "#185FA5", bg: "#E6F1FB", color: "#185FA5" },
+  driver_assigned:  { label: "Driver assigned",  dot: "#185FA5", bg: "#E6F1FB", color: "#185FA5" },
+  arrived:          { label: "Arrived",           dot: "#639922", bg: "#EAF3DE", color: "#3B6D11" },
+  in_progress:      { label: "In progress",       dot: "#639922", bg: "#EAF3DE", color: "#3B6D11" },
   completed:        { label: "Completed",         dot: "#888780", bg: "#F1EFE8", color: "#5F5E5A" },
   cancelled:        { label: "Cancelled",         dot: "#E24B4A", bg: "#FCEBEB", color: "#A32D2D" },
 };
@@ -50,19 +58,10 @@ const PAYOUT_META = {
   failed:     { bg: "#FCEBEB", color: "#A32D2D", label: "Payout failed"     },
 };
 
-const ACCENT_BAR = {
-  searching_driver: null, // handled by SearchTimerBar
-  in_progress:      "linear-gradient(90deg,#639922,#8DC53E)",
-  arrived:          "linear-gradient(90deg,#185FA5,#3B82F6)",
-  completed:        "#D1D5DB",
-  cancelled:        "linear-gradient(90deg,#E24B4A,#F87171)",
-};
-
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-// ── Search Timer Bar ──────────────────────────────────────────────────
-// Uses expiresAt as the hard deadline.
-// Derives the total window from (expiresAt - createdAt) to calculate %.
+// ── Search Timer Bar (searching_driver) ──────────────────────────────
+// Shrinks left→right as expiry approaches.
 function SearchTimerBar({ expiresAt, createdAt }) {
   const [pct,      setPct]      = useState(100);
   const [secsLeft, setSecsLeft] = useState(null);
@@ -71,89 +70,41 @@ function SearchTimerBar({ expiresAt, createdAt }) {
   useEffect(() => {
     const expiresMs = tsToMs(expiresAt);
     if (!expiresMs) return;
-
-    // Total window: expiresAt − createdAt (fallback to 25 min if createdAt missing)
-    const createdMs  = tsToMs(createdAt) || (expiresMs - 25 * 60 * 1000);
-    const totalMs    = expiresMs - createdMs;
+    const createdMs = tsToMs(createdAt) || (expiresMs - 25 * 60 * 1000);
+    const totalMs   = expiresMs - createdMs;
 
     const tick = () => {
       const now       = Date.now();
       const remaining = Math.max((expiresMs - now) / 1000, 0);
       const elapsed   = Math.max((now - createdMs) / 1000, 0);
       const percent   = Math.max(((totalMs / 1000 - elapsed) / (totalMs / 1000)) * 100, 0);
-
       setPct(percent);
       setSecsLeft(Math.ceil(remaining));
-
-      if (remaining > 0) {
-        rafRef.current = requestAnimationFrame(tick);
-      }
+      if (remaining > 0) rafRef.current = requestAnimationFrame(tick);
     };
-
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
   }, [expiresAt, createdAt]);
 
-  if (secsLeft === null) {
-    return <div style={{ height: 3, background: "#F3F3F0" }} />;
-  }
-
-  const minsLeft = Math.floor(secsLeft / 60);
-  const sLeft    = secsLeft % 60;
-  const timeStr  = `${minsLeft}:${String(sLeft).padStart(2, "0")}`;
+  if (secsLeft === null) return <div style={{ height: 3, background: "#F3F3F0" }} />;
 
   const barColor = pct > 50
     ? "linear-gradient(90deg,#BA7517,#F0A733)"
     : pct > 20
       ? "linear-gradient(90deg,#C2410C,#EA580C)"
       : "linear-gradient(90deg,#E24B4A,#F87171)";
-
   const badgeBg = pct > 20 ? "#BA7517" : "#E24B4A";
 
   return (
     <div style={{ position: "relative", height: 3, background: "#F3F3F0", overflow: "visible" }}>
-      {/* Shrinking bar */}
-      <div style={{
-        position:     "absolute",
-        top: 0, left: 0, bottom: 0,
-        width:        `${pct}%`,
-        background:   barColor,
-        transition:   "background .5s",
-        borderRadius: "0 2px 2px 0",
-      }} />
-
-      {/* Countdown badge riding the leading edge */}
+      <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: `${pct}%`, background: barColor, transition: "background .5s", borderRadius: "0 2px 2px 0" }} />
       {secsLeft > 0 && (
-        <div style={{
-          position:     "absolute",
-          top:          "50%",
-          left:         `${pct}%`,
-          transform:    "translate(-50%, -50%)",
-          background:   badgeBg,
-          color:        "#fff",
-          fontSize:     8,
-          fontWeight:   800,
-          padding:      "1px 4px",
-          borderRadius: 4,
-          whiteSpace:   "nowrap",
-          pointerEvents:"none",
-          marginTop:    12,
-          fontFamily:   "monospace",
-          boxShadow:    "0 1px 4px rgba(0,0,0,.2)",
-          zIndex:       2,
-        }}>
-          {timeStr}
+        <div style={{ position: "absolute", top: "50%", left: `${pct}%`, transform: "translate(-50%, -50%)", background: badgeBg, color: "#fff", fontSize: 8, fontWeight: 800, padding: "1px 4px", borderRadius: 4, whiteSpace: "nowrap", pointerEvents: "none", marginTop: 12, fontFamily: "monospace", boxShadow: "0 1px 4px rgba(0,0,0,.2)", zIndex: 2 }}>
+          {fmtMMSS(secsLeft)}
         </div>
       )}
-
-      {/* Expired label */}
       {secsLeft === 0 && (
-        <div style={{
-          position:   "absolute", top: "50%", left: "50%",
-          transform:  "translate(-50%, -50%)",
-          color:      "#E24B4A", fontSize: 8, fontWeight: 800,
-          marginTop:  12, fontFamily: "monospace",
-        }}>
+        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", color: "#E24B4A", fontSize: 8, fontWeight: 800, marginTop: 12, fontFamily: "monospace" }}>
           EXPIRED
         </div>
       )}
@@ -161,64 +112,137 @@ function SearchTimerBar({ expiresAt, createdAt }) {
   );
 }
 
+// ── Driver Assigned Bar (driver_assigned) ─────────────────────────────
+// Fills left→right from acceptedAt toward acceptedAt + etaMin.
+// Badge shows elapsed time and ETA; turns amber near end, red if late.
+function DriverAssignedBar({ acceptedAt, etaMin }) {
+  const [elapsed, setElapsed] = useState(0);
+  const rafRef = useRef(null);
+
+  useEffect(() => {
+    const acceptedMs = tsToMs(acceptedAt);
+    if (!acceptedMs) return;
+    const tick = () => {
+      setElapsed(Math.floor((Date.now() - acceptedMs) / 1000));
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [acceptedAt]);
+
+  const totalSecs = (etaMin ?? 0) * 60;
+  const pct       = totalSecs > 0 ? Math.min((elapsed / totalSecs) * 100, 100) : 0;
+  const isLate    = totalSecs > 0 && elapsed > totalSecs;
+  const overBy    = elapsed - totalSecs;
+
+  const barColor = isLate
+    ? "linear-gradient(90deg,#E24B4A,#F87171)"
+    : pct > 80
+      ? "linear-gradient(90deg,#C2410C,#EA580C)"
+      : "linear-gradient(90deg,#185FA5,#3B82F6)";
+
+  const badgeBg = isLate ? "#E24B4A" : pct > 80 ? "#C2410C" : "#185FA5";
+
+  const label = isLate
+    ? `+${fmtMMSS(overBy)} late`
+    : `${fmtMMSS(elapsed)} elapsed${etaMin != null ? ` / ~${etaMin} min ETA` : ""}`;
+
+  return (
+    <div style={{ position: "relative", height: 3, background: "#F3F3F0", overflow: "visible" }}>
+      <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: `${pct}%`, background: barColor, transition: "background .5s", borderRadius: "0 2px 2px 0" }} />
+      <div style={{ position: "absolute", top: "50%", left: `${Math.min(Math.max(pct, 4), 92)}%`, transform: "translate(-50%, -50%)", background: badgeBg, color: "#fff", fontSize: 8, fontWeight: 800, padding: "1px 5px", borderRadius: 4, whiteSpace: "nowrap", pointerEvents: "none", marginTop: 12, fontFamily: "monospace", boxShadow: "0 1px 4px rgba(0,0,0,.2)", zIndex: 2 }}>
+        {label}
+      </div>
+    </div>
+  );
+}
+
+// ── Arrived Bar (arrived) ─────────────────────────────────────────────
+// Full solid green bar — driver is on site, nothing to count.
+function ArrivedBar() {
+  return (
+    <div style={{ position: "relative", height: 3, background: "#F3F3F0", overflow: "visible" }}>
+      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg,#639922,#8DC53E)" }} />
+      <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "#639922", color: "#fff", fontSize: 8, fontWeight: 800, padding: "1px 6px", borderRadius: 4, whiteSpace: "nowrap", pointerEvents: "none", marginTop: 12, fontFamily: "monospace", boxShadow: "0 1px 4px rgba(0,0,0,.2)", letterSpacing: ".5px", zIndex: 2 }}>
+        DRIVER ARRIVED
+      </div>
+    </div>
+  );
+}
+
+// ── In Progress Bar (in_progress) ────────────────────────────────────
+// Fills left→right from startedAt toward startedAt + tripDurationMin.
+// Badge counts down remaining time; turns amber at 80%, red when over.
+function InProgressBar({ startedAt, tripDurationMin }) {
+  const [elapsed, setElapsed] = useState(0);
+  const rafRef = useRef(null);
+
+  useEffect(() => {
+    const startMs = tsToMs(startedAt);
+    if (!startMs) return;
+    const tick = () => {
+      setElapsed(Math.floor((Date.now() - startMs) / 1000));
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [startedAt]);
+
+  const totalSecs = (tripDurationMin ?? 0) * 60;
+  const pct       = totalSecs > 0 ? Math.min((elapsed / totalSecs) * 100, 100) : 0;
+  const remaining = Math.max(totalSecs - elapsed, 0);
+  const isOver    = totalSecs > 0 && elapsed > totalSecs;
+  const overBy    = elapsed - totalSecs;
+
+  const barColor = isOver
+    ? "linear-gradient(90deg,#E24B4A,#F87171)"
+    : pct > 80
+      ? "linear-gradient(90deg,#BA7517,#F0A733)"
+      : "linear-gradient(90deg,#639922,#8DC53E)";
+
+  const badgeBg = isOver ? "#E24B4A" : pct > 80 ? "#BA7517" : "#639922";
+
+  const label = isOver
+    ? `+${fmtMMSS(overBy)} over`
+    : `${fmtMMSS(remaining)} left`;
+
+  return (
+    <div style={{ position: "relative", height: 3, background: "#F3F3F0", overflow: "visible" }}>
+      <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: `${pct}%`, background: barColor, transition: "background .5s", borderRadius: "0 2px 2px 0" }} />
+      <div style={{ position: "absolute", top: "50%", left: `${Math.min(Math.max(pct, 6), 94)}%`, transform: "translate(-50%, -50%)", background: badgeBg, color: "#fff", fontSize: 8, fontWeight: 800, padding: "1px 5px", borderRadius: 4, whiteSpace: "nowrap", pointerEvents: "none", marginTop: 12, fontFamily: "monospace", boxShadow: "0 1px 4px rgba(0,0,0,.2)", zIndex: 2 }}>
+        {label}
+      </div>
+    </div>
+  );
+}
+
 // ── Driver Info Banner ────────────────────────────────────────────────
-// Shown inside searching_driver cards when ride.driverInfo is populated.
 function DriverInfoBanner({ driverInfo }) {
   if (!driverInfo) return null;
-
   const { driverCount, etaLabel, nearestMiles, stale } = driverInfo;
 
   return (
-    <div style={{
-      margin:       "0 0 12px",
-      padding:      "10px 14px",
-      background:   stale ? "#FFF8EE" : "#FFFBF0",
-      border:       `1px solid ${stale ? "#F0C974" : "#E9D98A"}`,
-      borderRadius: 10,
-      display:      "flex",
-      alignItems:   "center",
-      gap:          12,
-      flexWrap:     "wrap",
-    }}>
-      {/* Left: pulsing dot + label */}
+    <div style={{ margin: "0 0 12px", padding: "10px 14px", background: stale ? "#FFF8EE" : "#FFFBF0", border: `1px solid ${stale ? "#F0C974" : "#E9D98A"}`, borderRadius: 10, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 7, flex: 1, minWidth: 0 }}>
-        <div style={{
-          width: 8, height: 8, borderRadius: "50%",
-          background: stale ? "#BA7517" : "#EAB308",
-          boxShadow:  stale ? "0 0 0 3px #FAEEDA" : "0 0 0 3px #FEF9C3",
-          flexShrink: 0,
-          animation:  "pulse 1.6s ease-in-out infinite",
-        }} />
+        <div style={{ width: 8, height: 8, borderRadius: "50%", background: stale ? "#BA7517" : "#EAB308", boxShadow: stale ? "0 0 0 3px #FAEEDA" : "0 0 0 3px #FEF9C3", flexShrink: 0, animation: "pulse 1.6s ease-in-out infinite" }} />
         <span style={{ fontSize: 11, fontWeight: 700, color: "#854F0B" }}>
           Notified {driverCount} driver{driverCount !== 1 ? "s" : ""}
         </span>
         {stale && (
-          <span style={{
-            fontSize: 9, fontWeight: 800, padding: "1px 6px",
-            background: "#BA7517", color: "#fff", borderRadius: 4,
-            letterSpacing: ".3px",
-          }}>
-            STALE
-          </span>
+          <span style={{ fontSize: 9, fontWeight: 800, padding: "1px 6px", background: "#BA7517", color: "#fff", borderRadius: 4, letterSpacing: ".3px" }}>STALE</span>
         )}
       </div>
-
-      {/* Right: nearest distance + ETA */}
       <div style={{ display: "flex", gap: 12 }}>
         {nearestMiles != null && (
           <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
             <MapPin size={11} color="#BA7517" />
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#854F0B", fontFamily: "monospace" }}>
-              {nearestMiles.toFixed(1)} mi
-            </span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#854F0B", fontFamily: "monospace" }}>{nearestMiles.toFixed(1)} mi</span>
           </div>
         )}
         {etaLabel && (
           <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
             <Clock size={11} color="#BA7517" />
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#854F0B" }}>
-              {etaLabel}
-            </span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#854F0B" }}>{etaLabel}</span>
           </div>
         )}
       </div>
@@ -238,14 +262,9 @@ function WeeklySummary({ allRides = [] }) {
     const d = new Date(sunday);
     d.setDate(sunday.getDate() + i);
     return {
-      label:        DAY_LABELS[d.getDay()],
-      dateStr:      d.toDateString(),
-      isToday:      d.toDateString() === now.toDateString(),
-      isFuture:     d > now,
-      rides:        0,
-      fareTotal:    0,
-      platformFee:  0,
-      driverPayout: 0,
+      label: DAY_LABELS[d.getDay()], dateStr: d.toDateString(),
+      isToday: d.toDateString() === now.toDateString(), isFuture: d > now,
+      rides: 0, fareTotal: 0, platformFee: 0, driverPayout: 0,
     };
   });
 
@@ -274,26 +293,17 @@ function WeeklySummary({ allRides = [] }) {
   const hovered = hoveredIdx !== null ? buckets[hoveredIdx] : null;
 
   return (
-    <div className="card fade-up" style={{
-      marginBottom: 16, padding: 0, overflow: "hidden",
-      border: "1px solid #EBEBEA", borderRadius: 16,
-      boxShadow: "0 2px 12px rgba(0,0,0,.06)",
-      animationDelay: "20ms", opacity: 0,
-    }}>
+    <div className="card fade-up" style={{ marginBottom: 16, padding: 0, overflow: "hidden", border: "1px solid #EBEBEA", borderRadius: 16, boxShadow: "0 2px 12px rgba(0,0,0,.06)", animationDelay: "20ms", opacity: 0 }}>
       <div style={{ padding: "16px 18px 12px", borderBottom: "1px solid #F3F4F6", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
             <TrendingUp size={14} color="#639922" />
             <span style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Rides This Week</span>
           </div>
-          <div style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 600 }}>
-            {totalRides} completed ride{totalRides !== 1 ? "s" : ""}
-          </div>
+          <div style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 600 }}>{totalRides} completed ride{totalRides !== 1 ? "s" : ""}</div>
         </div>
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 22, fontWeight: 900, color: "#111827", letterSpacing: "-0.8px", fontFamily: "monospace" }}>
-            ${totalFare.toFixed(2)}
-          </div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: "#111827", letterSpacing: "-0.8px", fontFamily: "monospace" }}>${totalFare.toFixed(2)}</div>
           <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 600 }}>total fare</div>
         </div>
       </div>
@@ -305,27 +315,13 @@ function WeeklySummary({ allRides = [] }) {
             const isHov = hoveredIdx === i;
             return (
               <div key={b.label} onMouseEnter={() => setHoveredIdx(i)} onMouseLeave={() => setHoveredIdx(null)}
-                style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, cursor: "default" }}
-              >
+                style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, cursor: "default" }}>
                 {!b.isFuture && b.rides > 0
                   ? <div style={{ fontSize: 9, fontWeight: 700, color: b.isToday ? "#639922" : "#9CA3AF", opacity: isHov ? 1 : 0.85 }}>${b.fareTotal.toFixed(0)}</div>
                   : <div style={{ flex: 1 }} />
                 }
-                <div style={{
-                  width: "100%",
-                  height: b.isFuture ? 6 : `${Math.max(pct, 6)}%`,
-                  background: b.isFuture ? "#F3F4F6" : b.isToday
-                    ? (isHov ? "linear-gradient(180deg,#8DC53E,#639922)" : "linear-gradient(180deg,#639922,#4d7a1a)")
-                    : isHov ? "linear-gradient(180deg,#6B7280,#374151)" : "linear-gradient(180deg,#D1D5DB,#9CA3AF)",
-                  borderRadius: "5px 5px 3px 3px",
-                  transition: "height .45s ease-out, background .15s",
-                  boxShadow: b.isToday && !b.isFuture ? "0 0 10px rgba(99,153,34,.35)" : "none",
-                  border: b.isToday && !b.isFuture ? "1px solid rgba(99,153,34,.25)" : "1px solid transparent",
-                  opacity: b.isFuture ? 0.3 : 1, minHeight: 6,
-                }} />
-                <div style={{ fontSize: 10, fontWeight: 700, color: b.isToday ? "#639922" : "#9CA3AF", letterSpacing: ".4px" }}>
-                  {b.label.toUpperCase()}
-                </div>
+                <div style={{ width: "100%", height: b.isFuture ? 6 : `${Math.max(pct, 6)}%`, background: b.isFuture ? "#F3F4F6" : b.isToday ? (isHov ? "linear-gradient(180deg,#8DC53E,#639922)" : "linear-gradient(180deg,#639922,#4d7a1a)") : isHov ? "linear-gradient(180deg,#6B7280,#374151)" : "linear-gradient(180deg,#D1D5DB,#9CA3AF)", borderRadius: "5px 5px 3px 3px", transition: "height .45s ease-out, background .15s", boxShadow: b.isToday && !b.isFuture ? "0 0 10px rgba(99,153,34,.35)" : "none", border: b.isToday && !b.isFuture ? "1px solid rgba(99,153,34,.25)" : "1px solid transparent", opacity: b.isFuture ? 0.3 : 1, minHeight: 6 }} />
+                <div style={{ fontSize: 10, fontWeight: 700, color: b.isToday ? "#639922" : "#9CA3AF", letterSpacing: ".4px" }}>{b.label.toUpperCase()}</div>
               </div>
             );
           })}
@@ -335,10 +331,10 @@ function WeeklySummary({ allRides = [] }) {
       {hovered && !hovered.isFuture && (
         <div style={{ margin: "0 18px 12px", padding: "10px 14px", background: "#F9F9F7", border: "1px solid #EBEBEA", borderRadius: 10, display: "flex", gap: 16, flexWrap: "wrap" }}>
           {[
-            { label: hovered.label,   val: `${hovered.rides} ride${hovered.rides !== 1 ? "s" : ""}`, color: "#111827" },
-            { label: "Fare",          val: `$${hovered.fareTotal.toFixed(2)}`,                        color: "#111827" },
-            { label: "Platform",      val: `$${hovered.platformFee.toFixed(2)}`,                      color: "#185FA5" },
-            { label: "Driver",        val: `$${hovered.driverPayout.toFixed(2)}`,                     color: "#639922" },
+            { label: hovered.label, val: `${hovered.rides} ride${hovered.rides !== 1 ? "s" : ""}`, color: "#111827" },
+            { label: "Fare",        val: `$${hovered.fareTotal.toFixed(2)}`,                        color: "#111827" },
+            { label: "Platform",    val: `$${hovered.platformFee.toFixed(2)}`,                      color: "#185FA5" },
+            { label: "Driver",      val: `$${hovered.driverPayout.toFixed(2)}`,                     color: "#639922" },
           ].map(item => (
             <div key={item.label}>
               <div style={{ fontSize: 9, color: "#9CA3AF", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".5px" }}>{item.label}</div>
@@ -384,10 +380,14 @@ function FilterPanel({ filters, onChange, onClear, resultCount }) {
       </div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <FilterSelect value={filters.status}        onChange={v => onChange("status", v)}        options={[{ value: "", label: "All statuses" }, { value: "searching_driver", label: "Searching" }, { value: "in_progress", label: "In progress" }, { value: "arrived", label: "Arrived" }, { value: "completed", label: "Completed" }, { value: "cancelled", label: "Cancelled" }]} />
-        <FilterSelect value={filters.paymentMethod} onChange={v => onChange("paymentMethod", v)} options={[{ value: "", label: "All payments" }, { value: "card", label: "Card" }, { value: "cashapp", label: "Cash App" }]} />
-        <FilterSelect value={filters.paymentStatus} onChange={v => onChange("paymentStatus", v)} options={[{ value: "", label: "Payment status" }, { value: "succeeded", label: "Succeeded" }, { value: "pending", label: "Pending" }, { value: "failed", label: "Failed" }]} />
-        <FilterSelect value={filters.payoutStatus}  onChange={v => onChange("payoutStatus", v)}  options={[{ value: "", label: "Payout status" }, { value: "processing", label: "Processing" }, { value: "pending", label: "Pending" }, { value: "paid", label: "Paid" }, { value: "failed", label: "Failed" }]} />
+        <FilterSelect value={filters.status}        onChange={v => onChange("status", v)}
+          options={[{ value: "", label: "All statuses" }, { value: "searching_driver", label: "Searching" }, { value: "driver_assigned", label: "Assigned" }, { value: "arrived", label: "Arrived" }, { value: "in_progress", label: "In progress" }, { value: "completed", label: "Completed" }, { value: "cancelled", label: "Cancelled" }]} />
+        <FilterSelect value={filters.paymentMethod} onChange={v => onChange("paymentMethod", v)}
+          options={[{ value: "", label: "All payments" }, { value: "card", label: "Card" }, { value: "cashapp", label: "Cash App" }]} />
+        <FilterSelect value={filters.paymentStatus} onChange={v => onChange("paymentStatus", v)}
+          options={[{ value: "", label: "Payment status" }, { value: "succeeded", label: "Succeeded" }, { value: "pending", label: "Pending" }, { value: "failed", label: "Failed" }]} />
+        <FilterSelect value={filters.payoutStatus}  onChange={v => onChange("payoutStatus", v)}
+          options={[{ value: "", label: "Payout status" }, { value: "processing", label: "Processing" }, { value: "pending", label: "Pending" }, { value: "paid", label: "Paid" }, { value: "failed", label: "Failed" }]} />
       </div>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -401,7 +401,8 @@ function FilterPanel({ filters, onChange, onClear, resultCount }) {
 function FilterSelect({ value, onChange, options }) {
   return (
     <div style={{ position: "relative", flex: 1, minWidth: 120 }}>
-      <select value={value} onChange={e => onChange(e.target.value)} style={{ width: "100%", padding: "8px 28px 8px 10px", borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 11, fontWeight: 600, color: value ? "#111827" : "#9CA3AF", background: value ? "#fff" : "#F9F9F7", appearance: "none", outline: "none", cursor: "pointer", fontFamily: "inherit" }}>
+      <select value={value} onChange={e => onChange(e.target.value)}
+        style={{ width: "100%", padding: "8px 28px 8px 10px", borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 11, fontWeight: 600, color: value ? "#111827" : "#9CA3AF", background: value ? "#fff" : "#F9F9F7", appearance: "none", outline: "none", cursor: "pointer", fontFamily: "inherit" }}>
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
       <ChevronDown size={11} style={{ position: "absolute", right: 9, top: "50%", transform: "translateY(-50%)", color: "#9CA3AF", pointerEvents: "none" }} />
@@ -528,24 +529,38 @@ export function HomeTab({
 // ── RideCard ──────────────────────────────────────────────────────────
 function RideCard({ ride, delay }) {
   const riderLabel  = ride.riderName  ?? `Rider …${ride.uid?.slice(-4) ?? "?"}`;
-  const driverLabel = ride.driverName ?? (ride.driverId ? `Driver …${ride.driverId.slice(-4)}` : "No driver yet");
+  const driverLabel = ride.driverName ?? (ride.driverUid ? `Driver …${ride.driverUid.slice(-4)}` : "No driver yet");
 
   const s  = STATUS_META[ride.status]         ?? { label: ride.status,         dot: "#888780", bg: "#F1EFE8", color: "#5F5E5A" };
   const pm = PAYMENT_META[ride.paymentStatus] ?? { bg: "#F3F4F6", color: "#6B7280", label: ride.paymentStatus };
   const po = PAYOUT_META[ride.payoutStatus]   ?? { bg: "#F3F4F6", color: "#6B7280", label: ride.payoutStatus  };
 
-  const isSearching = ride.status === "searching_driver";
+  // ── Status-aware top bar ──────────────────────────────────────────
+  function TopBar() {
+    switch (ride.status) {
+      case "searching_driver":
+        return <SearchTimerBar expiresAt={ride.expiresAt} createdAt={ride.createdAt} />;
+      case "driver_assigned":
+        return <DriverAssignedBar acceptedAt={ride.acceptedAt} etaMin={ride.driverInfo?.etaMin} />;
+      case "arrived":
+        return <ArrivedBar />;
+      case "in_progress":
+        return <InProgressBar startedAt={ride.startedAt} tripDurationMin={ride.tripDurationMin} />;
+      case "completed":
+        return <div style={{ height: 3, background: "#D1D5DB" }} />;
+      case "cancelled":
+        return <div style={{ height: 3, background: "linear-gradient(90deg,#E24B4A,#F87171)" }} />;
+      default:
+        return <div style={{ height: 3, background: "#F3F3F0" }} />;
+    }
+  }
 
   return (
     <div
       className="card fade-up"
       style={{ padding: 0, animationDelay: `${delay}ms`, opacity: 0, overflow: "hidden", border: "1px solid #EBEBEA", borderRadius: 16, boxShadow: "0 2px 12px rgba(0,0,0,.06)" }}
     >
-      {/* ── Accent bar / Timer bar ── */}
-      {isSearching
-        ? <SearchTimerBar expiresAt={ride.expiresAt} createdAt={ride.createdAt} />
-        : <div style={{ height: 3, background: ACCENT_BAR[ride.status] ?? "#D1D5DB" }} />
-      }
+      <TopBar />
 
       <div style={{ padding: "14px 16px" }}>
 
@@ -572,8 +587,8 @@ function RideCard({ ride, delay }) {
           </div>
         </div>
 
-        {/* ── Driver Info Banner (searching only) ── */}
-        {isSearching && ride.driverInfo && (
+        {/* Driver Info Banner (searching only) */}
+        {ride.status === "searching_driver" && ride.driverInfo && (
           <DriverInfoBanner driverInfo={ride.driverInfo} />
         )}
 
