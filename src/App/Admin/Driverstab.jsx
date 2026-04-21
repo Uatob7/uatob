@@ -9,10 +9,18 @@ function timeAgo(ts) {
   if (!ts) return "—";
   const seconds = ts?.seconds ?? Math.floor(ts / 1000);
   const diff = Math.floor(Date.now() / 1000) - seconds;
-  if (diff < 60)   return `${diff}s ago`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 60)    return `${diff}s ago`;
+  if (diff < 3600)  return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
+}
+
+function formatMinutesAgo(minutes) {
+  if (minutes == null) return "—";
+  if (minutes < 1)    return "just now";
+  if (minutes < 60)   return `${minutes}m ago`;
+  if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`;
+  return `${Math.floor(minutes / 1440)}d ago`;
 }
 
 function fullName(d) {
@@ -30,7 +38,7 @@ export function DriversTab({ fleet = [], onToast }) {
   const [filter,   setFilter]   = useState("all");
   const [selected, setSelected] = useState(null);
 
-  const filters  = ["all", "online", "offline", "pending", "in_progress"];
+  const filters = ["all", "online", "offline", "pending", "in_progress"];
 
   const filtered = fleet.filter(d => {
     const name = fullName(d).toLowerCase();
@@ -79,7 +87,6 @@ export function DriversTab({ fleet = [], onToast }) {
             }}
           >
             {f === "in_progress" ? "In Progress" : f.charAt(0).toUpperCase() + f.slice(1)}
-            {/* count badge */}
             <span style={{
               marginLeft: 5, background: C.border, borderRadius: 100,
               padding: "1px 6px", fontSize: 10,
@@ -122,7 +129,11 @@ export function DriversTab({ fleet = [], onToast }) {
               </div>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5 }}>
                 <StatusPill status={driver.status} />
-                <span style={{ fontSize: 10, color: C.textMuted }}>{timeAgo(driver.createdAt)}</span>
+                <span style={{ fontSize: 10, color: C.textMuted }}>
+                  {(driver.status === "online" || driver.status === "offline") && driver.minutesSinceLastSeen != null
+                    ? formatMinutesAgo(driver.minutesSinceLastSeen)
+                    : timeAgo(driver.createdAt)}
+                </span>
               </div>
               <ChevronRight size={14} color={C.textDim} />
             </div>
@@ -172,16 +183,17 @@ function DriverDetail({ driver: d, driverIdx, onBack, onToast }) {
       onToast("Failed to reject driver");
     }
   };
-  const name = fullName(d);
-  const docs = d.documents ?? {};
-  const vehicle = d.vehicle ?? {};
-  const contact = d.contact ?? {};
+
+  const name    = fullName(d);
+  const docs    = d.documents ?? {};
+  const vehicle = d.vehicle   ?? {};
+  const contact = d.contact   ?? {};
 
   const docItems = [
-    { label: "Profile Photo",  done: docs.profilePhoto },
-    { label: "License Front",  done: docs.licenseFront },
-    { label: "Insurance",      done: docs.insurance },
-    { label: "Registration",   done: docs.registration },
+    { label: "Profile Photo", done: docs.profilePhoto },
+    { label: "License Front", done: docs.licenseFront },
+    { label: "Insurance",     done: docs.insurance },
+    { label: "Registration",  done: docs.registration },
   ];
 
   return (
@@ -234,7 +246,7 @@ function DriverDetail({ driver: d, driverIdx, onBack, onToast }) {
               { label: "Color", value: vehicle.color?.trim() },
               { label: "Plate", value: vehicle.plate },
               { label: "Year",  value: vehicle.year ?? "—" },
-              { label: "VIN",   value: vehicle.vin ?? "—" },
+              { label: "VIN",   value: vehicle.vin  ?? "—" },
             ].map(({ label, value }) => (
               <div key={label} style={{ background: C.surfaceHigh, borderRadius: 8, padding: "8px 10px", border: `1px solid ${C.border}` }}>
                 <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 700, letterSpacing: ".5px", marginBottom: 2 }}>{label}</div>
