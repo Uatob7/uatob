@@ -91,6 +91,7 @@ const PANEL_CSS = `
   @keyframes bp-fadeUp  { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
   @keyframes bp-alertIn { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
   @keyframes bp-pulse   { 0%,100%{box-shadow:0 0 0 0 rgba(22,163,74,.25)} 50%{box-shadow:0 0 0 6px rgba(22,163,74,0)} }
+  @keyframes bp-dotPulse { 0%,100%{opacity:.3;transform:scale(.8)} 50%{opacity:1;transform:scale(1)} }
 
   .bp-card { border-radius:20px; border:1.5px solid #E5E7EB; background:#fff; overflow:hidden; font-family:'Outfit',system-ui,sans-serif; }
   .bp-card + .bp-card { margin-top:10px; }
@@ -139,6 +140,7 @@ const PANEL_CSS = `
   .bp-ride-card.active .bp-ride-price { color:#16A34A; }
   .bp-ride-meta  { display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
   .bp-ride-tag   { display:flex; align-items:center; gap:3px; font-size:10.5px; color:#9CA3AF; font-weight:600; }
+  .bp-ride-tag.stale { color:#D97706; }
   .bp-stats { display:flex; align-items:stretch; border-top:1.5px solid #E5E7EB; }
   .bp-stat  { flex:1; padding:13px 16px; display:flex; flex-direction:column; gap:3px; }
   .bp-stat + .bp-stat { border-left:1.5px solid #E5E7EB; }
@@ -172,6 +174,14 @@ const PANEL_CSS = `
   .bp-error span { font-size:13px; color:#DC2626; font-weight:600; }
   .bp-empty      { padding:22px 18px; text-align:center; font-size:13px; font-weight:500; color:#D1D5DB; font-family:'Outfit',system-ui,sans-serif; border-top:1px solid #F9FAFB; }
   .bp-fadeup     { animation:bp-fadeUp .3s ease-out both; }
+
+  /* ── Driver banner ── */
+  .bp-driver-banner { display:flex; align-items:center; gap:10px; padding:10px 14px; border-top:1px solid #F3F4F6; background:#FAFAFA; }
+  .bp-driver-dot { width:7px; height:7px; border-radius:50%; background:#16A34A; flex-shrink:0; animation:bp-dotPulse 1.6s ease-in-out infinite; }
+  .bp-driver-dot.stale { background:#D97706; animation:none; }
+  .bp-driver-text { font-size:11.5px; font-weight:700; color:#374151; font-family:'Outfit',sans-serif; }
+  .bp-driver-text.stale { color:#D97706; }
+  .bp-driver-sub { font-size:10.5px; font-weight:500; color:#9CA3AF; font-family:'Outfit',sans-serif; margin-left:auto; }
 `;
 
 // ── Location alert ────────────────────────────────────────────────────
@@ -211,6 +221,28 @@ function LocationAlert({ onAllow, onDeny, loading, error }) {
             </div>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+// ── Driver availability banner ────────────────────────────────────────
+function DriverBanner({ driverInfo }) {
+  if (!driverInfo) return null;
+  const stale = driverInfo.stale;
+  const count = driverInfo.driverCount ?? 1;
+  const miles = driverInfo.nearestMiles;
+
+  return (
+    <div className="bp-driver-banner">
+      <div className={`bp-driver-dot${stale ? ' stale' : ''}`}/>
+      <span className={`bp-driver-text${stale ? ' stale' : ''}`}>
+        {stale
+          ? `${count} driver nearby · estimated location`
+          : `${count} driver${count !== 1 ? 's' : ''} nearby`}
+      </span>
+      {miles != null && (
+        <span className="bp-driver-sub">{miles} mi away</span>
       )}
     </div>
   );
@@ -454,6 +486,7 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
     breakdown:         quote.breakdown || {},
     receipt:           quote.receipt   || [],
     allQuotes:         quotes.rides    || {},
+    driverInfo:        quotes.driverInfo ?? null,
     polyline:          trip.polyline   || null,
     status:            'searching_driver',
     createdAt:         new Date().toISOString(),
@@ -558,6 +591,7 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
 
   const rideOptions   = useMemo(() => Object.values(quotesData?.rides || {}), [quotesData]);
   const selectedQuote = useMemo(() => quotesData?.rides?.[selectedRide] || null, [quotesData, selectedRide]);
+  const driverInfo    = useMemo(() => quotesData?.driverInfo ?? null, [quotesData]);
 
   const isLoading = loadingTrip || loadingQuotes;
   const hasQuote  = !!tripData && !!quotesData && !!selectedQuote && !error && !isLoading;
@@ -654,23 +688,28 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
         )}
 
         {hasQuote && (
-          <div className="bp-stats bp-fadeup">
-            <div className="bp-stat">
-              <div className="bp-stat-label">Distance</div>
-              <div className="bp-stat-val">{tripData.miles}<span style={{ fontSize:11, fontWeight:600, color:'#9CA3AF' }}> mi</span></div>
-              <div className="bp-stat-sub">point to point</div>
+          <>
+            <div className="bp-stats bp-fadeup">
+              <div className="bp-stat">
+                <div className="bp-stat-label">Distance</div>
+                <div className="bp-stat-val">{tripData.miles}<span style={{ fontSize:11, fontWeight:600, color:'#9CA3AF' }}> mi</span></div>
+                <div className="bp-stat-sub">point to point</div>
+              </div>
+              <div className="bp-stat">
+                <div className="bp-stat-label">Duration</div>
+                <div className="bp-stat-val">{tripData.durationMin}<span style={{ fontSize:11, fontWeight:600, color:'#9CA3AF' }}> min</span></div>
+                <div className="bp-stat-sub">{tripData.durationText}</div>
+              </div>
+              <div className="bp-stat">
+                <div className="bp-stat-label">Est. Fare</div>
+                <div className="bp-stat-val green">${selectedQuote.total}</div>
+                <div className="bp-stat-sub">{selectedQuote.label}</div>
+              </div>
             </div>
-            <div className="bp-stat">
-              <div className="bp-stat-label">Duration</div>
-              <div className="bp-stat-val">{tripData.durationMin}<span style={{ fontSize:11, fontWeight:600, color:'#9CA3AF' }}> min</span></div>
-              <div className="bp-stat-sub">{tripData.durationText}</div>
-            </div>
-            <div className="bp-stat">
-              <div className="bp-stat-label">Est. Fare</div>
-              <div className="bp-stat-val green">${selectedQuote.total}</div>
-              <div className="bp-stat-sub">{selectedQuote.label}</div>
-            </div>
-          </div>
+
+            {/* ── Driver availability banner ── */}
+            <DriverBanner driverInfo={driverInfo}/>
+          </>
         )}
 
         {!pickup.trim() && !dropoff.trim() && (
@@ -683,11 +722,17 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
         <div className="bp-card bp-fadeup" style={{ marginBottom:10 }}>
           <div style={{ padding:'14px 16px 0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
             <span style={{ fontSize:11, fontWeight:800, letterSpacing:'1.2px', textTransform:'uppercase', color:'#9CA3AF', fontFamily:'Outfit,sans-serif' }}>Choose Ride</span>
+            {driverInfo?.stale && (
+              <span style={{ fontSize:10.5, fontWeight:700, color:'#D97706', fontFamily:'Outfit,sans-serif' }}>
+                ⚠ Estimated wait times
+              </span>
+            )}
           </div>
           <div className="bp-ride-grid" style={{ marginTop:10 }}>
             {rideOptions.map((ride) => {
               const active   = selectedRide === ride.id;
               const IconComp = getRideIcon(ride.id);
+              const isStaleEta = ride.eta?.startsWith('~');
               return (
                 <div key={ride.id} className={`bp-ride-card${active ? ' active' : ''}`}
                   onClick={() => { setSelectedRide(ride.id); setShowBreakdown(false); }}
@@ -708,7 +753,9 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
                   <div className="bp-ride-desc">{ride.desc}</div>
                   <div className="bp-ride-price">${Number(ride.total).toFixed(2)}</div>
                   <div className="bp-ride-meta">
-                    <span className="bp-ride-tag"><Clock size={10}/>{ride.eta}</span>
+                    <span className={`bp-ride-tag${isStaleEta ? ' stale' : ''}`}>
+                      <Clock size={10}/>{ride.eta}
+                    </span>
                     <span className="bp-ride-tag"><Users size={10}/>{ride.capacity}</span>
                   </div>
                 </div>
@@ -726,7 +773,18 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
               <div>
                 <div className="bp-fare-label">Estimated Fare</div>
                 <div className="bp-fare-amount">${selectedQuote.total}</div>
-                <div className="bp-fare-sub">{tripData.miles} mi · ~{tripData.durationMin} min</div>
+                <div className="bp-fare-sub">
+                  {tripData.miles} mi · ~{tripData.durationMin} min
+                  {selectedQuote.eta && (
+                    <span style={{
+                      marginLeft: 8,
+                      color: driverInfo?.stale ? '#D97706' : T.accent,
+                      fontWeight: 700,
+                    }}>
+                      · {selectedQuote.eta} pickup
+                    </span>
+                  )}
+                </div>
                 <button className="bp-breakdown-toggle" onClick={() => setShowBreakdown(s => !s)}>
                   {showBreakdown ? '▲ Hide breakdown' : '▼ How is this calculated?'}
                 </button>
