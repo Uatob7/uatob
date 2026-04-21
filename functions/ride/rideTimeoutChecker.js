@@ -35,67 +35,39 @@ exports.rideTimeoutChecker = onSchedule(
       try {
         const createdAtMs = ride.createdAt.toMillis();
 
-        // 🔥 Pull driver info safely
-        const etaMin =
-          ride.driverInfo?.etaMin ??
-          ride.etaMin ??
-          10;
+        // ✅ ONLY DRIVER VALUE YOU NEED
+        const etaMin = ride.driverInfo?.etaMin ?? 10;
 
-        const driverCount =
-          ride.driverInfo?.driverCount ??
-          ride.driverCount ??
-          0;
+        // ⏱ compute timeout duration
+        const timeoutMs = etaMin * 60 * 1000;
 
-        const nearestMiles =
-          ride.driverInfo?.nearestMiles ??
-          ride.nearestMiles ??
-          0;
+        const expiresAtMs = ride.expiresAt?.toMillis?.() 
+          ?? createdAtMs + timeoutMs;
 
-        // 🔥 Compute timeout ONLY ONCE
-        let timeoutMinutes = ride.timeoutMinutes;
-
-        if (!timeoutMinutes) {
-          timeoutMinutes = getSmartTimeoutMinutes({
-            etaMin,
-            driverCount,
-            nearestMiles,
-          });
-        }
-
-        // 🔥 Compute expiresAt
-        let expiresAtMs =
-          ride.expiresAt?.toMillis?.() ??
-          createdAtMs + timeoutMinutes * 60 * 1000;
-
-        // 🔥 Persist if missing (VERY IMPORTANT)
-        if (!ride.expiresAt || !ride.timeoutMinutes) {
+        // 🧠 store expiresAt once
+        if (!ride.expiresAt) {
           await doc.ref.update({
-            timeoutMinutes,
             expiresAt: new Date(expiresAtMs),
+            timeoutMinutes: etaMin,
           });
 
-          console.log(
-            `🧠 Initialized timeout for ${rideId} → ${timeoutMinutes} min`
-          );
+          console.log(`🧠 Set timeout for ${rideId} → ${etaMin} min`);
         }
 
-        // ⛔ Not expired yet
+        // ⛔ not expired yet
         if (now < expiresAtMs) return;
 
-        // ⛔ Already processed
+        // ⛔ already timed out
         if (ride.status === "timeout") return;
 
-        // 🔥 Timeout the ride
+        // 🔥 timeout ride
         await doc.ref.update({
           status: "timeout",
-          stale: true,
           timedOutAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
-        console.log(
-          `⏱ Ride ${rideId} → TIMEOUT (${timeoutMinutes} min)`
-        );
+        console.log(`⏱ Ride ${rideId} → TIMEOUT after ${etaMin} min`);
 
       } catch (err) {
         console.error(`❌ Error processing ride ${rideId}:`, err);
@@ -105,22 +77,3 @@ exports.rideTimeoutChecker = onSchedule(
     await Promise.allSettled(updates);
   }
 );
-
-
-// 🧠 SMART TIMEOUT LOGIC
-function getSmartTimeoutMinutes({ etaMin = 10, driverCount = 0, nearestMiles = 0 }) {
-  let t = etaMin;
-
-  // 🚗 Supply / demand
-  if (driverCount <= 1) t += 5;
-  if (driverCount >= 3) t -= 2;
-
-  // 📍 Distance penalty
-  if (nearestMiles > 5) t += 3;
-
-  // ⏳ Long wait penalty
-  if (t > 20) t += 3;
-
-  // 🔒 Clamp (important)
-  return Math.max(5, Math.min(t, 25));
-}

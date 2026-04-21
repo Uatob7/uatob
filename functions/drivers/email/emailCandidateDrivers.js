@@ -85,7 +85,7 @@ const ARROW_SVG = `
 // ─────────────────────────────────────────────────────────────
 // Email builder
 // ─────────────────────────────────────────────────────────────
-function buildCandidateEmail({ driver, ride, rideId, totalCandidates }) {
+function buildCandidateEmail({ driver, ride, rideId, totalCandidates, minutesRemaining }) {
   const firstName   = esc(driver.firstName || "Driver");
   const safePickup  = esc(ride.pickup  || "N/A");
   const safeDropoff = esc(ride.dropoff || "N/A");
@@ -112,6 +112,25 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates }) {
     totalCandidates > 1
       ? `Sent to <span style="color:#4ADE80;">${totalCandidates} nearby drivers</span> &nbsp;&#183;&nbsp; first to accept wins`
       : `You&apos;re the only driver being notified right now`;
+
+  // Urgency banner — shown when < 5 minutes remain
+  const urgencyBanner =
+    minutesRemaining !== null && minutesRemaining <= 5
+      ? `
+            <!-- ── URGENCY STRIP ── -->
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+              <tr>
+                <td align="center"
+                    style="padding:12px 36px;background-color:#7f1d1d;
+                           border-top:1px solid #991b1b;">
+                  <p style="margin:0;font-family:'Courier New',monospace;font-size:12px;
+                             font-weight:700;color:#fca5a5;letter-spacing:1px;">
+                    &#9888;&nbsp; EXPIRES IN ~${minutesRemaining} MIN — OPEN THE APP NOW
+                  </p>
+                </td>
+              </tr>
+            </table>`
+      : "";
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -204,6 +223,8 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates }) {
                 </td>
               </tr>
             </table>
+
+            ${urgencyBanner}
 
             <!-- ── PAYOUT HERO STAT ── -->
             <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
@@ -437,8 +458,8 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates }) {
 // ─────────────────────────────────────────────────────────────
 // Send helper — wraps sgMail.send with built email
 // ─────────────────────────────────────────────────────────────
-function sendDriverEmail(driver, ride, rideId, totalCandidates) {
-  const msg = buildCandidateEmail({ driver, ride, rideId, totalCandidates });
+function sendDriverEmail(driver, ride, rideId, totalCandidates, minutesRemaining) {
+  const msg = buildCandidateEmail({ driver, ride, rideId, totalCandidates, minutesRemaining });
   return sgMail.send(msg);
 }
 
@@ -448,7 +469,7 @@ function sendDriverEmail(driver, ride, rideId, totalCandidates) {
 exports.emailCandidateDrivers = onSchedule(
   {
     schedule: "every 1 minutes",
-    region:   "us-east1",   // ← change this
+    region:   "us-east1",
     secrets:  [SENDGRID_API_KEY],
   },
   async () => {
@@ -481,18 +502,37 @@ exports.emailCandidateDrivers = onSchedule(
     }));
 
     const emailPromises = [];
+    const now     = Date.now();
+    const TICK_MS = 60_000; // scheduler cadence
 
     for (const rideDoc of ridesSnap.docs) {
       const ride    = rideDoc.data();
       const rideRef = rideDoc.ref;
       const rideId  = rideDoc.id;
 
-      const sentMap      = ride.emailSentToDrivers  || {};
+      // ── EXPIRY GUARD ─────────────────────────────────────────
+      // expiresAt may be a Firestore Timestamp or an ISO string.
+      const expiresAtMs = ride.expiresAt?.toMillis?.()
+        ?? (ride.expiresAt ? new Date(ride.expiresAt).getTime() : null);
+
+      if (expiresAtMs !== null && expiresAtMs <= now) {
+        console.log(`[DISPATCH] Skipping ${rideId} — already expired`);
+        continue;
+      }
+
+      const msRemaining      = expiresAtMs !== null ? expiresAtMs - now : Infinity;
+      const minutesRemaining = expiresAtMs !== null
+        ? Math.max(1, Math.round(msRemaining / 60_000))
+        : null;
+
+      const sentMap       = ride.emailSentToDrivers  || {};
       const candidateUids = ride.candidateDriverUids || [];
 
       // ── FIRST WAVE (candidate drivers) ──────────────────────
       if (!ride.emailDispatchStarted) {
-        console.log(`[DISPATCH] First wave → ${rideId}`);
+        console.log(
+          `[DISPATCH] First wave → ${rideId} (${minutesRemaining ?? "∞"} min remaining)`
+        );
 
         await rideRef.update({
           emailDispatchStarted: true,
@@ -506,7 +546,7 @@ exports.emailCandidateDrivers = onSchedule(
 
         for (const driver of candidateDrivers) {
           emailPromises.push(
-            sendDriverEmail(driver, ride, rideId, candidateDrivers.length)
+            sendDriverEmail(driver, ride, rideId, candidateDrivers.length, minutesRemaining)
           );
           sentMap[driver.uid] = true;
         }
@@ -516,6 +556,15 @@ exports.emailCandidateDrivers = onSchedule(
       }
 
       // ── EXPANSION WAVES ──────────────────────────────────────
+      // Don't bother if the ride expires before the next tick —
+      // drivers would receive the email after the ride is gone.
+      if (msRemaining <= TICK_MS) {
+        console.log(
+          `[DISPATCH] Skipping expansion for ${rideId} — only ${Math.round(msRemaining / 1000)}s left`
+        );
+        continue;
+      }
+
       const batchSize    = 10;
       const currentIndex = ride.currentDriverIndex || 0;
       const nextBatch    = drivers
@@ -525,12 +574,12 @@ exports.emailCandidateDrivers = onSchedule(
       if (nextBatch.length === 0) continue;
 
       console.log(
-        `[DISPATCH] Expanding ${rideId} → drivers ${currentIndex}–${currentIndex + batchSize}`
+        `[DISPATCH] Expanding ${rideId} → drivers ${currentIndex}–${currentIndex + batchSize} (${minutesRemaining ?? "∞"} min remaining)`
       );
 
       for (const driver of nextBatch) {
         emailPromises.push(
-          sendDriverEmail(driver, ride, rideId, nextBatch.length)
+          sendDriverEmail(driver, ride, rideId, nextBatch.length, minutesRemaining)
         );
         sentMap[driver.uid] = true;
       }
