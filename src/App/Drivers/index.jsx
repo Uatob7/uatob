@@ -873,6 +873,7 @@ export default function UaTobDriverApp({ uid }) {
           </div>
         </div>
 
+
         {activeTab === "home"     && <HomeTab driver={driver} online={online} rides={rides} activeTrip={activeTrip} tripStage={tripStage} tripStageColor={tripStageColor} tripBtnLabel={tripBtnLabel} earnings={earnings} onToggleOnline={handleToggleOnline} onAdvanceTrip={handleAdvanceTrip} advancePending={advancePending} />}
         {activeTab === "earnings" && <EarningsTab earnings={earnings} driver={driver} online={online} />}
         {activeTab === "trips"    && <TripsTab    completedRides={completedRides} online={online} />}
