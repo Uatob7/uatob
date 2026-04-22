@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Bell, Star, LocateFixed, Loader2, X, AlertCircle } from "lucide-react";
-import { getFunctions, httpsCallable } from "firebase/functions";      // ← NEW
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { getMessaging, getToken, onMessage } from "firebase/messaging";
 
 import CSS              from '@/App/Drivers/styles.js';
 import { C }            from '@/App/Drivers/constants.js';
@@ -28,7 +29,7 @@ const callDriverStatus   = httpsCallable(functions, "DriverStatus");
 const callAcceptRide     = httpsCallable(functions, "acceptRide");
 const callDeclineRide    = httpsCallable(functions, "declineRide");
 const callUpdateTrip     = httpsCallable(functions, "updateTripStatus");
-
+const callSaveFcmToken   = httpsCallable(functions, "saveDriverFcmToken");
 
 // ── Trip button labels ────────────────────────────────────────────────
 const TRIP_BUTTON_LABELS = {
@@ -182,6 +183,33 @@ function playDeclineSound() {
   } catch (err) { console.warn("Decline sound failed:", err); }
 }
 
+// ── FCM Push Registration ─────────────────────────────────────────────
+async function registerFcmToken(uid) {
+  try {
+    if (!("Notification" in window)) return;
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+      console.warn("[UaTob] Push permission denied");
+      return;
+    }
+
+    const messaging = getMessaging(firebase_app);
+    const token = await getToken(messaging, {
+      vapidKey: "YOUR_VAPID_KEY", // Firebase Console → Project Settings → Cloud Messaging → Web Push certificates
+    });
+
+    if (!token) {
+      console.warn("[UaTob] FCM token was empty");
+      return;
+    }
+
+    await callSaveFcmToken({ driverId: uid, token });
+    console.log("[UaTob] FCM token registered successfully");
+  } catch (err) {
+    console.warn("[UaTob] Push registration failed:", err.message);
+  }
+}
+
 // ── ACCOUNT SUSPENDED MODAL ───────────────────────────────────────────
 function SuspendedModal() {
   return (
@@ -292,6 +320,29 @@ export default function UaTobDriverApp({ uid }) {
     setOnline(driver.status === "online");
   }, [driver]);
 
+  // ── Register FCM token when driver logs in ────────────────────────
+  useEffect(() => {
+    if (!uid) return;
+    registerFcmToken(uid);
+  }, [uid]);
+
+  // ── Foreground push handler (tab is open) ─────────────────────────
+  useEffect(() => {
+    if (!uid) return;
+    let unsub = () => {};
+    try {
+      const messaging = getMessaging(firebase_app);
+      unsub = onMessage(messaging, (payload) => {
+        const title = payload.notification?.title ?? "New Ride";
+        const body  = payload.notification?.body  ?? "";
+        showNotif(title, body);
+      });
+    } catch (err) {
+      console.warn("[UaTob] onMessage setup failed:", err.message);
+    }
+    return unsub;
+  }, [uid]);
+
   // ── Derived: active trip request ──────────────────────────────────
   const tripRequest = online && !sourceLoading
     ? (sourceRides.find(r =>
@@ -361,7 +412,7 @@ export default function UaTobDriverApp({ uid }) {
     return () => clearInterval(timerRef.current);
   }, [tripRequest?.id]);
 
-  // ── 60-second location ping (still uses fetch — no auth needed) ───
+  // ── 60-second location ping ───────────────────────────────────────
   useEffect(() => {
     clearInterval(locationPingRef.current);
     if (!online) return;
