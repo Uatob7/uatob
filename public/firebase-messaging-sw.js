@@ -3,12 +3,12 @@ importScripts("https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js
 importScripts("https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js");
 
 firebase.initializeApp({
-  apiKey:            "YOUR_API_KEY",
-  authDomain:        "uatob.firebaseapp.com",
-  projectId:         "uatob",
-  storageBucket:     "uatob.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId:             "YOUR_APP_ID",
+  apiKey:            "AIzaSyA_evhvMyw1qdv2vdXxqcu76y8rW828X14",
+  authDomain:        "uatob-e7b4b.firebaseapp.com",
+  projectId:         "uatob-e7b4b",
+  storageBucket:     "uatob-e7b4b.firebasestorage.app",
+  messagingSenderId: "714931905484",
+  appId:             "1:714931905484:web:72e117c4583e6d14623369",
 });
 
 const messaging = firebase.messaging();

@@ -44,6 +44,7 @@ const { onReviewCreated } = require("./drivers/onReviewCreated");
 const { updateDriverAchievements } = require("./drivers/updateDriverAchievements");
 const { checkDriverStripeCapability } = require("./drivers/checkDriverStripeCapability");
 const { saveDriverFcmToken } = require("./drivers/saveDriverFcmToken");
+const { sendPushNotification } = require("./drivers/sendPushNotification");
 
 
 
@@ -82,6 +83,7 @@ exports.updateTripStatus = updateTripStatus;
 exports.getTripButtonLabel = getTripButtonLabel;
 exports.createDriverProfile = createDriverProfile;
 exports.DriverStatus = DriverStatus;
+exports.sendPushNotification = sendPushNotification;
 exports.getDriverEarnings = getDriverEarnings;
 exports.calcDriverDistance = calcDriverDistance;
 exports.getDriverToPickup = getDriverToPickup;
