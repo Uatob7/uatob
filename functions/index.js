@@ -14,6 +14,7 @@ const { extendRideSearch } = require("./ride/extendRideSearch");
 const { rideTimeoutChecker } = require("./ride/rideTimeoutChecker");
 const { findDrivers } = require("./ride/findDrivers");
 const { onRidePaymentSucceeded } = require("./ride/email/onRidePaymentSucceeded");
+const { onRideCompleted } = require("./ride/email/onRideCompleted");
 
 // Payment functions
 const { cardPayment } = require("./payments/cardPayment");
@@ -83,6 +84,7 @@ exports.DriverStatus = DriverStatus;
 exports.getDriverEarnings = getDriverEarnings;
 exports.calcDriverDistance = calcDriverDistance;
 exports.getDriverToPickup = getDriverToPickup;
+exports.onRideCompleted = onRideCompleted;
 exports.updateDriverPresence = updateDriverPresence;
 exports.setDriverTripActive = setDriverTripActive;
 exports.cardChecker = cardChecker;
