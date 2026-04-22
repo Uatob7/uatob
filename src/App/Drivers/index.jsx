@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Bell, Star, LocateFixed, Loader2, X, AlertCircle, CheckCircle2, Info } from "lucide-react";
+import { Bell, Star, LocateFixed, Loader2, X, AlertCircle } from "lucide-react";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 
 import CSS              from '@/App/Drivers/styles.js';
 import { C }            from '@/App/Drivers/constants.js';
 import UaTobIcon        from '@/App/Drivers/Icon.jsx';
+import Notification     from '@/App/Drivers/Notification.jsx';
 import TripRequestModal from '@/App/Drivers/TripRequestModal.jsx';
 import BottomTabBar     from '@/App/Drivers/BottomTabBar.jsx';
 import HomeTab          from '@/App/Drivers/HomeTab.jsx';
@@ -43,25 +44,31 @@ function loadSeenReviews()    { try { return new Set(JSON.parse(localStorage.get
 function saveSeenReviews(set) { try { localStorage.setItem(LS_SEEN_REVIEWS_KEY, JSON.stringify([...set])); } catch (_) {} }
 
 // ── FCM Push Registration ─────────────────────────────────────────────
+// Must be called inside a user gesture (button click) so browsers
+// allow the Notification permission prompt to appear.
 async function registerFcmToken(uid) {
   try {
     if (!("Notification" in window)) {
       console.warn("[UaTob] Push not supported in this browser");
       return;
     }
-    const permission = await window.Notification.requestPermission();
+
+    const permission = await Notification.requestPermission();
     if (permission !== "granted") {
       console.warn("[UaTob] Push permission denied by driver");
       return;
     }
+
     const messaging = getMessaging(firebase_app);
     const token = await getToken(messaging, {
       vapidKey: "BJ_sRHZonSGCKk2mB2i9ofTRS8ouFVMV-I15FX4sqdUXHyVb1lo6H-N4GMPrlcIIshRlykQicaxkxxFxcYcI4JQ",
     });
+
     if (!token) {
       console.warn("[UaTob] FCM returned empty token — check that firebase-messaging-sw.js exists at /");
       return;
     }
+
     await callSaveFcmToken({ driverId: uid, token });
     console.log("[UaTob] FCM token registered successfully");
   } catch (err) {
@@ -77,6 +84,7 @@ function playRequestChime() {
     const master = ctx.createGain();
     master.gain.value = 0.18;
     master.connect(ctx.destination);
+
     const playTone = ({ freq, type = "sine", start, duration, volume = 0.25 }) => {
       const osc  = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -90,6 +98,7 @@ function playRequestChime() {
       osc.start(start);
       osc.stop(start + duration);
     };
+
     const now     = ctx.currentTime + 0.02;
     const pattern = [
       { t: 0.00, f1: 740,  f2: 1110, d: 0.18 },
@@ -103,6 +112,7 @@ function playRequestChime() {
       playTone({ freq: f1, type: "sine",     start: now + t, duration: d, volume: 0.22 });
       playTone({ freq: f2, type: "triangle", start: now + t, duration: d, volume: 0.12 });
     });
+
     const noise     = ctx.createBufferSource();
     const buffer    = ctx.createBuffer(1, ctx.sampleRate * 0.08, ctx.sampleRate);
     const data      = buffer.getChannelData(0);
@@ -125,6 +135,7 @@ function playAcceptSound() {
     const master = ctx.createGain();
     master.gain.value = 0.22;
     master.connect(ctx.destination);
+
     const playTone = ({ freq, type = "sine", start, duration, volume }) => {
       const osc  = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -138,11 +149,13 @@ function playAcceptSound() {
       osc.start(start);
       osc.stop(start + duration);
     };
+
     const now = ctx.currentTime + 0.02;
     playTone({ freq: 784,  type: "sine",     start: now,        duration: 0.14, volume: 0.28 });
     playTone({ freq: 1568, type: "triangle", start: now,        duration: 0.14, volume: 0.10 });
     playTone({ freq: 1047, type: "sine",     start: now + 0.13, duration: 0.22, volume: 0.32 });
     playTone({ freq: 2093, type: "triangle", start: now + 0.13, duration: 0.22, volume: 0.08 });
+
     const bodyOsc  = ctx.createOscillator();
     const bodyGain = ctx.createGain();
     bodyOsc.type = "sine";
@@ -166,6 +179,7 @@ function playDeclineSound() {
     const master = ctx.createGain();
     master.gain.value = 0.20;
     master.connect(ctx.destination);
+
     const playTone = ({ freq, type = "sine", start, duration, volume }) => {
       const osc  = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -179,11 +193,13 @@ function playDeclineSound() {
       osc.start(start);
       osc.stop(start + duration);
     };
+
     const now = ctx.currentTime + 0.02;
     playTone({ freq: 330, type: "sine",   start: now,        duration: 0.16, volume: 0.22 });
     playTone({ freq: 660, type: "square", start: now,        duration: 0.10, volume: 0.04 });
     playTone({ freq: 247, type: "sine",   start: now + 0.13, duration: 0.20, volume: 0.18 });
     playTone({ freq: 494, type: "square", start: now + 0.13, duration: 0.14, volume: 0.03 });
+
     const thudOsc  = ctx.createOscillator();
     const thudGain = ctx.createGain();
     thudOsc.type = "sine";
@@ -198,158 +214,6 @@ function playDeclineSound() {
     thudOsc.stop(now + 0.14);
     setTimeout(() => ctx.close().catch(() => {}), 2000);
   } catch (err) { console.warn("Decline sound failed:", err); }
-}
-
-// ── APP NOTIFICATION (replaces AppNotification import) ───────────────
-// Matches LocationPopup card aesthetic: rounded pill toast, top-center,
-// Barlow typography, green / red / blue accent ring, smooth slide-down.
-const NOTIF_STYLES = `
-  @keyframes notifSlideDown {
-    from { opacity: 0; transform: translateY(-20px) scale(0.96); }
-    to   { opacity: 1; transform: translateY(0)     scale(1);    }
-  }
-  @keyframes notifSlideUp {
-    from { opacity: 1; transform: translateY(0)     scale(1);    }
-    to   { opacity: 0; transform: translateY(-16px) scale(0.97); }
-  }
-  @keyframes notifProgress {
-    from { width: 100%; }
-    to   { width: 0%;   }
-  }
-`;
-
-function getNotifTheme(title) {
-  const t = (title || "").toLowerCase();
-  if (t.includes("accept") || t.includes("online") || t.includes("complete") || t.includes("trip"))
-    return { color: "#16A34A", bg: "rgba(22,163,74,.10)", border: "rgba(22,163,74,.30)", ring: "rgba(22,163,74,.06)", Icon: CheckCircle2 };
-  if (t.includes("offline") || t.includes("declin") || t.includes("error") || t.includes("fail") || t.includes("expired"))
-    return { color: "#DC2626", bg: "rgba(220,38,38,.08)", border: "rgba(220,38,38,.25)", ring: "rgba(220,38,38,.05)", Icon: AlertCircle };
-  return { color: "#2563EB", bg: "rgba(37,99,235,.08)", border: "rgba(37,99,235,.25)", ring: "rgba(37,99,235,.05)", Icon: Info };
-}
-
-function AppNotification({ activeTrip, notificationOverride }) {
-  // notificationOverride = { title, msg } passed in from parent state
-  const notif = notificationOverride;
-  const [visible, setVisible] = useState(false);
-  const [leaving, setLeaving] = useState(false);
-  const hideTimer = useRef(null);
-
-  useEffect(() => {
-    if (!notif) { setVisible(false); setLeaving(false); return; }
-    setLeaving(false);
-    setVisible(true);
-    clearTimeout(hideTimer.current);
-    hideTimer.current = setTimeout(() => {
-      setLeaving(true);
-      setTimeout(() => setVisible(false), 280);
-    }, 2800);
-    return () => clearTimeout(hideTimer.current);
-  }, [notif?.title, notif?.msg]);
-
-  if (!visible || !notif) return null;
-
-  const theme = getNotifTheme(notif.title);
-  const { Icon } = theme;
-
-  return (
-    <>
-      <style>{NOTIF_STYLES}</style>
-      <div
-        style={{
-          position:       "fixed",
-          top:            "16px",
-          left:           "50%",
-          transform:      "translateX(-50%)",
-          zIndex:         1200,
-          width:          "calc(100% - 32px)",
-          maxWidth:       "400px",
-          animation:      leaving
-            ? "notifSlideUp .28s cubic-bezier(.4,0,.6,1) forwards"
-            : "notifSlideDown .32s cubic-bezier(.34,1.56,.64,1) forwards",
-        }}
-      >
-        <div
-          style={{
-            background:   "#fff",
-            borderRadius: "20px",
-            padding:      "14px 16px 14px 14px",
-            boxShadow:    "0 8px 32px rgba(0,0,0,.13), 0 2px 8px rgba(0,0,0,.07)",
-            border:       `1.5px solid ${theme.border}`,
-            display:      "flex",
-            alignItems:   "center",
-            gap:          "12px",
-            overflow:     "hidden",
-            position:     "relative",
-          }}
-        >
-          {/* Icon bubble */}
-          <div
-            style={{
-              flexShrink:   0,
-              width:        "42px",
-              height:       "42px",
-              borderRadius: "50%",
-              background:   theme.bg,
-              border:       `1.5px solid ${theme.border}`,
-              boxShadow:    `0 0 0 6px ${theme.ring}`,
-              display:      "flex",
-              alignItems:   "center",
-              justifyContent: "center",
-            }}
-          >
-            <Icon size={18} color={theme.color} strokeWidth={2.2} />
-          </div>
-
-          {/* Text */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              style={{
-                fontFamily:   "'Barlow Condensed', sans-serif",
-                fontSize:     "15px",
-                fontWeight:   "900",
-                color:        "#111827",
-                letterSpacing: "-0.2px",
-                lineHeight:   1.2,
-                marginBottom: "2px",
-                whiteSpace:   "nowrap",
-                overflow:     "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              {notif.title}
-            </div>
-            <div
-              style={{
-                fontSize:   "13px",
-                color:      "#6B7280",
-                fontWeight: "500",
-                fontFamily: "'Barlow', sans-serif",
-                whiteSpace: "nowrap",
-                overflow:   "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              {notif.msg}
-            </div>
-          </div>
-
-          {/* Progress bar */}
-          <div
-            style={{
-              position:     "absolute",
-              bottom:       0,
-              left:         0,
-              height:       "3px",
-              borderRadius: "0 0 20px 20px",
-              background:   theme.color,
-              opacity:      0.35,
-              animation:    "notifProgress 3s linear forwards",
-            }}
-          />
-        </div>
-      </div>
-    </>
-  );
 }
 
 // ── ACCOUNT SUSPENDED MODAL ───────────────────────────────────────────
@@ -463,6 +327,9 @@ export default function UaTobDriverApp({ uid }) {
   }, [driver]);
 
   // ── Foreground push handler (tab is open) ─────────────────────────
+  // Background messages are handled by firebase-messaging-sw.js.
+  // When the tab is open, FCM skips the OS notification and fires
+  // onMessage instead — we pipe it into the existing in-app toast.
   useEffect(() => {
     if (!uid) return;
     let unsub = () => {};
@@ -572,7 +439,7 @@ export default function UaTobDriverApp({ uid }) {
   // ── Helpers ───────────────────────────────────────────────────────
   const showNotif = (title, msg) => {
     setNotification({ title, msg });
-    setTimeout(() => setNotification(null), 3200);
+    setTimeout(() => setNotification(null), 3000);
   };
 
   // ── callDriverStatus wrapper ──────────────────────────────────────
@@ -585,6 +452,8 @@ export default function UaTobDriverApp({ uid }) {
   }, [uid]);
 
   // ── Go online ─────────────────────────────────────────────────────
+  // registerFcmToken is called here — inside the user gesture chain —
+  // so the browser allows the Notification permission prompt to fire.
   const requestLocationAndGoOnline = useCallback(async () => {
     setLocationError("");
     setLocationLoading(true);
@@ -600,7 +469,11 @@ export default function UaTobDriverApp({ uid }) {
       setShowLocationPopup(false);
       setLocationError("");
       showNotif("Online", "Ready for rides");
+
+      // ✅ Must stay here — browsers only allow Notification.requestPermission()
+      //    inside (or shortly after) a user gesture. This tap qualifies.
       registerFcmToken(uid);
+
     } catch (err) {
       if      (err.code === 1) setLocationError("Location access was denied. Allow location in your browser settings to go online.");
       else if (err.code === 2) setLocationError("Could not detect your location. Check your device's location settings.");
@@ -641,6 +514,7 @@ export default function UaTobDriverApp({ uid }) {
     try {
       const { data } = await callAcceptRide({ rideId: tripRequest.id, uid });
       if (data?.error) throw new Error(data.error);
+
       playAcceptSound();
       clearInterval(timerRef.current);
       setAcceptedRequestId(tripRequest.id);
@@ -661,6 +535,7 @@ export default function UaTobDriverApp({ uid }) {
     try {
       const { data } = await callDeclineRide({ rideId: tripRequest.id, uid });
       if (data?.error) throw new Error(data.error);
+
       playDeclineSound();
       clearInterval(timerRef.current);
       setDismissedRequests(prev => { const next = new Set(prev); next.add(tripRequest.id); return next; });
@@ -679,10 +554,12 @@ export default function UaTobDriverApp({ uid }) {
     const actionMap = { driver_assigned: "arrive", arrived: "start", in_progress: "complete" };
     const action = actionMap[activeTrip.status];
     if (!action) return;
+
     setAdvancePending(true);
     try {
       const { data } = await callUpdateTrip({ rideId: activeTrip.id, driverUid: uid, action });
       if (data?.error) throw new Error(data.error);
+
       if (action === "complete") {
         await refetch();
         showNotif("Trip complete", `+$${activeTrip.fareTotal || 0}`);
@@ -717,8 +594,7 @@ export default function UaTobDriverApp({ uid }) {
         />
       )}
 
-      {/* Styled in-app notification — replaces the old AppNotification import */}
-      <AppNotification activeTrip={activeTrip} notificationOverride={notification} />
+      <Notification activeTrip={activeTrip} />
 
       <TripRequestModal
         tripRequest={tripRequest}
