@@ -13,6 +13,7 @@ const { cancelRide } = require("./ride/cancelRide");
 const { extendRideSearch } = require("./ride/extendRideSearch");
 const { rideTimeoutChecker } = require("./ride/rideTimeoutChecker");
 const { findDrivers } = require("./ride/findDrivers");
+const { onRidePaymentSucceeded } = require("./ride/email/onRidePaymentSucceeded");
 
 // Payment functions
 const { cardPayment } = require("./payments/cardPayment");
@@ -67,6 +68,7 @@ exports.Price = Price;
 exports.cancelRide = cancelRide;
 exports.extendRideSearch = extendRideSearch;
 exports.Geo = Geo;
+exports.onRidePaymentSucceeded = onRidePaymentSucceeded;
 exports.cardPayment = cardPayment;
 exports.checkDriverDeposit = checkDriverDeposit;
 exports.cashAppPayment = cashAppPayment;
