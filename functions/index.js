@@ -45,6 +45,7 @@ const { updateDriverAchievements } = require("./drivers/updateDriverAchievements
 const { checkDriverStripeCapability } = require("./drivers/checkDriverStripeCapability");
 const { saveDriverFcmToken } = require("./drivers/saveDriverFcmToken");
 const { sendPushNotification } = require("./drivers/sendPushNotification");
+const { pushCandidateDrivers } = require("./drivers/notification/pushCandidateDrivers");
 
 
 
@@ -77,6 +78,7 @@ exports.checkDriverDeposit = checkDriverDeposit;
 exports.cashAppPayment = cashAppPayment;
 exports.setupDeposit = setupDeposit;
 exports.acceptRide = acceptRide;
+exports.pushCandidateDrivers = pushCandidateDrivers;
 exports.rideTimeoutChecker = rideTimeoutChecker;
 exports.declineRide = declineRide;
 exports.updateTripStatus = updateTripStatus;
