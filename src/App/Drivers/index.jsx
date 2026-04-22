@@ -545,20 +545,34 @@ export default function UaTobDriverApp({ uid }) {
 
   // ── Foreground push handler (tab is open) ─────────────────────────
   useEffect(() => {
-    if (!uid) return;
-    let unsub = () => {};
-    try {
-      const messaging = getMessaging(firebase_app);
-      unsub = onMessage(messaging, (payload) => {
-        const title = payload.notification?.title ?? "New Ride";
-        const body  = payload.notification?.body  ?? "";
-        showNotif(title, body);
-      });
-    } catch (err) {
-      console.warn("[UaTob] onMessage setup failed:", err.message);
-    }
-    return unsub;
-  }, [uid]);
+  if (!uid) return;
+  let unsub = () => {};
+  try {
+    const messaging = getMessaging(firebase_app);
+    unsub = onMessage(messaging, (payload) => {
+      const title = payload.notification?.title ?? "New Ride";
+      const body  = payload.notification?.body  ?? "";
+
+      // ── In-app toast ──────────────────────────────────────────
+      showNotif(title, body);
+
+      // ── Native browser notification (foreground) ──────────────
+      if ("Notification" in window && window.Notification.permission === "granted") {
+        new window.Notification(title, {
+          body,
+          icon: "/icons/icon-192x192.png", // adjust path to your PWA icon
+          badge: "/icons/badge-72x72.png", // optional monochrome badge icon
+          tag: payload.data?.rideId ?? "uatob-driver", // collapses duplicate notifs
+          renotify: true,
+        });
+      }
+    });
+  } catch (err) {
+    console.warn("[UaTob] onMessage setup failed:", err.message);
+  }
+  return unsub;
+}, [uid]);
+
 
   // ── Derived: active trip request ──────────────────────────────────
   const tripRequest = online && !sourceLoading
