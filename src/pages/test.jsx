@@ -7,7 +7,7 @@ const functions = getFunctions(firebase_app, "us-east1");
 const sendPush  = httpsCallable(functions, "sendPushNotification");
 
 // ── Dar's current FCM token (update when it rotates) ──────────────────
-const DAR_TOKEN = "dGShtWnybde9vbU5l4aNNy:APA91bGunM-1NjRa4mnHoAqWGD4dTVdmJE4V2zJF_RDg6WRucFDldbwmSbVSe_57JvY5XuMtZHh4qaqsdlqOu7x652aK8189jJl5n81N7KvlNLaUVrS0bGw";
+const DAR_TOKEN = "enJgJbT_SCwpZuiT7CL_GP:APA91bGczTHFPwX9_Ga0PDSfFGjXjhd5j4hOeJ0KNlgiWdcpn773K0w7jcADkWTeZ2TzydaYBo1FANO96joU0IOxh7fcim6a0crQHteQNpFEAlsUvPB9ENI";
 
 const QUICK_DRIVERS = [
   { token: DAR_TOKEN, name: "Dar Corvoisier" },

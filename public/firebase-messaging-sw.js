@@ -12,44 +12,33 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+// ─────────────────────────────────────────────
+// BACKGROUND PUSH HANDLER (SAFE VERSION)
+// ─────────────────────────────────────────────
 messaging.onBackgroundMessage((payload) => {
-  console.log("[SW] push received:", payload);
-
-  const title =
-    payload.notification?.title ||
-    payload.data?.title ||
-    "New Request";
-
-  const body =
-    payload.notification?.body ||
-    payload.data?.body ||
-    "";
-
-  let data = payload.data || {};
-  if (typeof data === "string") {
-    try { data = JSON.parse(data); } catch {}
-  }
+  const title = payload.notification?.title || "New Update";
+  const body = payload.notification?.body || "";
 
   self.registration.showNotification(title, {
     body,
     icon: "/icon.png",
-    data,
+    data: payload.data || {},
   });
 });
 
+// ─────────────────────────────────────────────
+// NOTIFICATION CLICK HANDLER (FIXED)
+// ─────────────────────────────────────────────
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 
-  let data = event.notification.data || {};
-  if (typeof data === "string") {
-    try { data = JSON.parse(data); } catch {}
-  }
-
-  const rideId = data?.rideId;
+  const rideId = event.notification?.data?.rideId;
 
   event.waitUntil(
-    clients.openWindow(
-      rideId ? `/driver/app?rideId=${rideId}` : "/driver/app"
+    self.clients.openWindow(
+      rideId
+        ? `/driver/app?rideId=${rideId}`
+        : "/driver/app"
     )
   );
 });
