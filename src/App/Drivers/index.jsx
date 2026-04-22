@@ -6,7 +6,7 @@ import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import CSS              from '@/App/Drivers/styles.js';
 import { C }            from '@/App/Drivers/constants.js';
 import UaTobIcon        from '@/App/Drivers/Icon.jsx';
-import Notification     from '@/App/Drivers/Notification.jsx';
+import AppNotification  from '@/App/Drivers/Notification.jsx';
 import TripRequestModal from '@/App/Drivers/TripRequestModal.jsx';
 import BottomTabBar     from '@/App/Drivers/BottomTabBar.jsx';
 import HomeTab          from '@/App/Drivers/HomeTab.jsx';
@@ -53,7 +53,9 @@ async function registerFcmToken(uid) {
       return;
     }
 
-    const permission = await Notification.requestPermission();
+    // ✅ window.Notification explicitly targets the browser API,
+    //    never the imported React component.
+    const permission = await window.Notification.requestPermission();
     if (permission !== "granted") {
       console.warn("[UaTob] Push permission denied by driver");
       return;
@@ -327,9 +329,6 @@ export default function UaTobDriverApp({ uid }) {
   }, [driver]);
 
   // ── Foreground push handler (tab is open) ─────────────────────────
-  // Background messages are handled by firebase-messaging-sw.js.
-  // When the tab is open, FCM skips the OS notification and fires
-  // onMessage instead — we pipe it into the existing in-app toast.
   useEffect(() => {
     if (!uid) return;
     let unsub = () => {};
@@ -452,8 +451,6 @@ export default function UaTobDriverApp({ uid }) {
   }, [uid]);
 
   // ── Go online ─────────────────────────────────────────────────────
-  // registerFcmToken is called here — inside the user gesture chain —
-  // so the browser allows the Notification permission prompt to fire.
   const requestLocationAndGoOnline = useCallback(async () => {
     setLocationError("");
     setLocationLoading(true);
@@ -594,7 +591,8 @@ export default function UaTobDriverApp({ uid }) {
         />
       )}
 
-      <Notification activeTrip={activeTrip} />
+      {/* ✅ Renamed from Notification → AppNotification to avoid shadowing window.Notification */}
+      <AppNotification activeTrip={activeTrip} />
 
       <TripRequestModal
         tripRequest={tripRequest}
