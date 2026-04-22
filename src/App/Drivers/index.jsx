@@ -43,6 +43,39 @@ const LS_SEEN_REVIEWS_KEY = 'uatob_driver_seen_reviews';
 function loadSeenReviews()    { try { return new Set(JSON.parse(localStorage.getItem(LS_SEEN_REVIEWS_KEY) || '[]')); } catch { return new Set(); } }
 function saveSeenReviews(set) { try { localStorage.setItem(LS_SEEN_REVIEWS_KEY, JSON.stringify([...set])); } catch (_) {} }
 
+// ── FCM Push Registration ─────────────────────────────────────────────
+// Must be called inside a user gesture (button click) so browsers
+// allow the Notification permission prompt to appear.
+async function registerFcmToken(uid) {
+  try {
+    if (!("Notification" in window)) {
+      console.warn("[UaTob] Push not supported in this browser");
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+      console.warn("[UaTob] Push permission denied by driver");
+      return;
+    }
+
+    const messaging = getMessaging(firebase_app);
+    const token = await getToken(messaging, {
+      vapidKey: "BJ_sRHZonSGCKk2mB2i9ofTRS8ouFVMV-I15FX4sqdUXHyVb1lo6H-N4GMPrlcIIshRlykQicaxkxxFxcYcI4JQ",
+    });
+
+    if (!token) {
+      console.warn("[UaTob] FCM returned empty token — check that firebase-messaging-sw.js exists at /");
+      return;
+    }
+
+    await callSaveFcmToken({ driverId: uid, token });
+    console.log("[UaTob] FCM token registered successfully");
+  } catch (err) {
+    console.warn("[UaTob] Push registration failed:", err.message);
+  }
+}
+
 // ── Trip request chime ────────────────────────────────────────────────
 function playRequestChime() {
   try {
@@ -183,33 +216,6 @@ function playDeclineSound() {
   } catch (err) { console.warn("Decline sound failed:", err); }
 }
 
-// ── FCM Push Registration ─────────────────────────────────────────────
-async function registerFcmToken(uid) {
-  try {
-    if (!("Notification" in window)) return;
-    const permission = await Notification.requestPermission();
-    if (permission !== "granted") {
-      console.warn("[UaTob] Push permission denied");
-      return;
-    }
-
-    const messaging = getMessaging(firebase_app);
-    const token = await getToken(messaging, {
-      vapidKey: "BJ_sRHZonSGCKk2mB2i9ofTRS8ouFVMV-I15FX4sqdUXHyVb1lo6H-N4GMPrlcIIshRlykQicaxkxxFxcYcI4JQ", // Firebase Console → Project Settings → Cloud Messaging → Web Push certificates
-    });
-
-    if (!token) {
-      console.warn("[UaTob] FCM token was empty");
-      return;
-    }
-
-    await callSaveFcmToken({ driverId: uid, token });
-    console.log("[UaTob] FCM token registered successfully");
-  } catch (err) {
-    console.warn("[UaTob] Push registration failed:", err.message);
-  }
-}
-
 // ── ACCOUNT SUSPENDED MODAL ───────────────────────────────────────────
 function SuspendedModal() {
   return (
@@ -320,13 +326,10 @@ export default function UaTobDriverApp({ uid }) {
     setOnline(driver.status === "online");
   }, [driver]);
 
-  // ── Register FCM token when driver logs in ────────────────────────
-  useEffect(() => {
-    if (!uid) return;
-    registerFcmToken(uid);
-  }, [uid]);
-
   // ── Foreground push handler (tab is open) ─────────────────────────
+  // Background messages are handled by firebase-messaging-sw.js.
+  // When the tab is open, FCM skips the OS notification and fires
+  // onMessage instead — we pipe it into the existing in-app toast.
   useEffect(() => {
     if (!uid) return;
     let unsub = () => {};
@@ -449,6 +452,8 @@ export default function UaTobDriverApp({ uid }) {
   }, [uid]);
 
   // ── Go online ─────────────────────────────────────────────────────
+  // registerFcmToken is called here — inside the user gesture chain —
+  // so the browser allows the Notification permission prompt to fire.
   const requestLocationAndGoOnline = useCallback(async () => {
     setLocationError("");
     setLocationLoading(true);
@@ -464,6 +469,11 @@ export default function UaTobDriverApp({ uid }) {
       setShowLocationPopup(false);
       setLocationError("");
       showNotif("Online", "Ready for rides");
+
+      // ✅ Must stay here — browsers only allow Notification.requestPermission()
+      //    inside (or shortly after) a user gesture. This tap qualifies.
+      registerFcmToken(uid);
+
     } catch (err) {
       if      (err.code === 1) setLocationError("Location access was denied. Allow location in your browser settings to go online.");
       else if (err.code === 2) setLocationError("Could not detect your location. Check your device's location settings.");
@@ -472,7 +482,7 @@ export default function UaTobDriverApp({ uid }) {
     } finally {
       setLocationLoading(false);
     }
-  }, [callDriverStatusFn]);
+  }, [callDriverStatusFn, uid]);
 
   // ── Online / offline toggle ───────────────────────────────────────
   const handleToggleOnline = useCallback(async () => {
