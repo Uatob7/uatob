@@ -1,13 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Bell, Star, LocateFixed, Loader2, X, AlertCircle } from "lucide-react";
+import { Bell, Star, LocateFixed, Loader2, X, AlertCircle, CheckCircle2, Info } from "lucide-react";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
-
 
 import CSS              from '@/App/Drivers/styles.js';
 import { C }            from '@/App/Drivers/constants.js';
 import UaTobIcon        from '@/App/Drivers/Icon.jsx';
-import Notification     from '@/App/Drivers/Notification.jsx';
 import TripRequestModal from '@/App/Drivers/TripRequestModal.jsx';
 import BottomTabBar     from '@/App/Drivers/BottomTabBar.jsx';
 import HomeTab          from '@/App/Drivers/HomeTab.jsx';
@@ -55,23 +53,19 @@ async function registerFcmToken(uid) {
       console.warn("[UaTob] Push not supported in this browser");
       return;
     }
-
-    const permission = await Notification.requestPermission();
+    const permission = await window.Notification.requestPermission();
     if (permission !== "granted") {
       console.warn("[UaTob] Push permission denied by driver");
       return;
     }
-
     const messaging = getMessaging(firebase_app);
     const token = await getToken(messaging, {
       vapidKey: "BJ_sRHZonSGCKk2mB2i9ofTRS8ouFVMV-I15FX4sqdUXHyVb1lo6H-N4GMPrlcIIshRlykQicaxkxxFxcYcI4JQ",
     });
-
     if (!token) {
       console.warn("[UaTob] FCM returned empty token — check that firebase-messaging-sw.js exists at /");
       return;
     }
-
     await callSaveFcmToken({ driverId: uid, token });
     console.log("[UaTob] FCM token registered successfully");
   } catch (err) {
@@ -87,7 +81,6 @@ function playRequestChime() {
     const master = ctx.createGain();
     master.gain.value = 0.18;
     master.connect(ctx.destination);
-
     const playTone = ({ freq, type = "sine", start, duration, volume = 0.25 }) => {
       const osc  = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -101,7 +94,6 @@ function playRequestChime() {
       osc.start(start);
       osc.stop(start + duration);
     };
-
     const now     = ctx.currentTime + 0.02;
     const pattern = [
       { t: 0.00, f1: 740,  f2: 1110, d: 0.18 },
@@ -115,7 +107,6 @@ function playRequestChime() {
       playTone({ freq: f1, type: "sine",     start: now + t, duration: d, volume: 0.22 });
       playTone({ freq: f2, type: "triangle", start: now + t, duration: d, volume: 0.12 });
     });
-
     const noise     = ctx.createBufferSource();
     const buffer    = ctx.createBuffer(1, ctx.sampleRate * 0.08, ctx.sampleRate);
     const data      = buffer.getChannelData(0);
@@ -138,7 +129,6 @@ function playAcceptSound() {
     const master = ctx.createGain();
     master.gain.value = 0.22;
     master.connect(ctx.destination);
-
     const playTone = ({ freq, type = "sine", start, duration, volume }) => {
       const osc  = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -152,13 +142,11 @@ function playAcceptSound() {
       osc.start(start);
       osc.stop(start + duration);
     };
-
     const now = ctx.currentTime + 0.02;
     playTone({ freq: 784,  type: "sine",     start: now,        duration: 0.14, volume: 0.28 });
     playTone({ freq: 1568, type: "triangle", start: now,        duration: 0.14, volume: 0.10 });
     playTone({ freq: 1047, type: "sine",     start: now + 0.13, duration: 0.22, volume: 0.32 });
     playTone({ freq: 2093, type: "triangle", start: now + 0.13, duration: 0.22, volume: 0.08 });
-
     const bodyOsc  = ctx.createOscillator();
     const bodyGain = ctx.createGain();
     bodyOsc.type = "sine";
@@ -182,7 +170,6 @@ function playDeclineSound() {
     const master = ctx.createGain();
     master.gain.value = 0.20;
     master.connect(ctx.destination);
-
     const playTone = ({ freq, type = "sine", start, duration, volume }) => {
       const osc  = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -196,13 +183,11 @@ function playDeclineSound() {
       osc.start(start);
       osc.stop(start + duration);
     };
-
     const now = ctx.currentTime + 0.02;
     playTone({ freq: 330, type: "sine",   start: now,        duration: 0.16, volume: 0.22 });
     playTone({ freq: 660, type: "square", start: now,        duration: 0.10, volume: 0.04 });
     playTone({ freq: 247, type: "sine",   start: now + 0.13, duration: 0.20, volume: 0.18 });
     playTone({ freq: 494, type: "square", start: now + 0.13, duration: 0.14, volume: 0.03 });
-
     const thudOsc  = ctx.createOscillator();
     const thudGain = ctx.createGain();
     thudOsc.type = "sine";
@@ -540,6 +525,8 @@ export default function UaTobDriverApp({ uid }) {
   const [showLocationPopup, setShowLocationPopup] = useState(false);
   const [locationLoading,   setLocationLoading]   = useState(false);
   const [locationError,     setLocationError]     = useState("");
+  const [showNotifPopup,    setShowNotifPopup]    = useState(false);
+  const [notifLoading,      setNotifLoading]      = useState(false);
   const [seenReviewIds,     setSeenReviewIds]     = useState(() => loadSeenReviews());
   const [pendingReview,     setPendingReview]     = useState(null);
 
@@ -557,24 +544,35 @@ export default function UaTobDriverApp({ uid }) {
   }, [driver]);
 
   // ── Foreground push handler (tab is open) ─────────────────────────
-  // Background messages are handled by firebase-messaging-sw.js.
-  // When the tab is open, FCM skips the OS notification and fires
-  // onMessage instead — we pipe it into the existing in-app toast.
   useEffect(() => {
-    if (!uid) return;
-    let unsub = () => {};
-    try {
-      const messaging = getMessaging(firebase_app);
-      unsub = onMessage(messaging, (payload) => {
-        const title = payload.notification?.title ?? "New Ride";
-        const body  = payload.notification?.body  ?? "";
-        showNotif(title, body);
-      });
-    } catch (err) {
-      console.warn("[UaTob] onMessage setup failed:", err.message);
-    }
-    return unsub;
-  }, [uid]);
+  if (!uid) return;
+  let unsub = () => {};
+  try {
+    const messaging = getMessaging(firebase_app);
+    unsub = onMessage(messaging, (payload) => {
+      const title = payload.notification?.title ?? "New Ride";
+      const body  = payload.notification?.body  ?? "";
+
+      // ── In-app toast ──────────────────────────────────────────
+      showNotif(title, body);
+
+      // ── Native browser notification (foreground) ──────────────
+      if ("Notification" in window && window.Notification.permission === "granted") {
+        new window.Notification(title, {
+          body,
+          icon: "/icons/icon-192x192.png", // adjust path to your PWA icon
+          badge: "/icons/badge-72x72.png", // optional monochrome badge icon
+          tag: payload.data?.rideId ?? "uatob-driver", // collapses duplicate notifs
+          renotify: true,
+        });
+      }
+    });
+  } catch (err) {
+    console.warn("[UaTob] onMessage setup failed:", err.message);
+  }
+  return unsub;
+}, [uid]);
+
 
   // ── Derived: active trip request ──────────────────────────────────
   const tripRequest = online && !sourceLoading
@@ -669,7 +667,7 @@ export default function UaTobDriverApp({ uid }) {
   // ── Helpers ───────────────────────────────────────────────────────
   const showNotif = (title, msg) => {
     setNotification({ title, msg });
-    setTimeout(() => setNotification(null), 3000);
+    setTimeout(() => setNotification(null), 3200);
   };
 
   // ── callDriverStatus wrapper ──────────────────────────────────────
@@ -682,8 +680,6 @@ export default function UaTobDriverApp({ uid }) {
   }, [uid]);
 
   // ── Go online ─────────────────────────────────────────────────────
-  // registerFcmToken is called here — inside the user gesture chain —
-  // so the browser allows the Notification permission prompt to fire.
   const requestLocationAndGoOnline = useCallback(async () => {
     setLocationError("");
     setLocationLoading(true);
@@ -717,6 +713,18 @@ export default function UaTobDriverApp({ uid }) {
     }
   }, [callDriverStatusFn, uid]);
 
+  // ── Handle notification popup Enable ─────────────────────────────
+  const handleEnableNotifications = useCallback(async () => {
+    setNotifLoading(true);
+    await registerFcmToken(uid);   // triggers browser prompt inside gesture
+    setNotifLoading(false);
+    setShowNotifPopup(false);
+  }, [uid]);
+
+  const handleSkipNotifications = useCallback(() => {
+    setShowNotifPopup(false);
+  }, []);
+
   // ── Online / offline toggle ───────────────────────────────────────
   const handleToggleOnline = useCallback(async () => {
     if (online) {
@@ -747,7 +755,6 @@ export default function UaTobDriverApp({ uid }) {
     try {
       const { data } = await callAcceptRide({ rideId: tripRequest.id, uid });
       if (data?.error) throw new Error(data.error);
-
       playAcceptSound();
       clearInterval(timerRef.current);
       setAcceptedRequestId(tripRequest.id);
@@ -768,7 +775,6 @@ export default function UaTobDriverApp({ uid }) {
     try {
       const { data } = await callDeclineRide({ rideId: tripRequest.id, uid });
       if (data?.error) throw new Error(data.error);
-
       playDeclineSound();
       clearInterval(timerRef.current);
       setDismissedRequests(prev => { const next = new Set(prev); next.add(tripRequest.id); return next; });
@@ -787,12 +793,10 @@ export default function UaTobDriverApp({ uid }) {
     const actionMap = { driver_assigned: "arrive", arrived: "start", in_progress: "complete" };
     const action = actionMap[activeTrip.status];
     if (!action) return;
-
     setAdvancePending(true);
     try {
       const { data } = await callUpdateTrip({ rideId: activeTrip.id, driverUid: uid, action });
       if (data?.error) throw new Error(data.error);
-
       if (action === "complete") {
         await refetch();
         showNotif("Trip complete", `+$${activeTrip.fareTotal || 0}`);
