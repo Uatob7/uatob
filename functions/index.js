@@ -43,6 +43,7 @@ const { setDriverTripActive } = require("./drivers/setDriverTripActive");
 const { onReviewCreated } = require("./drivers/onReviewCreated");
 const { updateDriverAchievements } = require("./drivers/updateDriverAchievements");
 const { checkDriverStripeCapability } = require("./drivers/checkDriverStripeCapability");
+const { saveDriverFcmToken } = require("./drivers/saveDriverFcmToken");
 
 
 
@@ -92,6 +93,7 @@ exports.onDriverCreated = onDriverCreated;
 exports.updateDriverAchievements = updateDriverAchievements;
 exports.onDriverApplicationSubmitted = onDriverApplicationSubmitted;
 exports.withdraw = withdraw;
+exports.saveDriverFcmToken = saveDriverFcmToken;
 
 exports.processWithdrawal = processWithdrawal;
 exports.onReviewCreated = onReviewCreated;

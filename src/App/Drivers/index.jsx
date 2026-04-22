@@ -195,7 +195,7 @@ async function registerFcmToken(uid) {
 
     const messaging = getMessaging(firebase_app);
     const token = await getToken(messaging, {
-      vapidKey: "YOUR_VAPID_KEY", // Firebase Console → Project Settings → Cloud Messaging → Web Push certificates
+      vapidKey: "BJ_sRHZonSGCKk2mB2i9ofTRS8ouFVMV-I15FX4sqdUXHyVb1lo6H-N4GMPrlcIIshRlykQicaxkxxFxcYcI4JQ", // Firebase Console → Project Settings → Cloud Messaging → Web Push certificates
     });
 
     if (!token) {
