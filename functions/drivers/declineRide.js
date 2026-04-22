@@ -9,7 +9,7 @@ const db = getFirestore();
 
 // ─────────────────────────────────────────────────────────
 exports.declineRide = onCall(
-  { region: "us-central1" },
+  { region: "us-east1" },
   async (request) => {
     try {
       const { rideId, uid } = request.data || {};

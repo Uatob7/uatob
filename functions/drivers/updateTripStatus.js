@@ -5,7 +5,7 @@ const db = admin.firestore();
 
 // ─────────────────────────────────────────────────────────
 exports.updateTripStatus = onCall(
-  { region: "us-central1" },
+  { region: "us-east1" },
   async (request) => {
     try {
       const { rideId, driverUid, action } = request.data || {};

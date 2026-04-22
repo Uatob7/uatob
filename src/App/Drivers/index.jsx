@@ -23,11 +23,12 @@ import { useDriverReviews }   from "@/App/Drivers/useDriverReviews";
 import { firebase_app }       from "@/firebase/config";
 
 // ── Callables ─────────────────────────────────────────────────────────
-const functions          = getFunctions(firebase_app, "us-central1");
+const functions          = getFunctions(firebase_app, "us-east1");
 const callDriverStatus   = httpsCallable(functions, "DriverStatus");
 const callAcceptRide     = httpsCallable(functions, "acceptRide");
 const callDeclineRide    = httpsCallable(functions, "declineRide");
 const callUpdateTrip     = httpsCallable(functions, "updateTripStatus");
+
 
 // ── Trip button labels ────────────────────────────────────────────────
 const TRIP_BUTTON_LABELS = {

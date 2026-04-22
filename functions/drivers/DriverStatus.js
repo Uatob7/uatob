@@ -30,7 +30,7 @@ function extractCityAndZip(components = []) {
 // ─────────────────────────────────────────────────────────
 exports.DriverStatus = onCall(
   {
-    region: "us-central1",
+    region: "us-east1",
     secrets: ["GOOGLE_MAPS_KEY"],
   },
   async (request) => {
