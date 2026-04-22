@@ -43,10 +43,6 @@ function loadSeenReviews()    { try { return new Set(JSON.parse(localStorage.get
 function saveSeenReviews(set) { try { localStorage.setItem(LS_SEEN_REVIEWS_KEY, JSON.stringify([...set])); } catch (_) {} }
 
 // ── FCM Push Registration ─────────────────────────────────────────────
-// Called AFTER the driver taps "Enable" on the styled NotificationPopup.
-// At that point we're still inside the user-gesture call stack
-
-// ── FCM Push Registration ─────────────────────────────────────────────
 async function registerFcmToken(uid) {
   try {
     if (!("Notification" in window)) {
@@ -356,81 +352,6 @@ function AppNotification({ activeTrip, notificationOverride }) {
   );
 }
 
-// ── NOTIFICATION PERMISSION POPUP ────────────────────────────────────
-function NotificationPopup({ onEnable, onSkip, loading }) {
-  return (
-    <div
-      onClick={e => { if (e.target === e.currentTarget) onSkip(); }}
-      style={{ position: "fixed", inset: 0, zIndex: 1050, background: "rgba(0,0,0,.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px", animation: "locFadeIn .2s ease" }}
-    >
-      <style>{`
-        @keyframes locFadeIn  { from { opacity:0 } to { opacity:1 } }
-        @keyframes locSlideUp { from { opacity:0; transform:translateY(18px) } to { opacity:1; transform:translateY(0) } }
-        @keyframes locSpin    { from { transform:rotate(0deg) } to { transform:rotate(360deg) } }
-        .notif-enable-btn:active { transform: scale(0.97); }
-      `}</style>
-      <div style={{ background: "#fff", borderRadius: "24px", padding: "28px 24px 24px", width: "100%", maxWidth: "360px", boxShadow: "0 24px 60px rgba(0,0,0,.18)", animation: "locSlideUp .28s cubic-bezier(.34,1.56,.64,1)" }}>
-
-        {/* Icon bubble */}
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: "20px" }}>
-          <div style={{ width: "68px", height: "68px", borderRadius: "50%", background: "rgba(37,99,235,.09)", border: "2px solid rgba(37,99,235,.25)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 0 8px rgba(37,99,235,.05)" }}>
-            {loading
-              ? <Loader2 size={28} color="#2563EB" style={{ animation: "locSpin 1s linear infinite" }} />
-              : <Bell size={28} color="#2563EB" />
-            }
-          </div>
-        </div>
-
-        {/* Text */}
-        <div style={{ textAlign: "center", marginBottom: "8px" }}>
-          <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "22px", fontWeight: "900", color: "#111827", letterSpacing: "-0.3px", marginBottom: "6px" }}>
-            Stay in the loop
-          </div>
-          <div style={{ fontSize: "13.5px", color: "#6B7280", fontWeight: "500", lineHeight: "1.6" }}>
-            Enable push notifications so you never miss a ride request — even when the app is in the background.
-          </div>
-        </div>
-
-        {/* Bullet points */}
-        {!loading && (
-          <div style={{ margin: "16px 0 22px", display: "flex", flexDirection: "column", gap: "10px" }}>
-            {[
-              { icon: "🔔", text: "Instant ride request alerts" },
-              { icon: "📍", text: "Trip status updates" },
-              { icon: "💰", text: "Earning confirmations" },
-            ].map(({ icon, text }) => (
-              <div key={text} style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(37,99,235,.04)", borderRadius: "10px", padding: "9px 12px", border: "1px solid rgba(37,99,235,.10)" }}>
-                <span style={{ fontSize: "16px", lineHeight: 1 }}>{icon}</span>
-                <span style={{ fontSize: "13px", fontWeight: "600", color: "#374151", fontFamily: "'Barlow', sans-serif" }}>{text}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Buttons */}
-        {!loading && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            <button
-              className="notif-enable-btn"
-              onClick={onEnable}
-              style={{ width: "100%", padding: "15px", borderRadius: "14px", border: "none", background: "linear-gradient(135deg,#3B82F6,#2563EB 55%,#1D4ED8)", color: "#fff", fontSize: "15px", fontWeight: "800", fontFamily: "'Barlow', sans-serif", cursor: "pointer", boxShadow: "0 4px 14px rgba(37,99,235,.35)", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", transition: "transform .1s" }}
-            >
-              <Bell size={16} />
-              Enable notifications
-            </button>
-            <button
-              onClick={onSkip}
-              style={{ width: "100%", padding: "14px", borderRadius: "14px", border: "1.5px solid #E5E7EB", background: "#fff", color: "#6B7280", fontSize: "14px", fontWeight: "700", fontFamily: "'Barlow', sans-serif", cursor: "pointer" }}
-            >
-              Not now
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ── ACCOUNT SUSPENDED MODAL ───────────────────────────────────────────
 function SuspendedModal() {
   return (
@@ -525,8 +446,6 @@ export default function UaTobDriverApp({ uid }) {
   const [showLocationPopup, setShowLocationPopup] = useState(false);
   const [locationLoading,   setLocationLoading]   = useState(false);
   const [locationError,     setLocationError]     = useState("");
-  const [showNotifPopup,    setShowNotifPopup]    = useState(false);
-  const [notifLoading,      setNotifLoading]      = useState(false);
   const [seenReviewIds,     setSeenReviewIds]     = useState(() => loadSeenReviews());
   const [pendingReview,     setPendingReview]     = useState(null);
 
@@ -681,14 +600,7 @@ export default function UaTobDriverApp({ uid }) {
       setShowLocationPopup(false);
       setLocationError("");
       showNotif("Online", "Ready for rides");
-
-      // Show our styled notification permission popup only if not already granted
-      if ("Notification" in window && window.Notification.permission === "default") {
-        setShowNotifPopup(true);
-      } else if ("Notification" in window && window.Notification.permission === "granted") {
-        // Already granted — silently register token in background
-        registerFcmToken(uid);
-      }
+      registerFcmToken(uid);
     } catch (err) {
       if      (err.code === 1) setLocationError("Location access was denied. Allow location in your browser settings to go online.");
       else if (err.code === 2) setLocationError("Could not detect your location. Check your device's location settings.");
@@ -698,18 +610,6 @@ export default function UaTobDriverApp({ uid }) {
       setLocationLoading(false);
     }
   }, [callDriverStatusFn, uid]);
-
-  // ── Handle notification popup Enable ─────────────────────────────
-  const handleEnableNotifications = useCallback(async () => {
-    setNotifLoading(true);
-    await registerFcmToken(uid);   // triggers browser prompt inside gesture
-    setNotifLoading(false);
-    setShowNotifPopup(false);
-  }, [uid]);
-
-  const handleSkipNotifications = useCallback(() => {
-    setShowNotifPopup(false);
-  }, []);
 
   // ── Online / offline toggle ───────────────────────────────────────
   const handleToggleOnline = useCallback(async () => {
@@ -814,14 +714,6 @@ export default function UaTobDriverApp({ uid }) {
           error={locationError}
           onAllow={requestLocationAndGoOnline}
           onDeny={handleLocationDeny}
-        />
-      )}
-
-      {showNotifPopup && (
-        <NotificationPopup
-          loading={notifLoading}
-          onEnable={handleEnableNotifications}
-          onSkip={handleSkipNotifications}
         />
       )}
 
