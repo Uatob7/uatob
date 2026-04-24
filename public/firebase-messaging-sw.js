@@ -13,21 +13,18 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 // ─────────────────────────────────────────────
-// BACKGROUND PUSH HANDLER (SAFE VERSION)
+// BACKGROUND PUSH HANDLER
+// The compat SDK auto-displays the notification from your FCM payload.
+// We only intercept here to suppress the duplicate — no manual
+// showNotification() call needed.
 // ─────────────────────────────────────────────
-messaging.onBackgroundMessage((payload) => {
-  const title = payload.notification?.title || "New Update";
-  const body = payload.notification?.body || "";
-
-  self.registration.showNotification(title, {
-    body,
-    icon: "/icon.png",
-    data: payload.data || {},
-  });
+messaging.onBackgroundMessage((_payload) => {
+  // Intentionally empty — Firebase displays the notification automatically.
+  // Add data-only payload handling here if needed in the future.
 });
 
 // ─────────────────────────────────────────────
-// NOTIFICATION CLICK HANDLER (FIXED)
+// NOTIFICATION CLICK HANDLER
 // ─────────────────────────────────────────────
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
