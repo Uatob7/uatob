@@ -45,9 +45,13 @@ const POPUP_STYLES = `
     from { opacity: 0; }
     to   { opacity: 1; }
   }
-  @keyframes riderSlideUp {
+  @keyframes riderSlideUpDesktop {
     from { opacity: 0; transform: translateY(28px) scale(.94); }
     to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes riderSlideUpMobile {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
   }
   @keyframes riderSpin {
     from { transform: rotate(0deg); }
@@ -65,6 +69,90 @@ const POPUP_STYLES = `
     0%, 100% { transform: translateY(0); }
     50%      { transform: translateY(-3px); }
   }
+
+  /* ── Fullscreen on mobile ── */
+  .rider-popup-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1050;
+    background: rgba(15,23,42,.55);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    animation: riderFadeIn .22s ease;
+  }
+  .rider-popup-card {
+    position: relative;
+    width: 100%;
+    height: 100dvh;
+    background: #fff;
+    border-radius: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    box-shadow: 0 30px 80px rgba(15,23,42,.35);
+    animation: riderSlideUpMobile .35s cubic-bezier(.34,1.56,.64,1);
+    display: flex;
+    flex-direction: column;
+  }
+  .rider-popup-body {
+    padding: 28px 24px 32px;
+    max-width: 480px;
+    width: 100%;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
+  .rider-popup-header {
+    padding: 56px 24px 36px;
+  }
+  .rider-close-btn {
+    position: absolute;
+    top: 16px; right: 16px;
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.7);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(15,23,42,.08);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    z-index: 2;
+    transition: background .15s ease, transform .1s ease;
+  }
+  .rider-close-btn:hover  { background: rgba(255,255,255,.95); }
+  .rider-close-btn:active { transform: scale(.92); }
+
+  /* ── Centered card on desktop ── */
+  @media (min-width: 640px) {
+    .rider-popup-overlay {
+      padding: 24px;
+    }
+    .rider-popup-card {
+      width: 100%;
+      max-width: 420px;
+      height: auto;
+      max-height: 92vh;
+      border-radius: 28px;
+      overflow: hidden;
+      box-shadow: 0 30px 80px rgba(15,23,42,.35), 0 8px 20px rgba(15,23,42,.12), inset 0 1px 0 rgba(255,255,255,.8);
+      animation: riderSlideUpDesktop .4s cubic-bezier(.34,1.56,.64,1);
+    }
+    .rider-popup-header {
+      padding: 36px 24px 28px;
+    }
+    .rider-popup-body {
+      padding: 22px 24px 24px;
+      flex: none;
+    }
+    .rider-close-btn {
+      top: 14px; right: 14px;
+    }
+  }
+
   .rider-enable-btn {
     position: relative;
     overflow: hidden;
@@ -106,48 +194,41 @@ function RiderNotificationPopup({ onEnable, onSkip, loading, error }) {
 
   return (
     <div
+      className="rider-popup-overlay"
       onClick={(e) => { if (e.target === e.currentTarget && !loading) onSkip(); }}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 1050,
-        background: 'rgba(15,23,42,.55)',
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '20px',
-        animation: 'riderFadeIn .22s ease',
-      }}
     >
       <style>{POPUP_STYLES}</style>
 
-      <div
-        style={{
-          position: 'relative',
-          width: '100%',
-          maxWidth: '380px',
-          background: '#fff',
-          borderRadius: '28px',
-          overflow: 'hidden',
-          boxShadow: '0 30px 80px rgba(15,23,42,.35), 0 8px 20px rgba(15,23,42,.12), inset 0 1px 0 rgba(255,255,255,.8)',
-          animation: 'riderSlideUp .4s cubic-bezier(.34,1.56,.64,1)',
-          border: '1px solid rgba(255,255,255,.6)',
-        }}
-      >
+      <div className="rider-popup-card">
+        {/* Close button */}
+        {!loading && (
+          <button
+            className="rider-close-btn"
+            onClick={onSkip}
+            aria-label="Close"
+          >
+            <X size={18} strokeWidth={2.4} color="#475569" />
+          </button>
+        )}
+
         {/* Decorative gradient header */}
-        <div style={{
-          position: 'relative',
-          background: isError
-            ? `radial-gradient(circle at 30% 20%, ${brand}22, transparent 55%),
-               radial-gradient(circle at 80% 80%, ${brandLt}18, transparent 55%),
-               linear-gradient(135deg, #FEF2F2, #FEE2E2)`
-            : `radial-gradient(circle at 30% 20%, ${brand}26, transparent 55%),
-               radial-gradient(circle at 80% 80%, ${brandLt}1F, transparent 55%),
-               linear-gradient(135deg, #F0FDF4, #DCFCE7)`,
-          padding: '36px 24px 28px',
-          textAlign: 'center',
-          borderBottom: `1px solid ${isError ? '#FECACA' : '#BBF7D0'}`,
-        }}>
+        <div
+          className="rider-popup-header"
+          style={{
+            position: 'relative',
+            background: isError
+              ? `radial-gradient(circle at 30% 20%, ${brand}22, transparent 55%),
+                 radial-gradient(circle at 80% 80%, ${brandLt}18, transparent 55%),
+                 linear-gradient(135deg, #FEF2F2, #FEE2E2)`
+              : `radial-gradient(circle at 30% 20%, ${brand}26, transparent 55%),
+                 radial-gradient(circle at 80% 80%, ${brandLt}1F, transparent 55%),
+                 linear-gradient(135deg, #F0FDF4, #DCFCE7)`,
+            textAlign: 'center',
+            borderBottom: `1px solid ${isError ? '#FECACA' : '#BBF7D0'}`,
+          }}
+        >
           {/* Icon with pulse rings */}
-          <div style={{ position: 'relative', display: 'inline-block', marginBottom: '18px' }}>
+          <div style={{ position: 'relative', display: 'inline-block', marginBottom: '20px' }}>
             {!loading && !isError && (
               <>
                 <span style={{
@@ -168,7 +249,7 @@ function RiderNotificationPopup({ onEnable, onSkip, loading, error }) {
             )}
             <div style={{
               position: 'relative',
-              width: '76px', height: '76px',
+              width: '84px', height: '84px',
               borderRadius: '50%',
               background: isError
                 ? 'linear-gradient(135deg, #FFF, #FEE2E2)'
@@ -179,10 +260,10 @@ function RiderNotificationPopup({ onEnable, onSkip, loading, error }) {
               animation: !loading && !isError ? 'riderFloat 3s ease-in-out infinite' : 'none',
             }}>
               {loading
-                ? <Loader2 size={30} color={brand} strokeWidth={2.5} style={{ animation: 'riderSpin 1s linear infinite' }} />
+                ? <Loader2 size={34} color={brand} strokeWidth={2.5} style={{ animation: 'riderSpin 1s linear infinite' }} />
                 : isError
-                  ? <AlertCircle size={30} color={brand} strokeWidth={2.3} />
-                  : <BellRing size={30} color={brand} strokeWidth={2.2} />
+                  ? <AlertCircle size={34} color={brand} strokeWidth={2.3} />
+                  : <BellRing size={34} color={brand} strokeWidth={2.2} />
               }
             </div>
           </div>
@@ -190,12 +271,12 @@ function RiderNotificationPopup({ onEnable, onSkip, loading, error }) {
           {/* Title */}
           <div style={{
             fontFamily: "'Barlow Condensed', sans-serif",
-            fontSize: '26px',
+            fontSize: '30px',
             fontWeight: 900,
             color: '#0F172A',
             letterSpacing: '-0.6px',
             lineHeight: 1.1,
-            marginBottom: '8px',
+            marginBottom: '10px',
           }}>
             {loading
               ? 'Setting things up…'
@@ -207,11 +288,11 @@ function RiderNotificationPopup({ onEnable, onSkip, loading, error }) {
 
           {/* Subtitle */}
           <div style={{
-            fontSize: '14px',
+            fontSize: '15px',
             color: '#475569',
             fontWeight: 500,
             lineHeight: 1.55,
-            maxWidth: '300px',
+            maxWidth: '320px',
             margin: '0 auto',
           }}>
             {loading
@@ -224,10 +305,10 @@ function RiderNotificationPopup({ onEnable, onSkip, loading, error }) {
         </div>
 
         {/* Body */}
-        <div style={{ padding: '22px 24px 24px' }}>
+        <div className="rider-popup-body">
           {/* Feature list */}
           {!loading && !isError && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '22px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '24px' }}>
               {[
                 { icon: '🚗', title: 'Driver assigned',     desc: 'Know the moment you\'re matched' },
                 { icon: '📍', title: 'Arrival alerts',      desc: 'Head out at the perfect time' },
@@ -237,41 +318,41 @@ function RiderNotificationPopup({ onEnable, onSkip, loading, error }) {
                   key={title}
                   className="rider-feature-row"
                   style={{
-                    display: 'flex', alignItems: 'center', gap: '12px',
+                    display: 'flex', alignItems: 'center', gap: '14px',
                     background: '#F8FAFC',
-                    borderRadius: '14px',
-                    padding: '11px 13px',
+                    borderRadius: '16px',
+                    padding: '14px 16px',
                     border: '1px solid #F1F5F9',
                   }}
                 >
                   <div style={{
                     flexShrink: 0,
-                    width: '36px', height: '36px',
-                    borderRadius: '10px',
+                    width: '42px', height: '42px',
+                    borderRadius: '12px',
                     background: '#FFF',
                     border: '1px solid #E2E8F0',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '18px',
+                    fontSize: '20px',
                     boxShadow: '0 1px 2px rgba(15,23,42,.04)',
                   }}>
                     {icon}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{
-                      fontSize: '13.5px',
+                      fontSize: '15px',
                       fontWeight: 700,
                       color: '#0F172A',
                       lineHeight: 1.2,
-                      marginBottom: '2px',
+                      marginBottom: '3px',
                       fontFamily: "'Barlow', sans-serif",
                     }}>
                       {title}
                     </div>
                     <div style={{
-                      fontSize: '12px',
+                      fontSize: '13px',
                       color: '#64748B',
                       fontWeight: 500,
-                      lineHeight: 1.3,
+                      lineHeight: 1.35,
                     }}>
                       {desc}
                     </div>
@@ -281,22 +362,28 @@ function RiderNotificationPopup({ onEnable, onSkip, loading, error }) {
             </div>
           )}
 
-          {/* Buttons */}
+          {/* Buttons — pinned to bottom on mobile */}
           {!loading && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+              marginTop: 'auto',
+              paddingTop: '8px',
+            }}>
               <button
                 className="rider-enable-btn"
                 onClick={onEnable}
                 style={{
                   width: '100%',
-                  padding: '15px 20px',
-                  borderRadius: '14px',
+                  padding: '17px 20px',
+                  borderRadius: '16px',
                   border: 'none',
                   background: isError
                     ? `linear-gradient(135deg, ${brand}, ${brandLt} 55%, ${brandDk})`
                     : `linear-gradient(135deg, #22C55E, #16A34A 55%, #15803D)`,
                   color: '#fff',
-                  fontSize: '15px',
+                  fontSize: '16px',
                   fontWeight: 800,
                   fontFamily: "'Barlow', sans-serif",
                   letterSpacing: '-0.1px',
@@ -306,7 +393,7 @@ function RiderNotificationPopup({ onEnable, onSkip, loading, error }) {
                   gap: '8px',
                 }}
               >
-                <Bell size={17} strokeWidth={2.5} />
+                <Bell size={18} strokeWidth={2.5} />
                 {isError ? 'Try again' : 'Turn on notifications'}
               </button>
               <button
@@ -314,12 +401,12 @@ function RiderNotificationPopup({ onEnable, onSkip, loading, error }) {
                 onClick={onSkip}
                 style={{
                   width: '100%',
-                  padding: '13px 20px',
-                  borderRadius: '14px',
+                  padding: '15px 20px',
+                  borderRadius: '16px',
                   border: '1.5px solid #E2E8F0',
                   background: '#fff',
                   color: '#64748B',
-                  fontSize: '14px',
+                  fontSize: '15px',
                   fontWeight: 700,
                   fontFamily: "'Barlow', sans-serif",
                   cursor: 'pointer',
