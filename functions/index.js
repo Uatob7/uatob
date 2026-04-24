@@ -16,6 +16,7 @@ const { findDrivers } = require("./ride/findDrivers");
 const { onRidePaymentSucceeded } = require("./ride/email/onRidePaymentSucceeded");
 const { onRideCompleted } = require("./ride/email/onRideCompleted");
 const { saveRiderFcmToken } = require("./ride/saveRiderFcmToken");
+const { onRideStatusChangedNotifyRider } = require("./ride/onRideStatusChangedNotifyRider");
 
 // Payment functions
 const { cardPayment } = require("./payments/cardPayment");
@@ -90,6 +91,7 @@ exports.sendPushNotification = sendPushNotification;
 exports.getDriverEarnings = getDriverEarnings;
 exports.calcDriverDistance = calcDriverDistance;
 exports.getDriverToPickup = getDriverToPickup;
+exports.onRideStatusChangedNotifyRider = onRideStatusChangedNotifyRider;
 exports.onRideCompleted = onRideCompleted;
 exports.updateDriverPresence = updateDriverPresence;
 exports.setDriverTripActive = setDriverTripActive;
