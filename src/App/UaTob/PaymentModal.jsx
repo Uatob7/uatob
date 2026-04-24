@@ -7,7 +7,7 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { firebase_app } from '@/firebase/config';
 
 // ── Callables ─────────────────────────────────────────────────────────
-const functions          = getFunctions(firebase_app, "us-central1");
+const functions          = getFunctions(firebase_app, "us-east1");
 const callCardPayment    = httpsCallable(functions, "cardPayment");
 const callCashAppPayment = httpsCallable(functions, "cashAppPayment");
 
