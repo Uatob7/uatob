@@ -1,7 +1,11 @@
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
-const sgMail = require("@sendgrid/mail");
+const { getMessaging }      = require("firebase-admin/messaging");
+const sgMail                = require("@sendgrid/mail");
+const admin                 = require("firebase-admin");
 
-// Escape user-controlled data to prevent HTML injection
+if (!admin.apps.length) admin.initializeApp();
+const db = admin.firestore();
+
 const esc = (str) =>
   String(str ?? "")
     .replace(/&/g, "&amp;")
@@ -28,8 +32,8 @@ exports.onDriverCreatedNotifyAdmin = onDocumentCreated(
         lastName,
         phone,
         createdAt,
-        vehicle,       // { make, model, year, plate, color, rideTypes }
-        documents,     // { licenseFront, licenseBack, registration, insurance, profilePhoto }
+        vehicle,
+        documents,
         signInMethod,
         platform,
         referralCode,
@@ -37,7 +41,6 @@ exports.onDriverCreatedNotifyAdmin = onDocumentCreated(
 
       const uid = event.params.uid;
 
-      // 🧠 Prevent duplicate emails
       if (data.adminNotified) {
         console.log("Admin already notified for this driver, skipping.");
         return null;
@@ -51,11 +54,11 @@ exports.onDriverCreatedNotifyAdmin = onDocumentCreated(
 
       sgMail.setApiKey(sendgridKey);
 
-      // ── Sanitised display values ─────────────────────────────────────────
+      // ── Sanitised display values ───────────────────────────────────────
       const fullName     = esc(`${firstName || ""} ${lastName || ""}`.trim() || "N/A");
-      const safeEmail    = esc(email    || "N/A");
-      const safePhone    = esc(phone    || "N/A");
-      const safeUid      = esc(uid      || "N/A");
+      const safeEmail    = esc(email        || "N/A");
+      const safePhone    = esc(phone        || "N/A");
+      const safeUid      = esc(uid          || "N/A");
       const safeMethod   = esc(signInMethod || "N/A");
       const safePlatform = esc(platform     || "N/A");
       const safeReferral = esc(referralCode || "None");
@@ -65,12 +68,10 @@ exports.onDriverCreatedNotifyAdmin = onDocumentCreated(
           ? `${vehicle.year || ""} ${vehicle.make} ${vehicle.model}`.trim()
           : "N/A"
       );
-      const safePlate    = esc(vehicle?.plate || "N/A");
-      const safeColor    = esc(vehicle?.color || "N/A");
+      const safePlate     = esc(vehicle?.plate || "N/A");
+      const safeColor     = esc(vehicle?.color || "N/A");
       const safeRideTypes = esc(
-        vehicle?.rideTypes?.length
-          ? vehicle.rideTypes.join(", ")
-          : "N/A"
+        vehicle?.rideTypes?.length ? vehicle.rideTypes.join(", ") : "N/A"
       );
 
       const createdStr = createdAt?.toDate?.()
@@ -80,7 +81,7 @@ exports.onDriverCreatedNotifyAdmin = onDocumentCreated(
           })
         : "N/A";
 
-      // ── Document status rows ─────────────────────────────────────────────
+      // ── Document status rows ───────────────────────────────────────────
       const docRows = [
         { label: "Driver's License (Front)", ok: documents?.licenseFront },
         { label: "Driver's License (Back)",  ok: documents?.licenseBack  },
@@ -229,10 +230,10 @@ exports.onDriverCreatedNotifyAdmin = onDocumentCreated(
                 </h2>
                 <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
                   ${[
-                    ["Vehicle",     vehicleStr],
-                    ["Plate",       safePlate],
-                    ["Color",       safeColor],
-                    ["Ride Types",  safeRideTypes],
+                    ["Vehicle",    vehicleStr],
+                    ["Plate",      safePlate],
+                    ["Color",      safeColor],
+                    ["Ride Types", safeRideTypes],
                   ].map(([label, val], i, arr) => `
                   <tr>
                     <td style="padding:10px 0;
@@ -420,15 +421,80 @@ exports.onDriverCreatedNotifyAdmin = onDocumentCreated(
         html,
       };
 
+      // ── Send email ─────────────────────────────────────────────────────
       await sgMail.send(msg);
+      console.log(`📧 Admin email sent for driver: ${email} (uid: ${uid})`);
 
+      // ── Send push to all admin browsers ───────────────────────────────
+      try {
+        const adminTokenDoc = await db.collection("AdminTokens").doc("push").get();
+        const tokens = adminTokenDoc.exists
+          ? (adminTokenDoc.data()?.tokens ?? [])
+          : [];
+
+        if (tokens.length > 0) {
+          const pushResults = await Promise.allSettled(
+            tokens.map((token) =>
+              getMessaging().send({
+                token,
+                notification: {
+                  title: `🚗 New driver: ${fullName}`,
+                  body:  `${email || "N/A"} · ${uploadedCount}/${docRows.length} docs uploaded`,
+                },
+                data: {
+                  screen: "approvals",
+                  uid:    uid ?? "",
+                },
+                webpush: {
+                  notification: {
+                    icon:  "/icon.png",
+                    badge: "/icon.png",
+                  },
+                  fcmOptions: {
+                    link: "https://uatob.com/admin",
+                  },
+                },
+              })
+            )
+          );
+
+          // ── Clean up stale tokens ──────────────────────────────────────
+          const staleTokens = [];
+          pushResults.forEach((result, i) => {
+            if (result.status === "rejected") {
+              const errCode = result.reason?.errorInfo?.code ?? "";
+              if (
+                errCode === "messaging/registration-token-not-registered" ||
+                errCode === "messaging/invalid-registration-token"
+              ) {
+                staleTokens.push(tokens[i]);
+              }
+            }
+          });
+
+          if (staleTokens.length > 0) {
+            await db.collection("AdminTokens").doc("push").update({
+              tokens: admin.firestore.FieldValue.arrayRemove(...staleTokens),
+            });
+            console.log(`🧹 Removed ${staleTokens.length} stale admin FCM token(s)`);
+          }
+
+          console.log(`🔔 Admin push sent to ${tokens.length} browser(s)`);
+        } else {
+          console.log("🔔 No admin FCM tokens found — skipping push");
+        }
+      } catch (pushErr) {
+        console.warn("⚠️ Admin push failed (non-fatal):", pushErr.message);
+      }
+
+      // ── Mark as notified ───────────────────────────────────────────────
       await snap.ref.update({ adminNotified: true });
 
-      console.log(`📧 Admin notified of new driver: ${email} (uid: ${uid}) ✅`);
+      console.log(`✅ Admin fully notified for driver: ${email} (uid: ${uid})`);
       return null;
 
     } catch (error) {
-      console.error("❌ Error sending admin driver notification:", error);
+      console.error("❌ Error in onDriverCreatedNotifyAdmin:", error);
       if (error.response) console.error(error.response.body);
       return null;
     }

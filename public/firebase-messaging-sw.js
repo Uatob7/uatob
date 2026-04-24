@@ -14,28 +14,26 @@ const messaging = firebase.messaging();
 
 // ─────────────────────────────────────────────
 // BACKGROUND PUSH HANDLER
-// The compat SDK auto-displays the notification from your FCM payload.
-// We only intercept here to suppress the duplicate — no manual
-// showNotification() call needed.
+// Intentionally empty — Firebase displays the
+// notification automatically from the FCM payload.
 // ─────────────────────────────────────────────
 messaging.onBackgroundMessage((_payload) => {
-  // Intentionally empty — Firebase displays the notification automatically.
-  // Add data-only payload handling here if needed in the future.
+  // no-op
 });
 
 // ─────────────────────────────────────────────
 // NOTIFICATION CLICK HANDLER
+// Just focuses or opens the app on tap.
 // ─────────────────────────────────────────────
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 
-  const rideId = event.notification?.data?.rideId;
-
   event.waitUntil(
-    self.clients.openWindow(
-      rideId
-        ? `/driver/app?rideId=${rideId}`
-        : "/driver/app"
-    )
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clients) => {
+        if (clients.length > 0) return clients[0].focus();
+        return self.clients.openWindow("/");
+      })
   );
 });

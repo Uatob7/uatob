@@ -1,7 +1,11 @@
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
-const sgMail = require("@sendgrid/mail");
+const { getMessaging }      = require("firebase-admin/messaging");
+const sgMail                = require("@sendgrid/mail");
+const admin                 = require("firebase-admin");
 
-// Escape user-controlled data to prevent HTML injection
+if (!admin.apps.length) admin.initializeApp();
+const db = admin.firestore();
+
 const esc = (str) =>
   String(str ?? "")
     .replace(/&/g, "&amp;")
@@ -27,14 +31,13 @@ exports.onAccountCreatedNotifyAdmin = onDocumentCreated(
         name,
         phone,
         createdAt,
-        signInMethod,   // e.g. "google", "email", "apple"
-        platform,       // e.g. "ios", "android", "web"
-        referralCode,   // if you track referrals
+        signInMethod,
+        platform,
+        referralCode,
       } = data || {};
 
       const uid = event.params.uid;
 
-      // 🧠 Prevent duplicate admin emails
       if (data.adminNotified) {
         console.log("Admin already notified, skipping.");
         return null;
@@ -48,14 +51,14 @@ exports.onAccountCreatedNotifyAdmin = onDocumentCreated(
 
       sgMail.setApiKey(sendgridKey);
 
-      // ── Sanitised display values ─────────────────────────────────────────
-      const safeName      = esc(name        || "N/A");
-      const safeEmail     = esc(email       || "N/A");
-      const safePhone     = esc(phone       || "N/A");
-      const safeUid       = esc(uid         || "N/A");
-      const safeMethod    = esc(signInMethod || "N/A");
-      const safePlatform  = esc(platform    || "N/A");
-      const safeReferral  = esc(referralCode || "None");
+      // ── Sanitised display values ───────────────────────────────────────
+      const safeName     = esc(name         || "N/A");
+      const safeEmail    = esc(email        || "N/A");
+      const safePhone    = esc(phone        || "N/A");
+      const safeUid      = esc(uid          || "N/A");
+      const safeMethod   = esc(signInMethod || "N/A");
+      const safePlatform = esc(platform     || "N/A");
+      const safeReferral = esc(referralCode || "None");
 
       const createdStr = createdAt?.toDate?.()
         ? createdAt.toDate().toLocaleString("en-US", {
@@ -169,12 +172,12 @@ exports.onAccountCreatedNotifyAdmin = onDocumentCreated(
                 </h2>
                 <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
                   ${[
-                    ["Full Name",  safeName],
-                    ["Email",      safeEmail],
-                    ["Phone",      safePhone],
-                    ["UID",        `<span style="font-family:monospace;font-size:12px;
-                                    background:#e5e7eb;padding:2px 6px;border-radius:4px;">
-                                    ${safeUid}</span>`],
+                    ["Full Name", safeName],
+                    ["Email",     safeEmail],
+                    ["Phone",     safePhone],
+                    ["UID",       `<span style="font-family:monospace;font-size:12px;
+                                   background:#e5e7eb;padding:2px 6px;border-radius:4px;">
+                                   ${safeUid}</span>`],
                   ].map(([label, val], i, arr) => `
                   <tr>
                     <td style="padding:10px 0;
@@ -316,15 +319,80 @@ exports.onAccountCreatedNotifyAdmin = onDocumentCreated(
         html,
       };
 
+      // ── Send email ─────────────────────────────────────────────────────
       await sgMail.send(msg);
+      console.log(`📧 Admin email sent for new account: ${email} (uid: ${uid})`);
 
+      // ── Send push to all admin browsers ───────────────────────────────
+      try {
+        const adminTokenDoc = await db.collection("AdminTokens").doc("push").get();
+        const tokens = adminTokenDoc.exists
+          ? (adminTokenDoc.data()?.tokens ?? [])
+          : [];
+
+        if (tokens.length > 0) {
+          const pushResults = await Promise.allSettled(
+            tokens.map((token) =>
+              getMessaging().send({
+                token,
+                notification: {
+                  title: `🆕 New rider: ${name || "N/A"}`,
+                  body:  `${email || "N/A"} just signed up on UaTob`,
+                },
+                data: {
+                  screen: "riders",
+                  uid:    uid ?? "",
+                },
+                webpush: {
+                  notification: {
+                    icon:  "/icon.png",
+                    badge: "/icon.png",
+                  },
+                  fcmOptions: {
+                    link: "https://uatob.com/admin",
+                  },
+                },
+              })
+            )
+          );
+
+          // ── Clean up stale tokens ──────────────────────────────────────
+          const staleTokens = [];
+          pushResults.forEach((result, i) => {
+            if (result.status === "rejected") {
+              const errCode = result.reason?.errorInfo?.code ?? "";
+              if (
+                errCode === "messaging/registration-token-not-registered" ||
+                errCode === "messaging/invalid-registration-token"
+              ) {
+                staleTokens.push(tokens[i]);
+              }
+            }
+          });
+
+          if (staleTokens.length > 0) {
+            await db.collection("AdminTokens").doc("push").update({
+              tokens: admin.firestore.FieldValue.arrayRemove(...staleTokens),
+            });
+            console.log(`🧹 Removed ${staleTokens.length} stale admin FCM token(s)`);
+          }
+
+          console.log(`🔔 Admin push sent to ${tokens.length} browser(s)`);
+        } else {
+          console.log("🔔 No admin FCM tokens found — skipping push");
+        }
+      } catch (pushErr) {
+        console.warn("⚠️ Admin push failed (non-fatal):", pushErr.message);
+      }
+
+      // ── Mark as notified ───────────────────────────────────────────────
       await snap.ref.update({ adminNotified: true });
 
-      console.log(`📧 Admin notified of new account: ${email} (uid: ${uid}) ✅`);
+      console.log(`✅ Admin fully notified for new account: ${email} (uid: ${uid})`);
       return null;
 
     } catch (error) {
-      console.error("❌ Error sending admin notification:", error);
+      console.error("❌ Error in onAccountCreatedNotifyAdmin:", error);
       if (error.response) console.error(error.response.body);
       return null;
     }

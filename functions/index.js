@@ -58,7 +58,7 @@ const { onAccountCreatedNotifyAdmin } = require("./admin/email/onAccountCreatedN
 const { onDriverCreatedNotifyAdmin } = require("./admin/email/onDriverCreatedNotifyAdmin");
 const { onRideCreatedNotifyAdmin } = require("./admin/email/onRideCreatedNotifyAdmin");
 const { onDriverStatusChanged } = require("./admin/email/onDriverStatusChanged");
-
+const { saveAdminFcmToken } = require("./admin/saveAdminFcmToken");
 
 
 // Exports
@@ -109,3 +109,4 @@ exports.onDriverCreatedNotifyAdmin = onDriverCreatedNotifyAdmin;
 exports.onRideCreatedNotifyAdmin = onRideCreatedNotifyAdmin;
 exports.ApplicationApproved = ApplicationApproved;
 exports.emailCandidateDrivers = emailCandidateDrivers;
+exports.saveAdminFcmToken = saveAdminFcmToken;
