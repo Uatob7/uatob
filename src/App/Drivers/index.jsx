@@ -43,10 +43,8 @@ function loadSeenReviews()    { try { return new Set(JSON.parse(localStorage.get
 function saveSeenReviews(set) { try { localStorage.setItem(LS_SEEN_REVIEWS_KEY, JSON.stringify([...set])); } catch (_) {} }
 
 // ── FCM Push Registration ─────────────────────────────────────────────
-// Called AFTER the driver taps "Enable" on the styled NotificationPopup.
-// At that point we're still inside the user-gesture call stack
-
-// ── FCM Push Registration ─────────────────────────────────────────────
+// Must be called inside a user gesture (button tap) so browsers allow
+// the Notification permission prompt to appear.
 async function registerFcmToken(uid) {
   try {
     if (!("Notification" in window)) {
@@ -204,9 +202,7 @@ function playDeclineSound() {
   } catch (err) { console.warn("Decline sound failed:", err); }
 }
 
-// ── APP NOTIFICATION (replaces AppNotification import) ───────────────
-// Matches LocationPopup card aesthetic: rounded pill toast, top-center,
-// Barlow typography, green / red / blue accent ring, smooth slide-down.
+// ── APP NOTIFICATION ──────────────────────────────────────────────────
 const NOTIF_STYLES = `
   @keyframes notifSlideDown {
     from { opacity: 0; transform: translateY(-20px) scale(0.96); }
@@ -231,8 +227,7 @@ function getNotifTheme(title) {
   return { color: "#2563EB", bg: "rgba(37,99,235,.08)", border: "rgba(37,99,235,.25)", ring: "rgba(37,99,235,.05)", Icon: Info };
 }
 
-function AppNotification({ activeTrip, notificationOverride }) {
-  // notificationOverride = { title, msg } passed in from parent state
+function AppNotification({ notificationOverride }) {
   const notif = notificationOverride;
   const [visible, setVisible] = useState(false);
   const [leaving, setLeaving] = useState(false);
@@ -258,111 +253,30 @@ function AppNotification({ activeTrip, notificationOverride }) {
   return (
     <>
       <style>{NOTIF_STYLES}</style>
-      <div
-        style={{
-          position:       "fixed",
-          top:            "16px",
-          left:           "50%",
-          transform:      "translateX(-50%)",
-          zIndex:         1200,
-          width:          "calc(100% - 32px)",
-          maxWidth:       "400px",
-          animation:      leaving
-            ? "notifSlideUp .28s cubic-bezier(.4,0,.6,1) forwards"
-            : "notifSlideDown .32s cubic-bezier(.34,1.56,.64,1) forwards",
-        }}
-      >
-        <div
-          style={{
-            background:   "#fff",
-            borderRadius: "20px",
-            padding:      "14px 16px 14px 14px",
-            boxShadow:    "0 8px 32px rgba(0,0,0,.13), 0 2px 8px rgba(0,0,0,.07)",
-            border:       `1.5px solid ${theme.border}`,
-            display:      "flex",
-            alignItems:   "center",
-            gap:          "12px",
-            overflow:     "hidden",
-            position:     "relative",
-          }}
-        >
-          {/* Icon bubble */}
-          <div
-            style={{
-              flexShrink:   0,
-              width:        "42px",
-              height:       "42px",
-              borderRadius: "50%",
-              background:   theme.bg,
-              border:       `1.5px solid ${theme.border}`,
-              boxShadow:    `0 0 0 6px ${theme.ring}`,
-              display:      "flex",
-              alignItems:   "center",
-              justifyContent: "center",
-            }}
-          >
+      <div style={{ position: "fixed", top: "16px", left: "50%", transform: "translateX(-50%)", zIndex: 1200, width: "calc(100% - 32px)", maxWidth: "400px", animation: leaving ? "notifSlideUp .28s cubic-bezier(.4,0,.6,1) forwards" : "notifSlideDown .32s cubic-bezier(.34,1.56,.64,1) forwards" }}>
+        <div style={{ background: "#fff", borderRadius: "20px", padding: "14px 16px 14px 14px", boxShadow: "0 8px 32px rgba(0,0,0,.13), 0 2px 8px rgba(0,0,0,.07)", border: `1.5px solid ${theme.border}`, display: "flex", alignItems: "center", gap: "12px", overflow: "hidden", position: "relative" }}>
+          <div style={{ flexShrink: 0, width: "42px", height: "42px", borderRadius: "50%", background: theme.bg, border: `1.5px solid ${theme.border}`, boxShadow: `0 0 0 6px ${theme.ring}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Icon size={18} color={theme.color} strokeWidth={2.2} />
           </div>
-
-          {/* Text */}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              style={{
-                fontFamily:   "'Barlow Condensed', sans-serif",
-                fontSize:     "15px",
-                fontWeight:   "900",
-                color:        "#111827",
-                letterSpacing: "-0.2px",
-                lineHeight:   1.2,
-                marginBottom: "2px",
-                whiteSpace:   "nowrap",
-                overflow:     "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
+            <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "15px", fontWeight: "900", color: "#111827", letterSpacing: "-0.2px", lineHeight: 1.2, marginBottom: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {notif.title}
             </div>
-            <div
-              style={{
-                fontSize:   "13px",
-                color:      "#6B7280",
-                fontWeight: "500",
-                fontFamily: "'Barlow', sans-serif",
-                whiteSpace: "nowrap",
-                overflow:   "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
+            <div style={{ fontSize: "13px", color: "#6B7280", fontWeight: "500", fontFamily: "'Barlow', sans-serif", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {notif.msg}
             </div>
           </div>
-
-          {/* Progress bar */}
-          <div
-            style={{
-              position:     "absolute",
-              bottom:       0,
-              left:         0,
-              height:       "3px",
-              borderRadius: "0 0 20px 20px",
-              background:   theme.color,
-              opacity:      0.35,
-              animation:    "notifProgress 3s linear forwards",
-            }}
-          />
+          <div style={{ position: "absolute", bottom: 0, left: 0, height: "3px", borderRadius: "0 0 20px 20px", background: theme.color, opacity: 0.35, animation: "notifProgress 3s linear forwards" }} />
         </div>
       </div>
     </>
   );
 }
 
-// ── NOTIFICATION PERMISSION POPUP ────────────────────────────────────
+// ── NOTIFICATION PERMISSION POPUP ─────────────────────────────────────
 function NotificationPopup({ onEnable, onSkip, loading }) {
   return (
-    <div
-      onClick={e => { if (e.target === e.currentTarget) onSkip(); }}
-      style={{ position: "fixed", inset: 0, zIndex: 1050, background: "rgba(0,0,0,.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px", animation: "locFadeIn .2s ease" }}
-    >
+    <div onClick={e => { if (e.target === e.currentTarget) onSkip(); }} style={{ position: "fixed", inset: 0, zIndex: 1050, background: "rgba(0,0,0,.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px", animation: "locFadeIn .2s ease" }}>
       <style>{`
         @keyframes locFadeIn  { from { opacity:0 } to { opacity:1 } }
         @keyframes locSlideUp { from { opacity:0; transform:translateY(18px) } to { opacity:1; transform:translateY(0) } }
@@ -370,8 +284,6 @@ function NotificationPopup({ onEnable, onSkip, loading }) {
         .notif-enable-btn:active { transform: scale(0.97); }
       `}</style>
       <div style={{ background: "#fff", borderRadius: "24px", padding: "28px 24px 24px", width: "100%", maxWidth: "360px", boxShadow: "0 24px 60px rgba(0,0,0,.18)", animation: "locSlideUp .28s cubic-bezier(.34,1.56,.64,1)" }}>
-
-        {/* Icon bubble */}
         <div style={{ display: "flex", justifyContent: "center", marginBottom: "20px" }}>
           <div style={{ width: "68px", height: "68px", borderRadius: "50%", background: "rgba(37,99,235,.09)", border: "2px solid rgba(37,99,235,.25)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 0 8px rgba(37,99,235,.05)" }}>
             {loading
@@ -380,18 +292,12 @@ function NotificationPopup({ onEnable, onSkip, loading }) {
             }
           </div>
         </div>
-
-        {/* Text */}
         <div style={{ textAlign: "center", marginBottom: "8px" }}>
-          <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "22px", fontWeight: "900", color: "#111827", letterSpacing: "-0.3px", marginBottom: "6px" }}>
-            Stay in the loop
-          </div>
+          <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "22px", fontWeight: "900", color: "#111827", letterSpacing: "-0.3px", marginBottom: "6px" }}>Stay in the loop</div>
           <div style={{ fontSize: "13.5px", color: "#6B7280", fontWeight: "500", lineHeight: "1.6" }}>
             Enable push notifications so you never miss a ride request — even when the app is in the background.
           </div>
         </div>
-
-        {/* Bullet points */}
         {!loading && (
           <div style={{ margin: "16px 0 22px", display: "flex", flexDirection: "column", gap: "10px" }}>
             {[
@@ -406,22 +312,13 @@ function NotificationPopup({ onEnable, onSkip, loading }) {
             ))}
           </div>
         )}
-
-        {/* Buttons */}
         {!loading && (
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            <button
-              className="notif-enable-btn"
-              onClick={onEnable}
-              style={{ width: "100%", padding: "15px", borderRadius: "14px", border: "none", background: "linear-gradient(135deg,#3B82F6,#2563EB 55%,#1D4ED8)", color: "#fff", fontSize: "15px", fontWeight: "800", fontFamily: "'Barlow', sans-serif", cursor: "pointer", boxShadow: "0 4px 14px rgba(37,99,235,.35)", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", transition: "transform .1s" }}
-            >
+            <button className="notif-enable-btn" onClick={onEnable} style={{ width: "100%", padding: "15px", borderRadius: "14px", border: "none", background: "linear-gradient(135deg,#3B82F6,#2563EB 55%,#1D4ED8)", color: "#fff", fontSize: "15px", fontWeight: "800", fontFamily: "'Barlow', sans-serif", cursor: "pointer", boxShadow: "0 4px 14px rgba(37,99,235,.35)", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", transition: "transform .1s" }}>
               <Bell size={16} />
               Enable notifications
             </button>
-            <button
-              onClick={onSkip}
-              style={{ width: "100%", padding: "14px", borderRadius: "14px", border: "1.5px solid #E5E7EB", background: "#fff", color: "#6B7280", fontSize: "14px", fontWeight: "700", fontFamily: "'Barlow', sans-serif", cursor: "pointer" }}
-            >
+            <button onClick={onSkip} style={{ width: "100%", padding: "14px", borderRadius: "14px", border: "1.5px solid #E5E7EB", background: "#fff", color: "#6B7280", fontSize: "14px", fontWeight: "700", fontFamily: "'Barlow', sans-serif", cursor: "pointer" }}>
               Not now
             </button>
           </div>
@@ -543,36 +440,45 @@ export default function UaTobDriverApp({ uid }) {
     setOnline(driver.status === "online");
   }, [driver]);
 
-  // ── Foreground push handler (tab is open) ─────────────────────────
+  // ── Foreground push handler ───────────────────────────────────────
+  // When the tab is open, FCM suppresses the OS notification and fires
+  // onMessage instead. We show the in-app toast AND route through the
+  // service worker so the OS notification still appears on mobile.
   useEffect(() => {
-  if (!uid) return;
-  let unsub = () => {};
-  try {
-    const messaging = getMessaging(firebase_app);
-    unsub = onMessage(messaging, (payload) => {
-      const title = payload.notification?.title ?? "New Ride";
-      const body  = payload.notification?.body  ?? "";
+    if (!uid) return;
+    let unsub = () => {};
+    try {
+      const messaging = getMessaging(firebase_app);
+      unsub = onMessage(messaging, async (payload) => {
+        const title = payload.notification?.title ?? "New Ride";
+        const body  = payload.notification?.body  ?? "";
 
-      // ── In-app toast ──────────────────────────────────────────
-      showNotif(title, body);
+        // ── 1. In-app toast (always) ──────────────────────────
+        showNotif(title, body);
 
-      // ── Native browser notification (foreground) ──────────────
-      if ("Notification" in window && window.Notification.permission === "granted") {
-        new window.Notification(title, {
-          body,
-          icon: "/icons/icon-192x192.png", // adjust path to your PWA icon
-          badge: "/icons/badge-72x72.png", // optional monochrome badge icon
-          tag: payload.data?.rideId ?? "uatob-driver", // collapses duplicate notifs
-          renotify: true,
-        });
-      }
-    });
-  } catch (err) {
-    console.warn("[UaTob] onMessage setup failed:", err.message);
-  }
-  return unsub;
-}, [uid]);
-
+        // ── 2. OS notification via service worker ─────────────
+        // Uses registration.showNotification() instead of
+        // new Notification() — works on Android + mobile Chrome.
+        if ("serviceWorker" in navigator) {
+          try {
+            const reg = await navigator.serviceWorker.ready;
+            reg.showNotification(title, {
+              body,
+              icon:     "/icon.png",
+              tag:      payload.data?.rideId ?? "uatob-driver",
+              renotify: true,
+              data:     payload.data || {},
+            });
+          } catch (swErr) {
+            console.warn("[UaTob] SW notification failed:", swErr.message);
+          }
+        }
+      });
+    } catch (err) {
+      console.warn("[UaTob] onMessage setup failed:", err.message);
+    }
+    return unsub;
+  }, [uid]);
 
   // ── Derived: active trip request ──────────────────────────────────
   const tripRequest = online && !sourceLoading
@@ -696,11 +602,11 @@ export default function UaTobDriverApp({ uid }) {
       setLocationError("");
       showNotif("Online", "Ready for rides");
 
-      // Show our styled notification permission popup only if not already granted
+      // Show styled notification popup only if permission not yet decided.
+      // If already granted — silently re-register token in background.
       if ("Notification" in window && window.Notification.permission === "default") {
         setShowNotifPopup(true);
       } else if ("Notification" in window && window.Notification.permission === "granted") {
-        // Already granted — silently register token in background
         registerFcmToken(uid);
       }
     } catch (err) {
@@ -713,10 +619,10 @@ export default function UaTobDriverApp({ uid }) {
     }
   }, [callDriverStatusFn, uid]);
 
-  // ── Handle notification popup Enable ─────────────────────────────
+  // ── Notification popup handlers ───────────────────────────────────
   const handleEnableNotifications = useCallback(async () => {
     setNotifLoading(true);
-    await registerFcmToken(uid);   // triggers browser prompt inside gesture
+    await registerFcmToken(uid); // browser prompt fires here — inside gesture
     setNotifLoading(false);
     setShowNotifPopup(false);
   }, [uid]);
@@ -839,8 +745,7 @@ export default function UaTobDriverApp({ uid }) {
         />
       )}
 
-      {/* Styled in-app notification — replaces the old AppNotification import */}
-      <AppNotification activeTrip={activeTrip} notificationOverride={notification} />
+      <AppNotification notificationOverride={notification} />
 
       <TripRequestModal
         tripRequest={tripRequest}
@@ -872,7 +777,6 @@ export default function UaTobDriverApp({ uid }) {
             <button><Bell size={15} /></button>
           </div>
         </div>
-
 
         {activeTab === "home"     && <HomeTab driver={driver} online={online} rides={rides} activeTrip={activeTrip} tripStage={tripStage} tripStageColor={tripStageColor} tripBtnLabel={tripBtnLabel} earnings={earnings} onToggleOnline={handleToggleOnline} onAdvanceTrip={handleAdvanceTrip} advancePending={advancePending} />}
         {activeTab === "earnings" && <EarningsTab earnings={earnings} driver={driver} online={online} />}
