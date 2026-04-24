@@ -1,5 +1,10 @@
 const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
-const sgMail = require("@sendgrid/mail");
+const { getMessaging }      = require("firebase-admin/messaging");
+const sgMail                = require("@sendgrid/mail");
+const admin                 = require("firebase-admin");
+
+if (!admin.apps.length) admin.initializeApp();
+const db = admin.firestore();
 
 const esc = (str) =>
   String(str ?? "")
@@ -12,7 +17,7 @@ const ADMIN_EMAIL = "support@uatob.com";
 exports.onDriverStatusChanged = onDocumentUpdated(
   {
     document: "Drivers/{uid}",
-    region:   "us-central1",
+    region:   "us-east1",
     secrets:  ["SENDGRID_API_KEY"],
   },
   async (event) => {
@@ -20,7 +25,6 @@ exports.onDriverStatusChanged = onDocumentUpdated(
       const before = event.data.before.data();
       const after  = event.data.after.data();
 
-      // Only fire when status actually changes between online/offline
       const prevStatus = before?.status;
       const newStatus  = after?.status;
 
@@ -64,13 +68,12 @@ exports.onDriverStatusChanged = onDocumentUpdated(
 
       const year = new Date().getFullYear();
 
-      // ── Color tokens based on status ────────────────────────────────────
-      const accent      = isOnline ? "#16A34A" : "#6B7280";
-      const accentLight = isOnline ? "#f0fdf4" : "#f3f4f6";
-      const accentBorder= isOnline ? "#86efac" : "#d1d5db";
-      const accentText  = isOnline ? "#15803D" : "#374151";
-      const statusEmoji = isOnline ? "🟢" : "⚫";
-      const statusLabel = isOnline ? "ONLINE" : "OFFLINE";
+      const accent       = isOnline ? "#16A34A" : "#6B7280";
+      const accentLight  = isOnline ? "#f0fdf4" : "#f3f4f6";
+      const accentBorder = isOnline ? "#86efac" : "#d1d5db";
+      const accentText   = isOnline ? "#15803D" : "#374151";
+      const statusEmoji  = isOnline ? "🟢" : "⚫";
+      const statusLabel  = isOnline ? "ONLINE" : "OFFLINE";
       const heroGradient = isOnline
         ? "linear-gradient(135deg,#15803D 0%,#16A34A 55%,#22C55E 100%)"
         : "linear-gradient(135deg,#374151 0%,#4B5563 55%,#6B7280 100%)";
@@ -207,13 +210,13 @@ exports.onDriverStatusChanged = onDocumentUpdated(
                 </h2>
                 <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
                   ${[
-                    ["Full Name", fullName],
-                    ["Email",     safeEmail],
-                    ["Phone",     safePhone],
+                    ["Full Name",  fullName],
+                    ["Email",      safeEmail],
+                    ["Phone",      safePhone],
                     ["City / Zip", `${safeCity}, ${safeZip}`],
-                    ["UID",       `<span style="font-family:monospace;font-size:12px;
-                                   background:#e5e7eb;padding:2px 6px;border-radius:4px;">
-                                   ${safeUid}</span>`],
+                    ["UID",        `<span style="font-family:monospace;font-size:12px;
+                                    background:#e5e7eb;padding:2px 6px;border-radius:4px;">
+                                    ${safeUid}</span>`],
                   ].map(([label, val], i, arr) => `
                   <tr>
                     <td style="padding:10px 0;
@@ -260,7 +263,6 @@ exports.onDriverStatusChanged = onDocumentUpdated(
                     </td>
                   </tr>`).join("")}
                 </table>
-
                 ${mapsUrl ? `
                 <div style="margin-top:16px;text-align:center;">
                   <a href="${mapsUrl}"
@@ -369,13 +371,77 @@ exports.onDriverStatusChanged = onDocumentUpdated(
         html,
       };
 
+      // ── Send email ─────────────────────────────────────────────────────
       await sgMail.send(msg);
+      console.log(`📧 Admin email sent: ${fullName} (${uid}) is now ${newStatus}`);
 
-      console.log(`📧 Admin notified: ${fullName} (${uid}) is now ${newStatus} ✅`);
+      // ── Send push to all admin browsers ───────────────────────────────
+      try {
+        const adminTokenDoc = await db.collection("AdminTokens").doc("push").get();
+        const tokens = adminTokenDoc.exists
+          ? (adminTokenDoc.data()?.tokens ?? [])
+          : [];
+
+        if (tokens.length > 0) {
+          const pushResults = await Promise.allSettled(
+            tokens.map((token) =>
+              getMessaging().send({
+                token,
+                notification: {
+                  title: `${statusEmoji} Driver ${isOnline ? "Online" : "Offline"}`,
+                  body:  `${after.firstName || "Driver"} is now ${statusLabel}`,
+                },
+                data: {
+                  screen: "drivers",
+                  uid:    uid ?? "",
+                },
+                webpush: {
+                  notification: {
+                    icon:  "/icon.png",
+                    badge: "/icon.png",
+                  },
+                  fcmOptions: {
+                    link: "https://uatob.com/admin",
+                  },
+                },
+              })
+            )
+          );
+
+          // ── Clean up stale tokens ──────────────────────────────────────
+          const staleTokens = [];
+          pushResults.forEach((result, i) => {
+            if (result.status === "rejected") {
+              const errCode = result.reason?.errorInfo?.code ?? "";
+              if (
+                errCode === "messaging/registration-token-not-registered" ||
+                errCode === "messaging/invalid-registration-token"
+              ) {
+                staleTokens.push(tokens[i]);
+              }
+            }
+          });
+
+          if (staleTokens.length > 0) {
+            await db.collection("AdminTokens").doc("push").update({
+              tokens: admin.firestore.FieldValue.arrayRemove(...staleTokens),
+            });
+            console.log(`🧹 Removed ${staleTokens.length} stale admin FCM token(s)`);
+          }
+
+          console.log(`🔔 Admin push sent to ${tokens.length} browser(s)`);
+        } else {
+          console.log("🔔 No admin FCM tokens found — skipping push");
+        }
+      } catch (pushErr) {
+        console.warn("⚠️ Admin push failed (non-fatal):", pushErr.message);
+      }
+
+      console.log(`✅ Admin fully notified: ${fullName} (${uid}) is now ${newStatus}`);
       return null;
 
     } catch (error) {
-      console.error("❌ Error sending driver status notification:", error);
+      console.error("❌ Error in onDriverStatusChanged:", error);
       if (error.response) console.error(error.response.body);
       return null;
     }

@@ -7,7 +7,7 @@ const db = admin.firestore();
 
 exports.setupDeposit = onCall(
   {
-    region: "us-central1",
+    region: "us-east1",
     secrets: ["STRIPE_SECRET_KEY"],
   },
   async (request) => {
