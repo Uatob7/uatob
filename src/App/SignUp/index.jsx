@@ -14,7 +14,7 @@ import { firebase_app } from "@/firebase/config";
 import { useApplicationSubmitted } from "@/App/SignUp/useApplicationSubmitted";
 
 const storage   = getStorage(firebase_app);
-const functions = getFunctions(firebase_app, "us-central1");
+const functions = getFunctions(firebase_app, "us-east1");
 
 // ── Callables ─────────────────────────────────────────────────────────
 const callCreateDriverProfile = httpsCallable(functions, "createDriverProfile");

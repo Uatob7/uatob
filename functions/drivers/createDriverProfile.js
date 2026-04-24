@@ -6,7 +6,7 @@ initializeApp();
 const db = getFirestore();
 
 exports.createDriverProfile = onCall(
-  { region: "us-central1" },
+  { region: "us-east1" },
   async (request) => {
     const {
       uid,
