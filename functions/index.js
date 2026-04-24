@@ -15,6 +15,7 @@ const { rideTimeoutChecker } = require("./ride/rideTimeoutChecker");
 const { findDrivers } = require("./ride/findDrivers");
 const { onRidePaymentSucceeded } = require("./ride/email/onRidePaymentSucceeded");
 const { onRideCompleted } = require("./ride/email/onRideCompleted");
+const { saveRiderFcmToken } = require("./ride/saveRiderFcmToken");
 
 // Payment functions
 const { cardPayment } = require("./payments/cardPayment");
@@ -98,7 +99,7 @@ exports.updateDriverAchievements = updateDriverAchievements;
 exports.onDriverApplicationSubmitted = onDriverApplicationSubmitted;
 exports.withdraw = withdraw;
 exports.saveDriverFcmToken = saveDriverFcmToken;
-
+exports.saveRiderFcmToken = saveRiderFcmToken;
 exports.processWithdrawal = processWithdrawal;
 exports.onReviewCreated = onReviewCreated;
 exports.onDriverStatusChanged = onDriverStatusChanged;

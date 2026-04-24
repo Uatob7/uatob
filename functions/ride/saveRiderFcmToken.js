@@ -1,38 +1,50 @@
-const { onCall } = require("firebase-functions/v2/callable");
-const { onRequest } = require("firebase-functions/v2/https");
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 
+if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
 
-// ── Save rider FCM token → Accounts/{uid} ──────────────────────────────────
-exports.saveRiderFcmToken = onCall({ region: "us-east1" }, async (request) => {
-  const { uid, token } = request.data;
-  if (!uid)   throw new Error("Missing uid");
-  if (!token) throw new Error("Missing token");
+exports.saveRiderFcmToken = onCall(
+  { region: "us-east1" },
+  async (request) => {
+    try {
+      const { uid, token } = request.data;
 
-  await db.collection("Accounts").doc(uid).set(
-    {
-      fcmToken:   token,
-      updatedAt:  admin.firestore.FieldValue.serverTimestamp(),
-    },
-    { merge: true }
-  );
+      // Validate auth
+      if (!request.auth) {
+        throw new HttpsError("unauthenticated", "User must be authenticated");
+      }
 
-  return { success: true };
-});
+      // Ensure user can only update their own token
+      if (request.auth.uid !== uid) {
+        throw new HttpsError("permission-denied", "UID mismatch");
+      }
 
-// ── Rider location ping → Rides/{rideId} ──────────────────────────────────
-exports.riderLocation = onCall({ region: "us-east1" }, async (request) => {
-  const { rideId, lat, lng } = request.data;
-  if (!rideId)        throw new Error("Missing rideId");
-  if (lat == null)    throw new Error("Missing lat");
-  if (lng == null)    throw new Error("Missing lng");
+      // Validate inputs
+      if (!uid || typeof uid !== "string") {
+        throw new HttpsError("invalid-argument", "Invalid uid");
+      }
 
-  await db.collection("Rides").doc(rideId).update({
-    riderLat:  lat,
-    riderLng:  lng,
-    riderPingAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
+      if (!token || typeof token !== "string") {
+        throw new HttpsError("invalid-argument", "Invalid token");
+      }
 
-  return { success: true };
-});
+      await db.collection("Accounts").doc(uid).set(
+        {
+          fcmToken: token,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      return { success: true };
+
+    } catch (error) {
+      console.error("saveRiderFcmToken error:", error);
+
+      if (error instanceof HttpsError) throw error;
+
+      throw new HttpsError("internal", error.message);
+    }
+  }
+);
