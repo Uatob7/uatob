@@ -704,3 +704,66 @@ export default function TrackingMap({
     </div>
   );
 }
+
+use the data from the [{…}]
+
+1. 0: 
+   1. acceptedAt: Timestamp {seconds: 1777153501, nanoseconds: 484000000}
+   2. adminNotified: true
+   3. candidateDriverUids: ['fR1aGa2AHod1aVuyaiEA95RqDYp1']
+   4. candidateDrivers: [{…}]
+   5. createdAt: Sat Apr 25 2026 17:41:05 GMT-0400 (Eastern Daylight Time) {}
+   6. currentDriverIndex: 0
+   7. driverDistanceMiles: 0
+   8. driverEtaMin: 1
+   9. driverInfo: {nearestMiles: 0.07, etaMin: 1, driverCount: 1, etaLabel: '1–3 min', stale: false}
+   10. driverLat: 28.5729799
+   11. driverLng: -81.4695497
+   12. driverPayout: 3.74
+   13. driverUid: "fR1aGa2AHod1aVuyaiEA95RqDYp1"
+   14. dropoff: "3024 North Powers Drive, Orlando, FL, USA"
+   15. dropoffCity: "Orlando"
+   16. dropoffLat: 28.5819909
+   17. dropoffLng: -81.4694363
+   18. dropoffZip: "32818"
+   19. emailDispatchAt: Timestamp {seconds: 1777153442, nanoseconds: 266000000}
+   20. emailDispatchStarted: true
+   21. emailSentToDrivers: {}
+   22. expiresAt: Timestamp {seconds: 1777153325, nanoseconds: 886000000}
+   23. fareBreakdown: {}
+   24. fareTotal: 4.99
+   25. id: "qseior2UgFNMImHECXMB"
+   26. paymentIntentId: "pi_3TQDwjJhpOy6wtDq1wkAGuoJ"
+   27. paymentMethod: "cashapp"
+   28. paymentStatus: "succeeded"
+   29. payoutStatus: "pending"
+   30. pickup: "2382 Locke Avenue, Orlando, FL, USA"
+   31. pickupCity: "Orlando"
+   32. pickupLat: 28.5730545
+   33. pickupLng: -81.4696329
+   34. pickupZip: "32818"
+   35. platformFee: 1.25
+   36. polyline: "wtkmDp~fpNxACLI?a@GeF@s@{\\F_C?{@?qXHBjBFJIdEBTDNRT"
+   37. pushDispatchAt: Timestamp {seconds: 1777153444, nanoseconds: 114000000}
+   38. pushDispatchStarted: true
+   39. pushSentToDrivers: {}
+   40. receiptEmailSent: true
+   41. requestSentAt: Timestamp {seconds: 1777153451, nanoseconds: 311000000}
+   42. rideLabel: "Economy"
+   43. rideType: "economy"
+   44. riderDropoffDistanceMiles: 0.8
+   45. riderDropoffEtaMin: 4
+   46. riderLat: 28.572697500000004
+   47. riderLng: -81.46776974999999
+   48. riderLocationAt: Timestamp {seconds: 1777154707, nanoseconds: 569000000}
+   49. status: "driver_assigned"
+   50. timedOutAt: Timestamp {seconds: 1777153451, nanoseconds: 116000000}
+   51. timeoutMinutes: 1
+   52. tripDistanceMiles: 0.93
+   53. tripDurationMin: 5
+   54. tripProgress: 0.13978494623655913
+   55. uid: "PU5NFVybcpe78cBgNxmGXmSDYV52"
+   56. updatedAt: Sat Apr 25 2026 18:05:07 GMT-0400 (Eastern Daylight Time) {}
+   57. [[Prototype]]: Object
+2. length: 1
+3. [[Prototype]]: Array(0) active to build the live tracking

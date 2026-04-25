@@ -844,10 +844,12 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
 
       {/* ── Map ── */}
 
-       <TrackingMap
+        <TrackingMap
         active={active}
       />
 
+
+      
      
       {/* ── Header row ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
