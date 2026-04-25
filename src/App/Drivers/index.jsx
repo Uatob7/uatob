@@ -396,6 +396,8 @@ export default function UaTobDriverApp({ uid }) {
   console.log("Rendering Driver App with UID:", uid);
 
   const { driver }                        = useDriverAccount(uid);
+
+ console.log("Driver data:", driver);
   const { earnings, refetch }             = useDriverEarnings(uid);
   const { rides, loading: ridesLoading }  = useDriverRides(uid);
   const { requests, loading: reqLoading } = useIncomingRequest(uid);

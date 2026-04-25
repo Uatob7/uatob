@@ -704,7 +704,7 @@ const AppSettingsSection = ({ driver, onBack }) => {
 
 // ─── PROFILE TAB ───────────────────────────────────────────────────────────
 export default function ProfileTab({ driver, online, onSignOut }) {
-  const [activeSection, setActiveSection] = useState(null);
+  const [activeSection, setActiveSection] = useState(driver?.status === "rejected" ? "documents" : null);
   const accentColor = online ? C.onlineGreen : C.offlineInk;
 
   const firstName   = driver?.firstName ?? "";
