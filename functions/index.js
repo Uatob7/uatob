@@ -49,6 +49,7 @@ const { checkDriverStripeCapability } = require("./drivers/checkDriverStripeCapa
 const { saveDriverFcmToken } = require("./drivers/saveDriverFcmToken");
 const { sendPushNotification } = require("./drivers/sendPushNotification");
 const { pushCandidateDrivers } = require("./drivers/notification/pushCandidateDrivers");
+const { reassignRide } = require("./drivers/reassignRide");
 
 
 
@@ -107,6 +108,7 @@ exports.onDriverApplicationSubmitted = onDriverApplicationSubmitted;
 exports.withdraw = withdraw;
 exports.saveDriverFcmToken = saveDriverFcmToken;
 exports.saveRiderFcmToken = saveRiderFcmToken;
+exports.reassignRide = reassignRide;
 exports.processWithdrawal = processWithdrawal;
 exports.onReviewCreated = onReviewCreated;
 exports.onDriverStatusChanged = onDriverStatusChanged;
