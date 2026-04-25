@@ -84,7 +84,7 @@ exports.ApplicationRejected = onDocumentUpdated(
 
               <!-- CTA -->
               <div style="text-align:center;margin:30px 0;">
-                <a href="https://uatob.com/help"
+                <a href="https://uatob.com/driver"
                    style="background:#DC2626;color:#fff;
                           padding:14px 28px;text-decoration:none;
                           border-radius:10px;font-weight:bold;">
