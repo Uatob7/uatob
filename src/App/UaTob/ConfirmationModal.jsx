@@ -10,8 +10,24 @@ const db = getFirestore(firebase_app);
 const CANCEL_RIDE_URL    = 'https://cancelride-ady2s2xhhq-uc.a.run.app';
 const EXTEND_RIDE_SEARCH_URL = 'https://extendridesearch-ady2s2xhhq-uc.a.run.app';
 
+// ── Seconds remaining from expiresAt (Firestore Timestamp | Date | string) ──
+function getSecondsRemaining(expiresAt) {
+  if (!expiresAt) return 0;
+  let ms;
+  if (expiresAt instanceof Date)              ms = expiresAt.getTime();
+  else if (typeof expiresAt.toDate === 'function') ms = expiresAt.toDate().getTime();
+  else                                         ms = new Date(expiresAt).getTime();
+  if (!ms || isNaN(ms)) return 0;
+  return Math.max(0, Math.floor((ms - Date.now()) / 1000));
+}
 
-
+// ── Format a Firestore Timestamp | Date | string → readable time ──
+function fmtTime(ts) {
+  if (!ts) return null;
+  const d = typeof ts.toDate === 'function' ? ts.toDate() : new Date(ts);
+  if (isNaN(d)) return null;
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
 
 export default function ConfirmationModal({
   onClose,
@@ -26,8 +42,8 @@ export default function ConfirmationModal({
   const [visible,       setVisible]       = useState(false);
   const [liveRide,      setLiveRide]      = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
-,
-  const timerRef = useRef(null);
+
+  const timerRef       = useRef(null);
   const closeTimeoutRef = useRef(null);
   const mountedRef     = useRef(true);
   const didTimeoutRef  = useRef(false);
