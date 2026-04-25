@@ -1,11 +1,18 @@
-import { useState } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
   Car, Star, Shield, DollarSign, Bell, Settings, LogOut,
   ChevronRight, ArrowLeft, Globe, Map, Moon, Wifi, Zap,
   FileText, Clock, TrendingUp, CreditCard, TrendingDown,
-  CheckCircle, AlertCircle, XCircle,
+  CheckCircle, AlertCircle, XCircle, Upload, X, Eye,
+  Camera, Loader2, CheckCircle2,
 } from 'lucide-react';
 import { C } from '@/App/Drivers/constants.js';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { getFirestore, doc, updateDoc } from 'firebase/firestore';
+import { firebase_app } from '@/firebase/config';
+
+const storage = getStorage(firebase_app);
+const db      = getFirestore(firebase_app);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 function formatDate(ts) {
@@ -48,9 +55,249 @@ const ComingSoonBadge = ({ color = C.textDim, bg = C.surfaceAlt, label = "COMING
   </div>
 );
 
+// ─── UPLOAD SLOT ───────────────────────────────────────────────────────────
+function UploadSlot({ slotKey, urlKey, label, Icon, docs, uid, onUploaded }) {
+  const inputRef              = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress]   = useState(0);
+  const [error, setError]         = useState("");
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [showPreview, setShowPreview] = useState(false);
+  const [justDone, setJustDone]   = useState(false);
+
+  const existingUrl = docs[urlKey] || "";
+  const isUploaded  = Boolean(existingUrl || docs[slotKey]);
+
+  const getStatus = () => {
+    if (isUploaded) return { label: "uploaded", color: C.onlineGreen, bg: "#F0FDF4", border: "rgba(22,163,74,.25)", iconBg: "rgba(22,163,74,.12)", iconColor: "#16A34A" };
+    return { label: "required", color: C.red, bg: "#FEF2F2", border: "rgba(220,38,38,.25)", iconBg: "rgba(220,38,38,.12)", iconColor: C.red };
+  };
+
+  const s = getStatus();
+
+  const handleFile = useCallback(async (file) => {
+    if (!file || !uid) return;
+    setError("");
+
+    const allowed = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+    if (!allowed.includes(file.type)) {
+      setError("JPG, PNG, WEBP or PDF only");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setError("Max file size is 10 MB");
+      return;
+    }
+
+    // Local preview
+    if (file.type.startsWith("image/")) {
+      setPreviewUrl(URL.createObjectURL(file));
+    }
+
+    setUploading(true);
+    setProgress(0);
+
+    try {
+      const ext      = file.name.split(".").pop();
+      const path     = `drivers/${uid}/documents/${slotKey}_${Date.now()}.${ext}`;
+      const storageRef = ref(storage, path);
+      const task     = uploadBytesResumable(storageRef, file);
+
+      await new Promise((resolve, reject) => {
+        task.on(
+          "state_changed",
+          snap => setProgress(Math.round((snap.bytesTransferred / snap.totalBytes) * 100)),
+          reject,
+          resolve,
+        );
+      });
+
+      const downloadURL = await getDownloadURL(task.snapshot.ref);
+
+      // Write to Firestore
+      await updateDoc(doc(db, "Drivers", uid), {
+        [`documents.${slotKey}`]:    true,
+        [`documents.${urlKey}`]:     downloadURL,
+      });
+
+      setPreviewUrl(downloadURL);
+      setJustDone(true);
+      setTimeout(() => setJustDone(false), 2500);
+      onUploaded?.({ slotKey, urlKey, downloadURL });
+    } catch (err) {
+      console.error(`Upload failed for ${slotKey}:`, err);
+      setError("Upload failed — please try again");
+      setPreviewUrl("");
+    } finally {
+      setUploading(false);
+      setProgress(0);
+    }
+  }, [uid, slotKey, urlKey, onUploaded]);
+
+  const handleChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) handleFile(file);
+    e.target.value = "";
+  };
+
+  const displayUrl = previewUrl || existingUrl;
+
+  return (
+    <>
+      {/* Preview lightbox */}
+      {showPreview && displayUrl && (
+        <div
+          onClick={() => setShowPreview(false)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 1200,
+            background: "rgba(0,0,0,.85)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            padding: 24,
+          }}
+        >
+          <button
+            onClick={() => setShowPreview(false)}
+            style={{
+              position: "absolute", top: 20, right: 20,
+              background: "rgba(255,255,255,.15)", border: "none",
+              borderRadius: "50%", width: 40, height: 40,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer",
+            }}
+          >
+            <X size={20} color="#fff" />
+          </button>
+          {displayUrl.startsWith("data:application/pdf") ? (
+            <div style={{ color: "#fff", fontSize: 14, fontWeight: 600 }}>PDF preview not available</div>
+          ) : (
+            <img
+              src={displayUrl}
+              alt={label}
+              style={{ maxWidth: "100%", maxHeight: "80vh", borderRadius: 16, objectFit: "contain" }}
+            />
+          )}
+        </div>
+      )}
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,application/pdf"
+        style={{ display: "none" }}
+        onChange={handleChange}
+      />
+
+      <div
+        style={{
+          background: s.bg,
+          border: `1.5px solid ${s.border}`,
+          borderRadius: 16,
+          padding: "14px 14px 13px",
+          position: "relative",
+          overflow: "hidden",
+          cursor: uploading ? "default" : "pointer",
+          transition: "transform .15s ease, box-shadow .15s ease",
+        }}
+        onClick={() => { if (!uploading) inputRef.current?.click(); }}
+        onMouseEnter={e => { if (!uploading) { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,.08)"; } }}
+        onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}
+      >
+        {/* Progress bar */}
+        {uploading && (
+          <div style={{
+            position: "absolute", bottom: 0, left: 0,
+            height: 3, background: "#2563EB",
+            width: `${progress}%`,
+            transition: "width .2s ease",
+            borderRadius: "0 3px 0 0",
+          }} />
+        )}
+
+        {/* Just done flash */}
+        {justDone && (
+          <div style={{
+            position: "absolute", inset: 0,
+            background: "rgba(22,163,74,.08)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            borderRadius: 16,
+            animation: "fadeIn .2s ease",
+          }}>
+            <CheckCircle2 size={28} color="#16A34A" />
+          </div>
+        )}
+
+        {/* Icon */}
+        <div style={{
+          width: 34, height: 34,
+          background: uploading ? "rgba(37,99,235,.12)" : s.iconBg,
+          borderRadius: 10,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          marginBottom: 8,
+        }}>
+          {uploading
+            ? <Loader2 size={16} color="#2563EB" style={{ animation: "spin 1s linear infinite" }} />
+            : isUploaded
+              ? <Icon size={16} color={s.iconColor} />
+              : <Upload size={16} color={s.iconColor} />
+          }
+        </div>
+
+        {/* Label */}
+        <div className="condensed" style={{ fontSize: 13, fontWeight: 800, color: C.text, lineHeight: 1.2, marginBottom: 4 }}>
+          {label}
+        </div>
+
+        {/* Status / progress */}
+        <div className="mono" style={{ fontSize: 10, fontWeight: 700, color: uploading ? "#2563EB" : s.color, letterSpacing: ".04em" }}>
+          {uploading ? `UPLOADING ${progress}%` : isUploaded ? "UPLOADED" : "TAP TO UPLOAD"}
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div style={{ fontSize: 10, color: C.red, marginTop: 4, fontWeight: 600 }}>{error}</div>
+        )}
+
+        {/* Preview + re-upload row */}
+        {isUploaded && !uploading && (
+          <div
+            style={{ display: "flex", gap: 6, marginTop: 10 }}
+            onClick={e => e.stopPropagation()}
+          >
+            {displayUrl && !displayUrl.startsWith("data:application/pdf") && (
+              <button
+                onClick={() => setShowPreview(true)}
+                style={{
+                  flex: 1, padding: "5px 0", border: `1px solid ${s.border}`,
+                  borderRadius: 8, background: s.iconBg, cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+                }}
+              >
+                <Eye size={11} color={s.iconColor} />
+                <span className="mono" style={{ fontSize: 9.5, fontWeight: 700, color: s.iconColor }}>VIEW</span>
+              </button>
+            )}
+            <button
+              onClick={() => inputRef.current?.click()}
+              style={{
+                flex: 1, padding: "5px 0", border: `1px solid ${C.border}`,
+                borderRadius: 8, background: C.surfaceAlt, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+              }}
+            >
+              <Camera size={11} color={C.textMid} />
+              <span className="mono" style={{ fontSize: 9.5, fontWeight: 700, color: C.textMid }}>REPLACE</span>
+            </button>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 // ─── DOCUMENTS & INSURANCE ─────────────────────────────────────────────────
 const DocumentsInsuranceSection = ({ driver, onBack }) => {
-  const docs = driver?.documents ?? {};
+  const uid  = driver?.uid ?? null;
+  const [docs, setDocs] = useState(driver?.documents ?? {});
 
   const slots = [
     { key: "licenseFront", urlKey: "licenseFrontUrl", label: "License (Front)",   Icon: FileText },
@@ -60,60 +307,97 @@ const DocumentsInsuranceSection = ({ driver, onBack }) => {
     { key: "profilePhoto", urlKey: "profilePhotoUrl", label: "Profile Photo",     Icon: Star     },
   ];
 
-  const getStatus = (uploaded, url) => {
-    if (url)       return { label: "uploaded",  color: C.onlineGreen, bg: "#F0FDF4", border: "rgba(22,163,74,.25)",  iconBg: "rgba(22,163,74,.12)",  iconColor: "#16A34A" };
-    if (uploaded)  return { label: "pending",   color: "#D97706",     bg: "#FFFBEB", border: "rgba(217,119,6,.25)",  iconBg: "rgba(217,119,6,.12)",  iconColor: "#D97706" };
-    return           { label: "required",   color: C.red,         bg: "#FEF2F2", border: "rgba(220,38,38,.25)",  iconBg: "rgba(220,38,38,.12)",  iconColor: C.red    };
-  };
+  const handleUploaded = useCallback(({ slotKey, urlKey, downloadURL }) => {
+    setDocs(prev => ({ ...prev, [slotKey]: true, [urlKey]: downloadURL }));
+  }, []);
 
   const uploaded = slots.filter(s => docs[s.urlKey] || docs[s.key]).length;
+  const allDone  = uploaded === slots.length;
 
   return (
     <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14, animation: "slideUp .38s ease-out forwards" }}>
+      <style>{`
+        @keyframes spin     { from { transform: rotate(0deg)  } to { transform: rotate(360deg) } }
+        @keyframes fadeIn   { from { opacity: 0 }               to { opacity: 1 }               }
+      `}</style>
+
       <SectionHeader title="Documents & Insurance" onBack={onBack} />
 
       {/* Progress banner */}
-      <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 18, padding: "18px 16px", display: "flex", gap: 14, alignItems: "flex-start" }}>
-        <div style={{ width: 42, height: 42, background: "#2563EB", borderRadius: 13, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <Shield size={19} color="#fff" />
+      <div style={{
+        background: allDone ? "#F0FDF4" : "#EFF6FF",
+        border: `1px solid ${allDone ? "#BBF7D0" : "#BFDBFE"}`,
+        borderRadius: 18, padding: "18px 16px",
+        display: "flex", gap: 14, alignItems: "flex-start",
+      }}>
+        <div style={{
+          width: 42, height: 42,
+          background: allDone ? "#16A34A" : "#2563EB",
+          borderRadius: 13,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          flexShrink: 0,
+        }}>
+          {allDone
+            ? <CheckCircle2 size={20} color="#fff" />
+            : <Shield size={19} color="#fff" />
+          }
         </div>
         <div style={{ flex: 1 }}>
-          <div className="condensed" style={{ fontSize: 15, fontWeight: 900, color: "#1E3A8A" }}>
+          <div className="condensed" style={{ fontSize: 15, fontWeight: 900, color: allDone ? "#14532D" : "#1E3A8A" }}>
             {uploaded}/{slots.length} documents submitted
           </div>
-          <div style={{ marginTop: 8, height: 6, background: "#BFDBFE", borderRadius: 99, overflow: "hidden" }}>
-            <div style={{ width: `${(uploaded / slots.length) * 100}%`, height: "100%", background: "#2563EB", borderRadius: 99, transition: "width .4s" }} />
+          <div style={{ marginTop: 8, height: 6, background: allDone ? "#BBF7D0" : "#BFDBFE", borderRadius: 99, overflow: "hidden" }}>
+            <div style={{
+              width: `${(uploaded / slots.length) * 100}%`,
+              height: "100%",
+              background: allDone ? "#16A34A" : "#2563EB",
+              borderRadius: 99,
+              transition: "width .4s",
+            }} />
           </div>
-          <div style={{ fontSize: 12, color: "#3B82F6", marginTop: 5 }}>
-            {uploaded === slots.length ? "All documents submitted — under review" : `${slots.length - uploaded} document${slots.length - uploaded !== 1 ? "s" : ""} still needed`}
+          <div style={{ fontSize: 12, color: allDone ? "#16A34A" : "#3B82F6", marginTop: 5 }}>
+            {allDone
+              ? "All documents submitted — under review"
+              : `${slots.length - uploaded} document${slots.length - uploaded !== 1 ? "s" : ""} still needed — tap a card to upload`
+            }
           </div>
         </div>
       </div>
 
       {/* Doc grid */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-        {slots.map(({ key, urlKey, label, Icon }) => {
-          const s = getStatus(docs[key], docs[urlKey]);
-          return (
-            <div key={key} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 15, padding: "14px 14px 13px" }}>
-              <div style={{ width: 34, height: 34, background: s.iconBg, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
-                <Icon size={16} color={s.iconColor} />
-              </div>
-              <div className="condensed" style={{ fontSize: 13.5, fontWeight: 800, color: C.text, lineHeight: 1.2, marginBottom: 4 }}>{label}</div>
-              <div className="mono" style={{ fontSize: 10.5, fontWeight: 700, color: s.color, letterSpacing: ".04em" }}>{s.label}</div>
-            </div>
-          );
-        })}
+        {slots.map(({ key, urlKey, label, Icon }) => (
+          <UploadSlot
+            key={key}
+            slotKey={key}
+            urlKey={urlKey}
+            label={label}
+            Icon={Icon}
+            docs={docs}
+            uid={uid}
+            onUploaded={handleUploaded}
+          />
+        ))}
       </div>
 
-      <ComingSoonBadge label="DOCUMENT MANAGEMENT · COMING IN v1.2" />
+      {/* Info note */}
+      <div style={{
+        background: "#FFFBEB", border: "1px solid rgba(217,119,6,.2)",
+        borderRadius: 13, padding: "13px 16px",
+        display: "flex", gap: 10, alignItems: "flex-start",
+      }}>
+        <AlertCircle size={15} color="#D97706" style={{ flexShrink: 0, marginTop: 1 }} />
+        <span style={{ fontSize: 12, color: "#92400E", fontWeight: 500, lineHeight: 1.5 }}>
+          Uploaded documents are reviewed by the UaTob team within 24–48 hours. You'll be notified once approved.
+        </span>
+      </div>
     </div>
   );
 };
 
 // ─── PAYMENT & PAYOUTS ─────────────────────────────────────────────────────
 const PaymentPayoutsSection = ({ driver, onBack }) => {
-  const [tab, setTab] = useState("overview"); // "overview" | "history"
+  const [tab, setTab] = useState("overview");
 
   const earnings   = driver?.earnings   ?? {};
   const withdrawal = driver?.withdrawal ?? {};
@@ -143,7 +427,6 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
     failed:  { label: "Failed",  color: C.red,         Icon: XCircle     },
   }[lastPayoutStatus] ?? { label: lastPayoutStatus, color: C.textMid, Icon: AlertCircle };
 
-  // Bar chart helpers
   const maxBar = Math.max(...dailyBreakdown.map(d => d.amount ?? 0), 1);
 
   const TabBtn = ({ id, label }) => (
@@ -166,7 +449,6 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
     <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14, animation: "slideUp .38s ease-out forwards" }}>
       <SectionHeader title="Payment & Payouts" onBack={onBack} />
 
-      {/* Tab switcher */}
       <div style={{ display: "flex", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 13, padding: 4, gap: 4 }}>
         <TabBtn id="overview" label="Overview" />
         <TabBtn id="history"  label="Payout History" />
@@ -174,7 +456,6 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
 
       {tab === "overview" && (
         <>
-          {/* 80% hero */}
           <div style={{
             background: "linear-gradient(135deg,#F0FDF4,#DCFCE7,#F0FDF4)",
             border: "1.5px solid rgba(22,163,74,.28)",
@@ -194,12 +475,11 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
             </div>
           </div>
 
-          {/* Stat row */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
             {[
-              { label: "Today",   value: fmtMoney(todayEarnings),  sub: `${todayTrips} trip${todayTrips !== 1 ? "s" : ""}` },
-              { label: "This Week", value: fmtMoney(weekEarnings), sub: `${weekTrips} trips`  },
-              { label: "This Month", value: fmtMoney(monthEarnings), sub: `${monthTrips} trips` },
+              { label: "Today",      value: fmtMoney(todayEarnings),  sub: `${todayTrips} trip${todayTrips !== 1 ? "s" : ""}` },
+              { label: "This Week",  value: fmtMoney(weekEarnings),   sub: `${weekTrips} trips`  },
+              { label: "This Month", value: fmtMoney(monthEarnings),  sub: `${monthTrips} trips` },
             ].map(({ label, value, sub }) => (
               <div key={label} style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 13, padding: "13px 12px" }}>
                 <div className="lbl" style={{ marginBottom: 4 }}>{label}</div>
@@ -209,7 +489,6 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
             ))}
           </div>
 
-          {/* Weekly bar chart */}
           {dailyBreakdown.length > 0 && (
             <div className="card" style={{ padding: "18px 18px 14px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
@@ -267,7 +546,6 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
             </div>
           )}
 
-          {/* Last sync */}
           {lastSynced && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "center" }}>
               <Clock size={11} color={C.textDim} />
@@ -279,44 +557,28 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
 
       {tab === "history" && (
         <>
-          {/* Last payout card */}
           <div className="card" style={{ padding: "20px" }}>
             <div className="condensed" style={{ fontSize: 15, fontWeight: 800, color: C.text, marginBottom: 14 }}>Last Payout</div>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <div style={{
-                width: 44, height: 44,
-                background: withdrawalStatusMeta.color + "15",
-                borderRadius: 13,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                flexShrink: 0,
-              }}>
+              <div style={{ width: 44, height: 44, background: withdrawalStatusMeta.color + "15", borderRadius: 13, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <withdrawalStatusMeta.Icon size={20} color={withdrawalStatusMeta.color} />
               </div>
               <div style={{ flex: 1 }}>
-                <div className="condensed" style={{ fontSize: 26, fontWeight: 900, color: C.text, lineHeight: 1 }}>
-                  {fmtMoney(lastPayout)}
-                </div>
-                <div style={{ fontSize: 12.5, color: C.textMid, marginTop: 3 }}>
-                  {formatDateTime(lastPayoutAt)}
-                </div>
+                <div className="condensed" style={{ fontSize: 26, fontWeight: 900, color: C.text, lineHeight: 1 }}>{fmtMoney(lastPayout)}</div>
+                <div style={{ fontSize: 12.5, color: C.textMid, marginTop: 3 }}>{formatDateTime(lastPayoutAt)}</div>
               </div>
-              <div style={{
-                background: withdrawalStatusMeta.color + "15",
-                border: `1px solid ${withdrawalStatusMeta.color}30`,
-                borderRadius: 20, padding: "4px 12px",
-              }}>
+              <div style={{ background: withdrawalStatusMeta.color + "15", border: `1px solid ${withdrawalStatusMeta.color}30`, borderRadius: 20, padding: "4px 12px" }}>
                 <span className="mono" style={{ fontSize: 11, fontWeight: 700, color: withdrawalStatusMeta.color, letterSpacing: ".04em" }}>
                   {withdrawalStatusMeta.label.toUpperCase()}
                 </span>
               </div>
             </div>
 
-            {/* withdrawal meta */}
             <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.border}`, display: "flex", flexDirection: "column", gap: 8 }}>
               {[
                 { label: "Rides included", value: withdrawal.rideCount ?? 0 },
-                { label: "Payout created",  value: formatDateTime(withdrawal.createdAt) },
-                { label: "Last updated",    value: formatDateTime(withdrawal.updatedAt) },
+                { label: "Payout created", value: formatDateTime(withdrawal.createdAt) },
+                { label: "Last updated",   value: formatDateTime(withdrawal.updatedAt) },
               ].map(({ label, value }) => (
                 <div key={label} style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ fontSize: 12.5, color: C.textDim }}>{label}</span>
@@ -326,12 +588,7 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
             </div>
           </div>
 
-          {/* Bank account placeholder */}
-          <div style={{
-            background: C.surfaceAlt, border: `1.5px dashed ${C.border}`,
-            borderRadius: 15, padding: "18px 16px",
-            display: "flex", alignItems: "center", gap: 14, opacity: 0.65,
-          }}>
+          <div style={{ background: C.surfaceAlt, border: `1.5px dashed ${C.border}`, borderRadius: 15, padding: "18px 16px", display: "flex", alignItems: "center", gap: 14, opacity: 0.65 }}>
             <div style={{ width: 38, height: 38, background: C.blue + "18", borderRadius: 11, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <CreditCard size={17} color={C.blue} />
             </div>
@@ -341,7 +598,6 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
             </div>
           </div>
 
-          {/* Next-day payout note */}
           <div style={{ background: "#F0FDF4", border: "1px solid rgba(22,163,74,.2)", borderRadius: 13, padding: "13px 16px", display: "flex", gap: 10, alignItems: "center" }}>
             <Zap size={16} color={C.onlineGreen} />
             <span style={{ fontSize: 12.5, color: "#15803D", fontWeight: 600 }}>
@@ -394,12 +650,7 @@ const NotificationsSection = ({ driver, onBack }) => {
             {items.map(({ label, sub, on }, i) => (
               <div
                 key={label}
-                style={{
-                  padding: "14px 18px",
-                  borderBottom: i < items.length - 1 ? `1px solid ${C.border}` : "none",
-                  display: "flex", alignItems: "center", gap: 12,
-                  opacity: 0.62,
-                }}
+                style={{ padding: "14px 18px", borderBottom: i < items.length - 1 ? `1px solid ${C.border}` : "none", display: "flex", alignItems: "center", gap: 12, opacity: 0.62 }}
               >
                 <div style={{ flex: 1 }}>
                   <div className="condensed" style={{ fontSize: 15, fontWeight: 800, color: C.text }}>{label}</div>
@@ -457,12 +708,7 @@ const AppSettingsSection = ({ driver, onBack }) => {
             {items.map(({ label, value, Icon, color }, i) => (
               <div
                 key={label}
-                style={{
-                  padding: "13px 18px",
-                  borderBottom: i < items.length - 1 ? `1px solid ${C.border}` : "none",
-                  display: "flex", alignItems: "center", gap: 12,
-                  opacity: 0.62,
-                }}
+                style={{ padding: "13px 18px", borderBottom: i < items.length - 1 ? `1px solid ${C.border}` : "none", display: "flex", alignItems: "center", gap: 12, opacity: 0.62 }}
               >
                 <div style={{ width: 34, height: 34, background: color + "15", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   <Icon size={15} color={color} />
@@ -503,11 +749,11 @@ export default function ProfileTab({ driver, online, onSignOut }) {
     : "—";
 
   const settingsItems = [
-    { id: "documents",     Icon: Shield,     label: "Documents & Insurance", accent: C.blue        },
-    { id: "payments",      Icon: DollarSign, label: "Payment & Payouts",     accent: accentColor   },
-    { id: "notifications", Icon: Bell,       label: "Notifications",         accent: C.textMid     },
-    { id: "settings",      Icon: Settings,   label: "App Settings",          accent: C.purple      },
-    { id: "signout",       Icon: LogOut,     label: "Sign Out",              accent: C.red         },
+    { id: "documents",     Icon: Shield,     label: "Documents & Insurance", accent: C.blue      },
+    { id: "payments",      Icon: DollarSign, label: "Payment & Payouts",     accent: accentColor },
+    { id: "notifications", Icon: Bell,       label: "Notifications",         accent: C.textMid   },
+    { id: "settings",      Icon: Settings,   label: "App Settings",          accent: C.purple    },
+    { id: "signout",       Icon: LogOut,     label: "Sign Out",              accent: C.red       },
   ];
 
   if (activeSection === "documents")
@@ -533,7 +779,6 @@ export default function ProfileTab({ driver, online, onSignOut }) {
         boxShadow:    online ? "0 4px 24px rgba(22,163,74,.1)" : `0 2px 12px ${C.shadow}`,
       }}>
         <div style={{ position: "absolute", inset: 0, background: `repeating-linear-gradient(45deg,transparent,transparent 60px,${online ? "rgba(22,163,74,.03)" : "rgba(0,0,0,.015)"} 60px,${online ? "rgba(22,163,74,.03)" : "rgba(0,0,0,.015)"} 61px)` }} />
-
         <div style={{
           width: 72, height: 72,
           background: online
@@ -558,7 +803,9 @@ export default function ProfileTab({ driver, online, onSignOut }) {
         </div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, marginTop: 12 }}>
           {[...Array(5)].map((_, i) => <Star key={i} size={15} fill="#F59E0B" color="#F59E0B" />)}
-          <span className="mono" style={{ fontSize: 16, fontWeight: 700, color: C.text, marginLeft: 5 }}>4.93</span>
+          <span className="mono" style={{ fontSize: 16, fontWeight: 700, color: C.text, marginLeft: 5 }}>
+            {driver?.averageRating != null ? driver.averageRating.toFixed(2) : "—"}
+          </span>
         </div>
       </div>
 
@@ -605,7 +852,6 @@ export default function ProfileTab({ driver, online, onSignOut }) {
           </div>
         ))}
       </div>
-
     </div>
   );
 }
