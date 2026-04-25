@@ -43,29 +43,18 @@ function loadSeenReviews()    { try { return new Set(JSON.parse(localStorage.get
 function saveSeenReviews(set) { try { localStorage.setItem(LS_SEEN_REVIEWS_KEY, JSON.stringify([...set])); } catch (_) {} }
 
 // ── FCM Push Registration ─────────────────────────────────────────────
-// Must be called inside a user gesture (button tap) so browsers allow
-// the Notification permission prompt to appear.
 async function registerFcmToken(uid) {
   try {
-    if (!("Notification" in window)) {
-      console.warn("[UaTob] Push not supported in this browser");
-      return;
-    }
+    if (!("Notification" in window)) { console.warn("[UaTob] Push not supported"); return; }
     const permission = await window.Notification.requestPermission();
-    if (permission !== "granted") {
-      console.warn("[UaTob] Push permission denied by driver");
-      return;
-    }
+    if (permission !== "granted") { console.warn("[UaTob] Push permission denied"); return; }
     const messaging = getMessaging(firebase_app);
     const token = await getToken(messaging, {
       vapidKey: "BJ_sRHZonSGCKk2mB2i9ofTRS8ouFVMV-I15FX4sqdUXHyVb1lo6H-N4GMPrlcIIshRlykQicaxkxxFxcYcI4JQ",
     });
-    if (!token) {
-      console.warn("[UaTob] FCM returned empty token — check that firebase-messaging-sw.js exists at /");
-      return;
-    }
+    if (!token) { console.warn("[UaTob] FCM returned empty token"); return; }
     await callSaveFcmToken({ driverId: uid, token });
-    console.log("[UaTob] FCM token registered successfully");
+    console.log("[UaTob] FCM token registered");
   } catch (err) {
     console.warn("[UaTob] Push registration failed:", err.message);
   }
@@ -246,7 +235,6 @@ function AppNotification({ notificationOverride }) {
   }, [notif?.title, notif?.msg]);
 
   if (!visible || !notif) return null;
-
   const theme = getNotifTheme(notif.title);
   const { Icon } = theme;
 
@@ -328,10 +316,30 @@ function NotificationPopup({ onEnable, onSkip, loading }) {
   );
 }
 
+// ── REJECTED BANNER ───────────────────────────────────────────────────
+function RejectedBanner() {
+  return (
+    <div style={{ margin: "16px 20px", padding: "16px", borderRadius: "16px", background: "rgba(220,38,38,.06)", border: "1.5px solid rgba(220,38,38,.20)", display: "flex", alignItems: "flex-start", gap: "12px" }}>
+      <div style={{ flexShrink: 0, width: "36px", height: "36px", borderRadius: "50%", background: "rgba(220,38,38,.10)", border: "1.5px solid rgba(220,38,38,.25)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <AlertCircle size={18} color="#DC2626" />
+      </div>
+      <div>
+        <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "16px", fontWeight: "900", color: "#DC2626", letterSpacing: "-0.2px", marginBottom: "4px" }}>Application not approved</div>
+        <div style={{ fontSize: "13px", color: "#6B7280", fontWeight: "500", lineHeight: "1.6" }}>
+          Your driver application was not approved. Please review your profile and resubmit your documents, or contact support for more information.
+        </div>
+        <a href="mailto:support@uatob.com" style={{ display: "inline-block", marginTop: "10px", fontSize: "13px", fontWeight: "700", color: "#DC2626", fontFamily: "'Barlow', sans-serif", textDecoration: "none" }}>
+          Contact support →
+        </a>
+      </div>
+    </div>
+  );
+}
+
 // ── ACCOUNT SUSPENDED MODAL ───────────────────────────────────────────
 function SuspendedModal() {
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 1100, background: "rgba(0,0,0,.5)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px", animation: "locFadeIn .2s ease" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 1100, background: "rgba(0,0,0,.5)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}>
       <style>{`
         @keyframes locFadeIn  { from { opacity:0 } to { opacity:1 } }
         @keyframes locSlideUp { from { opacity:0; transform:translateY(18px) } to { opacity:1; transform:translateY(0) } }
@@ -393,11 +401,7 @@ function LocationPopup({ onAllow, onDeny, loading, error }) {
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────
 export default function UaTobDriverApp({ uid }) {
-  console.log("Rendering Driver App with UID:", uid);
-
   const { driver }                        = useDriverAccount(uid);
-
- console.log("Driver data:", driver);
   const { earnings, refetch }             = useDriverEarnings(uid);
   const { rides, loading: ridesLoading }  = useDriverRides(uid);
   const { requests, loading: reqLoading } = useIncomingRequest(uid);
@@ -405,7 +409,9 @@ export default function UaTobDriverApp({ uid }) {
   const { completedRides }                = useCompletedRides(uid);
   const { reviews }                       = useDriverReviews(uid);
 
-  const driverOnTrip  = driver?.trip === true;
+  const isRejected   = driver?.status === "rejected";
+  const driverOnTrip = driver?.trip === true;
+
   const sourceLoading = driverOnTrip ? reqLoading  : ridesLoading;
   const sourceRides   = driverOnTrip ? requests    : rides;
 
@@ -435,6 +441,11 @@ export default function UaTobDriverApp({ uid }) {
   const locationPingRef   = useRef(null);
   const onlineInitialized = useRef(false);
 
+  // ── Force profile tab when rejected ──────────────────────────────
+  useEffect(() => {
+    if (isRejected) setActiveTab("profile");
+  }, [isRejected]);
+
   // ── Sync online state from Firestore on first load ────────────────
   useEffect(() => {
     if (!driver || onlineInitialized.current) return;
@@ -443,9 +454,6 @@ export default function UaTobDriverApp({ uid }) {
   }, [driver]);
 
   // ── Foreground push handler ───────────────────────────────────────
-  // When the tab is open, FCM suppresses the OS notification and fires
-  // onMessage instead. We show the in-app toast AND route through the
-  // service worker so the OS notification still appears on mobile.
   useEffect(() => {
     if (!uid) return;
     let unsub = () => {};
@@ -454,13 +462,7 @@ export default function UaTobDriverApp({ uid }) {
       unsub = onMessage(messaging, async (payload) => {
         const title = payload.notification?.title ?? "New Ride";
         const body  = payload.notification?.body  ?? "";
-
-        // ── 1. In-app toast (always) ──────────────────────────
         showNotif(title, body);
-
-        // ── 2. OS notification via service worker ─────────────
-        // Uses registration.showNotification() instead of
-        // new Notification() — works on Android + mobile Chrome.
         if ("serviceWorker" in navigator) {
           try {
             const reg = await navigator.serviceWorker.ready;
@@ -483,7 +485,7 @@ export default function UaTobDriverApp({ uid }) {
   }, [uid]);
 
   // ── Derived: active trip request ──────────────────────────────────
-  const tripRequest = online && !sourceLoading
+  const tripRequest = online && !isRejected && !sourceLoading
     ? (sourceRides.find(r =>
         r.status === "searching_driver" &&
         !dismissedRequests.has(r.id) &&
@@ -554,7 +556,7 @@ export default function UaTobDriverApp({ uid }) {
   // ── 60-second location ping ───────────────────────────────────────
   useEffect(() => {
     clearInterval(locationPingRef.current);
-    if (!online) return;
+    if (!online || isRejected) return;
     locationPingRef.current = setInterval(async () => {
       try {
         const position = await new Promise((resolve, reject) =>
@@ -564,13 +566,12 @@ export default function UaTobDriverApp({ uid }) {
         );
         const { latitude: lat, longitude: lng } = position.coords;
         await callDriverStatus({ uid, status: "location_ping", lat, lng });
-        console.log(`📍 Location ping — lat:${lat.toFixed(5)} lng:${lng.toFixed(5)}`);
       } catch (err) {
         console.warn("📍 Location ping failed:", err?.message ?? err);
       }
     }, 60_000);
     return () => clearInterval(locationPingRef.current);
-  }, [online, uid]);
+  }, [online, uid, isRejected]);
 
   // ── Helpers ───────────────────────────────────────────────────────
   const showNotif = (title, msg) => {
@@ -578,7 +579,6 @@ export default function UaTobDriverApp({ uid }) {
     setTimeout(() => setNotification(null), 3200);
   };
 
-  // ── callDriverStatus wrapper ──────────────────────────────────────
   const callDriverStatusFn = useCallback(async (status, lat = null, lng = null) => {
     const payload = { uid, status };
     if (lat !== null && lng !== null) { payload.lat = lat; payload.lng = lng; }
@@ -603,17 +603,14 @@ export default function UaTobDriverApp({ uid }) {
       setShowLocationPopup(false);
       setLocationError("");
       showNotif("Online", "Ready for rides");
-
-      // Show styled notification popup only if permission not yet decided.
-      // If already granted — silently re-register token in background.
       if ("Notification" in window && window.Notification.permission === "default") {
         setShowNotifPopup(true);
       } else if ("Notification" in window && window.Notification.permission === "granted") {
         registerFcmToken(uid);
       }
     } catch (err) {
-      if      (err.code === 1) setLocationError("Location access was denied. Allow location in your browser settings to go online.");
-      else if (err.code === 2) setLocationError("Could not detect your location. Check your device's location settings.");
+      if      (err.code === 1) setLocationError("Location access was denied. Allow location in your browser settings.");
+      else if (err.code === 2) setLocationError("Could not detect your location. Check your device settings.");
       else if (err.code === 3) setLocationError("Location request timed out. Please try again.");
       else                     setLocationError(err.message || "Could not get your location. Please try again.");
     } finally {
@@ -621,20 +618,18 @@ export default function UaTobDriverApp({ uid }) {
     }
   }, [callDriverStatusFn, uid]);
 
-  // ── Notification popup handlers ───────────────────────────────────
   const handleEnableNotifications = useCallback(async () => {
     setNotifLoading(true);
-    await registerFcmToken(uid); // browser prompt fires here — inside gesture
+    await registerFcmToken(uid);
     setNotifLoading(false);
     setShowNotifPopup(false);
   }, [uid]);
 
-  const handleSkipNotifications = useCallback(() => {
-    setShowNotifPopup(false);
-  }, []);
+  const handleSkipNotifications = useCallback(() => setShowNotifPopup(false), []);
 
   // ── Online / offline toggle ───────────────────────────────────────
   const handleToggleOnline = useCallback(async () => {
+    if (isRejected) return;
     if (online) {
       try { await callDriverStatusFn("offline"); }
       catch (err) { console.error("Failed to go offline:", err); }
@@ -647,7 +642,7 @@ export default function UaTobDriverApp({ uid }) {
       setLocationError("");
       setShowLocationPopup(true);
     }
-  }, [online, callDriverStatusFn]);
+  }, [online, callDriverStatusFn, isRejected]);
 
   const handleLocationDeny = useCallback(() => {
     if (locationLoading) return;
@@ -720,7 +715,7 @@ export default function UaTobDriverApp({ uid }) {
   };
 
   // ── Derived state ─────────────────────────────────────────────────
-  const tripStage = activeTrip?.status;
+  const tripStage      = activeTrip?.status;
   const tripStageColor = { driver_assigned: C.blue, arrived: C.onlineGreen, in_progress: C.green }[tripStage] || C.green;
 
   // ── Render ────────────────────────────────────────────────────────
@@ -730,7 +725,7 @@ export default function UaTobDriverApp({ uid }) {
 
       {driver?.status === "suspended" && <SuspendedModal />}
 
-      {showLocationPopup && (
+      {showLocationPopup && !isRejected && (
         <LocationPopup
           loading={locationLoading}
           error={locationError}
@@ -749,16 +744,18 @@ export default function UaTobDriverApp({ uid }) {
 
       <AppNotification notificationOverride={notification} />
 
-      <TripRequestModal
-        tripRequest={tripRequest}
-        driver={driver}
-        requestTimer={requestTimer}
-        onAccept={handleAcceptTrip}
-        onDecline={handleDeclineTrip}
-        actionPending={actionPending}
-      />
+      {!isRejected && (
+        <TripRequestModal
+          tripRequest={tripRequest}
+          driver={driver}
+          requestTimer={requestTimer}
+          onAccept={handleAcceptTrip}
+          onDecline={handleDeclineTrip}
+          actionPending={actionPending}
+        />
+      )}
 
-      {pendingReview && !activeTrip && !tripRequest && (
+      {pendingReview && !activeTrip && !tripRequest && !isRejected && (
         <DriverReviewModal review={pendingReview} onClose={handleDismissReview} />
       )}
 
@@ -780,13 +777,22 @@ export default function UaTobDriverApp({ uid }) {
           </div>
         </div>
 
-        {activeTab === "home"     && <HomeTab driver={driver} online={online} rides={rides} activeTrip={activeTrip} tripStage={tripStage} tripStageColor={tripStageColor} tripBtnLabel={tripBtnLabel} earnings={earnings} onToggleOnline={handleToggleOnline} onAdvanceTrip={handleAdvanceTrip} advancePending={advancePending} />}
-        {activeTab === "earnings" && <EarningsTab earnings={earnings} driver={driver} online={online} />}
-        {activeTab === "trips"    && <TripsTab    completedRides={completedRides} online={online} />}
-        {activeTab === "profile"  && <ProfileTab  driver={driver} online={online} />}
+        {/* Rejected banner shown above profile tab */}
+        {isRejected && <RejectedBanner />}
+
+        {activeTab === "home"     && !isRejected && <HomeTab driver={driver} online={online} rides={rides} activeTrip={activeTrip} tripStage={tripStage} tripStageColor={tripStageColor} tripBtnLabel={tripBtnLabel} earnings={earnings} onToggleOnline={handleToggleOnline} onAdvanceTrip={handleAdvanceTrip} advancePending={advancePending} />}
+        {activeTab === "earnings" && !isRejected && <EarningsTab earnings={earnings} driver={driver} online={online} />}
+        {activeTab === "trips"    && !isRejected && <TripsTab    completedRides={completedRides} online={online} />}
+        {activeTab === "profile"  &&                <ProfileTab  driver={driver} online={online} />}
       </div>
 
-      <BottomTabBar activeTab={activeTab} setActiveTab={setActiveTab} online={online} activeTrip={activeTrip} />
+      <BottomTabBar
+        activeTab={activeTab}
+        setActiveTab={isRejected ? () => {} : setActiveTab}
+        online={online}
+        activeTrip={activeTrip}
+        isRejected={isRejected}
+      />
     </div>
   );
 }
