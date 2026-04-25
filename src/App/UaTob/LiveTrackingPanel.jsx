@@ -639,7 +639,7 @@ function MessagePanel({ rideId, driverUid, driverName, driverColor, onClose }) {
 
 // ── Main component ─────────────────────────────────────────
 export default function LiveTrackingPanel({ active, onRideDone }) {
-  console.log('LiveTrackingPanel render', { active });
+
 
   const auth    = getAuth();
   const riderUid = auth.currentUser?.uid ?? null;
@@ -843,17 +843,12 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
       )}
 
       {/* ── Map ── */}
-      <TrackingMap
-        bookingPayload={currentRide}
-        rideStatus={liveStatus}
-        driverPos={driverPos}
-        isTracking={true}
-        driverDistanceMiles={driverDistanceMiles}
-        dropoffDistanceMiles={dropoffDistanceMiles}
-        distanceMiles={distanceMiles}
-        etaMin={etaMin}
+
+       <TrackingMap
+        active={active}
       />
 
+     
       {/* ── Header row ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>

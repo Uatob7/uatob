@@ -342,15 +342,11 @@ function AnimatedCar({ carSvg, driverColor, isInProgress, gpsSource, isCompleted
 
 // ── Main component ────────────────────────────────────────────────────
 export default function TrackingMap({
-  bookingPayload,
-  rideStatus,
-  driverPos,
-  isTracking = true,
-  driverDistanceMiles,
-  dropoffDistanceMiles,
-  distanceMiles,
-  etaMin,
+  active,
 }) {
+
+  console.log(active);
+
   const containerRef = useRef(null);
   const [dims, setDims] = useState({ W: 0, H: 0 });
 
