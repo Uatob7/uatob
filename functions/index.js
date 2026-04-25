@@ -63,6 +63,7 @@ const { onDriverStatusChanged } = require("./admin/email/onDriverStatusChanged")
 const { saveAdminFcmToken } = require("./admin/saveAdminFcmToken");
 const { approveDriver } = require("./admin/approveDriver");
 const { rejectDriver } = require("./admin/rejectDriver");
+const { computeRideAnalytics } = require("./admin/computeRideAnalytics");
 
 
 // Exports
@@ -117,3 +118,4 @@ exports.emailCandidateDrivers = emailCandidateDrivers;
 exports.saveAdminFcmToken = saveAdminFcmToken;
 exports.approveDriver = approveDriver;
 exports.rejectDriver = rejectDriver;
+exports.computeRideAnalytics = computeRideAnalytics;

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { Bell, Loader2, AlertCircle, CheckCircle2, Info } from "lucide-react";
+import { Bell, Loader2, AlertCircle } from "lucide-react";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import { firebase_app } from "@/firebase/config";
@@ -10,13 +10,13 @@ import { TopBar } from '@/App/Admin/Topbar';
 import { Drawer } from '@/App/Admin/Drawer';
 import { TabBar } from '@/App/Admin/TabBar';
 
-import { HomeTab }      from '@/App/Admin/HomeTab';
-import { DriversTab }   from '@/App/Admin/Driverstab';
-import { ApprovalsTab } from '@/App/Admin/Approvalstab';
-import { AnalyticsTab } from '@/App/Admin/Analyticstab';
-import { RidersTab }    from '@/App/Admin/RidersTab';
+import { HomeTab }       from '@/App/Admin/HomeTab';
+import { DriversTab }    from '@/App/Admin/Driverstab';
+import { ApprovalsTab }  from '@/App/Admin/Approvalstab';
+import { AnalyticsTab }  from '@/App/Admin/Analyticstab';
+import { RidersTab }     from '@/App/Admin/RidersTab';
 import { ComplianceTab } from '@/App/Admin/ComplianceTab';
-import { SettingsTab }  from '@/App/Admin/SettingsTab';
+import { SettingsTab }   from '@/App/Admin/SettingsTab';
 
 import { useTotalAccounts }   from "@/App/Admin/useTotalAccounts";
 import { useDriverPresence }  from "@/App/Admin/useDriverPresence";
@@ -33,28 +33,25 @@ import { useRideAnalytics }   from "@/App/Admin/useRideAnalytics";
 import { useRiders }          from "@/App/Admin/useRiders";
 
 // ── Callables ──────────────────────────────────────────────────────────────
-const functions           = getFunctions(firebase_app, "us-east1");
-const callSaveAdminToken  = httpsCallable(functions, "saveAdminFcmToken");
+const functions          = getFunctions(firebase_app, "us-east1");
+const callSaveAdminToken = httpsCallable(functions, "saveAdminFcmToken");
 
-// ── VAPID key (same as driver app) ─────────────────────────────────────────
+// ── VAPID key ──────────────────────────────────────────────────────────────
 const VAPID_KEY = "BJ_sRHZonSGCKk2mB2i9ofTRS8ouFVMV-I15FX4sqdUXHyVb1lo6H-N4GMPrlcIIshRlykQicaxkxxFxcYcI4JQ";
 
 // ── FCM registration ───────────────────────────────────────────────────────
 async function registerAdminFcmToken() {
   if (!("Notification" in window)) throw new Error("Push not supported in this browser");
-
   const permission = await window.Notification.requestPermission();
   if (permission !== "granted") throw new Error("Permission denied");
-
   const messaging = getMessaging(firebase_app);
   const token = await getToken(messaging, { vapidKey: VAPID_KEY });
   if (!token) throw new Error("FCM returned empty token — check firebase-messaging-sw.js");
-
   await callSaveAdminToken({ token });
   console.log("[UaTob Admin] FCM token registered");
 }
 
-// ── Notification popup ─────────────────────────────────────────────────────
+// ── Notification popup styles ──────────────────────────────────────────────
 const POPUP_STYLES = `
   @keyframes adminFadeIn  { from { opacity:0 } to { opacity:1 } }
   @keyframes adminSlideUp { from { opacity:0; transform:translateY(18px) } to { opacity:1; transform:translateY(0) } }
@@ -80,7 +77,6 @@ function AdminNotificationPopup({ onEnable, onSkip, loading, error }) {
         boxShadow: "0 24px 60px rgba(0,0,0,.18)",
         animation: "adminSlideUp .28s cubic-bezier(.34,1.56,.64,1)",
       }}>
-        {/* Icon */}
         <div style={{ display: "flex", justifyContent: "center", marginBottom: "20px" }}>
           <div style={{
             width: "68px", height: "68px", borderRadius: "50%",
@@ -98,7 +94,6 @@ function AdminNotificationPopup({ onEnable, onSkip, loading, error }) {
           </div>
         </div>
 
-        {/* Title + subtitle */}
         <div style={{ textAlign: "center", marginBottom: "8px" }}>
           <div style={{
             fontFamily: "'Barlow Condensed', sans-serif",
@@ -115,7 +110,6 @@ function AdminNotificationPopup({ onEnable, onSkip, loading, error }) {
           </div>
         </div>
 
-        {/* Feature list */}
         {!loading && !error && (
           <div style={{ margin: "16px 0 22px", display: "flex", flexDirection: "column", gap: "10px" }}>
             {[
@@ -135,7 +129,6 @@ function AdminNotificationPopup({ onEnable, onSkip, loading, error }) {
           </div>
         )}
 
-        {/* Buttons */}
         {!loading && (
           <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: error ? "20px" : 0 }}>
             <button
@@ -188,12 +181,12 @@ const TAB_TITLES = {
 
 // ── MAIN COMPONENT ─────────────────────────────────────────────────────────
 export default function UaTobAdminDashboard() {
-  const [activeTab,        setActiveTab]        = useState("home");
-  const [drawerOpen,       setDrawerOpen]       = useState(false);
-  const [toast,            setToast]            = useState(null);
-  const [showNotifPopup,   setShowNotifPopup]   = useState(false);
-  const [notifLoading,     setNotifLoading]     = useState(false);
-  const [notifError,       setNotifError]       = useState("");
+  const [activeTab,      setActiveTab]      = useState("home");
+  const [drawerOpen,     setDrawerOpen]     = useState(false);
+  const [toast,          setToast]          = useState(null);
+  const [showNotifPopup, setShowNotifPopup] = useState(false);
+  const [notifLoading,   setNotifLoading]   = useState(false);
+  const [notifError,     setNotifError]     = useState("");
 
   const useriders = useRiders();
   const toastRef  = useRef(null);
@@ -210,8 +203,10 @@ export default function UaTobAdminDashboard() {
   const { approvals }      = usePendingApprovals();
   const { fleet }          = useFleetDrivers();
   const { approvals: allApprovals } = useApprovals();
+
   const {
-    totalRides: analyticsTotal,
+    totalRides:      analyticsTotal,
+    ridesPerDay      = [0, 0, 0, 0, 0, 0, 0],
     avgTripDuration  = 0,
     avgFare          = 0,
     acceptanceRate   = 0,
@@ -219,12 +214,11 @@ export default function UaTobAdminDashboard() {
     topDrivers       = [],
   } = useRideAnalytics();
 
-  // ── Show notification popup on first load if permission not yet decided ──
+  // ── Notification popup on mount ────────────────────────────────────────
   useEffect(() => {
     if ("Notification" in window && window.Notification.permission === "default") {
       setShowNotifPopup(true);
     } else if ("Notification" in window && window.Notification.permission === "granted") {
-      // Already granted — silently re-register token in background
       registerAdminFcmToken().catch(err =>
         console.warn("[UaTob Admin] Silent token refresh failed:", err.message)
       );
@@ -247,7 +241,7 @@ export default function UaTobAdminDashboard() {
     return unsub;
   }, []);
 
-  // ── Notification popup handlers ────────────────────────────────────────
+  // ── Notification handlers ──────────────────────────────────────────────
   const handleEnableNotifications = useCallback(async () => {
     setNotifLoading(true);
     setNotifError("");
@@ -304,6 +298,7 @@ export default function UaTobAdminDashboard() {
         return (
           <AnalyticsTab
             totalRides={analyticsTotal}
+            ridesPerDay={ridesPerDay}
             avgTripDuration={avgTripDuration}
             avgFare={avgFare}
             acceptanceRate={acceptanceRate}
@@ -324,6 +319,7 @@ export default function UaTobAdminDashboard() {
     activeTab, liveRides, totalRides, activeDrivers, revenue,
     allApprovals, approvals, fleet, avgTripDuration, avgFare,
     acceptanceRate, cancellationRate, topDrivers, analyticsTotal,
+    ridesPerDay,
   ]);
 
   // ── Render ─────────────────────────────────────────────────────────────
