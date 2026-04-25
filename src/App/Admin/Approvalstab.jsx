@@ -1,24 +1,19 @@
 // src/App/UaTob/Admin/tabs/ApprovalsTab.jsx
 import { Clock, CheckCircle, XCircle } from "lucide-react";
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { firebase_app } from "@/firebase/config";
 import { C } from "@/App/Admin/Tokens";
 import { Avatar, EmptyState } from "@/App/Admin/UI";
 
-import { getFirestore, doc, updateDoc } from "firebase/firestore";
-import { firebase_app } from "@/firebase/config";
-
-const db = getFirestore(firebase_app);
+const functions         = getFunctions(firebase_app, "us-east1");
+const callApproveDriver = httpsCallable(functions, "approveDriver");
+const callRejectDriver  = httpsCallable(functions, "rejectDriver");
 
 export function ApprovalsTab({ allApprovals = [], onToast }) {
-  console.log(allApprovals);
-  // Data is owned by the parent dashboard (usePendingApprovals hook).
-  // This component only handles approve/reject write actions.
 
   const approve = async (item) => {
     try {
-      await updateDoc(doc(db, "Drivers", item.id), {
-        status: "approved",
-        updatedAt: new Date(),
-      });
+      await callApproveDriver({ driverUid: item.id });
       onToast?.(`✅ ${item.firstName} approved`);
     } catch (err) {
       console.error("approve error:", err);
@@ -28,10 +23,7 @@ export function ApprovalsTab({ allApprovals = [], onToast }) {
 
   const reject = async (item) => {
     try {
-      await updateDoc(doc(db, "Drivers", item.id), {
-        status: "rejected",
-        updatedAt: new Date(),
-      });
+      await callRejectDriver({ driverUid: item.id });
       onToast?.(`${item.firstName} rejected`);
     } catch (err) {
       console.error("reject error:", err);
@@ -39,7 +31,6 @@ export function ApprovalsTab({ allApprovals = [], onToast }) {
     }
   };
 
-  // Safe initials — handles missing or whitespace-only lastName
   const getInitials = (item) => {
     const first = item.firstName?.trim()[0] ?? "?";
     const last  = item.lastName?.trim()[0]  ?? "";
