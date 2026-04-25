@@ -85,6 +85,7 @@ function approxPathLen(svgPts) {
   return Math.ceil(len) + 40;
 }
 
+// ── Snap to nearest point on polyline ────────────────────────────────
 function closestPointOnPolyline(svgPts, px, py) {
   if (!svgPts.length) return { x: px, y: py };
   let best = svgPts[0], bestDist = Infinity;
@@ -95,11 +96,16 @@ function closestPointOnPolyline(svgPts, px, py) {
   return best;
 }
 
+// ── Compute heading angle between two SVG points ──────────────────────
+function computeHeading(from, to) {
+  if (!from || !to) return 0;
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  // SVG Y-axis is inverted, so negate dy for real-world angle
+  return Math.atan2(dx, -dy) * (180 / Math.PI);
+}
+
 // ── Determine GPS source for in_progress rides ────────────────────────
-// Returns { source: 'driver' | 'rider', lat, lng, etaMin }
-// Driver is "online" if their coords exist and are distinct enough from rider
-// to suggest an independent ping. We use riderLocationAt as a recency signal —
-// if the driver fields are absent/stale we fall back to rider.
 function resolveGpsSource(payload, status) {
   const isInProgress = status === 'in_progress';
 
@@ -114,16 +120,9 @@ function resolveGpsSource(payload, status) {
   const driverEta = safeNum(payload.driverEtaMin ?? payload.dropoffEtaMin ?? 999);
   const riderEta  = safeNum(payload.riderDropoffEtaMin ?? 999);
 
-  // ── NOT in progress ──
   if (!isInProgress) {
-    if (hasDriver) {
-      return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta };
-    }
-    if (hasRider) {
-      return { source: 'rider', lat: riderLat, lng: riderLng, etaMin: riderEta };
-    }
-
-    // 🔥 fallback to static trip values
+    if (hasDriver) return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta };
+    if (hasRider)  return { source: 'rider',  lat: riderLat,  lng: riderLng,  etaMin: riderEta  };
     return {
       source: 'static',
       lat: safeNum(payload.dropoffLat),
@@ -132,25 +131,13 @@ function resolveGpsSource(payload, status) {
     };
   }
 
-  // ── IN PROGRESS ──
-
-  // Driver online check
   const driverIsOnline = hasDriver && (
     Math.abs(driverLat - riderLat) > 0.00005 ||
     Math.abs(driverLng - riderLng) > 0.00005
   );
 
-  // ✅ BEST: driver GPS
-  if (driverIsOnline) {
-    return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta };
-  }
-
-  // ✅ fallback: rider GPS
-  if (hasRider) {
-    return { source: 'rider', lat: riderLat, lng: riderLng, etaMin: riderEta };
-  }
-
-  // 🔥 FINAL fallback: backend trip values
+  if (driverIsOnline) return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta };
+  if (hasRider)       return { source: 'rider',  lat: riderLat,  lng: riderLng,  etaMin: riderEta  };
   return {
     source: 'static',
     lat: safeNum(payload.dropoffLat),
@@ -245,10 +232,10 @@ function MapBackground({ W, H }) {
 
 // ── GPS source badge on car ───────────────────────────────────────────
 function GpsBadge({ source }) {
-  const isRider  = source === 'rider';
-  const bg       = isRider ? '#3B82F6' : '#16A34A';
-  const label    = isRider ? 'R' : 'D';
-  const title    = isRider ? 'Rider GPS' : 'Driver GPS';
+  const isRider = source === 'rider';
+  const bg      = isRider ? '#3B82F6' : '#16A34A';
+  const label   = isRider ? 'R' : 'D';
+  const title   = isRider ? 'Rider GPS' : 'Driver GPS';
 
   return (
     <div
@@ -269,6 +256,86 @@ function GpsBadge({ source }) {
       }}
     >
       {label}
+    </div>
+  );
+}
+
+// ── Animated Car Icon ─────────────────────────────────────────────────
+// Uses a ref-tracked position + CSS transition so every driverLat/driverLng
+// change triggers a smooth glide along the polyline.
+function AnimatedCar({ carSvg, driverColor, isInProgress, gpsSource, isCompleted, svgPolyPts }) {
+  // Track the *previous* snapped position so we can compute heading
+  const prevPosRef  = useRef(null);
+  const [heading, setHeading] = useState(0);
+
+  // Whenever carSvg changes (new GPS fix), update heading then store prev
+  useEffect(() => {
+    if (!carSvg) return;
+    if (prevPosRef.current) {
+      const angle = computeHeading(prevPosRef.current, carSvg);
+      // Only update heading if the car actually moved (avoid jitter)
+      if (Math.hypot(carSvg.x - prevPosRef.current.x, carSvg.y - prevPosRef.current.y) > 2) {
+        setHeading(angle);
+      }
+    }
+    prevPosRef.current = carSvg;
+  }, [carSvg]);
+
+  if (!carSvg || isCompleted) return null;
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        // Use left/top + CSS transition for smooth interpolation on every GPS update
+        left: carSvg.x,
+        top:  carSvg.y,
+        zIndex: 20,
+        // Smooth glide: 2.5s matches typical GPS polling interval.
+        // Use will-change to hint GPU compositing for the transition.
+        transition: 'left 2.5s cubic-bezier(.4,0,.2,1), top 2.5s cubic-bezier(.4,0,.2,1)',
+        willChange: 'left, top',
+        animation: 'tmFadeUp .4s ease-out both',
+      }}
+    >
+      {/* GPS source badge */}
+      {isInProgress && gpsSource && (
+        <div style={{ position: 'absolute', top: 0, right: 0, transform: 'translate(-50%,-50%)', zIndex: 30 }}>
+          <GpsBadge source={gpsSource.source} />
+        </div>
+      )}
+
+      <div
+        style={{
+          width: 50, height: 50,
+          background: driverColor,
+          borderRadius: 18,
+          border: '3px solid #fff',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          // Center the icon on its coordinate point, then rotate to heading
+          transform: `translate(-50%, -50%) rotate(${heading}deg)`,
+          // Heading rotation also transitions smoothly
+          transition: 'transform 2.5s cubic-bezier(.4,0,.2,1)',
+          boxShadow: `0 6px 22px ${driverColor}60, 0 0 0 6px ${driverColor}18`,
+          // Bob animation applied via a wrapper to avoid conflicting with rotation
+          position: 'relative',
+        }}
+      >
+        {/* Bob wrapper (separate from rotation so they don't conflict) */}
+        <div style={{ animation: 'tmDriverBob 2.2s ease-in-out infinite', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="8"  width="18" height="9"  rx="2.5" fill="#fff"/>
+            <path d="M6 8 L7.5 4 L16.5 4 L18 8Z" fill="#4ADE80"/>
+            <rect x="6.5"  y="4.5" width="3" height="2.5" rx=".6" fill="#fff" opacity=".9"/>
+            <rect x="10.5" y="4.5" width="3" height="2.5" rx=".6" fill="#fff" opacity=".9"/>
+            <circle cx="7.5"  cy="17" r="2"   fill={driverColor === '#111827' ? '#1f2937' : driverColor}/>
+            <circle cx="7.5"  cy="17" r=".85" fill="#4ADE80"/>
+            <circle cx="16.5" cy="17" r="2"   fill={driverColor === '#111827' ? '#1f2937' : driverColor}/>
+            <circle cx="16.5" cy="17" r=".85" fill="#4ADE80"/>
+            <rect x="19" y="9.5" width="2" height="1.4" rx=".4" fill="#FCD34D"/>
+          </svg>
+        </div>
+      </div>
     </div>
   );
 }
@@ -317,26 +384,26 @@ export default function TrackingMap({
   const isArrived        = status === 'arrived';
 
   // ── Resolve GPS source ────────────────────────────────────────────
-  // For in_progress: pick driver or rider GPS depending on who is active
-  // and which ETA is shorter. Outside in_progress: use driver as normal.
+  // Explicitly depend on the raw lat/lng primitives — not the payload object —
+  // so any change to driverLat / driverLng triggers a new memo evaluation and
+  // a re-render that updates carSvg → moves the car.
+  const driverLat = safeNum(payload.driverLat);
+  const driverLng = safeNum(payload.driverLng);
+  const riderLat  = safeNum(payload.riderLat);
+  const riderLng  = safeNum(payload.riderLng);
+
   const gpsSource = useMemo(
     () => resolveGpsSource(payload, status),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      status,
-      payload.driverLat, payload.driverLng,
-      payload.riderLat,  payload.riderLng,
-      payload.driverEtaMin, payload.riderDropoffEtaMin,
-    ]
+    [status, driverLat, driverLng, riderLat, riderLng, payload.driverEtaMin, payload.riderDropoffEtaMin]
   );
 
   // ── Decode polyline ───────────────────────────────────────────────
-  const rawPolyline  = payload.polyline ?? null;
-  const decodedPts   = useMemo(() => decodePolyline(rawPolyline), [rawPolyline]);
+  const rawPolyline = payload.polyline ?? null;
+  const decodedPts  = useMemo(() => decodePolyline(rawPolyline), [rawPolyline]);
 
   // ── Build unified bounding box ────────────────────────────────────
-  // Always include pickup + dropoff. Include active GPS position so the car
-  // is never clipped outside the viewport.
+  // Always include pickup + dropoff + active GPS so the car is never clipped.
   const allGeoPoints = useMemo(() => {
     const pts = [...decodedPts];
     if (gpsSource) pts.push([gpsSource.lat, gpsSource.lng]);
@@ -354,7 +421,6 @@ export default function TrackingMap({
   );
 
   // ── Project pins ──────────────────────────────────────────────────
-  // When in_progress only show dropoff pin (not pickup — they've left it).
   const pickupSvg = useMemo(
     () => isInProgress
       ? null
@@ -366,13 +432,19 @@ export default function TrackingMap({
     [payload.dropoffLat, payload.dropoffLng, allGeoPoints, dims.W, mapH]
   );
 
-  // ── Project car position ──────────────────────────────────────────
-  // Use the resolved GPS source lat/lng (driver or rider) and snap to polyline.
+  // ── Project car position → snap to polyline ───────────────────────
+  // This memo re-runs on EVERY driverLat/driverLng change (via gpsSource),
+  // producing a new snapped SVG coordinate that triggers AnimatedCar's transition.
   const carSvgRaw = useMemo(() => {
     if (driverPos) return driverPos; // externally provided projected pos
     if (!gpsSource) return null;
     return projectSingle(gpsSource.lat, gpsSource.lng, allGeoPoints, dims.W, mapH);
-  }, [driverPos, gpsSource, allGeoPoints, dims.W, mapH]);
+  }, [
+    driverPos,
+    // Explicit primitive deps so changing driverLat/driverLng is always caught:
+    gpsSource?.lat, gpsSource?.lng, gpsSource?.source,
+    allGeoPoints, dims.W, mapH,
+  ]);
 
   const carSvg = useMemo(() => {
     if (!carSvgRaw || !svgPolyPts.length) return carSvgRaw;
@@ -383,8 +455,6 @@ export default function TrackingMap({
   const routeLen     = svgPolyPts.length > 1 ? approxPathLen(svgPolyPts) : 1200;
 
   // ── Display values ────────────────────────────────────────────────
-  // When in_progress: use the ETA from the resolved GPS source (shortest).
-  // Otherwise: fall back to the same logic as before.
   const displayEta = isInProgress && gpsSource
     ? gpsSource.etaMin
     : safeNum(etaMin ?? (headingToPickup ? payload.driverEtaMin : payload.dropoffEtaMin));
@@ -404,13 +474,8 @@ export default function TrackingMap({
           ? 'Driver on the way'
           : 'Locating driver…';
 
-  const statusColor = isCompleted
-    ? '#64748B'
-    : isArrived
-      ? '#F59E0B'
-      : '#16A34A';
+  const statusColor = isCompleted ? '#64748B' : isArrived ? '#F59E0B' : '#16A34A';
 
-  // ── GPS source label for status bar (in_progress only) ────────────
   const gpsLabel = isInProgress && gpsSource
     ? gpsSource.source === 'rider'
       ? { text: 'Rider GPS', color: '#3B82F6' }
@@ -451,13 +516,8 @@ export default function TrackingMap({
             </filter>
           </defs>
 
-          {/* White halo */}
           <path d={polylinePath} fill="none" stroke="#fff" strokeWidth={9} strokeLinecap="round" strokeLinejoin="round" opacity={0.7}/>
-
-          {/* Faded remaining route */}
           <path d={polylinePath} fill="none" stroke={headingToDropoff ? '#BBF7D0' : '#BFDBFE'} strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" opacity={0.9}/>
-
-          {/* Animated active route */}
           <path
             d={polylinePath}
             fill="none"
@@ -473,8 +533,6 @@ export default function TrackingMap({
               '--route-len': routeLen,
             }}
           />
-
-          {/* Flowing dash */}
           <path
             d={polylinePath}
             fill="none"
@@ -485,7 +543,6 @@ export default function TrackingMap({
             style={{ animation: 'tmDashFlow 1.4s linear infinite' }}
           />
 
-          {/* Pin halos */}
           {pickupSvg  && <circle cx={pickupSvg.x}  cy={pickupSvg.y}  r={28} fill="#111827" opacity={0.07}/>}
           {dropoffSvg && <circle cx={dropoffSvg.x} cy={dropoffSvg.y} r={28} fill="#16A34A" opacity={0.10}/>}
         </svg>
@@ -571,48 +628,15 @@ export default function TrackingMap({
         </div>
       )}
 
-      {/* ── Car pin (driver or rider GPS) ── */}
-      {carSvg && !isCompleted && (
-        <div style={{
-          position: 'absolute',
-          left: carSvg.x,
-          top:  carSvg.y,
-          zIndex: 20,
-          transition: 'left 2.5s cubic-bezier(.4,0,.2,1), top 2.5s cubic-bezier(.4,0,.2,1)',
-          animation: 'tmFadeUp .4s ease-out both',
-        }}>
-          {/* GPS source badge */}
-          {isInProgress && gpsSource && (
-            <div style={{ position: 'absolute', top: 0, right: 0, transform: 'translate(-50%,-50%)', zIndex: 30 }}>
-              <GpsBadge source={gpsSource.source} />
-            </div>
-          )}
-
-          <div style={{
-            width: 50, height: 50,
-            background: driverColor,
-            borderRadius: 18,
-            border: '3px solid #fff',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            transform: 'translate(-50%, -50%)',
-            boxShadow: `0 6px 22px ${driverColor}60, 0 0 0 6px ${driverColor}18`,
-            animation: 'tmDriverBob 2.2s ease-in-out infinite',
-            position: 'relative',
-          }}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-              <rect x="3" y="8"  width="18" height="9"  rx="2.5" fill="#fff"/>
-              <path d="M6 8 L7.5 4 L16.5 4 L18 8Z" fill="#4ADE80"/>
-              <rect x="6.5"  y="4.5" width="3" height="2.5" rx=".6" fill="#fff" opacity=".9"/>
-              <rect x="10.5" y="4.5" width="3" height="2.5" rx=".6" fill="#fff" opacity=".9"/>
-              <circle cx="7.5"  cy="17" r="2"   fill={driverColor === '#111827' ? '#1f2937' : driverColor}/>
-              <circle cx="7.5"  cy="17" r=".85" fill="#4ADE80"/>
-              <circle cx="16.5" cy="17" r="2"   fill={driverColor === '#111827' ? '#1f2937' : driverColor}/>
-              <circle cx="16.5" cy="17" r=".85" fill="#4ADE80"/>
-              <rect x="19" y="9.5" width="2" height="1.4" rx=".4" fill="#FCD34D"/>
-            </svg>
-          </div>
-        </div>
-      )}
+      {/* ── Car icon (animated) ── */}
+      <AnimatedCar
+        carSvg={carSvg}
+        driverColor={driverColor}
+        isInProgress={isInProgress}
+        gpsSource={gpsSource}
+        isCompleted={isCompleted}
+        svgPolyPts={svgPolyPts}
+      />
 
       {/* ── Status bar ── */}
       {isTracking && (
@@ -627,8 +651,6 @@ export default function TrackingMap({
           zIndex: 20,
           boxShadow: '0 -6px 20px rgba(0,0,0,0.07)',
         }}>
-
-          {/* Top row: status + ETA */}
           <div style={{
             display: 'flex', alignItems: 'center',
             justifyContent: 'space-between',
@@ -667,7 +689,6 @@ export default function TrackingMap({
             )}
           </div>
 
-          {/* GPS source row: only shown during in_progress */}
           {gpsLabel && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
               <div style={{
@@ -682,7 +703,6 @@ export default function TrackingMap({
               </span>
             </div>
           )}
-
         </div>
       )}
     </div>
