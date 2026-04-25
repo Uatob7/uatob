@@ -1,8 +1,11 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Zap, Check, X } from 'lucide-react';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { firebase_app } from '@/firebase/config';
 import { C, TYPE_COLOR, TYPE_LABEL } from '@/App/Drivers/constants.js';
 
-const FN_URL = "https://getdrivertopickup-ady2s2xhhq-uc.a.run.app";
+const functions             = getFunctions(firebase_app, "us-east1");
+const callGetDriverToPickup = httpsCallable(functions, "getDriverToPickup");
 
 // ── Polyline decoder ───────────────────────────────────────────────────
 function decodePolyline(encoded) {
@@ -135,11 +138,9 @@ function RouteSVG({ svgPts, routeKey, driverLabel, pickupLabel }) {
       style={{ display: 'block', background: '#0F1420' }}
     >
       <defs>
-        {/* Dark grid */}
         <pattern id="trm-grid" width="32" height="32" patternUnits="userSpaceOnUse">
           <path d="M32 0L0 0 0 32" fill="none" stroke="rgba(255,255,255,.04)" strokeWidth=".8"/>
         </pattern>
-        {/* Blue → green gradient for driver-to-pickup */}
         <linearGradient id="trm-rg" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%"   stopColor="#3B82F6"/>
           <stop offset="100%" stopColor="#22C55E"/>
@@ -150,11 +151,9 @@ function RouteSVG({ svgPts, routeKey, driverLabel, pickupLabel }) {
         </filter>
       </defs>
 
-      {/* Background */}
       <rect width={SVG_W} height={SVG_H} fill="#0F1420"/>
       <rect width={SVG_W} height={SVG_H} fill="url(#trm-grid)"/>
 
-      {/* Road stripe behind route */}
       {hasPath && (() => {
         const mx = (start.x + end.x) / 2;
         const my = (start.y + end.y) / 2;
@@ -166,13 +165,11 @@ function RouteSVG({ svgPts, routeKey, driverLabel, pickupLabel }) {
         );
       })()}
 
-      {/* Route halo */}
       {hasPath && (
         <path d={d} fill="none" stroke="rgba(59,130,246,.18)" strokeWidth="10"
               strokeLinecap="round" strokeLinejoin="round"/>
       )}
 
-      {/* Animated route */}
       {hasPath && (
         <path
           className="trm-route"
@@ -187,7 +184,6 @@ function RouteSVG({ svgPts, routeKey, driverLabel, pickupLabel }) {
         />
       )}
 
-      {/* Flowing dashes */}
       {hasPath && (
         <path
           className="trm-flowing"
@@ -200,16 +196,9 @@ function RouteSVG({ svgPts, routeKey, driverLabel, pickupLabel }) {
         />
       )}
 
-      {/* ── Driver marker (car icon) ── */}
-      <g style={{
-        transformOrigin: `${start.x}px ${start.y}px`,
-        animation: 'trm-pinDrop .5s cubic-bezier(.34,1.2,.64,1) .1s both',
-      }}>
-        {/* Pulse ring */}
+      <g style={{ transformOrigin: `${start.x}px ${start.y}px`, animation: 'trm-pinDrop .5s cubic-bezier(.34,1.2,.64,1) .1s both' }}>
         <circle className="trm-pulse" cx={start.x} cy={start.y} fill="#3B82F6"/>
-        {/* Outer ring */}
         <circle cx={start.x} cy={start.y} r={14} fill="#1e2a4a" stroke="#3B82F6" strokeWidth="2"/>
-        {/* Car SVG centered on marker */}
         <g transform={`translate(${start.x - 8}, ${start.y - 6})`}>
           <rect x="1" y="4"  width="14" height="7" rx="2" fill="#3B82F6"/>
           <path d="M3 4 L5 1 L11 1 L13 4Z" fill="#3B82F6" opacity=".8"/>
@@ -220,7 +209,6 @@ function RouteSVG({ svgPts, routeKey, driverLabel, pickupLabel }) {
         </g>
       </g>
 
-      {/* Driver label */}
       {(() => {
         const text = driverLabel || 'Driver';
         const lw   = Math.min(text.length * 5.8 + 20, 120);
@@ -228,20 +216,13 @@ function RouteSVG({ svgPts, routeKey, driverLabel, pickupLabel }) {
         const ly   = start.y > SVG_H - 38 ? start.y - 22 : start.y + 20;
         return (
           <>
-            <rect x={lx} y={ly} width={lw} height={15} rx={7}
-                  fill="#3B82F6" opacity=".9"/>
-            <text x={lx + lw/2} y={ly + 10.5} textAnchor="middle"
-                  fontFamily="Outfit,sans-serif" fontSize="8.5" fontWeight="700"
-                  fill="#fff" letterSpacing=".3">{text}</text>
+            <rect x={lx} y={ly} width={lw} height={15} rx={7} fill="#3B82F6" opacity=".9"/>
+            <text x={lx + lw/2} y={ly + 10.5} textAnchor="middle" fontFamily="Outfit,sans-serif" fontSize="8.5" fontWeight="700" fill="#fff" letterSpacing=".3">{text}</text>
           </>
         );
       })()}
 
-      {/* ── Pickup pin ── */}
-      <g style={{
-        transformOrigin: `${end.x}px ${end.y}px`,
-        animation: 'trm-pinDrop .5s cubic-bezier(.34,1.2,.64,1) .3s both',
-      }}>
+      <g style={{ transformOrigin: `${end.x}px ${end.y}px`, animation: 'trm-pinDrop .5s cubic-bezier(.34,1.2,.64,1) .3s both' }}>
         <ellipse cx={end.x} cy={end.y + 24} rx={6} ry={2.5} fill="rgba(34,197,94,.2)"/>
         <path
           d={`M${end.x},${end.y + 24}
@@ -255,7 +236,6 @@ function RouteSVG({ svgPts, routeKey, driverLabel, pickupLabel }) {
         <circle cx={end.x} cy={end.y - 4} r={2}   fill="#22C55E"/>
       </g>
 
-      {/* Pickup label */}
       {(() => {
         const text = (pickupLabel || 'Pickup').slice(0, 20);
         const lw   = Math.min(text.length * 5.8 + 20, 130);
@@ -263,11 +243,8 @@ function RouteSVG({ svgPts, routeKey, driverLabel, pickupLabel }) {
         const ly   = end.y > SVG_H - 50 ? end.y - 22 : end.y + 28;
         return (
           <>
-            <rect x={lx} y={ly} width={lw} height={15} rx={7}
-                  fill="#22C55E" opacity=".9"/>
-            <text x={lx + lw/2} y={ly + 10.5} textAnchor="middle"
-                  fontFamily="Outfit,sans-serif" fontSize="8.5" fontWeight="700"
-                  fill="#fff" letterSpacing=".3">{text}</text>
+            <rect x={lx} y={ly} width={lw} height={15} rx={7} fill="#22C55E" opacity=".9"/>
+            <text x={lx + lw/2} y={ly + 10.5} textAnchor="middle" fontFamily="Outfit,sans-serif" fontSize="8.5" fontWeight="700" fill="#fff" letterSpacing=".3">{text}</text>
           </>
         );
       })()}
@@ -300,20 +277,14 @@ export default function TripRequestModal({
       setLoadingGeo(true);
       setPolyline(null);
       try {
-        const res = await fetch(FN_URL, {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            driverLat: driver.lat,
-            driverLng: driver.lng,
-            pickupLat: tripRequest.pickupLat,
-            pickupLng: tripRequest.pickupLng,
-          }),
+        const { data } = await callGetDriverToPickup({
+          driverLat: driver.lat,
+          driverLng: driver.lng,
+          pickupLat: tripRequest.pickupLat,
+          pickupLng: tripRequest.pickupLng,
         });
 
-        const data = await res.json();
-
-        if (res.ok) {
+        if (data?.success) {
           setDriverDistance(data.distanceText);
           setDriverEta(data.etaText);
           setPolyline(data.polyline ?? null);
@@ -339,7 +310,6 @@ export default function TripRequestModal({
   const distance = loadingGeo ? '…' : (driverDistance ?? `${tripRequest.tripDistanceMiles?.toFixed(1) ?? '—'} mi`);
   const eta      = loadingGeo ? '…' : (driverEta      ?? `${tripRequest.tripDurationMin ?? '—'} min`);
 
-  // First line of pickup address as label
   const pickupLabel = (tripRequest.pickup ?? '').split(',')[0].trim();
 
   return (
@@ -365,7 +335,6 @@ export default function TripRequestModal({
         boxShadow: '0 -12px 60px rgba(0,0,0,.1)',
       }}>
 
-        {/* Header row */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
           <div>
             <div className="lbl" style={{ color: C.onlineGreen }}>Incoming Request</div>
@@ -373,21 +342,17 @@ export default function TripRequestModal({
               {tripRequest.rideLabel ?? 'Standard'}
             </div>
             <div style={{ marginTop: 6 }}>
-              <span
-                className="badge-chip"
-                style={{
-                  background: (TYPE_COLOR[tripRequest.rideType] ?? C.blue) + '18',
-                  border:     `1px solid ${(TYPE_COLOR[tripRequest.rideType] ?? C.blue)}40`,
-                  color:      TYPE_COLOR[tripRequest.rideType] ?? C.blue,
-                  fontSize:   11,
-                }}
-              >
+              <span className="badge-chip" style={{
+                background: (TYPE_COLOR[tripRequest.rideType] ?? C.blue) + '18',
+                border:     `1px solid ${(TYPE_COLOR[tripRequest.rideType] ?? C.blue)}40`,
+                color:      TYPE_COLOR[tripRequest.rideType] ?? C.blue,
+                fontSize:   11,
+              }}>
                 {TYPE_LABEL[tripRequest.rideType] ?? tripRequest.rideType}
               </span>
             </div>
           </div>
 
-          {/* Countdown ring */}
           <div style={{ position: 'relative', width: 58, height: 58 }}>
             <svg width="58" height="58" viewBox="0 0 58 58">
               <circle cx="29" cy="29" r="24" fill="none" stroke={C.border} strokeWidth="3"/>
@@ -413,7 +378,6 @@ export default function TripRequestModal({
           </div>
         </div>
 
-        {/* ── Route map ── */}
         <div className="trm-map-wrap">
           {loadingGeo ? (
             <div className="trm-skeleton"/>
@@ -433,7 +397,6 @@ export default function TripRequestModal({
           )}
         </div>
 
-        {/* Fare + distance/ETA tiles */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
           <div style={{
             flex: 1,
@@ -484,7 +447,6 @@ export default function TripRequestModal({
           </div>
         </div>
 
-        {/* Route pill */}
         <div className="route-pill" style={{ marginBottom: 16 }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'stretch' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, paddingTop: 2 }}>
@@ -505,7 +467,6 @@ export default function TripRequestModal({
           </div>
         </div>
 
-        {/* Action buttons */}
         <div style={{ display: 'flex', gap: 10 }}>
           <button
             disabled={actionPending}
