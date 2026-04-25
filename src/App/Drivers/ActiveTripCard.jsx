@@ -11,7 +11,7 @@ import {
   updateDoc,
   doc,
 } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { getAuth } from "firebase/  auth";
 
 /**
  * ActiveTripCard – with driver ↔ rider messaging
