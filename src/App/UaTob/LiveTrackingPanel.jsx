@@ -846,6 +846,8 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
 
         <TrackingMap
         active={active}
+        isTracking={true}
+
       />
 
 
