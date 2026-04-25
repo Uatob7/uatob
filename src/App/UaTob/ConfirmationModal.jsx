@@ -10,23 +10,7 @@ const db = getFirestore(firebase_app);
 const CANCEL_RIDE_URL = 'https://cancelride-ady2s2xhhq-uc.a.run.app';
 const EXTEND_RIDE_SEARCH_URL = 'https://extendridesearch-ady2s2xhhq-uc.a.run.app';
 
-// ── Get seconds remaining using expiresAt as the ONLY source of truth ──
-function getSecondsRemaining(expiresAt) {
-  if (!expiresAt) return 0;
 
-  let expireMs;
-  if (expiresAt instanceof Date) {
-    expireMs = expiresAt.getTime();
-  } else if (typeof expiresAt.toDate === 'function') {
-    expireMs = expiresAt.toDate().getTime();
-  } else {
-    expireMs = new Date(expiresAt).getTime();
-  }
-
-  if (!expireMs || isNaN(expireMs)) return 0;
-
-  return Math.max(0, Math.floor((expireMs - Date.now()) / 1000));
-}
 
 export default function ConfirmationModal({
   onClose,
@@ -41,7 +25,7 @@ export default function ConfirmationModal({
   const [visible, setVisible] = useState(false);
   const [liveRide, setLiveRide] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
-
+,l
   const timerRef = useRef(null);
   const closeTimeoutRef = useRef(null);
   const mountedRef = useRef(true);
