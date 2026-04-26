@@ -34,6 +34,7 @@ const MAP_CSS = `
     white-space: nowrap;
     box-shadow: 0 4px 16px rgba(17,24,39,.24);
     pointer-events: none;
+    z-index: 10;
   }
   .mv-pill-dot { width: 7px; height: 7px; border-radius: 50%; background: #22C55E; flex-shrink: 0; }
 
@@ -77,6 +78,34 @@ const MAP_CSS = `
   .mv-stat-sub   { font-size: 11px; font-weight: 600; color: #6B7280; }
 `;
 
+const MAPBOX_TOKEN = 'pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA';
+const MAP_HEIGHT   = 218;
+
+// ── Mapbox CDN loader (idempotent) ────────────────────────────────────
+let _mbLoaded = false;
+let _mbCallbacks = [];
+
+function loadMapbox(cb) {
+  if (_mbLoaded && window.mapboxgl) { cb(); return; }
+  _mbCallbacks.push(cb);
+  if (document.getElementById('mapbox-gl-css')) return;
+
+  const link = document.createElement('link');
+  link.id   = 'mapbox-gl-css';
+  link.rel  = 'stylesheet';
+  link.href = 'https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css';
+  document.head.appendChild(link);
+
+  const script = document.createElement('script');
+  script.src = 'https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js';
+  script.onload = () => {
+    _mbLoaded = true;
+    _mbCallbacks.forEach(fn => fn());
+    _mbCallbacks = [];
+  };
+  document.head.appendChild(script);
+}
+
 // ── Google encoded polyline decoder ───────────────────────────────────
 function decodePolyline(encoded) {
   if (!encoded) return [];
@@ -94,8 +123,8 @@ function decodePolyline(encoded) {
   return pts;
 }
 
-// ── Project lat/lng → SVG coords ──────────────────────────────────────
-const SVG_W = 560, SVG_H = 218, PAD = 52;
+// ── Project lat/lng → SVG coords (for overlay only) ──────────────────
+const SVG_W = 560, SVG_H = MAP_HEIGHT, PAD = 52;
 
 function project(pts) {
   if (!pts.length) return [];
@@ -133,23 +162,8 @@ function approxPathLen(svgPts) {
 
 // ── Helpers ────────────────────────────────────────────────────────────
 function shortAddr(full = '') { return full.split(',')[0].trim(); }
-function cityState(full = '') { return full.split(',').slice(1, 3).join(',').trim(); }
 
-// ── Inline icons ──────────────────────────────────────────────────────
-const PickupIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-    <circle cx="7" cy="7" r="4" fill="#16A34A"/>
-    <circle cx="7" cy="7" r="6.5" stroke="#16A34A" strokeWidth="1" fill="none" opacity=".3"/>
-  </svg>
-);
-
-const DropoffIcon = () => (
-  <svg width="12" height="15" viewBox="0 0 10 13" fill="none">
-    <path d="M5 0C2.239 0 0 2.239 0 5c0 3.75 5 8 5 8s5-4.25 5-8c0-2.761-2.239-5-5-5zm0 7a2 2 0 110-4 2 2 0 010 4z" fill="#111827"/>
-  </svg>
-);
-
-// ── Label bubble helper ────────────────────────────────────────────────
+// ── Label bubble ──────────────────────────────────────────────────────
 function LabelBubble({ text, cx, cy, above = false }) {
   if (!text) return null;
   const lw = Math.min(text.length * 5.8 + 22, 160);
@@ -166,8 +180,8 @@ function LabelBubble({ text, cx, cy, above = false }) {
   );
 }
 
-// ── Map SVG ────────────────────────────────────────────────────────────
-function RouteSVG({ svgPts, routeKey, pickup, dropoff }) {
+// ── SVG overlay (route + pins, no background) ─────────────────────────
+function RouteOverlay({ svgPts, routeKey, pickup, dropoff }) {
   const d       = toSVGPath(svgPts);
   const len     = svgPts.length > 1 ? approxPathLen(svgPts) : 600;
   const start   = svgPts[0]                  ?? { x: 80,  y: 170 };
@@ -176,25 +190,26 @@ function RouteSVG({ svgPts, routeKey, pickup, dropoff }) {
 
   const pickupLabel  = shortAddr(pickup).slice(0, 22);
   const dropoffLabel = shortAddr(dropoff).slice(0, 22);
-
-  // Decide label position: put pickup label below marker if there's room, above otherwise
   const pickupAbove  = start.y > SVG_H - 45;
   const dropoffAbove = end.y > SVG_H - 45;
 
   return (
     <svg
       key={routeKey}
-      width="100%" height={SVG_H}
+      width="100%"
+      height={SVG_H}
       viewBox={`0 0 ${SVG_W} ${SVG_H}`}
       xmlns="http://www.w3.org/2000/svg"
       preserveAspectRatio="xMidYMid meet"
       aria-hidden="true"
-      style={{ display: 'block', background: '#F5F7F2' }}
+      style={{
+        position: 'absolute', inset: 0,
+        width: '100%', height: '100%',
+        pointerEvents: 'none',
+        zIndex: 3,
+      }}
     >
       <defs>
-        <pattern id="mv-grid" width="36" height="36" patternUnits="userSpaceOnUse">
-          <path d="M36 0L0 0 0 36" fill="none" stroke="#E8EDE8" strokeWidth=".8"/>
-        </pattern>
         <linearGradient id="mv-rg" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%"   stopColor="#22C55E"/>
           <stop offset="100%" stopColor="#111827"/>
@@ -204,24 +219,6 @@ function RouteSVG({ svgPts, routeKey, pickup, dropoff }) {
           <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
         </filter>
       </defs>
-
-      {/* Base + grid */}
-      <rect width={SVG_W} height={SVG_H} fill="#F5F7F2"/>
-      <rect width={SVG_W} height={SVG_H} fill="url(#mv-grid)"/>
-
-      {/* Contextual road stripes near midpoint */}
-      {hasPath && (() => {
-        const mx = (start.x + end.x) / 2;
-        const my = (start.y + end.y) / 2;
-        return (
-          <>
-            <rect x={0}      y={my - 11} width={SVG_W} height={22} fill="#ECEDE8" opacity=".65"/>
-            <rect x={mx - 11} y={0}      width={22}    height={SVG_H} fill="#ECEDE8" opacity=".65"/>
-            <line x1={0} y1={my} x2={SVG_W} y2={my} stroke="#D1D5CC" strokeWidth="1" strokeDasharray="10,8"/>
-            <line x1={mx} y1={0} x2={mx}    y2={SVG_H} stroke="#D1D5CC" strokeWidth="1" strokeDasharray="10,8"/>
-          </>
-        );
-      })()}
 
       {/* Route white halo */}
       {hasPath && (
@@ -233,12 +230,10 @@ function RouteSVG({ svgPts, routeKey, pickup, dropoff }) {
       {hasPath && (
         <path
           className="mv-route"
-          d={d}
-          fill="none"
+          d={d} fill="none"
           stroke="url(#mv-rg)"
           strokeWidth="3.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+          strokeLinecap="round" strokeLinejoin="round"
           filter="url(#mv-glow)"
           style={{ '--mv-len': len, strokeDasharray: len }}
         />
@@ -248,36 +243,25 @@ function RouteSVG({ svgPts, routeKey, pickup, dropoff }) {
       {hasPath && (
         <path
           className="mv-flowing"
-          d={d}
-          fill="none"
-          stroke="#fff"
-          strokeWidth="1.6"
-          strokeLinecap="round"
-          strokeDasharray="7,18"
+          d={d} fill="none"
+          stroke="#fff" strokeWidth="1.6"
+          strokeLinecap="round" strokeDasharray="7,18"
           opacity=".6"
         />
       )}
 
       {/* ── Pickup marker ── */}
-      <g style={{
-        transformOrigin: `${start.x}px ${start.y}px`,
-        animation: 'mv-pinDrop .55s cubic-bezier(.34,1.2,.64,1) .1s both'
-      }}>
+      <g style={{ transformOrigin: `${start.x}px ${start.y}px`, animation: 'mv-pinDrop .55s cubic-bezier(.34,1.2,.64,1) .1s both' }}>
         <circle className="mv-pulse" cx={start.x} cy={start.y} fill="#22C55E"/>
         <circle cx={start.x} cy={start.y} r={13}  fill="#fff" stroke="#22C55E" strokeWidth="2.5"/>
         <circle cx={start.x} cy={start.y} r={6.5} fill="#22C55E"/>
         <circle cx={start.x} cy={start.y} r={2.5} fill="#fff"/>
       </g>
-      <LabelBubble text={pickupLabel} cx={start.x} cy={start.y} above={pickupAbove}/>
+      <LabelBubble text={pickupLabel}  cx={start.x} cy={start.y} above={pickupAbove}/>
 
       {/* ── Dropoff pin ── */}
-      <g style={{
-        transformOrigin: `${end.x}px ${end.y}px`,
-        animation: 'mv-pinDrop .55s cubic-bezier(.34,1.2,.64,1) .3s both'
-      }}>
-        {/* shadow */}
+      <g style={{ transformOrigin: `${end.x}px ${end.y}px`, animation: 'mv-pinDrop .55s cubic-bezier(.34,1.2,.64,1) .3s both' }}>
         <ellipse cx={end.x} cy={end.y + 26} rx={7} ry={3} fill="rgba(17,24,39,.15)"/>
-        {/* teardrop body */}
         <path
           d={`M${end.x},${end.y + 26}
               C${end.x},${end.y + 26} ${end.x - 14},${end.y + 10}
@@ -291,6 +275,85 @@ function RouteSVG({ svgPts, routeKey, pickup, dropoff }) {
       </g>
       <LabelBubble text={dropoffLabel} cx={end.x} cy={end.y + 30} above={dropoffAbove}/>
     </svg>
+  );
+}
+
+// ── Mapbox background ─────────────────────────────────────────────────
+function MapboxMap({ decodedPts }) {
+  const containerRef  = useRef(null);
+  const mapRef        = useRef(null);
+  const initializedRef = useRef(false);
+
+  // Stable initial center
+  const initCenter = useMemo(() => {
+    if (decodedPts.length) {
+      const mid = decodedPts[Math.floor(decodedPts.length / 2)];
+      return [mid[1], mid[0]];
+    }
+    return [-81.3792, 28.5383]; // Orlando default
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!containerRef.current || initializedRef.current) return;
+
+    loadMapbox(() => {
+      if (!containerRef.current || initializedRef.current) return;
+      initializedRef.current = true;
+
+      window.mapboxgl.accessToken = MAPBOX_TOKEN;
+
+      mapRef.current = new window.mapboxgl.Map({
+        container: containerRef.current,
+        style: 'mapbox://styles/mapbox/streets-v12',
+        center: initCenter,
+        zoom: 13,
+        attributionControl: false,
+        interactive: false, // locked — SVG overlay uses its own projection
+      });
+
+      mapRef.current.addControl(
+        new window.mapboxgl.AttributionControl({ compact: true }),
+        'bottom-right'
+      );
+    });
+
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+        initializedRef.current = false;
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Re-fit when route changes
+  useEffect(() => {
+    if (!mapRef.current || !decodedPts.length) return;
+    const lngs = decodedPts.map(p => p[1]);
+    const lats  = decodedPts.map(p => p[0]);
+    const bounds = [
+      [Math.min(...lngs), Math.min(...lats)],
+      [Math.max(...lngs), Math.max(...lats)],
+    ];
+
+    const fit = () => {
+      mapRef.current.fitBounds(bounds, { padding: 48, duration: 900, maxZoom: 15 });
+    };
+
+    if (mapRef.current.loaded()) {
+      fit();
+    } else {
+      mapRef.current.once('load', fit);
+    }
+  }, [decodedPts]);
+
+  return (
+    <div
+      ref={containerRef}
+      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 1 }}
+    />
   );
 }
 
@@ -311,51 +374,39 @@ export default function MapView({ bookingPayload }) {
     if (changed) { setRouteKey(k => k + 1); prevRef.current = curr; }
   }, [bookingPayload]);
 
-  const svgPts = useMemo(() => {
-    const raw = bookingPayload?.polyline;
-    return raw ? project(decodePolyline(raw)) : [];
-  }, [bookingPayload?.polyline]);
+  const decodedPts = useMemo(() => decodePolyline(bookingPayload?.polyline), [bookingPayload?.polyline]);
+  const svgPts     = useMemo(() => project(decodedPts), [decodedPts]);
 
   if (!bookingPayload) return null;
 
-  const {
-    pickup            = '',
-    dropoff           = '',
-    rideLabel         = '',
-    fareEstimate      = null,
-    miles             = null,
-    tripDistanceMiles = null,
-    durationMin       = null,
-    durationText      = null,
-  } = bookingPayload;
-
-  const distMiles = miles ?? tripDistanceMiles;
-  const distStr   = distMiles != null ? `${Number(distMiles).toFixed(1)} mi` : '—';
-  const fareStr   = fareEstimate != null ? `$${Number(fareEstimate).toFixed(2)}` : '—';
-  const etaStr    = durationText ?? (durationMin != null ? `${durationMin} min` : '—');
-  const hasRoute  = !!(pickup && dropoff);
+  const { pickup = '', dropoff = '', rideLabel = '', fareEstimate = null, miles = null, tripDistanceMiles = null, durationMin = null, durationText = null } = bookingPayload;
+  const hasRoute = !!(pickup && dropoff);
 
   return (
     <div style={{ fontFamily: "'Outfit', system-ui, sans-serif" }}>
       <style>{MAP_CSS}</style>
 
       <div className="mv-card">
-
         {/* Map area */}
-        <div style={{ position: 'relative', height: SVG_H, overflow: 'hidden' }}>
-          <RouteSVG
+        <div style={{ position: 'relative', height: MAP_HEIGHT, overflow: 'hidden' }}>
+
+          {/* ── Real Mapbox map as background ── */}
+          <MapboxMap key={routeKey} decodedPts={decodedPts} />
+
+          {/* ── SVG overlay: route + pins ── */}
+          <RouteOverlay
             svgPts={svgPts}
             routeKey={routeKey}
             pickup={pickup}
             dropoff={dropoff}
           />
+
+          {/* Status pill */}
           <div className="mv-pill mv-fadeup" key={routeKey} style={{ animationDelay: '.5s' }}>
             <div className="mv-pill-dot"/>
             {hasRoute ? 'Route calculated' : 'Set pickup & dropoff'}
           </div>
         </div>
-  
-       
       </div>
     </div>
   );
