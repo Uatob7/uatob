@@ -55,18 +55,6 @@ function buildProgress(liveStatus) {
   });
 }
 
-function getStatusLabel(status, driverName) {
-  const name = driverName || 'Your driver';
-  return {
-    searching_driver: 'Finding you a driver…',
-    driver_assigned:  `${name} has been assigned`,
-    driver_arriving:  `${name} is on the way`,
-    arrived:          `${name} has arrived`,
-    in_progress:      'On the way to your destination',
-    completed:        'Ride complete',
-  }[status] ?? '';
-}
-
 // ── Inject keyframes once ──────────────────────────────────────────
 const PANEL_KEYFRAMES = `
   @keyframes ltpBlink { 0%,100%{opacity:1} 50%{opacity:0.35} }
@@ -104,7 +92,7 @@ function DriverAvatar({ firstName, lastName, size = 52, color }) {
   );
 }
 
-// ── Message Panel (unchanged in logic, light visual refresh) ───────
+// ── Message Panel ──────────────────────────────────────────────────
 function MessagePanel({ rideId, driverUid, driverName, driverColor, onClose }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput]       = useState('');
@@ -398,7 +386,6 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
 
   const driverUid = currentRide?.driverUid;
 
-  // Live driver doc
   useEffect(() => {
     if (!driverUid) { setDriverDoc(null); return; }
     const db    = getFirestore();
@@ -409,7 +396,6 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
     return () => unsub();
   }, [driverUid]);
 
-  // Ride completion callback
   useEffect(() => {
     if (currentRide?.status === 'completed') {
       const t = setTimeout(() => onRideDone?.(), 3000);
@@ -417,11 +403,9 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
     }
   }, [currentRide?.status]);
 
-  // Rider location ping
   useEffect(() => {
     const rideId     = currentRide?.id;
     const liveStatus = currentRide?.status;
-
     if (!rideId) return;
     if (liveStatus === 'completed' || liveStatus === 'cancelled') return;
 
@@ -444,7 +428,6 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
     return () => clearInterval(interval);
   }, [currentRide?.id, currentRide?.status]);
 
-  // Derived values
   const liveStatus  = currentRide?.status ?? '';
   const pickup      = currentRide?.pickup  ?? 'Pickup location';
   const dropoff     = currentRide?.dropoff ?? 'Drop-off location';
@@ -461,15 +444,15 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
     return Number.isFinite(v) ? v.toFixed(1) : '0.0';
   }, [currentRide]);
 
-  const driverFirstName = driverDoc?.firstName ?? '';
-  const driverLastName  = driverDoc?.lastName  ?? '';
+  const driverFirstName  = driverDoc?.firstName ?? '';
+  const driverLastName   = driverDoc?.lastName  ?? '';
   const driverName = driverFirstName || driverLastName
     ? `${driverFirstName} ${driverLastName}`.trim()
     : null;
 
-  const vehicle      = driverDoc?.vehicle ?? null;
-  const driverPhone  = driverDoc?.contact?.phone ?? null;
-  const driverRating = driverDoc?.averageRating ?? null;
+  const vehicle       = driverDoc?.vehicle ?? null;
+  const driverPhone   = driverDoc?.contact?.phone ?? null;
+  const driverRating  = driverDoc?.averageRating ?? null;
   const driverReviews = driverDoc?.totalReviews ?? null;
 
   const driverLat = currentRide?.driverLat ?? null;
@@ -485,9 +468,14 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
   const dropoffDistanceMiles = currentRide?.dropoffDistanceMiles ?? null;
   const dropoffEtaMin        = currentRide?.dropoffEtaMin        ?? null;
 
+  const vehicleLabel = vehicle ? `${vehicle.year} ${vehicle.make} ${vehicle.model}`.trim() : null;
+  const vehicleColor = vehicle?.color ? vehicle.color.charAt(0).toUpperCase() + vehicle.color.slice(1) : null;
+  const seatCount    = vehicle?.seats ?? 4;
+  const rideId       = currentRide?.id ?? currentRide?.rideId;
+
   if (!currentRide) {
     return (
-      <div className="glass" style={{
+      <div style={{
         padding: 26, textAlign: 'center', color: T.textMuted,
         fontSize: 14, fontWeight: 600,
       }}>
@@ -496,23 +484,17 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
     );
   }
 
-  const vehicleLabel = vehicle ? `${vehicle.year} ${vehicle.make} ${vehicle.model}`.trim() : null;
-  const vehicleColor = vehicle?.color ? vehicle.color.charAt(0).toUpperCase() + vehicle.color.slice(1) : null;
-  const seatCount    = vehicle?.seats ?? 4;
-
-  const rideId = currentRide?.id ?? currentRide?.rideId;
-
   return (
-    <div className="glass" style={{
-      padding: 16,
+    // ── Removed outer glass wrapper — just a plain flex column now ──
+    <div style={{
       display: 'flex', flexDirection: 'column', gap: 12,
       animation: 'ltpFadeUp .35s ease-out',
     }}>
 
-      {/* ── Map (your existing TrackingMap) ── */}
+      {/* ── Map — stretches full width, no extra wrapper ── */}
       <TrackingMap active={active} isTracking={!isCompleted} />
 
-      {/* ── Step row card ── */}
+      {/* ── Step row ── */}
       <div style={{
         background: '#fff',
         border: `1px solid ${T.border}`,
@@ -530,10 +512,8 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
           borderRadius: 14,
           padding: '16px 18px',
         }}>
-          {/* Track */}
-          <div style={{
-            display: 'flex', alignItems: 'center', marginBottom: 12,
-          }}>
+          {/* Track line */}
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
             <div style={{
               width: 10, height: 10, borderRadius: '50%',
               background: headingToPickup ? driverColor : T.text,
@@ -571,19 +551,13 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
             }}/>
           </div>
 
-          {/* Values */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr 1fr',
-            alignItems: 'flex-start',
-          }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'flex-start' }}>
             {/* Driver */}
             <div>
               <div style={{
                 fontSize: 10, fontWeight: 700,
                 color: headingToPickup ? driverColor : T.textMuted,
-                letterSpacing: '0.5px', textTransform: 'uppercase',
-                marginBottom: 4,
+                letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: 4,
               }}>
                 Driver
               </div>
@@ -594,20 +568,13 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
                     fontSize: headingToPickup ? 22 : 16,
                     fontWeight: 700,
                     color: headingToPickup ? driverColor : T.text,
-                    lineHeight: 1,
-                    transition: 'all .35s',
+                    lineHeight: 1, transition: 'all .35s',
                   }}>
                     {driverDistanceMiles}
-                    <span style={{ fontSize: 11, fontWeight: 500, marginLeft: 2, color: T.textMuted, fontFamily: 'inherit' }}>
-                      mi
-                    </span>
+                    <span style={{ fontSize: 11, fontWeight: 500, marginLeft: 2, color: T.textMuted, fontFamily: 'inherit' }}>mi</span>
                   </div>
                   {driverEtaMin !== null && (
-                    <div style={{
-                      fontSize: 11, fontWeight: 500,
-                      color: headingToPickup ? driverColor : T.textMuted,
-                      marginTop: 3,
-                    }}>
+                    <div style={{ fontSize: 11, fontWeight: 500, color: headingToPickup ? driverColor : T.textMuted, marginTop: 3 }}>
                       {driverEtaMin} min away
                     </div>
                   )}
@@ -617,19 +584,17 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
               )}
             </div>
 
-            {/* Pickup midpoint label */}
+            {/* Pickup midpoint */}
             <div style={{ textAlign: 'center', paddingTop: 2 }}>
               <div style={{
                 fontSize: 10, fontWeight: 700, color: T.textMuted,
-                letterSpacing: '0.5px', textTransform: 'uppercase',
-                marginBottom: 4,
+                letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: 4,
               }}>
                 Pickup
               </div>
               <div style={{
                 fontSize: 12, color: T.text, fontWeight: 500,
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                padding: '0 4px',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px',
               }}>
                 {pickup.split(',')[0]}
               </div>
@@ -640,8 +605,7 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
               <div style={{
                 fontSize: 10, fontWeight: 700,
                 color: headingToDropoff ? ACCENT : T.textMuted,
-                letterSpacing: '0.5px', textTransform: 'uppercase',
-                marginBottom: 4,
+                letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: 4,
               }}>
                 Dropoff
               </div>
@@ -652,20 +616,13 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
                     fontSize: headingToDropoff ? 22 : 16,
                     fontWeight: 700,
                     color: headingToDropoff ? ACCENT : T.text,
-                    lineHeight: 1,
-                    transition: 'all .35s',
+                    lineHeight: 1, transition: 'all .35s',
                   }}>
                     {dropoffDistanceMiles}
-                    <span style={{ fontSize: 11, fontWeight: 500, marginLeft: 2, color: T.textMuted, fontFamily: 'inherit' }}>
-                      mi
-                    </span>
+                    <span style={{ fontSize: 11, fontWeight: 500, marginLeft: 2, color: T.textMuted, fontFamily: 'inherit' }}>mi</span>
                   </div>
                   {dropoffEtaMin !== null && (
-                    <div style={{
-                      fontSize: 11, fontWeight: 500,
-                      color: headingToDropoff ? ACCENT : T.textMuted,
-                      marginTop: 3,
-                    }}>
+                    <div style={{ fontSize: 11, fontWeight: 500, color: headingToDropoff ? ACCENT : T.textMuted, marginTop: 3 }}>
                       {dropoffEtaMin} min away
                     </div>
                   )}
@@ -713,30 +670,20 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
                 {driverName || 'Finding driver…'}
               </div>
 
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                marginTop: 3, flexWrap: 'wrap',
-              }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
                 {driverRating && (
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: 3,
-                    fontSize: 12, fontWeight: 600, color: '#B45309',
-                  }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 12, fontWeight: 600, color: '#B45309' }}>
                     <Star size={11} fill="#F59E0B" stroke="#F59E0B" />
                     {driverRating}
                     {driverReviews && (
-                      <span style={{ fontSize: 11, fontWeight: 500, color: T.textMuted }}>
-                        ({driverReviews})
-                      </span>
+                      <span style={{ fontSize: 11, fontWeight: 500, color: T.textMuted }}>({driverReviews})</span>
                     )}
                   </div>
                 )}
                 {currentRide?.rideLabel && (
                   <>
                     <span style={{ color: T.border, fontSize: 11 }}>·</span>
-                    <span style={{ fontSize: 12, fontWeight: 500, color: T.textMuted }}>
-                      {currentRide.rideLabel}
-                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 500, color: T.textMuted }}>{currentRide.rideLabel}</span>
                   </>
                 )}
                 {hasLiveLocation && !isCompleted && (
@@ -744,8 +691,7 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
                     <span style={{ color: T.border, fontSize: 11 }}>·</span>
                     <span style={{
                       display: 'inline-flex', alignItems: 'center', gap: 4,
-                      fontSize: 11, fontWeight: 700, color: ACCENT,
-                      letterSpacing: '0.3px',
+                      fontSize: 11, fontWeight: 700, color: ACCENT, letterSpacing: '0.3px',
                     }}>
                       <span style={{
                         width: 6, height: 6, borderRadius: '50%',
@@ -766,12 +712,10 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
                   style={{
                     height: 36, padding: '0 12px',
                     border: `1px solid ${T.border}`,
-                    borderRadius: 10,
-                    background: '#fff',
+                    borderRadius: 10, background: '#fff',
                     fontSize: 12, fontWeight: 700, color: T.text,
                     display: 'flex', alignItems: 'center', gap: 5,
-                    textDecoration: 'none', whiteSpace: 'nowrap',
-                    transition: 'all .15s',
+                    textDecoration: 'none', whiteSpace: 'nowrap', transition: 'all .15s',
                   }}
                   onMouseEnter={(e) => { e.currentTarget.style.borderColor = driverColor; e.currentTarget.style.color = driverColor; }}
                   onMouseLeave={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.text; }}
@@ -784,12 +728,10 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
                 onClick={() => setShowMessage(true)}
                 style={{
                   height: 36, padding: '0 14px', border: 'none',
-                  borderRadius: 10,
-                  background: T.text ?? '#111',
+                  borderRadius: 10, background: T.text ?? '#111',
                   fontSize: 12, fontWeight: 700, color: '#fff',
                   display: 'flex', alignItems: 'center', gap: 5,
-                  cursor: 'pointer', whiteSpace: 'nowrap',
-                  transition: 'all .15s',
+                  cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all .15s',
                 }}
                 onMouseEnter={(e) => { e.currentTarget.style.background = driverColor; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = T.text ?? '#111'; }}
@@ -800,14 +742,11 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
             </div>
           </div>
 
-          {/* Vehicle details row */}
+          {/* Vehicle details */}
           {(vehicleLabel || vehicle?.plate) && (
             <>
               <div style={{ height: 1, background: T.border }} />
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                flexWrap: 'wrap',
-              }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <Car size={13} color={T.textMuted} />
                 {vehicleLabel && (
                   <span style={{ fontSize: 12, fontWeight: 500, color: T.text }}>
@@ -820,19 +759,14 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
                     fontSize: 11, fontWeight: 700,
                     background: '#F1EFE8',
                     border: `1px solid ${T.border}`,
-                    borderRadius: 5,
-                    padding: '2px 8px',
-                    color: T.text,
-                    letterSpacing: '1.5px',
+                    borderRadius: 5, padding: '2px 8px',
+                    color: T.text, letterSpacing: '1.5px',
                   }}>
                     {vehicle.plate.toUpperCase()}
                   </span>
                 )}
                 <span style={{ flex: 1 }} />
-                <span style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 4,
-                  fontSize: 11, color: T.textMuted, fontWeight: 500,
-                }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: T.textMuted, fontWeight: 500 }}>
                   <Shield size={11} />
                   {seatCount} seats
                 </span>
@@ -840,7 +774,7 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
             </>
           )}
 
-          {/* Live coords (collapsed/subtle) */}
+          {/* Live coords */}
           {hasLiveLocation && (
             <div style={{
               display: 'flex', alignItems: 'center', gap: 5,
@@ -864,7 +798,7 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
         </div>
       )}
 
-      {/* ── Route card ── */}
+      {/* ── Route summary card ── */}
       <div style={{
         background: '#fff',
         border: `1px solid ${T.border}`,
@@ -876,23 +810,16 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
           display: 'flex', flexDirection: 'column', alignItems: 'center',
           gap: 4, paddingTop: 4, flexShrink: 0,
         }}>
-          <div style={{
-            width: 9, height: 9, borderRadius: '50%',
-            background: T.text,
-          }}/>
+          <div style={{ width: 9, height: 9, borderRadius: '50%', background: T.text }}/>
           <div style={{ width: 1.5, flex: 1, background: T.border }}/>
-          <div style={{
-            width: 9, height: 9, borderRadius: 2,
-            background: ACCENT, transform: 'rotate(45deg)',
-          }}/>
+          <div style={{ width: 9, height: 9, borderRadius: 2, background: ACCENT, transform: 'rotate(45deg)' }}/>
         </div>
 
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div>
             <div style={{
               fontSize: 10, fontWeight: 700, color: T.textMuted,
-              letterSpacing: '0.4px', textTransform: 'uppercase',
-              marginBottom: 2,
+              letterSpacing: '0.4px', textTransform: 'uppercase', marginBottom: 2,
             }}>
               From
             </div>
@@ -906,8 +833,7 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
           <div>
             <div style={{
               fontSize: 10, fontWeight: 700, color: T.textMuted,
-              letterSpacing: '0.4px', textTransform: 'uppercase',
-              marginBottom: 2,
+              letterSpacing: '0.4px', textTransform: 'uppercase', marginBottom: 2,
             }}>
               To
             </div>
@@ -923,15 +849,13 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
           <div style={{
             fontSize: 10, fontWeight: 700, color: T.textMuted,
-            letterSpacing: '0.4px', textTransform: 'uppercase',
-            marginBottom: 2,
+            letterSpacing: '0.4px', textTransform: 'uppercase', marginBottom: 2,
           }}>
             Trip
           </div>
           <div style={{
             fontFamily: '"JetBrains Mono", monospace',
-            fontSize: 22, fontWeight: 700, color: ACCENT,
-            lineHeight: 1,
+            fontSize: 22, fontWeight: 700, color: ACCENT, lineHeight: 1,
           }}>
             ${total}
           </div>
