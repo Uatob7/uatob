@@ -1,4 +1,3 @@
-
 // src/App/UaTob/ConfirmationModal.jsx
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Clock, Car, CheckCircle, RotateCcw, Loader2, Bell, AlertCircle } from 'lucide-react';
@@ -34,6 +33,280 @@ async function registerRiderFcmToken(rideId, uid) {
   if (!token) throw new Error("Empty token");
   await callableSaveRiderToken({ rideId, uid, token });
 }
+
+// ─── Notification Popup — defined OUTSIDE ConfirmationModal ───────────────
+function NotificationPopup({ notifLoading, notifError, onAllow, onSkip }) {
+  const hasError = !!notifError;
+
+  return (
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
+
+        @keyframes notifBackdropIn {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        @keyframes notifCardIn {
+          from { opacity: 0; transform: scale(.92) translateY(20px); }
+          to   { opacity: 1; transform: scale(1)   translateY(0);    }
+        }
+        @keyframes bellSwing {
+          0%,100% { transform: rotate(0deg);  }
+          15%     { transform: rotate(-22deg); }
+          30%     { transform: rotate(16deg);  }
+          45%     { transform: rotate(-10deg); }
+          60%     { transform: rotate(6deg);   }
+          75%     { transform: rotate(-3deg);  }
+        }
+        @keyframes ringExpand {
+          0%   { transform: scale(.55); opacity: .7; }
+          100% { transform: scale(2.1); opacity: 0;  }
+        }
+        @keyframes errorShake {
+          0%,100% { transform: translateX(0);   }
+          20%     { transform: translateX(-7px); }
+          40%     { transform: translateX(7px);  }
+          60%     { transform: translateX(-4px); }
+          80%     { transform: translateX(4px);  }
+        }
+        @keyframes notifSpin {
+          to { transform: rotate(360deg); }
+        }
+        @keyframes dotPulse {
+          0%,80%,100% { transform: scale(0); opacity: .4; }
+          40%         { transform: scale(1); opacity: 1;   }
+        }
+        .notif-allow-btn:hover  { filter: brightness(1.08); transform: translateY(-1px); }
+        .notif-allow-btn:active { filter: brightness(.96);  transform: translateY(0);    }
+        .notif-skip-btn:hover   { background: #F3F4F6 !important; }
+        .notif-skip-btn:active  { background: #E5E7EB !important; }
+      `}</style>
+
+      {/* Backdrop */}
+      <div
+        onClick={e => e.target === e.currentTarget && onSkip()}
+        style={{
+          position: 'fixed', inset: 0, zIndex: 1060,
+          background: 'rgba(10,10,20,.52)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '24px',
+          animation: 'notifBackdropIn .22s ease both',
+        }}
+      >
+        {/* Card */}
+        <div
+          style={{
+            width: '100%', maxWidth: '352px',
+            background: '#FAFAF8',
+            borderRadius: '28px',
+            overflow: 'hidden',
+            boxShadow: '0 32px 80px rgba(0,0,0,.22), 0 0 0 1px rgba(0,0,0,.06)',
+            animation: `notifCardIn .32s cubic-bezier(.34,1.46,.64,1) both${hasError ? ', errorShake .4s ease' : ''}`,
+            fontFamily: "'DM Sans', sans-serif",
+          }}
+        >
+          {/* Top illustration zone */}
+          <div style={{
+            background: hasError
+              ? 'linear-gradient(145deg, #FFF1F1 0%, #FFE4E4 100%)'
+              : 'linear-gradient(145deg, #EFF6FF 0%, #DBEAFE 100%)',
+            padding: '36px 24px 28px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            position: 'relative',
+            overflow: 'hidden',
+          }}>
+            {/* Decorative grid lines */}
+            <div style={{
+              position: 'absolute', inset: 0, opacity: .18,
+              backgroundImage: `
+                repeating-linear-gradient(0deg, transparent, transparent 22px, ${hasError ? '#FCA5A5' : '#93C5FD'} 22px, ${hasError ? '#FCA5A5' : '#93C5FD'} 23px),
+                repeating-linear-gradient(90deg, transparent, transparent 22px, ${hasError ? '#FCA5A5' : '#93C5FD'} 22px, ${hasError ? '#FCA5A5' : '#93C5FD'} 23px)
+              `,
+            }} />
+
+            {/* Pulse rings */}
+            {!notifLoading && !hasError && (
+              <>
+                {[0, 1, 2].map(i => (
+                  <div key={i} style={{
+                    position: 'absolute',
+                    top: '50%', left: '50%',
+                    width: '68px', height: '68px',
+                    borderRadius: '50%',
+                    border: '1.5px solid rgba(59,130,246,.35)',
+                    transform: 'translate(-50%, -50%)',
+                    animation: `ringExpand 2.6s ease-out ${i * .85}s infinite`,
+                  }} />
+                ))}
+              </>
+            )}
+
+            {/* Icon */}
+            <div style={{
+              position: 'relative', zIndex: 1,
+              width: '72px', height: '72px',
+              borderRadius: '50%',
+              background: hasError
+                ? 'linear-gradient(135deg,#FCA5A5,#EF4444)'
+                : 'linear-gradient(135deg,#60A5FA,#2563EB)',
+              boxShadow: hasError
+                ? '0 8px 28px rgba(239,68,68,.38), 0 0 0 6px rgba(239,68,68,.12)'
+                : '0 8px 28px rgba(37,99,235,.38), 0 0 0 6px rgba(37,99,235,.12)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {notifLoading ? (
+                <svg width="28" height="28" viewBox="0 0 28 28" fill="none"
+                  style={{ animation: 'notifSpin .85s linear infinite' }}>
+                  <circle cx="14" cy="14" r="11" stroke="rgba(255,255,255,.25)" strokeWidth="2.5" />
+                  <path d="M14 3 A11 11 0 0 1 25 14" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" />
+                </svg>
+              ) : hasError ? (
+                <AlertCircle size={28} color="#fff" strokeWidth={2.2} />
+              ) : (
+                <Bell
+                  size={28} color="#fff" strokeWidth={2.2}
+                  style={{ animation: 'bellSwing 2.8s ease-in-out 1.2s infinite', transformOrigin: 'top center' }}
+                />
+              )}
+            </div>
+
+            {/* Heading */}
+            <div style={{
+              position: 'relative', zIndex: 1,
+              marginTop: '18px',
+              fontSize: '23px',
+              fontFamily: "'DM Serif Display', serif",
+              fontWeight: 400,
+              color: hasError ? '#7F1D1D' : '#1E3A5F',
+              textAlign: 'center',
+              lineHeight: 1.2,
+            }}>
+              {notifLoading ? 'Connecting…' : hasError ? 'Permission failed' : 'Stay in the loop'}
+            </div>
+
+            {/* Subheading */}
+            <div style={{
+              position: 'relative', zIndex: 1,
+              marginTop: '7px',
+              fontSize: '13px',
+              fontWeight: 500,
+              color: hasError ? '#B91C1C' : '#3B5E8A',
+              textAlign: 'center',
+              lineHeight: 1.55,
+              maxWidth: '260px',
+            }}>
+              {notifLoading
+                ? "Registering your device — just a moment"
+                : hasError
+                  ? (notifError || "We couldn't get permission. Tap below to try again.")
+                  : "Get an instant alert the moment a driver accepts your ride."}
+            </div>
+          </div>
+
+          {/* Bottom action zone */}
+          <div style={{ padding: '20px 20px 22px', background: '#fff' }}>
+
+            {/* Feature pill — default state only */}
+            {!notifLoading && !hasError && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '10px',
+                background: '#EFF6FF',
+                border: '1px solid #BFDBFE',
+                borderRadius: '12px',
+                padding: '11px 14px',
+                marginBottom: '16px',
+              }}>
+                <div style={{
+                  width: '32px', height: '32px', borderRadius: '8px', flexShrink: 0,
+                  background: 'linear-gradient(135deg,#3B82F6,#2563EB)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Bell size={15} color="#fff" strokeWidth={2.2} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#1E40AF' }}>
+                    Driver found? You'll hear it first.
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: '#3B82F6', marginTop: '2px' }}>
+                    No need to keep this tab open
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Loading dots */}
+            {notifLoading && (
+              <div style={{
+                display: 'flex', justifyContent: 'center', gap: '7px',
+                marginBottom: '18px', paddingTop: '4px',
+              }}>
+                {[0, 1, 2].map(i => (
+                  <div key={i} style={{
+                    width: '8px', height: '8px', borderRadius: '50%',
+                    background: '#3B82F6',
+                    animation: `dotPulse 1.2s ease-in-out ${i * .2}s infinite`,
+                  }} />
+                ))}
+              </div>
+            )}
+
+            {/* Buttons */}
+            {!notifLoading && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
+                <button
+                  className="notif-allow-btn"
+                  onClick={onAllow}
+                  style={{
+                    width: '100%', padding: '14px 0',
+                    borderRadius: '14px', border: 'none',
+                    background: hasError
+                      ? 'linear-gradient(135deg,#EF4444,#B91C1C)'
+                      : 'linear-gradient(135deg,#3B82F6,#1D4ED8)',
+                    color: '#fff',
+                    fontSize: '15px', fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                    transition: 'filter .15s, transform .15s',
+                    boxShadow: hasError
+                      ? '0 4px 16px rgba(239,68,68,.32)'
+                      : '0 4px 16px rgba(37,99,235,.32)',
+                  }}
+                >
+                  {hasError
+                    ? <><RotateCcw size={15} strokeWidth={2.5} /> Try again</>
+                    : <><Bell size={15} strokeWidth={2.5} /> Allow notifications</>
+                  }
+                </button>
+
+                <button
+                  className="notif-skip-btn"
+                  onClick={onSkip}
+                  style={{
+                    width: '100%', padding: '13px 0',
+                    borderRadius: '14px',
+                    border: '1.5px solid #E5E7EB',
+                    background: '#fff',
+                    color: '#6B7280',
+                    fontSize: '14px', fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'background .12s',
+                  }}
+                >
+                  {hasError ? 'Dismiss' : 'Not now'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+// ──────────────────────────────────────────────────────────────────────────
 
 export default function ConfirmationModal({
   onClose,
@@ -253,280 +526,6 @@ export default function ConfirmationModal({
     setNotifError("");
   };
 
-  // ─── Notification Popup ────────────────────────────────────────────────────
-  const NotificationPopup = () => {
-    const hasError = !!notifError;
-
-    return (
-      <>
-        <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
-
-          @keyframes notifBackdropIn {
-            from { opacity: 0; }
-            to   { opacity: 1; }
-          }
-          @keyframes notifCardIn {
-            from { opacity: 0; transform: scale(.92) translateY(20px); }
-            to   { opacity: 1; transform: scale(1)   translateY(0);    }
-          }
-          @keyframes bellSwing {
-            0%,100% { transform: rotate(0deg);  }
-            15%     { transform: rotate(-22deg); }
-            30%     { transform: rotate(16deg);  }
-            45%     { transform: rotate(-10deg); }
-            60%     { transform: rotate(6deg);   }
-            75%     { transform: rotate(-3deg);  }
-          }
-          @keyframes ringExpand {
-            0%   { transform: scale(.55); opacity: .7; }
-            100% { transform: scale(2.1); opacity: 0;  }
-          }
-          @keyframes errorShake {
-            0%,100% { transform: translateX(0);   }
-            20%     { transform: translateX(-7px); }
-            40%     { transform: translateX(7px);  }
-            60%     { transform: translateX(-4px); }
-            80%     { transform: translateX(4px);  }
-          }
-          @keyframes notifSpin {
-            to { transform: rotate(360deg); }
-          }
-          @keyframes dotPulse {
-            0%,80%,100% { transform: scale(0); opacity: .4; }
-            40%         { transform: scale(1); opacity: 1;   }
-          }
-          .notif-allow-btn:hover  { filter: brightness(1.08); transform: translateY(-1px); }
-          .notif-allow-btn:active { filter: brightness(.96);  transform: translateY(0);    }
-          .notif-skip-btn:hover   { background: #F3F4F6 !important; }
-          .notif-skip-btn:active  { background: #E5E7EB !important; }
-        `}</style>
-
-        {/* Backdrop */}
-        <div
-          onClick={e => e.target === e.currentTarget && handleSkipNotifications()}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 1060,
-            background: 'rgba(10,10,20,.52)',
-            backdropFilter: 'blur(8px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: '24px',
-            animation: 'notifBackdropIn .22s ease both',
-          }}
-        >
-          {/* Card */}
-          <div
-            style={{
-              width: '100%', maxWidth: '352px',
-              background: '#FAFAF8',
-              borderRadius: '28px',
-              overflow: 'hidden',
-              boxShadow: '0 32px 80px rgba(0,0,0,.22), 0 0 0 1px rgba(0,0,0,.06)',
-              animation: `notifCardIn .32s cubic-bezier(.34,1.46,.64,1) both${hasError ? ', errorShake .4s ease' : ''}`,
-              fontFamily: "'DM Sans', sans-serif",
-            }}
-          >
-            {/* Top illustration zone */}
-            <div style={{
-              background: hasError
-                ? 'linear-gradient(145deg, #FFF1F1 0%, #FFE4E4 100%)'
-                : 'linear-gradient(145deg, #EFF6FF 0%, #DBEAFE 100%)',
-              padding: '36px 24px 28px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              position: 'relative',
-              overflow: 'hidden',
-            }}>
-              {/* Decorative grid lines */}
-              <div style={{
-                position: 'absolute', inset: 0, opacity: .18,
-                backgroundImage: `
-                  repeating-linear-gradient(0deg, transparent, transparent 22px, ${hasError ? '#FCA5A5' : '#93C5FD'} 22px, ${hasError ? '#FCA5A5' : '#93C5FD'} 23px),
-                  repeating-linear-gradient(90deg, transparent, transparent 22px, ${hasError ? '#FCA5A5' : '#93C5FD'} 22px, ${hasError ? '#FCA5A5' : '#93C5FD'} 23px)
-                `,
-              }} />
-
-              {/* Pulse rings */}
-              {!notifLoading && !hasError && (
-                <>
-                  {[0, 1, 2].map(i => (
-                    <div key={i} style={{
-                      position: 'absolute',
-                      top: '50%', left: '50%',
-                      width: '68px', height: '68px',
-                      borderRadius: '50%',
-                      border: '1.5px solid rgba(59,130,246,.35)',
-                      transform: 'translate(-50%, -50%)',
-                      animation: `ringExpand 2.6s ease-out ${i * .85}s infinite`,
-                    }} />
-                  ))}
-                </>
-              )}
-
-              {/* Icon */}
-              <div style={{
-                position: 'relative', zIndex: 1,
-                width: '72px', height: '72px',
-                borderRadius: '50%',
-                background: hasError
-                  ? 'linear-gradient(135deg,#FCA5A5,#EF4444)'
-                  : 'linear-gradient(135deg,#60A5FA,#2563EB)',
-                boxShadow: hasError
-                  ? '0 8px 28px rgba(239,68,68,.38), 0 0 0 6px rgba(239,68,68,.12)'
-                  : '0 8px 28px rgba(37,99,235,.38), 0 0 0 6px rgba(37,99,235,.12)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                {notifLoading ? (
-                  <svg width="28" height="28" viewBox="0 0 28 28" fill="none"
-                    style={{ animation: 'notifSpin .85s linear infinite' }}>
-                    <circle cx="14" cy="14" r="11" stroke="rgba(255,255,255,.25)" strokeWidth="2.5" />
-                    <path d="M14 3 A11 11 0 0 1 25 14" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" />
-                  </svg>
-                ) : hasError ? (
-                  <AlertCircle size={28} color="#fff" strokeWidth={2.2} />
-                ) : (
-                  <Bell
-                    size={28} color="#fff" strokeWidth={2.2}
-                    style={{ animation: 'bellSwing 2.8s ease-in-out 1.2s infinite', transformOrigin: 'top center' }}
-                  />
-                )}
-              </div>
-
-              {/* Heading */}
-              <div style={{
-                position: 'relative', zIndex: 1,
-                marginTop: '18px',
-                fontSize: '23px',
-                fontFamily: "'DM Serif Display', serif",
-                fontWeight: 400,
-                color: hasError ? '#7F1D1D' : '#1E3A5F',
-                textAlign: 'center',
-                lineHeight: 1.2,
-              }}>
-                {notifLoading ? 'Connecting…' : hasError ? 'Permission failed' : 'Stay in the loop'}
-              </div>
-
-              {/* Subheading */}
-              <div style={{
-                position: 'relative', zIndex: 1,
-                marginTop: '7px',
-                fontSize: '13px',
-                fontWeight: 500,
-                color: hasError ? '#B91C1C' : '#3B5E8A',
-                textAlign: 'center',
-                lineHeight: 1.55,
-                maxWidth: '260px',
-              }}>
-                {notifLoading
-                  ? "Registering your device — just a moment"
-                  : hasError
-                    ? (notifError || "We couldn't get permission. Tap below to try again.")
-                    : "Get an instant alert the moment a driver accepts your ride."}
-              </div>
-            </div>
-
-            {/* Bottom action zone */}
-            <div style={{ padding: '20px 20px 22px', background: '#fff' }}>
-
-              {/* Feature pill — default state only */}
-              {!notifLoading && !hasError && (
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: '10px',
-                  background: '#EFF6FF',
-                  border: '1px solid #BFDBFE',
-                  borderRadius: '12px',
-                  padding: '11px 14px',
-                  marginBottom: '16px',
-                }}>
-                  <div style={{
-                    width: '32px', height: '32px', borderRadius: '8px', flexShrink: 0,
-                    background: 'linear-gradient(135deg,#3B82F6,#2563EB)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <Bell size={15} color="#fff" strokeWidth={2.2} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#1E40AF' }}>
-                      Driver found? You'll hear it first.
-                    </div>
-                    <div style={{ fontSize: '11.5px', color: '#3B82F6', marginTop: '2px' }}>
-                      No need to keep this tab open
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Loading dots */}
-              {notifLoading && (
-                <div style={{
-                  display: 'flex', justifyContent: 'center', gap: '7px',
-                  marginBottom: '18px', paddingTop: '4px',
-                }}>
-                  {[0, 1, 2].map(i => (
-                    <div key={i} style={{
-                      width: '8px', height: '8px', borderRadius: '50%',
-                      background: '#3B82F6',
-                      animation: `dotPulse 1.2s ease-in-out ${i * .2}s infinite`,
-                    }} />
-                  ))}
-                </div>
-              )}
-
-              {/* Buttons */}
-              {!notifLoading && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
-                  <button
-                    className="notif-allow-btn"
-                    onClick={handleEnableNotifications}
-                    style={{
-                      width: '100%', padding: '14px 0',
-                      borderRadius: '14px', border: 'none',
-                      background: hasError
-                        ? 'linear-gradient(135deg,#EF4444,#B91C1C)'
-                        : 'linear-gradient(135deg,#3B82F6,#1D4ED8)',
-                      color: '#fff',
-                      fontSize: '15px', fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                      transition: 'filter .15s, transform .15s',
-                      boxShadow: hasError
-                        ? '0 4px 16px rgba(239,68,68,.32)'
-                        : '0 4px 16px rgba(37,99,235,.32)',
-                    }}
-                  >
-                    {hasError
-                      ? <><RotateCcw size={15} strokeWidth={2.5} /> Try again</>
-                      : <><Bell size={15} strokeWidth={2.5} /> Allow notifications</>
-                    }
-                  </button>
-
-                  <button
-                    className="notif-skip-btn"
-                    onClick={handleSkipNotifications}
-                    style={{
-                      width: '100%', padding: '13px 0',
-                      borderRadius: '14px',
-                      border: '1.5px solid #E5E7EB',
-                      background: '#fff',
-                      color: '#6B7280',
-                      fontSize: '14px', fontWeight: 600,
-                      cursor: 'pointer',
-                      transition: 'background .12s',
-                    }}
-                  >
-                    {hasError ? 'Dismiss' : 'Not now'}
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </>
-    );
-  };
-  // ──────────────────────────────────────────────────────────────────────────
-
   return (
     <div style={{
       position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)',
@@ -534,7 +533,14 @@ export default function ConfirmationModal({
       alignItems: 'center', zIndex: 999, padding: '20px',
       transition: 'opacity .25s ease', opacity: visible ? 1 : 0,
     }}>
-      {showNotifPopup && <NotificationPopup />}
+      {showNotifPopup && (
+        <NotificationPopup
+          notifLoading={notifLoading}
+          notifError={notifError}
+          onAllow={handleEnableNotifications}
+          onSkip={handleSkipNotifications}
+        />
+      )}
 
       <div style={{
         maxWidth: '420px', width: '100%', background: '#fff', borderRadius: '28px',
