@@ -1,6 +1,7 @@
 // src/App/Brand.jsx
 import React from 'react';
 
+
 export function UaTobIcon({ size = 46 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
