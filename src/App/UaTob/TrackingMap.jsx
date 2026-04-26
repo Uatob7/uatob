@@ -131,7 +131,40 @@ function computeHeading(from, to) {
   return Math.atan2(dx, -dy) * (180 / Math.PI);
 }
 
+// ── Convert Firestore-style timestamp to millis ───────────────────────
+function tsToMs(ts) {
+  if (!ts) return 0;
+  if (typeof ts === 'number') return ts;
+  if (ts.seconds != null) return ts.seconds * 1000 + Math.floor((ts.nanoseconds ?? 0) / 1e6);
+  if (ts.toMillis) return ts.toMillis();
+  if (ts instanceof Date) return ts.getTime();
+  return 0;
+}
+
+// Haversine distance in meters between two lat/lng points
+function geoDistMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2
+          + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 // ── GPS source resolution ─────────────────────────────────────────────
+// During in_progress, the driver and rider should be in the same vehicle.
+// We have two independent location streams, so we pick the freshest one and
+// fall back / blend when one stream goes stale.
+//
+// Strategy:
+//   1. If both driver+rider coords are present and within ~10m of each other,
+//      AVERAGE them — they agree, so use the midpoint for stability.
+//   2. Otherwise prefer whichever has the newer timestamp.
+//      (driverLocationAt vs riderLocationAt; falls back to updatedAt for rider)
+//   3. If one is clearly stale (>45s old) and the other is fresh, use the fresh one.
+//   4. If timestamps are unavailable, prefer driver unless driver coords haven't
+//      changed in this session (indicating a stale write).
 function resolveGpsSource(payload, status) {
   const isInProgress = status === 'in_progress';
 
@@ -144,8 +177,9 @@ function resolveGpsSource(payload, status) {
   const hasRider  = riderLat !== 0 && riderLng !== 0;
 
   const driverEta = safeNum(payload.driverEtaMin ?? payload.dropoffEtaMin ?? 999);
-  const riderEta  = safeNum(payload.riderDropoffEtaMin ?? 999);
+  const riderEta  = safeNum(payload.riderDropoffEtaMin ?? payload.dropoffEtaMin ?? 999);
 
+  // ── Not in progress ─────────────────────────────────────────────
   if (!isInProgress) {
     if (hasDriver) return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta };
     if (hasRider)  return { source: 'rider',  lat: riderLat,  lng: riderLng,  etaMin: riderEta  };
@@ -157,19 +191,62 @@ function resolveGpsSource(payload, status) {
     };
   }
 
-  const driverIsOnline = hasDriver && (
-    Math.abs(driverLat - riderLat) > 0.00005 ||
-    Math.abs(driverLng - riderLng) > 0.00005
-  );
+  // ── In progress: blend or pick freshest ─────────────────────────
+  if (!hasDriver && !hasRider) {
+    return {
+      source: 'static',
+      lat: safeNum(payload.dropoffLat),
+      lng: safeNum(payload.dropoffLng),
+      etaMin: safeNum(payload.dropoffEtaMin),
+    };
+  }
+  if (!hasDriver) return { source: 'rider',  lat: riderLat,  lng: riderLng,  etaMin: riderEta  };
+  if (!hasRider)  return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta };
 
-  if (driverIsOnline) return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta };
-  if (hasRider)       return { source: 'rider',  lat: riderLat,  lng: riderLng,  etaMin: riderEta  };
-  return {
-    source: 'static',
-    lat: safeNum(payload.dropoffLat),
-    lng: safeNum(payload.dropoffLng),
-    etaMin: safeNum(payload.dropoffEtaMin),
-  };
+  // Both present — check agreement
+  const distMeters = geoDistMeters(driverLat, driverLng, riderLat, riderLng);
+
+  // (1) They agree (≤10m) → average for jitter-free positioning
+  if (distMeters <= 10) {
+    return {
+      source: 'driver', // primary attribution (driver runs the trip)
+      lat: (driverLat + riderLat) / 2,
+      lng: (driverLng + riderLng) / 2,
+      etaMin: Math.min(driverEta, riderEta),
+      blended: true,
+    };
+  }
+
+  // (2) Compare freshness
+  const driverTs = tsToMs(payload.driverLocationAt);
+  const riderTs  = tsToMs(payload.riderLocationAt);
+  const now      = Date.now();
+  const STALE_MS = 45_000;
+
+  const driverAge = driverTs ? now - driverTs : Infinity;
+  const riderAge  = riderTs  ? now - riderTs  : Infinity;
+
+  const driverStale = driverAge > STALE_MS;
+  const riderStale  = riderAge  > STALE_MS;
+
+  // (3) One stale, one fresh → use fresh
+  if (driverStale && !riderStale) {
+    return { source: 'rider', lat: riderLat, lng: riderLng, etaMin: riderEta };
+  }
+  if (riderStale && !driverStale) {
+    return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta };
+  }
+
+  // (4) Both fresh (or no timestamps) — pick whichever has newer timestamp,
+  //     defaulting to driver when timestamps are unavailable
+  if (driverTs && riderTs) {
+    return driverTs >= riderTs
+      ? { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta }
+      : { source: 'rider',  lat: riderLat,  lng: riderLng,  etaMin: riderEta  };
+  }
+
+  // Default: driver
+  return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta };
 }
 
 // ── Address parsing ──────────────────────────────────────────────────
@@ -291,7 +368,29 @@ function MapBackground({ W, H }) {
 }
 
 // ── GPS source badge ──────────────────────────────────────────────────
-function GpsBadge({ source }) {
+function GpsBadge({ source, blended }) {
+  // When driver + rider GPS agree we mark it "synced"
+  if (blended) {
+    return (
+      <div
+        title="Driver + Rider GPS agree"
+        style={{
+          position: 'absolute', top: -6, right: -6,
+          width: 16, height: 16, borderRadius: '50%',
+          background: '#16A34A', border: '2px solid #fff',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 2,
+          boxShadow: '0 2px 6px rgba(22,163,74,0.55)',
+          animation: 'tmBadgePop .35s cubic-bezier(.34,1.4,.64,1) both',
+        }}
+      >
+        <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
+          <path d="M2.5 6L5 8.5L9.5 3.5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </div>
+    );
+  }
+
   const isRider = source === 'rider';
   const bg      = isRider ? '#3B82F6' : '#16A34A';
   const label   = isRider ? 'R' : 'D';
@@ -344,7 +443,9 @@ function AnimatedCar({ carSvg, driverColor, isInProgress, gpsSource, isCompleted
         animation: 'tmFadeUp .4s ease-out both',
       }}
     >
-      {isInProgress && gpsSource && <GpsBadge source={gpsSource.source} />}
+      {isInProgress && gpsSource && (
+        <GpsBadge source={gpsSource.source} blended={gpsSource.blended} />
+      )}
 
       {/* Standalone top-down car — no surrounding box */}
       <div
@@ -442,10 +543,20 @@ export default function TrackingMap({
   const riderLat  = safeNum(payload.riderLat);
   const riderLng  = safeNum(payload.riderLng);
 
+  // Timestamps (used for freshness comparison in resolveGpsSource).
+  // Reduce to numeric millis so the memo dep is stable across renders.
+  const driverLocMs = tsToMs(payload.driverLocationAt);
+  const riderLocMs  = tsToMs(payload.riderLocationAt);
+
   const gpsSource = useMemo(
     () => resolveGpsSource(payload, status),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [status, driverLat, driverLng, riderLat, riderLng, payload.driverEtaMin, payload.riderDropoffEtaMin]
+    [
+      status,
+      driverLat, driverLng, riderLat, riderLng,
+      driverLocMs, riderLocMs,
+      payload.driverEtaMin, payload.riderDropoffEtaMin,
+    ]
   );
 
   // Polyline
@@ -522,9 +633,11 @@ export default function TrackingMap({
   const statusMeta = STATUS_META[status] ?? STATUS_META.driver_assigned;
 
   const gpsLabel = isInProgress && gpsSource
-    ? gpsSource.source === 'rider'
-      ? { text: 'Rider GPS', color: '#3B82F6' }
-      : { text: 'Driver GPS', color: '#16A34A' }
+    ? gpsSource.blended
+      ? { text: 'GPS synced', color: '#16A34A' }
+      : gpsSource.source === 'rider'
+        ? { text: 'Rider GPS', color: '#3B82F6' }
+        : { text: 'Driver GPS', color: '#16A34A' }
     : null;
 
   // Address strings
