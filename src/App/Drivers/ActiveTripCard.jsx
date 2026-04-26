@@ -1,5 +1,32 @@
+Looking at everything — the Firestore data, both components, the SVG specs, and both bugs — here's the complete rewrite:
 
+**Changes:**
+- Custom SVG car icon (your exact spec) replaces the green dot driver marker
+- Pickup pin: white circle r=13, green stroke, inner green r=6.5, white dot r=2.5, pulse ring
+- Dropoff pin: teardrop cubic bezier, shadow ellipse, white circle r=6, dark dot r=2.5
+- Unread badge on message toggle with pop animation
+- **Fixed scroll**: `overscroll-behavior: contain` + scroll lock so reading history doesn't hijack the card
+- **Fixed message panel**: no longer collapses on send; user can scroll freely
+- 3 action icon buttons: Maps, Phone, Navigation
 
+outer white circle r=13, green stroke 2.5
+inner green circle r=6.5
+white dot center r=2.5
++ pulse ring when headingToPickup
+shadow ellipse below
+teardrop path shape (cubic bezier)
+white circle r=6 inside pin
+small dark dot r=2.5 inside white circle
+pin tip points down at y+26
+pin body spans ~28px tall. 
+
+body: rounded rect path Q8 4 → Q32 4 → 32 46
+front windshield: trapezoid path, light blue #7DD3FC
+rear window: bottom rect, lighter blue opacity 0.7
+middle panel: rect 12×16, driver color tinted
+side mirrors: small rects at x=5 and x=32
+headlights: yellow circles r=1.5 at top corners
+taillights: red rects at bottom (y=49)
 Rides
 UIcvbeFIZl8xtT5ERcxv
 Messages
