@@ -267,7 +267,7 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
 
   const uid = driver?.uid ?? null;
 
-  // ── Live listener so withdrawal status updates in real time ──────────────
+  // Live listener so withdrawal status updates in real time
   useEffect(() => {
     if (!uid) return;
     const unsub = onSnapshot(
@@ -278,11 +278,11 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
     return () => unsub();
   }, [uid]);
 
-  const earnings       = driverData?.earnings   ?? {};
-  const withdrawal     = driverData?.withdrawal ?? {};
-  const today          = earnings.today ?? {};
-  const week           = earnings.week  ?? {};
-  const month          = earnings.month ?? {};
+  const earnings    = driverData?.earnings   ?? {};
+  const withdrawal  = driverData?.withdrawal ?? {};
+  const today       = earnings.today ?? {};
+  const week        = earnings.week  ?? {};
+  const month       = earnings.month ?? {};
 
   const todayEarnings  = today.earnings        ?? 0;
   const todayTrips     = today.trips           ?? 0;
@@ -294,12 +294,33 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
   const monthTrips     = month.trips           ?? 0;
   const dailyBreakdown = week.dailyBreakdown   ?? [];
 
-  const totalPayout      = withdrawal.totalPayout ?? 0;
-  const payoutStatus     = withdrawal.status      ?? null;
-  const payoutAt         = withdrawal.paidAt;
-  const rideBreakdown    = withdrawal.rideBreakdown ?? [];
-  const rideCount        = withdrawal.rideCount     ?? 0;
-  const lastSynced       = earnings.lastSyncedAt;
+  const payoutStatus  = withdrawal.status      ?? null;
+  const payoutAt      = withdrawal.paidAt;
+  const rideBreakdown = withdrawal.rideBreakdown ?? [];
+  const lastSynced    = earnings.lastSyncedAt;
+
+  // ── Smart amount + count derivation ───────────────────────────────
+  // After a successful payout, totalPayout & rideCount on the doc reset to 0
+  // but rideBreakdown still holds the rides that were just paid out. So when
+  // status is "paid", derive the displayed amount from the breakdown.
+  const breakdownSum = rideBreakdown.reduce(
+    (sum, r) => sum + (Number(r.driverPayout) || 0),
+    0
+  );
+  const breakdownCount = rideBreakdown.length;
+
+  const isPaid = payoutStatus === "paid";
+
+  const heroAmount = isPaid
+    ? breakdownSum
+    : (withdrawal.totalPayout ?? 0);
+
+  const heroRideCount = isPaid
+    ? breakdownCount
+    : (withdrawal.rideCount ?? breakdownCount);
+
+  // Pending hero only shows if there's actually money waiting + status is pending
+  const showPendingHero = payoutStatus === "pending" && (withdrawal.totalPayout ?? 0) > 0;
 
   const statusMeta = {
     paid:       { label: "Paid",       color: C.onlineGreen, bg: "#F0FDF4", border: "#86EFAC", Icon: CheckCircle  },
@@ -360,15 +381,14 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
 
       {tab === "overview" && (
         <>
-          {/* ── Pending payout hero ── */}
-          {payoutStatus === "pending" && totalPayout > 0 && (
+          {/* ── Pending payout hero (only when truly pending with money) ── */}
+          {showPendingHero && (
             <div style={{
               background: "linear-gradient(135deg,#0F172A,#1E293B)",
               borderRadius: 22, padding: "26px 22px",
               position: "relative", overflow: "hidden",
               boxShadow: "0 8px 32px rgba(0,0,0,.25)",
             }}>
-              {/* Decorative circles */}
               <div style={{ position: "absolute", top: -40, right: -40, width: 160, height: 160, borderRadius: "50%", background: "rgba(22,163,74,.08)", pointerEvents: "none" }} />
               <div style={{ position: "absolute", bottom: -30, left: -30, width: 100, height: 100, borderRadius: "50%", background: "rgba(22,163,74,.06)", pointerEvents: "none" }} />
 
@@ -376,10 +396,10 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
                 PENDING PAYOUT
               </div>
               <div className="condensed" style={{ fontSize: 52, fontWeight: 900, color: "#fff", lineHeight: 1, marginBottom: 4 }}>
-                {fmtMoney(totalPayout)}
+                {fmtMoney(withdrawal.totalPayout)}
               </div>
               <div style={{ fontSize: 13, color: "rgba(255,255,255,.5)", marginBottom: 22 }}>
-                From {rideCount} completed ride{rideCount !== 1 ? "s" : ""}
+                From {withdrawal.rideCount ?? 0} completed ride{(withdrawal.rideCount ?? 0) !== 1 ? "s" : ""}
               </div>
 
               {payError && (
@@ -412,9 +432,56 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
                 ) : paySuccess ? (
                   <><CheckCircle2 size={17} /> Payout Sent!</>
                 ) : (
-                  <><Banknote size={17} /> Request Payout · {fmtMoney(totalPayout)}</>
+                  <><Banknote size={17} /> Request Payout · {fmtMoney(withdrawal.totalPayout)}</>
                 )}
               </button>
+            </div>
+          )}
+
+          {/* ── Last payout success card (when status is paid) ── */}
+          {isPaid && breakdownCount > 0 && (
+            <div style={{
+              background: "linear-gradient(135deg,#F0FDF4,#DCFCE7)",
+              border: "1.5px solid rgba(22,163,74,.3)",
+              borderRadius: 20, padding: "20px 20px",
+              position: "relative", overflow: "hidden",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                <div>
+                  <div className="mono" style={{ fontSize: 10, fontWeight: 700, color: "#15803D", letterSpacing: ".1em", marginBottom: 4 }}>
+                    LAST PAYOUT
+                  </div>
+                  <div className="condensed" style={{ fontSize: 36, fontWeight: 900, color: C.text, lineHeight: 1 }}>
+                    {fmtMoney(breakdownSum)}
+                  </div>
+                  {payoutAt && (
+                    <div style={{ fontSize: 12, color: "#15803D", marginTop: 4, fontWeight: 600 }}>
+                      Paid {formatDateTime(payoutAt)}
+                    </div>
+                  )}
+                </div>
+                <div style={{
+                  background: C.onlineGreen,
+                  color: "#fff",
+                  borderRadius: 12, padding: "8px 12px",
+                  display: "flex", alignItems: "center", gap: 6,
+                  boxShadow: "0 4px 12px rgba(22,163,74,.35)",
+                }}>
+                  <CheckCircle size={14} />
+                  <span className="mono" style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".05em" }}>
+                    PAID
+                  </span>
+                </div>
+              </div>
+              <div style={{
+                background: "rgba(255,255,255,.6)",
+                borderRadius: 10, padding: "8px 12px",
+                fontSize: 12, color: "#15803D", fontWeight: 600,
+                display: "flex", alignItems: "center", gap: 6,
+              }}>
+                <Receipt size={12} />
+                {breakdownCount} ride{breakdownCount !== 1 ? "s" : ""} · view details in Payout History
+              </div>
             </div>
           )}
 
@@ -506,7 +573,7 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
 
       {tab === "history" && (
         <>
-          {/* ── Current withdrawal status hero ── */}
+          {/* ── Current/last payout hero ── */}
           <div style={{
             background: statusMeta.bg,
             border: `1.5px solid ${statusMeta.border}`,
@@ -516,14 +583,14 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
               <div>
                 <div className="mono" style={{ fontSize: 10, fontWeight: 700, color: statusMeta.color, letterSpacing: ".08em", marginBottom: 6 }}>
-                  CURRENT PAYOUT
+                  {isPaid ? "LAST PAYOUT" : "CURRENT PAYOUT"}
                 </div>
                 <div className="condensed" style={{ fontSize: 42, fontWeight: 900, color: C.text, lineHeight: 1 }}>
-                  {fmtMoney(totalPayout)}
+                  {fmtMoney(heroAmount)}
                 </div>
                 {payoutAt && (
                   <div style={{ fontSize: 12, color: C.textMid, marginTop: 4 }}>
-                    {payoutStatus === "paid" ? "Paid" : "Created"} {formatDateTime(payoutAt || withdrawal.createdAt)}
+                    {isPaid ? "Paid" : "Created"} {formatDateTime(payoutAt || withdrawal.createdAt)}
                   </div>
                 )}
               </div>
@@ -543,7 +610,7 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
             {/* Meta row */}
             <div style={{ display: "flex", gap: 8 }}>
               {[
-                { Icon: Receipt, label: `${rideCount} ride${rideCount !== 1 ? "s" : ""}` },
+                { Icon: Receipt, label: `${heroRideCount} ride${heroRideCount !== 1 ? "s" : ""}` },
                 { Icon: Clock,   label: formatDateTime(withdrawal.createdAt) },
               ].map(({ Icon: Ic, label }) => (
                 <div key={label} style={{ flex: 1, background: "rgba(255,255,255,.6)", borderRadius: 10, padding: "9px 12px", display: "flex", alignItems: "center", gap: 6 }}>
@@ -557,7 +624,9 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
           {/* ── Ride breakdown ── */}
           {rideBreakdown.length > 0 && (
             <div>
-              <div className="lbl" style={{ marginBottom: 8, paddingLeft: 2 }}>Rides in this payout</div>
+              <div className="lbl" style={{ marginBottom: 8, paddingLeft: 2 }}>
+                {isPaid ? "Rides paid out" : "Rides in this payout"}
+              </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {rideBreakdown.map((ride, i) => (
                   <div
@@ -570,59 +639,79 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
                       animation: `fadeSlide .3s ease ${i * 0.05}s both`,
                     }}
                   >
-                    {/* Avatar */}
                     <div style={{ width: 38, height: 38, borderRadius: 11, background: C.onlineGreen + "15", border: `1px solid ${C.onlineGreen}25`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                       <Users size={16} color={C.onlineGreen} />
                     </div>
 
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      {/* Rider name + payout */}
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                        <div className="condensed" style={{ fontSize: 15, fontWeight: 800, color: C.text }}>{ride.riderName ?? "Rider"}</div>
-                        <div className="condensed" style={{ fontSize: 16, fontWeight: 900, color: C.onlineGreen }}>{fmtMoney(ride.driverPayout)}</div>
+                        <div className="condensed" style={{ fontSize: 15, fontWeight: 800, color: C.text, textTransform: "capitalize" }}>
+                          {ride.riderName ?? "Rider"}
+                        </div>
+                        <div className="condensed" style={{ fontSize: 16, fontWeight: 900, color: C.onlineGreen }}>
+                          {fmtMoney(ride.driverPayout)}
+                        </div>
                       </div>
 
-                      {/* Route */}
                       <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 3 }}>
                         <MapPin size={10} color={C.textDim} />
-                        <span style={{ fontSize: 11, color: C.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <span style={{ fontSize: 11, color: C.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textTransform: "capitalize" }}>
                           {ride.pickup?.split(",")[0] ?? "—"} → {ride.dropoff?.split(",")[0] ?? "—"}
                         </span>
                       </div>
 
-                      {/* Meta */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                         <span className="mono" style={{ fontSize: 9.5, color: C.textDim }}>{formatDateTime(ride.completedAt)}</span>
                         <span style={{ width: 3, height: 3, borderRadius: "50%", background: C.border }} />
                         <span className="mono" style={{ fontSize: 9.5, color: C.textDim, textTransform: "capitalize" }}>{ride.rideType ?? "standard"}</span>
                         <span style={{ width: 3, height: 3, borderRadius: "50%", background: C.border }} />
                         <span className="mono" style={{ fontSize: 9.5, color: C.textDim }}>Fare {fmtMoney(ride.fareTotal)}</span>
+                        {isPaid && (
+                          <>
+                            <span style={{ width: 3, height: 3, borderRadius: "50%", background: C.border }} />
+                            <span className="mono" style={{ fontSize: 9.5, color: C.onlineGreen, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                              <CheckCircle size={9} /> PAID
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
                 ))}
+
+                {/* Total summary footer */}
+                <div style={{
+                  marginTop: 4,
+                  background: isPaid ? "#F0FDF4" : C.surfaceAlt,
+                  border: `1px solid ${isPaid ? "rgba(22,163,74,.25)" : C.border}`,
+                  borderRadius: 12, padding: "12px 16px",
+                  display: "flex", justifyContent: "space-between", alignItems: "center",
+                }}>
+                  <span className="condensed" style={{ fontSize: 13, fontWeight: 800, color: C.text }}>
+                    {isPaid ? "Total paid" : "Subtotal"}
+                  </span>
+                  <span className="condensed" style={{ fontSize: 18, fontWeight: 900, color: C.onlineGreen }}>
+                    {fmtMoney(breakdownSum)}
+                  </span>
+                </div>
               </div>
             </div>
           )}
 
           {/* ── No breakdown fallback ── */}
           {rideBreakdown.length === 0 && (
-            <div style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 14, padding: "20px", textAlign: "center" }}>
-              <Receipt size={22} color={C.textDim} style={{ marginBottom: 8 }} />
-              <div style={{ fontSize: 13, color: C.textDim, fontWeight: 500 }}>No ride breakdown available yet</div>
+            <div style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 14, padding: "26px 20px", textAlign: "center" }}>
+              <Receipt size={26} color={C.textDim} style={{ marginBottom: 10 }} />
+              <div className="condensed" style={{ fontSize: 14, fontWeight: 800, color: C.textMid, marginBottom: 4 }}>
+                No payout history yet
+              </div>
+              <div style={{ fontSize: 12, color: C.textDim, fontWeight: 500 }}>
+                Complete rides to start earning
+              </div>
             </div>
           )}
 
-          {/* ── Bank account placeholder ── */}
-          <div style={{ background: C.surfaceAlt, border: `1.5px dashed ${C.border}`, borderRadius: 15, padding: "18px 16px", display: "flex", alignItems: "center", gap: 14, opacity: 0.65 }}>
-            <div style={{ width: 38, height: 38, background: C.blue + "18", borderRadius: 11, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <CreditCard size={17} color={C.blue} />
-            </div>
-            <div>
-              <div className="condensed" style={{ fontSize: 14, fontWeight: 800, color: C.text }}>Bank Account</div>
-              <div style={{ fontSize: 12, color: C.textDim, marginTop: 2 }}>Direct deposit setup coming soon</div>
-            </div>
-          </div>
+     
 
           {/* ── Deposit note ── */}
           <div style={{ background: "#F0FDF4", border: "1px solid rgba(22,163,74,.2)", borderRadius: 13, padding: "13px 16px", display: "flex", gap: 10, alignItems: "center" }}>
