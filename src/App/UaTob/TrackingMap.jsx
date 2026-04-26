@@ -530,61 +530,47 @@ export default function TrackingMap({
   const rawPolyline = payload.polyline ?? null;
   const decodedPts  = useMemo(() => decodePolyline(rawPolyline), [rawPolyline]);
 
-  // ── Build the geo-bounding set for the projection.
-  // We include the decoded polyline points PLUS the canonical pickup/dropoff
-  // coords so the projection always frames the full route even if the polyline
-  // endpoints don't exactly match those coords (floating-point rounding, etc.).
-  const allGeoPoints = useMemo(() => {
-    const pts = [...decodedPts];
-    if (gpsSource) pts.push([gpsSource.lat, gpsSource.lng]);
-    const pLat = safeNum(payload.pickupLat);
-    const pLng = safeNum(payload.pickupLng);
-    const dLat = safeNum(payload.dropoffLat);
-    const dLng = safeNum(payload.dropoffLng);
-    if (pLat && pLng) pts.push([pLat, pLng]);
-    if (dLat && dLng) pts.push([dLat, dLng]);
-    return pts;
-  }, [decodedPts, gpsSource, payload.pickupLat, payload.pickupLng, payload.dropoffLat, payload.dropoffLng]);
+  // ── Single bounding set = decoded polyline points only.
+  // Every projection (polyline, pins, car) must use the SAME bounding box so
+  // that svgPolyPts[0] and svgPolyPts[last] land exactly where the line ends.
+  // Extra GPS coords are NOT added here — they would shift the bounding box and
+  // cause the line endpoints to drift away from the pin positions.
+  const boundingPts = decodedPts; // alias for clarity
 
-  // Project the polyline into SVG-space
+  // Project the polyline into SVG-space using the shared bounding box
   const svgPolyPts = useMemo(
-    () => projectPoints(decodedPts, mapDims.W, mapDims.H),
-    [decodedPts, mapDims.W, mapDims.H]
+    () => projectPoints(boundingPts, mapDims.W, mapDims.H),
+    [boundingPts, mapDims.W, mapDims.H]
   );
 
-  // ── Pin positions ────────────────────────────────────────────────────
-  // Always snap to the actual ends of the projected polyline so the pins
-  // sit exactly where the line terminates, regardless of lat/lng precision.
-  //
-  // Pickup  → svgPolyPts[0]   (first decoded point = start of route)
-  // Dropoff → svgPolyPts[last] (last decoded point  = end of route)
-  //
-  // Fall back to projectSingle when no polyline is available.
+  // ── Pin positions ─────────────────────────────────────────────────────
+  // Pins are taken directly from the projected polyline endpoints so they
+  // are guaranteed to sit exactly where the line starts/ends.
   const pickupSvg = useMemo(() => {
-    if (isInProgress) return null;                         // hide pickup while riding
-    if (svgPolyPts.length > 0) return svgPolyPts[0];      // ← polyline start
-    // no polyline — project from coords using the full geo-bounding set
+    if (isInProgress) return null;                              // hide pickup while riding
+    if (svgPolyPts.length > 0) return svgPolyPts[0];           // ← exact polyline start
+    // no polyline yet — fall back to projecting raw coords
     const lat = safeNum(payload.pickupLat);
     const lng = safeNum(payload.pickupLng);
     if (!lat || !lng) return null;
-    return projectSingle(lat, lng, allGeoPoints, mapDims.W, mapDims.H);
-  }, [isInProgress, svgPolyPts, payload.pickupLat, payload.pickupLng, allGeoPoints, mapDims.W, mapDims.H]);
+    return projectSingle(lat, lng, boundingPts.length ? boundingPts : [[lat, lng]], mapDims.W, mapDims.H);
+  }, [isInProgress, svgPolyPts, payload.pickupLat, payload.pickupLng, boundingPts, mapDims.W, mapDims.H]);
 
   const dropoffSvg = useMemo(() => {
-    if (svgPolyPts.length > 0) return svgPolyPts[svgPolyPts.length - 1]; // ← polyline end
-    // no polyline — project from coords
+    if (svgPolyPts.length > 0) return svgPolyPts[svgPolyPts.length - 1]; // ← exact polyline end
+    // no polyline yet — fall back to projecting raw coords
     const lat = safeNum(payload.dropoffLat);
     const lng = safeNum(payload.dropoffLng);
     if (!lat || !lng) return null;
-    return projectSingle(lat, lng, allGeoPoints, mapDims.W, mapDims.H);
-  }, [svgPolyPts, payload.dropoffLat, payload.dropoffLng, allGeoPoints, mapDims.W, mapDims.H]);
+    return projectSingle(lat, lng, boundingPts.length ? boundingPts : [[lat, lng]], mapDims.W, mapDims.H);
+  }, [svgPolyPts, payload.dropoffLat, payload.dropoffLng, boundingPts, mapDims.W, mapDims.H]);
 
-  // Car position
+  // Car — project GPS into the SAME bounding box, then snap onto the polyline
   const carSvgRaw = useMemo(() => {
     if (driverPos) return driverPos;
-    if (!gpsSource) return null;
-    return projectSingle(gpsSource.lat, gpsSource.lng, allGeoPoints, mapDims.W, mapDims.H);
-  }, [driverPos, gpsSource?.lat, gpsSource?.lng, gpsSource?.source, allGeoPoints, mapDims.W, mapDims.H]);
+    if (!gpsSource || !boundingPts.length) return null;
+    return projectSingle(gpsSource.lat, gpsSource.lng, boundingPts, mapDims.W, mapDims.H);
+  }, [driverPos, gpsSource?.lat, gpsSource?.lng, gpsSource?.source, boundingPts, mapDims.W, mapDims.H]);
 
   const carSvg = useMemo(() => {
     if (!carSvgRaw || !svgPolyPts.length) return carSvgRaw;
