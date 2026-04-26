@@ -561,7 +561,10 @@ export default function TrackingMap({
     return projectSingle(lat, lng, boundingPts.length ? boundingPts : [[lat, lng]], mapDims.W, mapDims.H);
   }, [svgPolyPts, payload.dropoffLat, payload.dropoffLng, boundingPts, mapDims.W, mapDims.H]);
 
-  // Car — project GPS into the SAME bounding box, then snap onto the polyline
+  // Car — project GPS into the SAME bounding box, then:
+  //   1. If within 50m of pickup  → snap exactly to pickupSvg
+  //   2. If within 50m of dropoff → snap exactly to dropoffSvg
+  //   3. Otherwise                → snap to nearest point on polyline
   const carSvgRaw = useMemo(() => {
     if (driverPos) return driverPos;
     if (!gpsSource || !boundingPts.length) return null;
@@ -569,9 +572,35 @@ export default function TrackingMap({
   }, [driverPos, gpsSource?.lat, gpsSource?.lng, gpsSource?.source, boundingPts, mapDims.W, mapDims.H]);
 
   const carSvg = useMemo(() => {
-    if (!carSvgRaw || !svgPolyPts.length) return carSvgRaw;
+    if (!carSvgRaw) return carSvgRaw;
+
+    // Proximity snap to pickup pin
+    if (pickupSvg && gpsSource) {
+      const distToPickup = geoDistMeters(
+        gpsSource.lat, gpsSource.lng,
+        safeNum(payload.pickupLat), safeNum(payload.pickupLng)
+      );
+      if (distToPickup <= 50) return pickupSvg;
+    }
+
+    // Proximity snap to dropoff pin
+    if (dropoffSvg && gpsSource) {
+      const distToDropoff = geoDistMeters(
+        gpsSource.lat, gpsSource.lng,
+        safeNum(payload.dropoffLat), safeNum(payload.dropoffLng)
+      );
+      if (distToDropoff <= 50) return dropoffSvg;
+    }
+
+    // Default: snap to nearest point on polyline
+    if (!svgPolyPts.length) return carSvgRaw;
     return closestPointOnPolyline(svgPolyPts, carSvgRaw.x, carSvgRaw.y);
-  }, [carSvgRaw, svgPolyPts]);
+  }, [
+    carSvgRaw, svgPolyPts, pickupSvg, dropoffSvg,
+    gpsSource?.lat, gpsSource?.lng,
+    payload.pickupLat, payload.pickupLng,
+    payload.dropoffLat, payload.dropoffLng,
+  ]);
 
   const polylinePath = toSVGPath(svgPolyPts);
   const routeLen     = svgPolyPts.length > 1 ? approxPathLen(svgPolyPts) : 1200;
@@ -688,7 +717,7 @@ export default function TrackingMap({
               style={{ animation: 'tmDashFlow 1.4s linear infinite' }}
             />
 
-            {/* ── Pickup marker (MapView style — stacked concentric circles on polyline[0]) ── */}
+            {/* ── Pickup marker ── */}
             {pickupSvg && (
               <g
                 className="tm-pin-drop"
@@ -697,7 +726,6 @@ export default function TrackingMap({
                   animationDelay: '.1s',
                 }}
               >
-                {/* Pulsing halo (only while heading to pickup) */}
                 {headingToPickup && (
                   <circle
                     className="tm-pin-pulse"
@@ -705,16 +733,13 @@ export default function TrackingMap({
                     fill="#22C55E"
                   />
                 )}
-                {/* White ring with green stroke */}
                 <circle cx={pickupSvg.x} cy={pickupSvg.y} r={13}  fill="#fff" stroke="#22C55E" strokeWidth="2.5"/>
-                {/* Green core */}
                 <circle cx={pickupSvg.x} cy={pickupSvg.y} r={6.5} fill="#22C55E"/>
-                {/* White dot */}
                 <circle cx={pickupSvg.x} cy={pickupSvg.y} r={2.5} fill="#fff"/>
               </g>
             )}
 
-            {/* ── Dropoff marker (MapView teardrop on polyline[last]) ── */}
+            {/* ── Dropoff marker ── */}
             {dropoffSvg && (
               <g
                 className="tm-pin-drop"
@@ -723,9 +748,7 @@ export default function TrackingMap({
                   animationDelay: '.3s',
                 }}
               >
-                {/* Shadow under teardrop */}
                 <ellipse cx={dropoffSvg.x} cy={dropoffSvg.y + 26} rx={7} ry={3} fill="rgba(17,24,39,.15)"/>
-                {/* Teardrop body */}
                 <path
                   d={`M${dropoffSvg.x},${dropoffSvg.y + 26}
                       C${dropoffSvg.x},${dropoffSvg.y + 26} ${dropoffSvg.x - 14},${dropoffSvg.y + 10}
@@ -734,16 +757,14 @@ export default function TrackingMap({
                       C${dropoffSvg.x + 14},${dropoffSvg.y + 10} ${dropoffSvg.x},${dropoffSvg.y + 26} Z`}
                   fill="#111827"
                 />
-                {/* White circle inside */}
                 <circle cx={dropoffSvg.x} cy={dropoffSvg.y - 5} r={6}   fill="#fff"/>
-                {/* Black dot in middle */}
                 <circle cx={dropoffSvg.x} cy={dropoffSvg.y - 5} r={2.5} fill="#111827"/>
               </g>
             )}
           </svg>
         )}
 
-        {/* ── Pins for the no-polyline edge case (rendered as fallback HTML) ── */}
+        {/* ── Pins for the no-polyline edge case ── */}
         {svgPolyPts.length <= 1 && pickupSvg && (
           <svg
             style={{ position: 'absolute', inset: 0, width: '100%', height: mapDims.H, pointerEvents: 'none', zIndex: 3 }}
