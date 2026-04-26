@@ -1,512 +1,7 @@
-
-
-Rides
-XP3E0ad4Q7t9iV9TMkti
-Messages
-icbUauCGJQDiwqa7W9sh
-(default)
-
-Accounts
-
-Admin
-
-Drivers
-
-Reviews
-
-Rides
-
-Search
-Rides
-
-XP3E0ad4Q7t9iV9TMkti
-XP3E0ad4Q7t9iV9TMkti
-
-Messages
-acceptedAt
-April 25, 2026 at 11:21:36 PM UTC-4
-(timestamp)
-
-
-adminNotified
-true
-(boolean)
-
-
-arrivedAt
-April 25, 2026 at 11:52:54 PM UTC-4
-(timestamp)
-
-
-
-candidateDriverUids
-(array)
-
-
-
-candidateDrivers
-(array)
-
-
-
-0
-(map)
-
-
-distance
-0.11579321430771247
-(double)
-
-
-uid
-"fR1aGa2AHod1aVuyaiEA95RqDYp1"
-(string)
-
-
-completedAt
-April 25, 2026 at 11:54:46 PM UTC-4
-(timestamp)
-
-
-completedEmailSent
-true
-(boolean)
-
-
-completedEmailSentAt
-April 25, 2026 at 9:00:48 PM UTC-4
-(timestamp)
-
-
-createdAt
-April 25, 2026 at 7:20:12 PM UTC-4
-(timestamp)
-
-
-currentDriverIndex
-0
-(int64)
-
-
-
-declineLog
-(array)
-
-
-
-0
-(map)
-
-
-createdAt
-April 25, 2026 at 11:21:34 PM UTC-4
-(timestamp)
-
-
-driverUid
-"fR1aGa2AHod1aVuyaiEA95RqDYp1"
-(string)
-
-
-reason
-"reassigned"
-(string)
-
-
-
-declinedDrivers
-(array)
-
-
-0
-"fR1aGa2AHod1aVuyaiEA95RqDYp1"
-(string)
-
-
-driverDistanceMiles
-0
-(int64)
-
-
-driverEtaMin
-0
-(int64)
-
-
-
-driverInfo
-(map)
-
-
-driverCount
-1
-(int64)
-
-
-etaLabel
-"~11–16 min"
-(string)
-
-
-etaMin
-11
-(int64)
-
-
-nearestMiles
-0
-(int64)
-
-
-stale
-true
-(boolean)
-
-
-driverLat
-28.5730827
-(double)
-
-
-driverLng
--81.469638
-(double)
-
-
-driverLocationAt
-April 26, 2026 at 10:44:12 AM UTC-4
-(timestamp)
-
-
-driverPayout
-3.74
-(double)
-
-
-driverUid
-"fR1aGa2AHod1aVuyaiEA95RqDYp1"
-(string)
-
-
-dropoff
-"30224 n power drive orlando"
-(string)
-
-
-dropoffCity
-"Orlando"
-(string)
-
-
-dropoffDistanceMiles
-0.45
-(double)
-
-
-dropoffEtaMin
-2
-(int64)
-
-
-dropoffLat
-28.5772426
-(double)
-
-
-dropoffLng
--81.4677543
-(double)
-
-
-dropoffZip
-""
-(string)
-
-
-emailDispatchAt
-April 25, 2026 at 7:21:02 PM UTC-4
-(timestamp)
-
-
-emailDispatchStarted
-true
-(boolean)
-
-
-
-emailSentToDrivers
-(map)
-
-
-fR1aGa2AHod1aVuyaiEA95RqDYp1
-true
-(boolean)
-
-
-expiresAt
-April 25, 2026 at 11:36:34 PM UTC-4
-(timestamp)
-
-
-
-fareBreakdown
-(map)
-
-
-fareTotal
-4.99
-(double)
-
-
-paymentIntentId
-"pi_3TQFExJhpOy6wtDq1woOcDgu"
-(string)
-
-
-paymentMethod
-"cashapp"
-(string)
-
-
-paymentStatus
-"succeeded"
-(string)
-
-
-payoutStatus
-"paid"
-(string)
-
-
-pickup
-"2382 Locke Avenue, Orlando, FL, USA"
-(string)
-
-
-pickupCity
-"Orlando"
-(string)
-
-
-pickupLat
-28.5730545
-(double)
-
-
-pickupLng
--81.4696329
-(double)
-
-
-pickupZip
-"32818"
-(string)
-
-
-platformFee
-1.25
-(double)
-
-
-polyline
-"wtkmDp~fpNxACLI?a@GeF@s@a\D"
-(string)
-
-
-pushDispatchAt
-April 25, 2026 at 7:21:04 PM UTC-4
-(timestamp)
-
-
-pushDispatchStarted
-true
-(boolean)
-
-
-
-pushSentToDrivers
-(map)
-
-
-fR1aGa2AHod1aVuyaiEA95RqDYp1
-true
-(boolean)
-
-
-
-pushSentToRiders
-(map)
-
-
-
-arrived
-(map)
-
-
-vStjThdvy9ZIWECTfJDxOpfId4h1
-true
-(boolean)
-
-
-
-driver_assigned
-(map)
-
-
-vStjThdvy9ZIWECTfJDxOpfId4h1
-true
-(boolean)
-
-
-
-in_progress
-(map)
-
-
-vStjThdvy9ZIWECTfJDxOpfId4h1
-true
-(boolean)
-
-
-reassignedAt
-April 25, 2026 at 11:21:34 PM UTC-4
-(timestamp)
-
-
-reassignedFrom
-"fR1aGa2AHod1aVuyaiEA95RqDYp1"
-(string)
-
-
-receiptEmailSent
-true
-(boolean)
-
-
-requestSentAt
-April 25, 2026 at 10:22:07 PM UTC-4
-(timestamp)
-
-
-rideLabel
-"Economy"
-(string)
-
-
-rideType
-"economy"
-(string)
-
-
-riderDropoffDistanceMiles
-0.5
-(double)
-
-
-riderDropoffEtaMin
-2
-(int64)
-
-
-riderLat
-28.5730791
-(double)
-
-
-riderLng
--81.469637
-(double)
-
-
-riderLocationAt
-April 26, 2026 at 11:15:39 AM UTC-4
-(timestamp)
-
-
-searchExtended
-1
-(int64)
-
-
-startedAt
-April 25, 2026 at 11:53:35 PM UTC-4
-(timestamp)
-
-
-status
-"driver_assigned"
-(string)
-
-
-tripDistanceMiles
-0.45
-(double)
-
-
-tripDurationMin
-2
-(int64)
-
-
-tripProgress
-0
-(int64)
-
-
-uid
-"vStjThdvy9ZIWECTfJDxOpfId4h1"
-(string)
-
-
-updatedAt
-April 26, 2026 at 11:21:10 AM UTC-4
-(timestamp)
-
-
-Messages
-
-11O0VURWAHjekFLNVzgn
-
-7VCO6MmPM8zxfRy7Ymvb
-
-DCGlJiB0DrHGp3E0M1LS
-
-XKOw8n4CdVKoaD8NlHnD
-
-icbUauCGJQDiwqa7W9sh
-icbUauCGJQDiwqa7W9sh
-createdAt
-April 25, 2026 at 10:39:40 PM UTC-4
-(timestamp)
-
-
-readByDriver
-false
-(boolean)
-
-
-readByRider
-true
-(boolean)
-
-
-senderRole
-"rider"
-(string)
-
-
-senderUid
-"vStjThdvy9ZIWECTfJDxOpfId4h1"
-(string)
-
-
-text
-"Where are you"
-
 import { useEffect, useRef, useState } from "react";
 import {
-  MapPin, Flag, Navigation, ChevronRight, Loader2, MessageCircle,
-  Send, Check, ChevronDown, X, AlertTriangle, UserX, Phone,
+  MapPin, ChevronRight, Loader2, MessageCircle,
+  Send, Check, X, AlertTriangle, UserX,
 } from "lucide-react";
 import {
   getFirestore, collection, onSnapshot, addDoc, serverTimestamp,
@@ -519,12 +14,334 @@ import { firebase_app } from "@/firebase/config";
 const functions        = getFunctions(firebase_app, "us-east1");
 const callReassignRide = httpsCallable(functions, "reassignRide");
 
-// ─── Stage config ────────────────────────────────────────────────────────────
+// ─── Stage config ─────────────────────────────────────────────────────────────
 const STAGES = {
-  driver_assigned: { label: "En Route to Pickup", color: "#38BDF8", dot: true },
+  driver_assigned: { label: "En Route to Pickup", color: "#38BDF8", dot: true  },
   arrived:         { label: "Awaiting Rider",      color: "#A78BFA", dot: false },
-  in_progress:     { label: "Trip in Progress",    color: "#34D399", dot: true },
+  in_progress:     { label: "Trip in Progress",    color: "#34D399", dot: true  },
 };
+
+// ── Shared idempotent Mapbox loader ───────────────────────────────────────────
+const MAPBOX_TOKEN = "pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA";
+
+function loadMapboxGL(cb) {
+  if (window.mapboxgl) { cb(); return; }
+  window.__mbq = window.__mbq ?? [];
+  window.__mbq.push(cb);
+  if (document.getElementById("mapbox-gl-js")) return;
+  const link = Object.assign(document.createElement("link"), {
+    rel: "stylesheet",
+    href: "https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css",
+  });
+  document.head.appendChild(link);
+  const script = Object.assign(document.createElement("script"), {
+    id:  "mapbox-gl-js",
+    src: "https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js",
+    onload: () => { window.__mbq.forEach(fn => fn()); window.__mbq = []; },
+  });
+  document.head.appendChild(script);
+}
+
+// ── DriverMapBox CSS (injected once globally) ─────────────────────────────────
+const DMB_CSS = `
+  @keyframes dmb-ring {
+    0%   { transform: scale(1);   opacity: .6; }
+    100% { transform: scale(2.8); opacity: 0;  }
+  }
+  @keyframes dmb-fadein { from { opacity: 0 } to { opacity: 1 } }
+
+  .dmb-driver-dot {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: #22C55E; border: 2.5px solid #fff;
+    box-shadow: 0 2px 10px rgba(0,0,0,.6);
+    position: relative;
+  }
+  .dmb-driver-dot::before {
+    content: ""; position: absolute; inset: -8px;
+    border-radius: 50%; background: rgba(34,197,94,.28);
+    animation: dmb-ring 2.2s ease-out infinite;
+  }
+  .dmb-driver-dot::after {
+    content: ""; position: absolute; inset: -14px;
+    border-radius: 50%; background: rgba(34,197,94,.10);
+    animation: dmb-ring 2.2s ease-out .55s infinite;
+  }
+
+  .dmb-map .mapboxgl-ctrl-logo        { display: none !important; }
+  .dmb-map .mapboxgl-ctrl-attrib-button { display: none !important; }
+  .dmb-map .mapboxgl-ctrl-attrib {
+    font-size: 8px !important; opacity: .18 !important;
+    background: transparent !important; padding: 0 4px !important;
+  }
+  .dmb-map .mapboxgl-ctrl-attrib a { color: rgba(255,255,255,.3) !important; }
+  .dmb-map .mapboxgl-ctrl-bottom-right { bottom: 6px !important; right: 6px !important; }
+`;
+
+let _dmbCssInjected = false;
+function injectDmbCss() {
+  if (_dmbCssInjected) return;
+  _dmbCssInjected = true;
+  const tag = document.createElement("style");
+  tag.textContent = DMB_CSS;
+  document.head.appendChild(tag);
+}
+
+// ── Marker DOM factories ──────────────────────────────────────────────────────
+function makeDriverEl() {
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "width:14px;height:14px;position:relative;";
+  const dot = document.createElement("div");
+  dot.className = "dmb-driver-dot";
+  wrap.appendChild(dot);
+  return wrap;
+}
+
+function makePickupEl() {
+  const el = document.createElement("div");
+  el.style.cssText = `
+    width:13px; height:13px; border-radius:50%;
+    background:#22C55E; border:2.5px solid #fff;
+    box-shadow:0 0 12px rgba(34,197,94,.65), 0 2px 6px rgba(0,0,0,.5);
+  `;
+  return el;
+}
+
+function makeDropoffEl() {
+  const el = document.createElement("div");
+  el.style.cssText = "filter:drop-shadow(0 4px 8px rgba(0,0,0,.7));line-height:0;";
+  el.innerHTML = `
+    <svg width="22" height="30" viewBox="0 0 22 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M11 30C11 30 0.5 18.5 0.5 11A10.5 10.5 0 0 1 21.5 11C21.5 18.5 11 30 11 30Z"
+            fill="#F1F5F9" stroke="rgba(0,0,0,.12)" stroke-width=".5"/>
+      <circle cx="11" cy="11" r="4.5" fill="#0F172A"/>
+      <circle cx="11" cy="11" r="2"   fill="#F1F5F9"/>
+    </svg>`;
+  return el;
+}
+
+// ── DriverMapBox ──────────────────────────────────────────────────────────────
+function DriverMapBox({ activeTrip, tripStage, accent }) {
+  const containerRef   = useRef(null);
+  const mapRef         = useRef(null);
+  const markersRef     = useRef({});       // { driver, pickup, dropoff }
+  const initializedRef = useRef(false);
+  const mapLoadedRef   = useRef(false);
+  // Always-fresh coords so the load callback reads latest values
+  const latestRef      = useRef({});
+
+  const driverLat  = activeTrip?.driverLat;
+  const driverLng  = activeTrip?.driverLng;
+  const pickupLat  = activeTrip?.pickupLat;
+  const pickupLng  = activeTrip?.pickupLng;
+  const dropoffLat = activeTrip?.dropoffLat;
+  const dropoffLng = activeTrip?.dropoffLng;
+  const isInProgress = tripStage === "in_progress";
+  const isArrived    = tripStage === "arrived";
+
+  // Keep ref current every render
+  latestRef.current = { driverLat, driverLng, pickupLat, pickupLng, dropoffLat, dropoffLng };
+
+  // ── Compute fitBounds given latest coords ────────────────────────────────
+  function fitVisible(map, dur = 900) {
+    const { driverLat, driverLng, pickupLat, pickupLng, dropoffLat, dropoffLng } = latestRef.current;
+    // Show driver + destination (pickup if enroute/arrived, dropoff if in_progress)
+    const destLat = isInProgress ? dropoffLat : pickupLat;
+    const destLng = isInProgress ? dropoffLng : pickupLng;
+
+    const pts = [];
+    if (driverLat && driverLng) pts.push([driverLng, driverLat]);
+    if (destLat   && destLng)   pts.push([destLng,   destLat]);
+    // Always include dropoff in view if close enough (full picture)
+    if (!isInProgress && dropoffLat && dropoffLng) pts.push([dropoffLng, dropoffLat]);
+
+    if (!pts.length) return;
+    if (pts.length === 1) { map.easeTo({ center: pts[0], zoom: 15, duration: dur }); return; }
+
+    const bounds = pts.reduce(
+      (b, p) => b.extend(p),
+      new window.mapboxgl.LngLatBounds(pts[0], pts[0]),
+    );
+    map.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: dur });
+  }
+
+  // ── Map init (once) ──────────────────────────────────────────────────────
+  useEffect(() => {
+    injectDmbCss();
+    if (!containerRef.current || initializedRef.current) return;
+
+    loadMapboxGL(() => {
+      if (!containerRef.current || initializedRef.current) return;
+      initializedRef.current = true;
+
+      const { driverLat, driverLng, pickupLat, pickupLng } = latestRef.current;
+      const initCenter = driverLat && driverLng
+        ? [driverLng, driverLat]
+        : pickupLat && pickupLng
+        ? [pickupLng, pickupLat]
+        : [-81.3792, 28.5383];
+
+      window.mapboxgl.accessToken = MAPBOX_TOKEN;
+
+      const map = new window.mapboxgl.Map({
+        container:          containerRef.current,
+        style:              "mapbox://styles/mapbox/dark-v11",
+        center:             initCenter,
+        zoom:               14,
+        attributionControl: false,
+        interactive:        false,
+        pitchWithRotate:    false,
+        fadeDuration:       150,
+      });
+
+      map.addControl(
+        new window.mapboxgl.AttributionControl({ compact: true }),
+        "bottom-right",
+      );
+
+      mapRef.current = map;
+
+      map.on("load", () => {
+        mapLoadedRef.current = true;
+
+        const { driverLat, driverLng, pickupLat, pickupLng, dropoffLat, dropoffLng } = latestRef.current;
+
+        // Place driver marker
+        if (driverLat && driverLng) {
+          markersRef.current.driver = new window.mapboxgl.Marker({
+            element: makeDriverEl(), anchor: "center",
+          }).setLngLat([driverLng, driverLat]).addTo(map);
+        }
+
+        // Place pickup marker
+        if (pickupLat && pickupLng) {
+          markersRef.current.pickup = new window.mapboxgl.Marker({
+            element: makePickupEl(), anchor: "center",
+          }).setLngLat([pickupLng, pickupLat]).addTo(map);
+        }
+
+        // Place dropoff marker
+        if (dropoffLat && dropoffLng) {
+          markersRef.current.dropoff = new window.mapboxgl.Marker({
+            element: makeDropoffEl(), anchor: "bottom",
+          }).setLngLat([dropoffLng, dropoffLat]).addTo(map);
+        }
+
+        // Initial fit — instant (dur 0) since the map just painted
+        fitVisible(map, 0);
+      });
+    });
+
+    return () => {
+      Object.values(markersRef.current).forEach(m => m?.remove());
+      markersRef.current = {};
+      if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
+      initializedRef.current = false;
+      mapLoadedRef.current   = false;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Driver location updates ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!mapLoadedRef.current || !mapRef.current || !driverLat || !driverLng) return;
+    const map = mapRef.current;
+
+    // Move or create driver marker
+    if (markersRef.current.driver) {
+      markersRef.current.driver.setLngLat([driverLng, driverLat]);
+    } else {
+      markersRef.current.driver = new window.mapboxgl.Marker({
+        element: makeDriverEl(), anchor: "center",
+      }).setLngLat([driverLng, driverLat]).addTo(map);
+    }
+
+    // Re-fit to keep driver + destination in frame
+    fitVisible(map, 1200);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [driverLat, driverLng]);
+
+  // ── Stage change: show/hide pickup marker, re-fit ────────────────────────
+  useEffect(() => {
+    if (!mapLoadedRef.current || !mapRef.current) return;
+    // Dim the pickup marker when trip is in progress
+    if (markersRef.current.pickup) {
+      markersRef.current.pickup.getElement().style.opacity = isInProgress ? "0.25" : "1";
+    }
+    fitVisible(mapRef.current, 800);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripStage]);
+
+  // ── ETA label ────────────────────────────────────────────────────────────
+  const etaMin = isInProgress
+    ? activeTrip?.dropoffEtaMin
+    : activeTrip?.driverEtaMin;
+  const etaLabel = isArrived
+    ? "Arrived"
+    : etaMin != null
+    ? `~${etaMin} min`
+    : null;
+
+  return (
+    <div style={{ position: "relative", height: 200, background: "#0B0D12" }}>
+      {/* Mapbox container */}
+      <div
+        ref={containerRef}
+        className="dmb-map"
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+      />
+
+      {/* Bottom fade — blends map into card below */}
+      <div style={{
+        position: "absolute", bottom: 0, left: 0, right: 0, height: 56,
+        background: "linear-gradient(to bottom, transparent, #0C0E14)",
+        pointerEvents: "none", zIndex: 2,
+      }} />
+
+      {/* Top accent bar */}
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0, height: 3,
+        background: `linear-gradient(90deg, transparent 0%, ${accent} 35%, ${accent}88 65%, transparent 100%)`,
+        zIndex: 3, opacity: .9,
+      }} />
+
+      {/* LIVE pill — top left */}
+      <div style={{
+        position: "absolute", top: 12, left: 12, zIndex: 4,
+        display: "flex", alignItems: "center", gap: 6,
+        background: "rgba(11,13,18,.78)", backdropFilter: "blur(10px)",
+        border: "1px solid rgba(255,255,255,.09)",
+        borderRadius: 100, padding: "5px 12px",
+        fontFamily: "'Outfit', sans-serif",
+        fontSize: 10.5, fontWeight: 800, letterSpacing: ".1em",
+        color: "rgba(255,255,255,.7)",
+        pointerEvents: "none",
+      }}>
+        <span style={{
+          width: 7, height: 7, borderRadius: "50%",
+          background: "#22C55E", flexShrink: 0,
+          boxShadow: "0 0 7px #22C55E",
+          display: "inline-block",
+        }} />
+        LIVE
+      </div>
+
+      {/* ETA pill — top right */}
+      {etaLabel && (
+        <div style={{
+          position: "absolute", top: 12, right: 12, zIndex: 4,
+          background: "rgba(11,13,18,.78)", backdropFilter: "blur(10px)",
+          border: `1px solid ${accent}35`,
+          borderRadius: 100, padding: "5px 12px",
+          fontFamily: "'IBM Plex Mono', monospace",
+          fontSize: 11, fontWeight: 500, letterSpacing: "-.01em",
+          color: accent, pointerEvents: "none",
+        }}>
+          {etaLabel}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function ActiveTripCard({
@@ -535,17 +352,17 @@ export default function ActiveTripCard({
   const [unreadCount,  setUnreadCount]  = useState(0);
   const [showReassign, setShowReassign] = useState(false);
   const [reassigning,  setReassigning]  = useState(false);
-  const [reassignError,setReassignError]= useState("");
+  const [reassignError, setReassignError] = useState("");
 
   useEffect(() => { onUnreadChange?.(unreadCount); }, [unreadCount, onUnreadChange]);
 
   if (!activeTrip) return null;
 
-  const rideId     = activeTrip.id ?? activeTrip.rideId;
-  const stageData  = STAGES[tripStage] ?? STAGES.driver_assigned;
-  const accent     = tripStageColor ?? stageData.color;
-  const isProgress = tripStage === "in_progress";
-  const canReassign= tripStage === "driver_assigned";
+  const rideId      = activeTrip.id ?? activeTrip.rideId;
+  const stageData   = STAGES[tripStage] ?? STAGES.driver_assigned;
+  const accent      = tripStageColor ?? stageData.color;
+  const isProgress  = tripStage === "in_progress";
+  const canReassign = tripStage === "driver_assigned";
 
   const openInMaps = (addr) => addr &&
     window.open(`https://maps.google.com/?q=${encodeURIComponent(addr)}`, "_blank");
@@ -573,308 +390,315 @@ export default function ActiveTripCard({
         @keyframes atc-pulse  { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.3;transform:scale(.5)} }
         @keyframes atc-in     { from{opacity:0;transform:translateY(10px) scale(.98)} to{opacity:1;transform:none} }
         @keyframes atc-spin   { to{transform:rotate(360deg)} }
-        @keyframes atc-shimmer{ from{background-position:200% 0} to{background-position:-200% 0} }
         @keyframes atc-modal  { from{opacity:0;transform:scale(.9) translateY(16px)} to{opacity:1;transform:none} }
         @keyframes atc-msg-in { from{opacity:0;max-height:0} to{opacity:1;max-height:500px} }
-        @keyframes atc-glow   { 0%,100%{box-shadow:0 0 20px ${accent}40} 50%{box-shadow:0 0 36px ${accent}70} }
 
-        .atc-wrap * { box-sizing:border-box; }
+        .atc-shell * { box-sizing: border-box; }
 
-        .atc-wrap {
-          font-family:'Outfit',sans-serif;
-          background:#0C0E14;
-          border-radius:22px;
-          border:1px solid rgba(255,255,255,.07);
-          overflow:hidden;
-          animation:atc-in .38s cubic-bezier(.22,1,.36,1) both;
-          position:relative;
-          box-shadow:0 2px 4px rgba(0,0,0,.4), 0 20px 60px rgba(0,0,0,.6);
+        /* ── Outer shell: wraps map + card as one unit ── */
+        .atc-shell {
+          font-family: 'Outfit', sans-serif;
+          border-radius: 22px;
+          overflow: hidden;
+          border: 1px solid rgba(255,255,255,.07);
+          box-shadow: 0 2px 4px rgba(0,0,0,.4), 0 20px 60px rgba(0,0,0,.6);
+          animation: atc-in .38s cubic-bezier(.22,1,.36,1) both;
         }
 
-        /* Ambient glow strip at top */
+        /* ── Card body (formerly atc-wrap) ── */
+        .atc-wrap {
+          background: #0C0E14;
+          position: relative;
+        }
+
+        /* Ambient glow strip — sits between map and card content */
         .atc-glow-bar {
-          height:3px;
-          background:linear-gradient(90deg, transparent 0%, ${accent} 40%, ${accent}aa 70%, transparent 100%);
-          opacity:.85;
-          transition:background .4s;
+          height: 3px;
+          background: linear-gradient(90deg, transparent 0%, ${accent} 40%, ${accent}aa 70%, transparent 100%);
+          opacity: .6;
+          transition: background .4s;
         }
 
         /* Stage header */
         .atc-stage-row {
-          display:flex; align-items:center; justify-content:space-between;
-          padding:13px 18px 10px;
-          border-bottom:1px solid rgba(255,255,255,.05);
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 13px 18px 10px;
+          border-bottom: 1px solid rgba(255,255,255,.05);
         }
-        .atc-stage-left { display:flex; align-items:center; gap:9px; }
+        .atc-stage-left { display: flex; align-items: center; gap: 9px; }
         .atc-stage-dot {
-          width:8px; height:8px; border-radius:50%;
-          background:${accent};
-          box-shadow:0 0 8px ${accent};
-          flex-shrink:0;
-          animation:${stageData.dot ? "atc-pulse 1.6s ease-in-out infinite" : "none"};
+          width: 8px; height: 8px; border-radius: 50%;
+          background: ${accent}; box-shadow: 0 0 8px ${accent};
+          flex-shrink: 0;
+          animation: ${stageData.dot ? "atc-pulse 1.6s ease-in-out infinite" : "none"};
         }
         .atc-stage-label {
-          font-family:'Syne',sans-serif;
-          font-size:11.5px; font-weight:700;
-          letter-spacing:.12em; text-transform:uppercase;
-          color:${accent};
+          font-family: 'Syne', sans-serif;
+          font-size: 11.5px; font-weight: 700;
+          letter-spacing: .12em; text-transform: uppercase;
+          color: ${accent};
         }
         .atc-fare-chip {
-          font-family:'IBM Plex Mono',monospace;
-          font-size:13px; font-weight:500;
-          color:#fff; letter-spacing:-.01em;
-          background:rgba(255,255,255,.06);
-          border:1px solid rgba(255,255,255,.1);
-          border-radius:8px; padding:4px 10px;
+          font-family: 'IBM Plex Mono', monospace;
+          font-size: 13px; font-weight: 500;
+          color: #fff; letter-spacing: -.01em;
+          background: rgba(255,255,255,.06);
+          border: 1px solid rgba(255,255,255,.1);
+          border-radius: 8px; padding: 4px 10px;
         }
 
-        /* Route section */
-        .atc-route { padding:18px 18px 14px; display:flex; flex-direction:column; gap:0; }
-        .atc-route-line {
-          display:flex; align-items:stretch; gap:14px;
-        }
+        /* Route */
+        .atc-route { padding: 18px 18px 14px; display: flex; flex-direction: column; gap: 0; }
+        .atc-route-line { display: flex; align-items: stretch; gap: 14px; }
         .atc-rail {
-          display:flex; flex-direction:column; align-items:center; flex-shrink:0;
-          padding:4px 0;
+          display: flex; flex-direction: column; align-items: center;
+          flex-shrink: 0; padding: 4px 0;
         }
         .atc-node {
-          width:11px; height:11px; border-radius:50%;
-          border:2px solid;
-          background:#0C0E14;
-          flex-shrink:0; z-index:1;
-          transition:border-color .3s, box-shadow .3s;
+          width: 11px; height: 11px; border-radius: 50%;
+          border: 2px solid; background: #0C0E14;
+          flex-shrink: 0; z-index: 1;
+          transition: border-color .3s, box-shadow .3s;
         }
-        .atc-node.pickup  { border-color:#38BDF8; box-shadow:0 0 8px #38BDF840; }
-        .atc-node.dropoff { border-color:#34D399; box-shadow:0 0 8px #34D39940; }
+        .atc-node.pickup  { border-color: #38BDF8; box-shadow: 0 0 8px #38BDF840; }
+        .atc-node.dropoff { border-color: #34D399; box-shadow: 0 0 8px #34D39940; }
         .atc-connector {
-          width:1.5px; flex:1; min-height:28px;
-          background:linear-gradient(to bottom, #38BDF830, #34D39930);
-          margin:4px 0;
-          border-radius:2px;
+          width: 1.5px; flex: 1; min-height: 28px;
+          background: linear-gradient(to bottom, #38BDF830, #34D39930);
+          margin: 4px 0; border-radius: 2px;
         }
-        .atc-stop-content { flex:1; padding-bottom:18px; }
-        .atc-stop-content:last-child { padding-bottom:0; }
+        .atc-stop-content { flex: 1; padding-bottom: 18px; }
+        .atc-stop-content:last-child { padding-bottom: 0; }
         .atc-stop-tag {
-          font-size:9.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
-          color:rgba(255,255,255,.3); margin-bottom:3px;
+          font-size: 9.5px; font-weight: 700; letter-spacing: .1em;
+          text-transform: uppercase; color: rgba(255,255,255,.3); margin-bottom: 3px;
         }
-        .atc-stop-row { display:flex; align-items:center; gap:8px; }
+        .atc-stop-row { display: flex; align-items: center; gap: 8px; }
         .atc-stop-addr {
-          font-size:13.5px; font-weight:500; color:rgba(255,255,255,.88);
-          line-height:1.35; flex:1;
-          opacity:${isProgress ? ".38" : "1"};
-          transition:opacity .3s;
+          font-size: 13.5px; font-weight: 500; color: rgba(255,255,255,.88);
+          line-height: 1.35; flex: 1;
+          opacity: ${isProgress ? ".38" : "1"};
+          transition: opacity .3s;
         }
-        .atc-stop-addr.dropoff-addr { opacity:${!isProgress ? ".38" : "1"}; }
+        .atc-stop-addr.dropoff-addr { opacity: ${!isProgress ? ".38" : "1"}; }
         .atc-map-pill {
-          display:inline-flex; align-items:center; gap:4px;
-          padding:4px 9px; border-radius:99px;
-          font-size:10px; font-weight:700;
-          cursor:pointer; border:none;
-          transition:all .15s; flex-shrink:0;
-          font-family:'Outfit',sans-serif;
+          display: inline-flex; align-items: center; gap: 4px;
+          padding: 4px 9px; border-radius: 99px;
+          font-size: 10px; font-weight: 700;
+          cursor: pointer; border: none;
+          transition: all .15s; flex-shrink: 0;
+          font-family: 'Outfit', sans-serif;
         }
         .atc-map-pill.blue {
-          background:rgba(56,189,248,.12);
-          color:#38BDF8; border:1px solid rgba(56,189,248,.25);
+          background: rgba(56,189,248,.12); color: #38BDF8;
+          border: 1px solid rgba(56,189,248,.25);
         }
         .atc-map-pill.green {
-          background:rgba(52,211,153,.12);
-          color:#34D399; border:1px solid rgba(52,211,153,.25);
+          background: rgba(52,211,153,.12); color: #34D399;
+          border: 1px solid rgba(52,211,153,.25);
         }
-        .atc-map-pill:hover { filter:brightness(1.2); transform:scale(1.04); }
-        .atc-map-pill:active { transform:scale(.97); }
+        .atc-map-pill:hover  { filter: brightness(1.2); transform: scale(1.04); }
+        .atc-map-pill:active { transform: scale(.97); }
 
         /* Stats bar */
         .atc-stats-bar {
-          display:grid; grid-template-columns:repeat(3,1fr);
-          margin:0 14px;
-          background:rgba(255,255,255,.03);
-          border:1px solid rgba(255,255,255,.06);
-          border-radius:14px;
-          overflow:hidden;
+          display: grid; grid-template-columns: repeat(3,1fr);
+          margin: 0 14px;
+          background: rgba(255,255,255,.03);
+          border: 1px solid rgba(255,255,255,.06);
+          border-radius: 14px; overflow: hidden;
         }
-        .atc-stat-cell {
-          padding:12px 14px;
-          display:flex; flex-direction:column; gap:3px;
-        }
-        .atc-stat-cell + .atc-stat-cell {
-          border-left:1px solid rgba(255,255,255,.06);
-        }
+        .atc-stat-cell { padding: 12px 14px; display: flex; flex-direction: column; gap: 3px; }
+        .atc-stat-cell + .atc-stat-cell { border-left: 1px solid rgba(255,255,255,.06); }
         .atc-stat-val {
-          font-family:'IBM Plex Mono',monospace;
-          font-size:15px; font-weight:500;
-          color:#fff; letter-spacing:-.02em;
+          font-family: 'IBM Plex Mono', monospace;
+          font-size: 15px; font-weight: 500;
+          color: #fff; letter-spacing: -.02em;
         }
         .atc-stat-key {
-          font-size:9.5px; font-weight:600; letter-spacing:.09em;
-          text-transform:uppercase; color:rgba(255,255,255,.3);
+          font-size: 9.5px; font-weight: 600; letter-spacing: .09em;
+          text-transform: uppercase; color: rgba(255,255,255,.3);
         }
 
         /* Divider */
-        .atc-divider { height:1px; background:rgba(255,255,255,.05); margin:14px 0; }
+        .atc-divider { height: 1px; background: rgba(255,255,255,.05); margin: 14px 0; }
 
         /* Message toggle */
         .atc-msg-toggle-row {
-          display:flex; align-items:center; justify-content:space-between;
-          padding:0 16px 12px;
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 0 16px 12px;
         }
         .atc-msg-toggle {
-          display:flex; align-items:center; gap:8px;
-          background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.09);
-          border-radius:99px; padding:7px 14px;
-          font-family:'Outfit',sans-serif; font-size:12px; font-weight:600;
-          color:rgba(255,255,255,.55); cursor:pointer;
-          transition:all .18s; position:relative;
+          display: flex; align-items: center; gap: 8px;
+          background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.09);
+          border-radius: 99px; padding: 7px 14px;
+          font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 600;
+          color: rgba(255,255,255,.55); cursor: pointer;
+          transition: all .18s; position: relative;
         }
-        .atc-msg-toggle.has-msg { border-color:${accent}50; color:${accent}; background:${accent}12; }
-        .atc-msg-toggle:hover { border-color:rgba(255,255,255,.2); color:rgba(255,255,255,.8); }
-        .atc-msg-toggle.has-msg:hover { border-color:${accent}80; }
+        .atc-msg-toggle.has-msg { border-color: ${accent}50; color: ${accent}; background: ${accent}12; }
+        .atc-msg-toggle:hover   { border-color: rgba(255,255,255,.2); color: rgba(255,255,255,.8); }
+        .atc-msg-toggle.has-msg:hover { border-color: ${accent}80; }
         .atc-badge {
-          position:absolute; top:-5px; right:-5px;
-          background:#EF4444; color:#fff;
-          font-size:9px; font-weight:800; min-width:16px; height:16px;
-          border-radius:99px; padding:0 4px;
-          display:flex; align-items:center; justify-content:center;
-          border:2px solid #0C0E14;
+          position: absolute; top: -5px; right: -5px;
+          background: #EF4444; color: #fff;
+          font-size: 9px; font-weight: 800; min-width: 16px; height: 16px;
+          border-radius: 99px; padding: 0 4px;
+          display: flex; align-items: center; justify-content: center;
+          border: 2px solid #0C0E14;
         }
         .atc-msg-close {
-          background:none; border:none; cursor:pointer;
-          color:rgba(255,255,255,.25); padding:4px;
-          transition:color .15s; display:flex;
-          font-family:'Outfit',sans-serif; font-size:11px; font-weight:600;
-          align-items:center; gap:4px;
+          background: none; border: none; cursor: pointer;
+          color: rgba(255,255,255,.25); padding: 4px;
+          transition: color .15s; display: flex;
+          font-family: 'Outfit', sans-serif; font-size: 11px; font-weight: 600;
+          align-items: center; gap: 4px;
         }
-        .atc-msg-close:hover { color:rgba(255,255,255,.5); }
+        .atc-msg-close:hover { color: rgba(255,255,255,.5); }
 
         /* Message panel */
         .atc-msg-panel {
-          margin:0 14px 12px;
-          border:1px solid rgba(255,255,255,.07);
-          border-radius:16px; overflow:hidden;
-          animation:atc-msg-in .22s ease-out both;
+          margin: 0 14px 12px;
+          border: 1px solid rgba(255,255,255,.07);
+          border-radius: 16px; overflow: hidden;
+          animation: atc-msg-in .22s ease-out both;
         }
         .atc-msg-header {
-          padding:10px 14px;
-          border-bottom:1px solid rgba(255,255,255,.06);
-          background:rgba(255,255,255,.03);
-          font-size:11px; font-weight:700; letter-spacing:.06em;
-          text-transform:uppercase; color:rgba(255,255,255,.35);
+          padding: 10px 14px;
+          border-bottom: 1px solid rgba(255,255,255,.06);
+          background: rgba(255,255,255,.03);
+          font-size: 11px; font-weight: 700; letter-spacing: .06em;
+          text-transform: uppercase; color: rgba(255,255,255,.35);
         }
         .atc-msg-list {
-          min-height:100px; max-height:180px; overflow-y:auto;
-          padding:10px 12px; display:flex; flex-direction:column; gap:7px;
-          background:#0C0E14; overscroll-behavior:contain; scroll-behavior:smooth;
+          min-height: 100px; max-height: 180px; overflow-y: auto;
+          padding: 10px 12px; display: flex; flex-direction: column; gap: 7px;
+          background: #0C0E14; overscroll-behavior: contain; scroll-behavior: smooth;
         }
         .atc-msg-empty {
-          text-align:center; color:rgba(255,255,255,.2);
-          font-size:12px; margin-top:16px;
+          text-align: center; color: rgba(255,255,255,.2);
+          font-size: 12px; margin-top: 16px;
         }
         .atc-quick-row {
-          display:flex; gap:5px; padding:8px 12px;
-          flex-wrap:wrap; background:rgba(255,255,255,.02);
-          border-top:1px solid rgba(255,255,255,.04);
+          display: flex; gap: 5px; padding: 8px 12px;
+          flex-wrap: wrap; background: rgba(255,255,255,.02);
+          border-top: 1px solid rgba(255,255,255,.04);
         }
         .atc-quick {
-          background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.09);
-          border-radius:99px; padding:4px 10px;
-          font-size:10.5px; font-weight:600; color:rgba(255,255,255,.45);
-          cursor:pointer; font-family:'Outfit',sans-serif; transition:all .13s;
-          white-space:nowrap;
+          background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.09);
+          border-radius: 99px; padding: 4px 10px;
+          font-size: 10.5px; font-weight: 600; color: rgba(255,255,255,.45);
+          cursor: pointer; font-family: 'Outfit', sans-serif; transition: all .13s;
+          white-space: nowrap;
         }
-        .atc-quick:hover { background:rgba(255,255,255,.1); color:rgba(255,255,255,.8); }
+        .atc-quick:hover { background: rgba(255,255,255,.1); color: rgba(255,255,255,.8); }
         .atc-input-row {
-          display:flex; gap:8px; padding:8px 10px 10px;
-          border-top:1px solid rgba(255,255,255,.05); align-items:flex-end;
-          background:#0C0E14;
+          display: flex; gap: 8px; padding: 8px 10px 10px;
+          border-top: 1px solid rgba(255,255,255,.05); align-items: flex-end;
+          background: #0C0E14;
         }
         .atc-textarea {
-          flex:1; resize:none; background:rgba(255,255,255,.05);
-          border:1px solid rgba(255,255,255,.09); border-radius:10px;
-          padding:9px 12px; font-size:13px; color:rgba(255,255,255,.85);
-          font-family:'Outfit',sans-serif; outline:none; line-height:1.4;
-          max-height:70px; overflow-y:auto;
-          transition:border-color .18s;
+          flex: 1; resize: none; background: rgba(255,255,255,.05);
+          border: 1px solid rgba(255,255,255,.09); border-radius: 10px;
+          padding: 9px 12px; font-size: 13px; color: rgba(255,255,255,.85);
+          font-family: 'Outfit', sans-serif; outline: none; line-height: 1.4;
+          max-height: 70px; overflow-y: auto;
+          transition: border-color .18s;
         }
-        .atc-textarea:focus { border-color:${accent}70; }
-        .atc-textarea::placeholder { color:rgba(255,255,255,.2); }
+        .atc-textarea:focus { border-color: ${accent}70; }
+        .atc-textarea::placeholder { color: rgba(255,255,255,.2); }
         .atc-send {
-          width:38px; height:38px; border-radius:10px; border:none;
-          display:flex; align-items:center; justify-content:center;
-          cursor:pointer; flex-shrink:0; transition:all .15s;
+          width: 38px; height: 38px; border-radius: 10px; border: none;
+          display: flex; align-items: center; justify-content: center;
+          cursor: pointer; flex-shrink: 0; transition: all .15s;
         }
 
-        /* CTA area */
-        .atc-cta-area { padding:0 14px 14px; display:flex; flex-direction:column; gap:8px; }
+        /* CTA */
+        .atc-cta-area { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 8px; }
         .atc-cta-btn {
-          display:flex; align-items:center; justify-content:space-between;
-          width:100%; padding:15px 20px;
-          border:none; border-radius:14px;
-          font-family:'Syne',sans-serif; font-size:14px; font-weight:700;
-          color:#fff; cursor:pointer; letter-spacing:.04em;
-          position:relative; overflow:hidden;
-          transition:filter .13s, transform .1s, box-shadow .2s;
+          display: flex; align-items: center; justify-content: space-between;
+          width: 100%; padding: 15px 20px;
+          border: none; border-radius: 14px;
+          font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700;
+          color: #fff; cursor: pointer; letter-spacing: .04em;
+          position: relative; overflow: hidden;
+          transition: filter .13s, transform .1s, box-shadow .2s;
         }
         .atc-cta-btn::before {
-          content:''; position:absolute; inset:0;
-          background:linear-gradient(135deg, ${accent}, ${accent}bb);
-          transition:opacity .2s;
+          content: ''; position: absolute; inset: 0;
+          background: linear-gradient(135deg, ${accent}, ${accent}bb);
+          transition: opacity .2s;
         }
-        .atc-cta-btn:hover { filter:brightness(1.1); transform:translateY(-1px); box-shadow:0 8px 24px ${accent}50; }
-        .atc-cta-btn:active { filter:brightness(.92); transform:translateY(0); }
-        .atc-cta-btn[disabled] { opacity:.5; cursor:not-allowed; transform:none !important; box-shadow:none !important; }
-        .atc-cta-inner { position:relative; z-index:1; display:flex; align-items:center; justify-content:space-between; width:100%; }
+        .atc-cta-btn:hover  { filter: brightness(1.1); transform: translateY(-1px); box-shadow: 0 8px 24px ${accent}50; }
+        .atc-cta-btn:active { filter: brightness(.92); transform: translateY(0); }
+        .atc-cta-btn[disabled] { opacity: .5; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+        .atc-cta-inner {
+          position: relative; z-index: 1;
+          display: flex; align-items: center; justify-content: space-between; width: 100%;
+        }
         .atc-cta-arrow {
-          width:28px; height:28px; border-radius:50%;
-          background:rgba(255,255,255,.18);
-          display:flex; align-items:center; justify-content:center;
+          width: 28px; height: 28px; border-radius: 50%;
+          background: rgba(255,255,255,.18);
+          display: flex; align-items: center; justify-content: center;
         }
         .atc-reassign-btn {
-          display:flex; align-items:center; justify-content:center; gap:7px;
-          width:100%; padding:10px 14px;
-          background:transparent; border:1px solid rgba(239,68,68,.25);
-          border-radius:12px; cursor:pointer;
-          color:rgba(239,68,68,.6); font-family:'Outfit',sans-serif;
-          font-size:12px; font-weight:600;
-          transition:all .15s;
+          display: flex; align-items: center; justify-content: center; gap: 7px;
+          width: 100%; padding: 10px 14px;
+          background: transparent; border: 1px solid rgba(239,68,68,.25);
+          border-radius: 12px; cursor: pointer;
+          color: rgba(239,68,68,.6); font-family: 'Outfit', sans-serif;
+          font-size: 12px; font-weight: 600;
+          transition: all .15s;
         }
-        .atc-reassign-btn:hover { background:rgba(239,68,68,.07); border-color:rgba(239,68,68,.5); color:#EF4444; }
+        .atc-reassign-btn:hover { background: rgba(239,68,68,.07); border-color: rgba(239,68,68,.5); color: #EF4444; }
 
         /* Modal */
         .atc-overlay {
-          position:fixed; inset:0; z-index:1200;
-          background:rgba(0,0,0,.7); backdrop-filter:blur(6px);
-          display:flex; align-items:center; justify-content:center; padding:20px;
-          animation:atc-in .15s ease-out both;
+          position: fixed; inset: 0; z-index: 1200;
+          background: rgba(0,0,0,.7); backdrop-filter: blur(6px);
+          display: flex; align-items: center; justify-content: center; padding: 20px;
+          animation: atc-in .15s ease-out both;
         }
         .atc-modal {
-          background:#131620; border-radius:22px; max-width:320px; width:100%;
-          padding:26px 24px 20px;
-          border:1px solid rgba(239,68,68,.2);
-          box-shadow:0 30px 80px rgba(0,0,0,.6), 0 0 0 1px rgba(239,68,68,.08);
-          animation:atc-modal .25s cubic-bezier(.34,1.56,.64,1) both;
-          font-family:'Outfit',sans-serif;
+          background: #131620; border-radius: 22px; max-width: 320px; width: 100%;
+          padding: 26px 24px 20px;
+          border: 1px solid rgba(239,68,68,.2);
+          box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 0 1px rgba(239,68,68,.08);
+          animation: atc-modal .25s cubic-bezier(.34,1.56,.64,1) both;
+          font-family: 'Outfit', sans-serif;
         }
         .atc-modal-icon {
-          width:52px; height:52px; border-radius:50%; margin:0 auto 14px;
-          background:rgba(239,68,68,.1); border:1.5px solid rgba(239,68,68,.3);
-          display:flex; align-items:center; justify-content:center;
+          width: 52px; height: 52px; border-radius: 50%; margin: 0 auto 14px;
+          background: rgba(239,68,68,.1); border: 1.5px solid rgba(239,68,68,.3);
+          display: flex; align-items: center; justify-content: center;
         }
-        .atc-modal-title { font-family:'Syne',sans-serif; font-size:17px; font-weight:800; color:#fff; text-align:center; margin-bottom:7px; }
-        .atc-modal-body  { font-size:13px; color:rgba(255,255,255,.45); text-align:center; line-height:1.6; margin-bottom:20px; }
-        .atc-modal-err   { background:rgba(239,68,68,.1); border:1px solid rgba(239,68,68,.2); border-radius:9px; padding:8px 12px; font-size:11.5px; color:#FCA5A5; font-weight:600; margin-bottom:12px; text-align:center; }
-        .atc-modal-btns  { display:flex; gap:8px; }
-        .atc-modal-btn   { flex:1; padding:12px; border-radius:12px; font-size:13px; font-weight:700; font-family:'Outfit',sans-serif; cursor:pointer; transition:all .12s; display:flex; align-items:center; justify-content:center; gap:6px; }
-        .atc-modal-btn.cancel  { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); color:rgba(255,255,255,.5); }
-        .atc-modal-btn.cancel:hover { background:rgba(255,255,255,.1); color:rgba(255,255,255,.8); }
-        .atc-modal-btn.danger  { background:linear-gradient(135deg,#EF4444,#DC2626); border:none; color:#fff; box-shadow:0 4px 16px rgba(220,38,38,.35); }
-        .atc-modal-btn.danger:hover { filter:brightness(1.1); }
-        .atc-modal-btn:disabled { opacity:.6; cursor:not-allowed; }
+        .atc-modal-title { font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 800; color: #fff; text-align: center; margin-bottom: 7px; }
+        .atc-modal-body  { font-size: 13px; color: rgba(255,255,255,.45); text-align: center; line-height: 1.6; margin-bottom: 20px; }
+        .atc-modal-err   {
+          background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.2);
+          border-radius: 9px; padding: 8px 12px;
+          font-size: 11.5px; color: #FCA5A5; font-weight: 600; margin-bottom: 12px; text-align: center;
+        }
+        .atc-modal-btns { display: flex; gap: 8px; }
+        .atc-modal-btn  {
+          flex: 1; padding: 12px; border-radius: 12px;
+          font-size: 13px; font-weight: 700; font-family: 'Outfit', sans-serif;
+          cursor: pointer; transition: all .12s;
+          display: flex; align-items: center; justify-content: center; gap: 6px;
+        }
+        .atc-modal-btn.cancel { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); color: rgba(255,255,255,.5); }
+        .atc-modal-btn.cancel:hover { background: rgba(255,255,255,.1); color: rgba(255,255,255,.8); }
+        .atc-modal-btn.danger { background: linear-gradient(135deg,#EF4444,#DC2626); border: none; color: #fff; box-shadow: 0 4px 16px rgba(220,38,38,.35); }
+        .atc-modal-btn.danger:hover { filter: brightness(1.1); }
+        .atc-modal-btn:disabled { opacity: .6; cursor: not-allowed; }
       `}</style>
 
       {/* Reassign modal */}
       {showReassign && (
-        <div className="atc-overlay" onClick={(e) => { if (e.target === e.currentTarget && !reassigning) setShowReassign(false); }}>
+        <div
+          className="atc-overlay"
+          onClick={(e) => { if (e.target === e.currentTarget && !reassigning) setShowReassign(false); }}
+        >
           <div className="atc-modal">
             <div className="atc-modal-icon"><AlertTriangle size={24} color="#EF4444" /></div>
             <div className="atc-modal-title">Reassign this ride?</div>
@@ -883,7 +707,9 @@ export default function ActiveTripCard({
             </div>
             {reassignError && <div className="atc-modal-err">⚠ {reassignError}</div>}
             <div className="atc-modal-btns">
-              <button className="atc-modal-btn cancel" onClick={() => setShowReassign(false)} disabled={reassigning}>Keep ride</button>
+              <button className="atc-modal-btn cancel" onClick={() => setShowReassign(false)} disabled={reassigning}>
+                Keep ride
+              </button>
               <button className="atc-modal-btn danger" onClick={handleReassign} disabled={reassigning}>
                 {reassigning
                   ? <><Loader2 size={13} style={{ animation: "atc-spin 1s linear infinite" }} /> Reassigning…</>
@@ -894,116 +720,126 @@ export default function ActiveTripCard({
         </div>
       )}
 
-      <div className="atc-wrap">
-        {/* Top glow bar */}
-        <div className="atc-glow-bar" />
+      {/* ── Outer shell: map + card as one rounded unit ── */}
+      <div className="atc-shell">
 
-        {/* Stage + fare */}
-        <div className="atc-stage-row">
-          <div className="atc-stage-left">
-            <div className="atc-stage-dot" />
-            <span className="atc-stage-label">{stageData.label}</span>
-          </div>
-          <div className="atc-fare-chip">${activeTrip.driverPayout?.toFixed(2) ?? "--"}</div>
-        </div>
+        {/* Live map */}
+        <DriverMapBox
+          activeTrip={activeTrip}
+          tripStage={tripStage}
+          accent={accent}
+        />
 
-        {/* Route */}
-        <div className="atc-route">
-          {/* Pickup */}
-          <div className="atc-route-line">
-            <div className="atc-rail">
-              <div className="atc-node pickup" />
-              <div className="atc-connector" />
+        {/* Card body */}
+        <div className="atc-wrap">
+          {/* Accent glow bar separating map from card */}
+          <div className="atc-glow-bar" />
+
+          {/* Stage + fare */}
+          <div className="atc-stage-row">
+            <div className="atc-stage-left">
+              <div className="atc-stage-dot" />
+              <span className="atc-stage-label">{stageData.label}</span>
             </div>
-            <div className="atc-stop-content">
-              <div className="atc-stop-tag">Pickup</div>
-              <div className="atc-stop-row">
-                <div className="atc-stop-addr">{activeTrip.pickup}</div>
-                {!isProgress && (
-                  <button className="atc-map-pill blue" onClick={() => openInMaps(activeTrip.pickup)}>
-                    <MapPin size={10} strokeWidth={2.5} /> Maps
-                  </button>
-                )}
+            <div className="atc-fare-chip">${activeTrip.driverPayout?.toFixed(2) ?? "--"}</div>
+          </div>
+
+          {/* Route */}
+          <div className="atc-route">
+            {/* Pickup */}
+            <div className="atc-route-line">
+              <div className="atc-rail">
+                <div className="atc-node pickup" />
+                <div className="atc-connector" />
+              </div>
+              <div className="atc-stop-content">
+                <div className="atc-stop-tag">Pickup</div>
+                <div className="atc-stop-row">
+                  <div className="atc-stop-addr">{activeTrip.pickup}</div>
+                  {!isProgress && (
+                    <button className="atc-map-pill blue" onClick={() => openInMaps(activeTrip.pickup)}>
+                      <MapPin size={10} strokeWidth={2.5} /> Maps
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+            {/* Dropoff */}
+            <div className="atc-route-line">
+              <div className="atc-rail" style={{ paddingTop: 0 }}>
+                <div className="atc-node dropoff" />
+              </div>
+              <div className="atc-stop-content" style={{ paddingBottom: 0 }}>
+                <div className="atc-stop-tag">Dropoff</div>
+                <div className="atc-stop-row">
+                  <div className="atc-stop-addr dropoff-addr">{activeTrip.dropoff}</div>
+                  {isProgress && (
+                    <button className="atc-map-pill green" onClick={() => openInMaps(activeTrip.dropoff)}>
+                      <MapPin size={10} strokeWidth={2.5} /> Maps
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-          {/* Dropoff */}
-          <div className="atc-route-line">
-            <div className="atc-rail" style={{ paddingTop: 0 }}>
-              <div className="atc-node dropoff" />
-            </div>
-            <div className="atc-stop-content" style={{ paddingBottom: 0 }}>
-              <div className="atc-stop-tag">Dropoff</div>
-              <div className="atc-stop-row">
-                <div className="atc-stop-addr dropoff-addr">{activeTrip.dropoff}</div>
-                {isProgress && (
-                  <button className="atc-map-pill green" onClick={() => openInMaps(activeTrip.dropoff)}>
-                    <MapPin size={10} strokeWidth={2.5} /> Maps
-                  </button>
-                )}
+
+          {/* Stats */}
+          <div className="atc-stats-bar">
+            {[
+              { val: `${activeTrip.tripDistanceMiles?.toFixed(1) ?? "--"} mi`, key: "Distance"  },
+              { val: `${activeTrip.tripDurationMin ?? "--"} min`,               key: "Est. Time" },
+              { val: `$${activeTrip.fareBreakdown?.fareTotal?.toFixed(2) ?? activeTrip.fareTotal?.toFixed(2) ?? "--"}`, key: "Rider Fare" },
+            ].map((s, i) => (
+              <div key={i} className="atc-stat-cell">
+                <span className="atc-stat-val">{s.val}</span>
+                <span className="atc-stat-key">{s.key}</span>
               </div>
-            </div>
+            ))}
           </div>
-        </div>
 
-        {/* Stats */}
-        <div className="atc-stats-bar">
-          {[
-            { val: `${activeTrip.tripDistanceMiles?.toFixed(1) ?? "--"} mi`, key: "Distance" },
-            { val: `${activeTrip.tripDurationMin ?? "--"} min`,              key: "Est. Time" },
-            { val: `$${activeTrip.fareBreakdown?.fareTotal?.toFixed(2) ?? activeTrip.fareTotal?.toFixed(2) ?? "--"}`, key: "Rider Fare" },
-          ].map((s, i) => (
-            <div key={i} className="atc-stat-cell">
-              <span className="atc-stat-val">{s.val}</span>
-              <span className="atc-stat-key">{s.key}</span>
-            </div>
-          ))}
-        </div>
+          {/* Divider */}
+          <div className="atc-divider" />
 
-        {/* Divider */}
-        <div className="atc-divider" />
-
-        {/* Message toggle */}
-        <div className="atc-msg-toggle-row">
-          <button
-            className={`atc-msg-toggle${unreadCount > 0 ? " has-msg" : ""}`}
-            onClick={() => setShowMessages(v => !v)}
-          >
-            {unreadCount > 0 && <span className="atc-badge">{unreadCount > 9 ? "9+" : unreadCount}</span>}
-            <MessageCircle size={13} />
-            {showMessages ? "Hide chat" : "Message rider"}
-          </button>
-          {showMessages && (
-            <button className="atc-msg-close" onClick={() => setShowMessages(false)}>
-              <X size={12} /> Close
+          {/* Message toggle */}
+          <div className="atc-msg-toggle-row">
+            <button
+              className={`atc-msg-toggle${unreadCount > 0 ? " has-msg" : ""}`}
+              onClick={() => setShowMessages(v => !v)}
+            >
+              {unreadCount > 0 && (
+                <span className="atc-badge">{unreadCount > 9 ? "9+" : unreadCount}</span>
+              )}
+              <MessageCircle size={13} />
+              {showMessages ? "Hide chat" : "Message rider"}
             </button>
+            {showMessages && (
+              <button className="atc-msg-close" onClick={() => setShowMessages(false)}>
+                <X size={12} /> Close
+              </button>
+            )}
+          </div>
+
+          {showMessages && rideId && (
+            <DriverMessagePanel rideId={rideId} accent={accent} onUnreadChange={setUnreadCount} />
           )}
-        </div>
 
-        {showMessages && rideId && (
-          <DriverMessagePanel rideId={rideId} accent={accent} onUnreadChange={setUnreadCount} />
-        )}
-
-        {/* CTA */}
-        <div className="atc-cta-area">
-          <button
-            className="atc-cta-btn"
-            onClick={onAdvance}
-            disabled={advancePending}
-          >
-            <div className="atc-cta-inner">
-              {advancePending
-                ? <><Loader2 size={15} style={{ animation: "atc-spin 1s linear infinite" }} /><span style={{ marginLeft: 8 }}>Processing…</span></>
-                : <><span>{tripBtnLabel}</span><div className="atc-cta-arrow"><ChevronRight size={14} strokeWidth={2.8} /></div></>
-              }
-            </div>
-          </button>
-
-          {canReassign && (
-            <button className="atc-reassign-btn" onClick={() => setShowReassign(true)}>
-              <UserX size={12} /> Can't make it? Reassign ride
+          {/* CTA */}
+          <div className="atc-cta-area">
+            <button className="atc-cta-btn" onClick={onAdvance} disabled={advancePending}>
+              <div className="atc-cta-inner">
+                {advancePending
+                  ? <><Loader2 size={15} style={{ animation: "atc-spin 1s linear infinite" }} /><span style={{ marginLeft: 8 }}>Processing…</span></>
+                  : <><span>{tripBtnLabel}</span><div className="atc-cta-arrow"><ChevronRight size={14} strokeWidth={2.8} /></div></>
+                }
+              </div>
             </button>
-          )}
+
+            {canReassign && (
+              <button className="atc-reassign-btn" onClick={() => setShowReassign(true)}>
+                <UserX size={12} /> Can't make it? Reassign ride
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </>
@@ -1016,13 +852,13 @@ function DriverMessagePanel({ rideId, accent, onUnreadChange }) {
   const [input,    setInput]    = useState("");
   const [sending,  setSending]  = useState(false);
   const [sent,     setSent]     = useState(false);
-  const listRef        = useRef(null);
-  const bottomRef      = useRef(null);
-  const isAtBottomRef  = useRef(true);
-  const justSentRef    = useRef(false);
-  const db             = getFirestore();
-  const auth           = getAuth();
-  const driverUid      = auth.currentUser?.uid ?? null;
+  const listRef       = useRef(null);
+  const bottomRef     = useRef(null);
+  const isAtBottomRef = useRef(true);
+  const justSentRef   = useRef(false);
+  const db        = getFirestore();
+  const auth      = getAuth();
+  const driverUid = auth.currentUser?.uid ?? null;
 
   const QUICK = ["On my way 🚗", "I've arrived!", "Calling you now", "1 min away"];
 
@@ -1034,7 +870,7 @@ function DriverMessagePanel({ rideId, accent, onUnreadChange }) {
 
   useEffect(() => {
     if (!rideId) return;
-    const ref = query(collection(db, "Rides", rideId, "Messages"), orderBy("createdAt", "asc"));
+    const ref  = query(collection(db, "Rides", rideId, "Messages"), orderBy("createdAt", "asc"));
     const unsub = onSnapshot(ref, (snap) => {
       const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setMessages(msgs);
@@ -1092,9 +928,9 @@ function DriverMessagePanel({ rideId, accent, onUnreadChange }) {
           const isLast   = isDriver && idx === lastDriverIdx;
           const seen     = isLast && msg.readByRider === true;
           return (
-            <div key={msg.id} style={{ display:"flex", justifyContent: isDriver ? "flex-end" : "flex-start" }}>
+            <div key={msg.id} style={{ display: "flex", justifyContent: isDriver ? "flex-end" : "flex-start" }}>
               <div style={{
-                maxWidth:"78%", padding:"8px 12px",
+                maxWidth: "78%", padding: "8px 12px",
                 borderRadius: isDriver ? "13px 13px 3px 13px" : "13px 13px 13px 3px",
                 background: isDriver
                   ? `linear-gradient(135deg, ${accent}, ${accent}cc)`
@@ -1103,19 +939,21 @@ function DriverMessagePanel({ rideId, accent, onUnreadChange }) {
                 boxShadow: isDriver ? `0 2px 12px ${accent}30` : "none",
               }}>
                 {!isDriver && (
-                  <div style={{ fontSize:9, fontWeight:700, color:accent, letterSpacing:".5px", textTransform:"uppercase", marginBottom:3 }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: accent, letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 3 }}>
                     Rider
                   </div>
                 )}
-                <div style={{ fontSize:13, color: isDriver ? "#fff" : "rgba(255,255,255,.82)", lineHeight:1.4 }}>{msg.text}</div>
-                <div style={{ display:"flex", alignItems:"center", justifyContent: isDriver ? "flex-end" : "flex-start", gap:4, marginTop:3 }}>
-                  <span style={{ fontSize:9.5, color: isDriver ? "rgba(255,255,255,.45)" : "rgba(255,255,255,.25)" }}>{fmt(msg.createdAt)}</span>
+                <div style={{ fontSize: 13, color: isDriver ? "#fff" : "rgba(255,255,255,.82)", lineHeight: 1.4 }}>
+                  {msg.text}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: isDriver ? "flex-end" : "flex-start", gap: 4, marginTop: 3 }}>
+                  <span style={{ fontSize: 9.5, color: isDriver ? "rgba(255,255,255,.45)" : "rgba(255,255,255,.25)" }}>{fmt(msg.createdAt)}</span>
                   {isLast && (
-                    <span style={{ position:"relative", width:18, height:11, display:"inline-flex", alignItems:"center", flexShrink:0 }}>
-                      <svg width="11" height="8" viewBox="0 0 11 8" fill="none" style={{ position:"absolute", left: seen ? 0 : 3, transition:"left .2s" }}>
+                    <span style={{ position: "relative", width: 18, height: 11, display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
+                      <svg width="11" height="8" viewBox="0 0 11 8" fill="none" style={{ position: "absolute", left: seen ? 0 : 3, transition: "left .2s" }}>
                         <path d="M1 4L3.5 6.5L9.5 1" stroke={seen ? "#fff" : "rgba(255,255,255,.4)"} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
-                      <svg width="11" height="8" viewBox="0 0 11 8" fill="none" style={{ position:"absolute", right:0, opacity: seen ? 1 : 0, transition:"opacity .25s" }}>
+                      <svg width="11" height="8" viewBox="0 0 11 8" fill="none" style={{ position: "absolute", right: 0, opacity: seen ? 1 : 0, transition: "opacity .25s" }}>
                         <path d="M1 4L3.5 6.5L9.5 1" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
                     </span>
@@ -1125,7 +963,7 @@ function DriverMessagePanel({ rideId, accent, onUnreadChange }) {
             </div>
           );
         })}
-        <div ref={bottomRef} style={{ height:1 }} />
+        <div ref={bottomRef} style={{ height: 1 }} />
       </div>
 
       <div className="atc-quick-row">
