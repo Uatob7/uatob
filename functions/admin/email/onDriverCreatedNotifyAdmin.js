@@ -17,7 +17,7 @@ const ADMIN_EMAIL = "support@uatob.com";
 exports.onDriverCreatedNotifyAdmin = onDocumentCreated(
   {
     document: "Drivers/{uid}",
-    region:   "us-central1",
+    region:   "us-east1",
     secrets:  ["SENDGRID_API_KEY"],
   },
   async (event) => {
@@ -346,7 +346,7 @@ exports.onDriverCreatedNotifyAdmin = onDocumentCreated(
                         Review in Firestore →
                       </a>
                     </td>
-                    <td width="4%"></td>
+                    <td width="4%">nbsp;</td>
                     <td width="48%" align="center">
                       <a href="https://console.firebase.google.com/project/uatob/authentication/users"
                          style="display:inline-block;background-color:#111827;
@@ -425,12 +425,21 @@ exports.onDriverCreatedNotifyAdmin = onDocumentCreated(
       await sgMail.send(msg);
       console.log(`📧 Admin email sent for driver: ${email} (uid: ${uid})`);
 
-      // ── Send push to all admin browsers ───────────────────────────────
+      // ── Send push to all admin browsers (FIXED PATH & STRUCTURE) ───────
       try {
-        const adminTokenDoc = await db.collection("AdminTokens").doc("push").get();
-        const tokens = adminTokenDoc.exists
-          ? (adminTokenDoc.data()?.tokens ?? [])
-          : [];
+        // Get admin token from collection "Admin", document "push"
+        const pushDoc = await db.collection("Admin").doc("push").get();
+        let tokens = [];
+
+        if (pushDoc.exists) {
+          const data = pushDoc.data();
+          // Support both single token (string) or array of tokens
+          if (data.token && typeof data.token === "string") {
+            tokens = [data.token];
+          } else if (data.tokens && Array.isArray(data.tokens)) {
+            tokens = data.tokens;
+          }
+        }
 
         if (tokens.length > 0) {
           const pushResults = await Promise.allSettled(
@@ -458,7 +467,7 @@ exports.onDriverCreatedNotifyAdmin = onDocumentCreated(
             )
           );
 
-          // ── Clean up stale tokens ──────────────────────────────────────
+          // Clean up stale tokens
           const staleTokens = [];
           pushResults.forEach((result, i) => {
             if (result.status === "rejected") {
@@ -473,10 +482,21 @@ exports.onDriverCreatedNotifyAdmin = onDocumentCreated(
           });
 
           if (staleTokens.length > 0) {
-            await db.collection("AdminTokens").doc("push").update({
-              tokens: admin.firestore.FieldValue.arrayRemove(...staleTokens),
-            });
-            console.log(`🧹 Removed ${staleTokens.length} stale admin FCM token(s)`);
+            const currentDoc = await db.collection("Admin").doc("push").get();
+            const currentData = currentDoc.data() || {};
+            if (currentData.token && typeof currentData.token === "string") {
+              // Single token mode – delete the field entirely
+              await db.collection("Admin").doc("push").update({
+                token: admin.firestore.FieldValue.delete(),
+              });
+              console.log(`🧹 Removed stale single admin token`);
+            } else if (currentData.tokens && Array.isArray(currentData.tokens)) {
+              // Array mode – remove each stale token
+              await db.collection("Admin").doc("push").update({
+                tokens: admin.firestore.FieldValue.arrayRemove(...staleTokens),
+              });
+              console.log(`🧹 Removed ${staleTokens.length} stale admin token(s)`);
+            }
           }
 
           console.log(`🔔 Admin push sent to ${tokens.length} browser(s)`);
