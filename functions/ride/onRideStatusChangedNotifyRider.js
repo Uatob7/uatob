@@ -25,8 +25,8 @@ function buildRiderPush(newStatus, ride, driver) {
     case "driver_assigned":
       return {
         title: `🚗 ${driverName} is your driver`,
-        body: vehicle
-          ? `${vehicle}${plate ? ` · ${plate}` : ""} is on the way`
+        body: ride.driverEtaMin
+          ? `${vehicle ? `${vehicle}${plate ? ` · ${plate}` : ""} · ` : ""}Arriving in ~${ride.driverEtaMin} min`
           : "Your driver is on the way",
       };
 
