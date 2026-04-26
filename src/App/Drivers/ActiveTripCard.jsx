@@ -913,7 +913,7 @@ export default function ActiveTripCard({
               <div className="atc-stage-dot" />
               <span className="atc-stage-label">{stageData.label}</span>
             </div>
-            <div className="atc-fare-chip">${activeTrip.driverPayout?.toFixed(2) ?? "--"}</div>
+  
           </div>
 
           <div className="atc-route">
@@ -956,7 +956,7 @@ export default function ActiveTripCard({
             {[
               { val: `${activeTrip.tripDistanceMiles?.toFixed(1) ?? "--"} mi`, key: "Distance"  },
               { val: `${activeTrip.tripDurationMin ?? "--"} min`,               key: "Est. Time" },
-              { val: `$${activeTrip.fareBreakdown?.fareTotal?.toFixed(2) ?? activeTrip.fareTotal?.toFixed(2) ?? "--"}`, key: "Rider Fare" },
+              { val: `$${activeTrip.driverPayout?.toFixed(2) ?? activeTrip.driverPayout?.toFixed(2) ?? "--"}`, key: "Rider Fare" },
             ].map((s, i) => (
               <div key={i} className="atc-stat-cell">
                 <span className="atc-stat-val">{s.val}</span>
