@@ -93,14 +93,13 @@ function approxPathLen(svgPts) {
   return Math.ceil(len) + 40;
 }
 
+// ── Snap to nearest point on polyline (segment-aware) ────────────────
 function closestPointOnPolyline(svgPts, px, py) {
   if (!svgPts.length) return { x: px, y: py };
   if (svgPts.length === 1) return svgPts[0];
 
   let best = svgPts[0], bestDist = Infinity;
 
-  // Check every line segment, not just vertices.
-  // For each segment A→B, find the closest point on the segment to (px,py).
   for (let i = 0; i < svgPts.length - 1; i++) {
     const a = svgPts[i];
     const b = svgPts[i + 1];
@@ -109,7 +108,6 @@ function closestPointOnPolyline(svgPts, px, py) {
     const lenSq = dx * dx + dy * dy;
     if (lenSq === 0) continue;
 
-    // Project point onto segment, clamped to [0,1]
     let t = ((px - a.x) * dx + (py - a.y) * dy) / lenSq;
     t = Math.max(0, Math.min(1, t));
 
@@ -161,10 +159,9 @@ function geoDistMeters(lat1, lng1, lat2, lng2) {
 //   1. If both driver+rider coords are present and within ~10m of each other,
 //      AVERAGE them — they agree, so use the midpoint for stability.
 //   2. Otherwise prefer whichever has the newer timestamp.
-//      (driverLocationAt vs riderLocationAt; falls back to updatedAt for rider)
+//      (driverLocationAt vs riderLocationAt)
 //   3. If one is clearly stale (>45s old) and the other is fresh, use the fresh one.
-//   4. If timestamps are unavailable, prefer driver unless driver coords haven't
-//      changed in this session (indicating a stale write).
+//   4. If timestamps are unavailable, prefer driver.
 function resolveGpsSource(payload, status) {
   const isInProgress = status === 'in_progress';
 
@@ -209,7 +206,7 @@ function resolveGpsSource(payload, status) {
   // (1) They agree (≤10m) → average for jitter-free positioning
   if (distMeters <= 10) {
     return {
-      source: 'driver', // primary attribution (driver runs the trip)
+      source: 'driver',
       lat: (driverLat + riderLat) / 2,
       lng: (driverLng + riderLng) / 2,
       etaMin: Math.min(driverEta, riderEta),
@@ -369,7 +366,6 @@ function MapBackground({ W, H }) {
 
 // ── GPS source badge ──────────────────────────────────────────────────
 function GpsBadge({ source, blended }) {
-  // When driver + rider GPS agree we mark it "synced"
   if (blended) {
     return (
       <div
@@ -547,6 +543,7 @@ export default function TrackingMap({
   // Reduce to numeric millis so the memo dep is stable across renders.
   const driverLocMs = tsToMs(payload.driverLocationAt);
   const riderLocMs  = tsToMs(payload.riderLocationAt);
+  const updatedAtMs = tsToMs(payload.updatedAt);
 
   const gpsSource = useMemo(
     () => resolveGpsSource(payload, status),
@@ -554,7 +551,7 @@ export default function TrackingMap({
     [
       status,
       driverLat, driverLng, riderLat, riderLng,
-      driverLocMs, riderLocMs,
+      driverLocMs, riderLocMs, updatedAtMs,
       payload.driverEtaMin, payload.riderDropoffEtaMin,
     ]
   );
