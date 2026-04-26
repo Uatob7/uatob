@@ -182,7 +182,11 @@ function calculateRidePrice(p, miles, minutes, etaLabel) {
 
 // ── Cloud Function ─────────────────────────────────────────────────────
 exports.Price = onCall(
-  { region: "us-east1" },
+  {
+    region: "us-east1",
+    invoker: "public",
+  },
+
   async (request) => {
     const miles     = Number(request.data?.miles);
     const minutes   = Number(request.data?.durationMin);
