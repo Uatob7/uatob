@@ -1,453 +1,3 @@
-
-Uatob
-Cloud Firestore
-Database
-(default)
-Cloud Firestore
-Database
-(default)
-Data
-Rules
-Indexes
-Disaster Recovery
-Usage
-Query Insights
-Extensions
-Protect your Cloud Firestore resources from abuse, such as billing fraud or phishing
-
-
-
-Rides
-UIcvbeFIZl8xtT5ERcxv
-Messages
-ZwpR0MaWy8NNhGzfvmxd
-(default)
-
-Accounts
-
-Admin
-
-Drivers
-
-Reviews
-
-Rides
-
-Search
-Rides
-
-UIcvbeFIZl8xtT5ERcxv
-UIcvbeFIZl8xtT5ERcxv
-
-Messages
-acceptedAt
-April 26, 2026 at 12:17:53 PM UTC-4
-(timestamp)
-
-
-adminNotified
-true
-(boolean)
-
-
-arrivedAt
-April 26, 2026 at 12:19:47 PM UTC-4
-(timestamp)
-
-
-
-candidateDriverUids
-(array)
-
-
-0
-"fR1aGa2AHod1aVuyaiEA95RqDYp1"
-(string)
-
-
-
-candidateDrivers
-(array)
-
-
-
-0
-(map)
-
-
-distance
-0.0675923645840426
-(double)
-
-
-uid
-"fR1aGa2AHod1aVuyaiEA95RqDYp1"
-(string)
-
-
-createdAt
-April 26, 2026 at 12:08:13 PM UTC-4
-(timestamp)
-
-
-currentDriverIndex
-0
-(int64)
-
-
-driverDistanceMiles
-0.14
-(double)
-
-
-driverEtaMin
-1
-(int64)
-
-
-
-driverInfo
-(map)
-
-
-driverCount
-1
-(int64)
-
-
-etaLabel
-"~11–16 min"
-(string)
-
-
-etaMin
-11
-(int64)
-
-
-nearestMiles
-0
-(int64)
-
-
-stale
-true
-(boolean)
-
-
-driverLat
-28.5727029375
-(double)
-
-
-driverLng
--81.46776787499999
-(double)
-
-
-driverLocationAt
-April 26, 2026 at 3:00:27 PM UTC-4
-(timestamp)
-
-
-driverPayout
-3.74
-(double)
-
-
-driverUid
-"fR1aGa2AHod1aVuyaiEA95RqDYp1"
-(string)
-
-
-dropoff
-"3024 North Powers Drive, Orlando, FL, USA"
-(string)
-
-
-dropoffCity
-"Orlando"
-(string)
-
-
-dropoffDistanceMiles
-0.79
-(double)
-
-
-dropoffEtaMin
-4
-(int64)
-
-
-dropoffLat
-28.5819909
-(double)
-
-
-dropoffLng
--81.4694363
-(double)
-
-
-dropoffZip
-"32818"
-(string)
-
-
-emailDispatchAt
-April 26, 2026 at 12:11:02 PM UTC-4
-(timestamp)
-
-
-emailDispatchStarted
-true
-(boolean)
-
-
-
-emailSentToDrivers
-(map)
-
-
-fR1aGa2AHod1aVuyaiEA95RqDYp1
-true
-(boolean)
-
-
-expiresAt
-April 26, 2026 at 12:19:13 PM UTC-4
-(timestamp)
-
-
-
-fareBreakdown
-(map)
-
-
-fareTotal
-4.99
-(double)
-
-
-lastDispatchAt
-April 26, 2026 at 12:12:02 PM UTC-4
-(timestamp)
-
-
-lastPushAt
-April 26, 2026 at 12:12:04 PM UTC-4
-(timestamp)
-
-
-paymentIntentId
-"pi_3TQVE9JhpOy6wtDq1a9SNnKN"
-(string)
-
-
-paymentMethod
-"cashapp"
-(string)
-
-
-paymentStatus
-"succeeded"
-(string)
-
-
-payoutStatus
-"pending"
-(string)
-
-
-pickup
-"2382 Locke Avenue, Orlando, FL, USA"
-(string)
-
-
-pickupCity
-"Orlando"
-(string)
-
-
-pickupLat
-28.5730545
-(double)
-
-
-pickupLng
--81.4696329
-(double)
-
-
-pickupZip
-"32818"
-(string)
-
-
-platformFee
-1.25
-(double)
-
-
-polyline
-"wtkmDp~fpNxACLI?a@GeF@s@{\F_C?{@?qXHBjBFJIdEBTDNRT"
-(string)
-
-
-pushDispatchAt
-April 26, 2026 at 12:11:04 PM UTC-4
-(timestamp)
-
-
-pushDispatchStarted
-true
-(boolean)
-
-
-pushDriverIndex
-10
-(int64)
-
-
-
-pushSentToDrivers
-(map)
-
-
-fR1aGa2AHod1aVuyaiEA95RqDYp1
-true
-(boolean)
-
-
-receiptEmailSent
-true
-(boolean)
-
-
-requestSentAt
-April 26, 2026 at 12:17:04 PM UTC-4
-(timestamp)
-
-
-rideLabel
-"Economy"
-(string)
-
-
-rideType
-"economy"
-(string)
-
-
-riderDropoffDistanceMiles
-0.9
-(double)
-
-
-riderDropoffEtaMin
-5
-(int64)
-
-
-riderLat
-28.5730812
-(double)
-
-
-riderLng
--81.4696405
-(double)
-
-
-riderLocationAt
-April 26, 2026 at 2:56:36 PM UTC-4
-(timestamp)
-
-
-startedAt
-April 26, 2026 at 12:20:00 PM UTC-4
-(timestamp)
-
-
-status
-"driver_assigned"
-(string)
-
-
-timedOutAt
-April 26, 2026 at 2:47:07 PM UTC-4
-(timestamp)
-
-
-timeoutMinutes
-11
-(int64)
-
-
-tripDistanceMiles
-0.93
-(double)
-
-
-tripDurationMin
-5
-(int64)
-
-
-tripProgress
-0.032258064516129115
-(double)
-
-
-uid
-"Pl4JEFlaR8hAMWP9O57jDfQBUIj1"
-(string)
-
-
-updatedAt
-April 26, 2026 at 3:00:33 PM UTC-4
-(timestamp)
-
-
-Messages
-
-ZwpR0MaWy8NNhGzfvmxd
-ZwpR0MaWy8NNhGzfvmxd
-createdAt
-April 26, 2026 at 1:06:00 PM UTC-4
-(timestamp)
-
-
-readByDriver
-false
-(boolean)
-
-
-readByRider
-true
-(boolean)
-
-
-senderRole
-"rider"
-(string)
-
-
-senderUid
-"Pl4JEFlaR8hAMWP9O57jDfQBUIj1"
-(string)
-
-
-text
-"Give me 2 min"
-(string)
-
-
-Database location: nam5
-
-
-
 import { useEffect, useRef, useState } from "react";
 import {
   MapPin, ChevronRight, Loader2, MessageCircle,
@@ -471,9 +21,10 @@ const STAGES = {
   in_progress:     { label: "Trip in Progress",    color: "#34D399", dot: true  },
 };
 
-// ── Shared idempotent Mapbox loader ───────────────────────────────────────────
+// ── Mapbox token ───────────────────────────────────────────────────────────────
 const MAPBOX_TOKEN = "pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA";
 
+// ── Shared idempotent Mapbox loader ───────────────────────────────────────────
 function loadMapboxGL(cb) {
   if (window.mapboxgl) { cb(); return; }
   window.__mbq = window.__mbq ?? [];
@@ -492,7 +43,68 @@ function loadMapboxGL(cb) {
   document.head.appendChild(script);
 }
 
-// ── DriverMapBox CSS (injected once globally) ─────────────────────────────────
+// ── Polyline decoder (Google encoded format) ──────────────────────────────────
+function decodePolyline(encoded) {
+  if (!encoded) return [];
+  const pts = [];
+  let i = 0, lat = 0, lng = 0;
+  while (i < encoded.length) {
+    let b, shift = 0, result = 0;
+    do { b = encoded.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    shift = 0; result = 0;
+    do { b = encoded.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    pts.push([lng / 1e5, lat / 1e5]); // GeoJSON is [lng, lat]
+  }
+  return pts;
+}
+
+// ── Find closest segment on geo polyline ─────────────────────────────────────
+function closestSegmentOnPolyline(pts, lng, lat) {
+  if (pts.length < 2) return { idx: 0, t: 0 };
+  let best = { idx: 0, t: 0 }, bestDist = Infinity;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i];     // [lng, lat]
+    const b = pts[i + 1];
+    const dLng = b[0] - a[0];
+    const dLat = b[1] - a[1];
+    const lenSq = dLng * dLng + dLat * dLat;
+    if (lenSq === 0) continue;
+    let t = ((lng - a[0]) * dLng + (lat - a[1]) * dLat) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    const px = a[0] + t * dLng;
+    const py = a[1] + t * dLat;
+    const d = Math.hypot(px - lng, py - lat);
+    if (d < bestDist) { bestDist = d; best = { idx: i, t }; }
+  }
+  return best;
+}
+
+// ── Trim polyline from car position onward (for in_progress) ─────────────────
+function trimPolylineFromCar(pts, driverLng, driverLat) {
+  if (pts.length < 2 || !driverLng || !driverLat) return pts;
+  const { idx, t } = closestSegmentOnPolyline(pts, driverLng, driverLat);
+  const a = pts[idx];
+  const b = pts[idx + 1];
+  const interp = [
+    a[0] + t * (b[0] - a[0]),
+    a[1] + t * (b[1] - a[1]),
+  ];
+  return [interp, ...pts.slice(idx + 1)];
+}
+
+// ── Haversine distance (meters) ───────────────────────────────────────────────
+function geoDistMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = d => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// ── DriverMapBox CSS ──────────────────────────────────────────────────────────
 const DMB_CSS = `
   @keyframes dmb-ring {
     0%   { transform: scale(1);   opacity: .6; }
@@ -517,7 +129,7 @@ const DMB_CSS = `
     animation: dmb-ring 2.2s ease-out .55s infinite;
   }
 
-  .dmb-map .mapboxgl-ctrl-logo        { display: none !important; }
+  .dmb-map .mapboxgl-ctrl-logo          { display: none !important; }
   .dmb-map .mapboxgl-ctrl-attrib-button { display: none !important; }
   .dmb-map .mapboxgl-ctrl-attrib {
     font-size: 8px !important; opacity: .18 !important;
@@ -569,14 +181,78 @@ function makeDropoffEl() {
   return el;
 }
 
+// ── Mapbox source/layer helpers ───────────────────────────────────────────────
+const ROUTE_SOURCE   = "dmb-route";
+const ROUTE_LAYER_BG = "dmb-route-bg";
+const ROUTE_LAYER_FG = "dmb-route-fg";
+const ROUTE_LAYER_DASH = "dmb-route-dash";
+
+function addRouteLayer(map, coords, accent) {
+  const geojson = {
+    type: "Feature",
+    geometry: { type: "LineString", coordinates: coords },
+  };
+
+  if (map.getSource(ROUTE_SOURCE)) {
+    map.getSource(ROUTE_SOURCE).setData(geojson);
+    return;
+  }
+
+  map.addSource(ROUTE_SOURCE, { type: "geojson", data: geojson });
+
+  // White glow behind
+  map.addLayer({
+    id: ROUTE_LAYER_BG,
+    type: "line",
+    source: ROUTE_SOURCE,
+    layout: { "line-cap": "round", "line-join": "round" },
+    paint: { "line-color": "#ffffff", "line-width": 8, "line-opacity": 0.35 },
+  });
+
+  // Colored route
+  map.addLayer({
+    id: ROUTE_LAYER_FG,
+    type: "line",
+    source: ROUTE_SOURCE,
+    layout: { "line-cap": "round", "line-join": "round" },
+    paint: { "line-color": accent, "line-width": 4, "line-opacity": 0.95 },
+  });
+
+  // Animated dash overlay
+  map.addLayer({
+    id: ROUTE_LAYER_DASH,
+    type: "line",
+    source: ROUTE_SOURCE,
+    layout: { "line-cap": "round", "line-join": "round" },
+    paint: {
+      "line-color": "#ffffff",
+      "line-width": 1.5,
+      "line-opacity": 0.5,
+      "line-dasharray": [0, 4],
+    },
+  });
+}
+
+function updateRouteData(map, coords) {
+  if (!map.getSource(ROUTE_SOURCE)) return;
+  map.getSource(ROUTE_SOURCE).setData({
+    type: "Feature",
+    geometry: { type: "LineString", coordinates: coords },
+  });
+}
+
+function updateRouteColor(map, accent) {
+  if (!map.getLayer(ROUTE_LAYER_FG)) return;
+  map.setPaintProperty(ROUTE_LAYER_FG, "line-color", accent);
+}
+
 // ── DriverMapBox ──────────────────────────────────────────────────────────────
 function DriverMapBox({ activeTrip, tripStage, accent }) {
   const containerRef   = useRef(null);
   const mapRef         = useRef(null);
-  const markersRef     = useRef({});       // { driver, pickup, dropoff }
+  const markersRef     = useRef({});
   const initializedRef = useRef(false);
   const mapLoadedRef   = useRef(false);
-  // Always-fresh coords so the load callback reads latest values
   const latestRef      = useRef({});
 
   const driverLat  = activeTrip?.driverLat;
@@ -585,24 +261,31 @@ function DriverMapBox({ activeTrip, tripStage, accent }) {
   const pickupLng  = activeTrip?.pickupLng;
   const dropoffLat = activeTrip?.dropoffLat;
   const dropoffLng = activeTrip?.dropoffLng;
+  const polylineRaw = activeTrip?.polyline ?? null;
+
   const isInProgress = tripStage === "in_progress";
   const isArrived    = tripStage === "arrived";
 
-  // Keep ref current every render
-  latestRef.current = { driverLat, driverLng, pickupLat, pickupLng, dropoffLat, dropoffLng };
+  latestRef.current = { driverLat, driverLng, pickupLat, pickupLng, dropoffLat, dropoffLng, polylineRaw, isInProgress, accent };
 
-  // ── Compute fitBounds given latest coords ────────────────────────────────
+  // ── Build the visible route coords for the current state ────────────────
+  function buildRouteCoords() {
+    const { polylineRaw, driverLng, driverLat, isInProgress } = latestRef.current;
+    const full = decodePolyline(polylineRaw); // [[lng,lat], ...]
+    if (!full.length) return [];
+    if (!isInProgress) return full;
+    // Trim to show only the remaining path from driver forward
+    return trimPolylineFromCar(full, driverLng, driverLat);
+  }
+
+  // ── Compute fit bounds for current visible elements ──────────────────────
   function fitVisible(map, dur = 900) {
-    const { driverLat, driverLng, pickupLat, pickupLng, dropoffLat, dropoffLng } = latestRef.current;
-    // Show driver + destination (pickup if enroute/arrived, dropoff if in_progress)
-    const destLat = isInProgress ? dropoffLat : pickupLat;
-    const destLng = isInProgress ? dropoffLng : pickupLng;
+    const { driverLat, driverLng, pickupLat, pickupLng, dropoffLat, dropoffLng, isInProgress } = latestRef.current;
 
     const pts = [];
     if (driverLat && driverLng) pts.push([driverLng, driverLat]);
-    if (destLat   && destLng)   pts.push([destLng,   destLat]);
-    // Always include dropoff in view if close enough (full picture)
-    if (!isInProgress && dropoffLat && dropoffLng) pts.push([dropoffLng, dropoffLat]);
+    if (!isInProgress && pickupLat  && pickupLng)  pts.push([pickupLng, pickupLat]);
+    if (dropoffLat && dropoffLng)                  pts.push([dropoffLng, dropoffLat]);
 
     if (!pts.length) return;
     if (pts.length === 1) { map.easeTo({ center: pts[0], zoom: 15, duration: dur }); return; }
@@ -653,30 +336,33 @@ function DriverMapBox({ activeTrip, tripStage, accent }) {
       map.on("load", () => {
         mapLoadedRef.current = true;
 
-        const { driverLat, driverLng, pickupLat, pickupLng, dropoffLat, dropoffLng } = latestRef.current;
+        const { driverLat, driverLng, pickupLat, pickupLng, dropoffLat, dropoffLng, accent } = latestRef.current;
 
-        // Place driver marker
+        // ── Draw route polyline ────────────────────────────────────────────
+        const routeCoords = buildRouteCoords();
+        if (routeCoords.length >= 2) {
+          addRouteLayer(map, routeCoords, accent);
+        }
+
+        // ── Place markers ──────────────────────────────────────────────────
         if (driverLat && driverLng) {
           markersRef.current.driver = new window.mapboxgl.Marker({
             element: makeDriverEl(), anchor: "center",
           }).setLngLat([driverLng, driverLat]).addTo(map);
         }
 
-        // Place pickup marker
         if (pickupLat && pickupLng) {
           markersRef.current.pickup = new window.mapboxgl.Marker({
             element: makePickupEl(), anchor: "center",
           }).setLngLat([pickupLng, pickupLat]).addTo(map);
         }
 
-        // Place dropoff marker
         if (dropoffLat && dropoffLng) {
           markersRef.current.dropoff = new window.mapboxgl.Marker({
             element: makeDropoffEl(), anchor: "bottom",
           }).setLngLat([dropoffLng, dropoffLat]).addTo(map);
         }
 
-        // Initial fit — instant (dur 0) since the map just painted
         fitVisible(map, 0);
       });
     });
@@ -691,37 +377,90 @@ function DriverMapBox({ activeTrip, tripStage, accent }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Driver location updates ──────────────────────────────────────────────
+  // ── Driver location updates → move marker + trim route ──────────────────
   useEffect(() => {
     if (!mapLoadedRef.current || !mapRef.current || !driverLat || !driverLng) return;
     const map = mapRef.current;
 
+    // Snap driver to pickup if within 30m
+    const snapToPickup = pickupLat && pickupLng &&
+      geoDistMeters(driverLat, driverLng, pickupLat, pickupLng) <= 30;
+    const snapToDropoff = dropoffLat && dropoffLng &&
+      geoDistMeters(driverLat, driverLng, dropoffLat, dropoffLng) <= 30;
+
+    const displayLng = snapToPickup ? pickupLng : snapToDropoff ? dropoffLng : driverLng;
+    const displayLat = snapToPickup ? pickupLat : snapToDropoff ? dropoffLat : driverLat;
+
     // Move or create driver marker
     if (markersRef.current.driver) {
-      markersRef.current.driver.setLngLat([driverLng, driverLat]);
+      markersRef.current.driver.setLngLat([displayLng, displayLat]);
     } else {
       markersRef.current.driver = new window.mapboxgl.Marker({
         element: makeDriverEl(), anchor: "center",
-      }).setLngLat([driverLng, driverLat]).addTo(map);
+      }).setLngLat([displayLng, displayLat]).addTo(map);
     }
 
-    // Re-fit to keep driver + destination in frame
+    // Update route: trim from current driver position onward
+    const routeCoords = buildRouteCoords();
+    if (routeCoords.length >= 2) {
+      if (map.getSource(ROUTE_SOURCE)) {
+        updateRouteData(map, routeCoords);
+      } else {
+        addRouteLayer(map, routeCoords, latestRef.current.accent);
+      }
+    }
+
     fitVisible(map, 1200);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [driverLat, driverLng]);
 
-  // ── Stage change: show/hide pickup marker, re-fit ────────────────────────
+  // ── Polyline change (new ride or route update) ───────────────────────────
   useEffect(() => {
     if (!mapLoadedRef.current || !mapRef.current) return;
-    // Dim the pickup marker when trip is in progress
+    const map = mapRef.current;
+    const routeCoords = buildRouteCoords();
+    if (routeCoords.length >= 2) {
+      if (map.getSource(ROUTE_SOURCE)) {
+        updateRouteData(map, routeCoords);
+      } else {
+        addRouteLayer(map, routeCoords, latestRef.current.accent);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [polylineRaw]);
+
+  // ── Accent color change → update route line color ────────────────────────
+  useEffect(() => {
+    if (!mapLoadedRef.current || !mapRef.current) return;
+    updateRouteColor(mapRef.current, accent);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accent]);
+
+  // ── Stage change: dim pickup when in_progress, re-trim route, re-fit ────
+  useEffect(() => {
+    if (!mapLoadedRef.current || !mapRef.current) return;
+    const map = mapRef.current;
+
+    // Dim pickup when trip is underway
     if (markersRef.current.pickup) {
       markersRef.current.pickup.getElement().style.opacity = isInProgress ? "0.25" : "1";
     }
-    fitVisible(mapRef.current, 800);
+
+    // Re-trim route for the new stage
+    const routeCoords = buildRouteCoords();
+    if (routeCoords.length >= 2) {
+      if (map.getSource(ROUTE_SOURCE)) {
+        updateRouteData(map, routeCoords);
+      } else {
+        addRouteLayer(map, routeCoords, latestRef.current.accent);
+      }
+    }
+
+    fitVisible(map, 800);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tripStage]);
 
-  // ── ETA label ────────────────────────────────────────────────────────────
+  // ── ETA pill ─────────────────────────────────────────────────────────────
   const etaMin = isInProgress
     ? activeTrip?.dropoffEtaMin
     : activeTrip?.driverEtaMin;
@@ -733,14 +472,13 @@ function DriverMapBox({ activeTrip, tripStage, accent }) {
 
   return (
     <div style={{ position: "relative", height: 200, background: "#0B0D12" }}>
-      {/* Mapbox container */}
       <div
         ref={containerRef}
         className="dmb-map"
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
       />
 
-      {/* Bottom fade — blends map into card below */}
+      {/* Bottom fade */}
       <div style={{
         position: "absolute", bottom: 0, left: 0, right: 0, height: 56,
         background: "linear-gradient(to bottom, transparent, #0C0E14)",
@@ -754,7 +492,7 @@ function DriverMapBox({ activeTrip, tripStage, accent }) {
         zIndex: 3, opacity: .9,
       }} />
 
-      {/* LIVE pill — top left */}
+      {/* LIVE pill */}
       <div style={{
         position: "absolute", top: 12, left: 12, zIndex: 4,
         display: "flex", alignItems: "center", gap: 6,
@@ -775,7 +513,7 @@ function DriverMapBox({ activeTrip, tripStage, accent }) {
         LIVE
       </div>
 
-      {/* ETA pill — top right */}
+      {/* ETA pill */}
       {etaLabel && (
         <div style={{
           position: "absolute", top: 12, right: 12, zIndex: 4,
@@ -845,7 +583,6 @@ export default function ActiveTripCard({
 
         .atc-shell * { box-sizing: border-box; }
 
-        /* ── Outer shell: wraps map + card as one unit ── */
         .atc-shell {
           font-family: 'Outfit', sans-serif;
           border-radius: 22px;
@@ -855,13 +592,11 @@ export default function ActiveTripCard({
           animation: atc-in .38s cubic-bezier(.22,1,.36,1) both;
         }
 
-        /* ── Card body (formerly atc-wrap) ── */
         .atc-wrap {
           background: #0C0E14;
           position: relative;
         }
 
-        /* Ambient glow strip — sits between map and card content */
         .atc-glow-bar {
           height: 3px;
           background: linear-gradient(90deg, transparent 0%, ${accent} 40%, ${accent}aa 70%, transparent 100%);
@@ -869,7 +604,6 @@ export default function ActiveTripCard({
           transition: background .4s;
         }
 
-        /* Stage header */
         .atc-stage-row {
           display: flex; align-items: center; justify-content: space-between;
           padding: 13px 18px 10px;
@@ -897,7 +631,6 @@ export default function ActiveTripCard({
           border-radius: 8px; padding: 4px 10px;
         }
 
-        /* Route */
         .atc-route { padding: 18px 18px 14px; display: flex; flex-direction: column; gap: 0; }
         .atc-route-line { display: flex; align-items: stretch; gap: 14px; }
         .atc-rail {
@@ -950,7 +683,6 @@ export default function ActiveTripCard({
         .atc-map-pill:hover  { filter: brightness(1.2); transform: scale(1.04); }
         .atc-map-pill:active { transform: scale(.97); }
 
-        /* Stats bar */
         .atc-stats-bar {
           display: grid; grid-template-columns: repeat(3,1fr);
           margin: 0 14px;
@@ -970,10 +702,8 @@ export default function ActiveTripCard({
           text-transform: uppercase; color: rgba(255,255,255,.3);
         }
 
-        /* Divider */
         .atc-divider { height: 1px; background: rgba(255,255,255,.05); margin: 14px 0; }
 
-        /* Message toggle */
         .atc-msg-toggle-row {
           display: flex; align-items: center; justify-content: space-between;
           padding: 0 16px 12px;
@@ -1006,7 +736,6 @@ export default function ActiveTripCard({
         }
         .atc-msg-close:hover { color: rgba(255,255,255,.5); }
 
-        /* Message panel */
         .atc-msg-panel {
           margin: 0 14px 12px;
           border: 1px solid rgba(255,255,255,.07);
@@ -1063,7 +792,6 @@ export default function ActiveTripCard({
           cursor: pointer; flex-shrink: 0; transition: all .15s;
         }
 
-        /* CTA */
         .atc-cta-area { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 8px; }
         .atc-cta-btn {
           display: flex; align-items: center; justify-content: space-between;
@@ -1102,7 +830,6 @@ export default function ActiveTripCard({
         }
         .atc-reassign-btn:hover { background: rgba(239,68,68,.07); border-color: rgba(239,68,68,.5); color: #EF4444; }
 
-        /* Modal */
         .atc-overlay {
           position: fixed; inset: 0; z-index: 1200;
           background: rgba(0,0,0,.7); backdrop-filter: blur(6px);
@@ -1170,22 +897,16 @@ export default function ActiveTripCard({
         </div>
       )}
 
-      {/* ── Outer shell: map + card as one rounded unit ── */}
       <div className="atc-shell">
-
-        {/* Live map */}
         <DriverMapBox
           activeTrip={activeTrip}
           tripStage={tripStage}
           accent={accent}
         />
 
-        {/* Card body */}
         <div className="atc-wrap">
-          {/* Accent glow bar separating map from card */}
           <div className="atc-glow-bar" />
 
-          {/* Stage + fare */}
           <div className="atc-stage-row">
             <div className="atc-stage-left">
               <div className="atc-stage-dot" />
@@ -1194,9 +915,7 @@ export default function ActiveTripCard({
             <div className="atc-fare-chip">${activeTrip.driverPayout?.toFixed(2) ?? "--"}</div>
           </div>
 
-          {/* Route */}
           <div className="atc-route">
-            {/* Pickup */}
             <div className="atc-route-line">
               <div className="atc-rail">
                 <div className="atc-node pickup" />
@@ -1214,7 +933,6 @@ export default function ActiveTripCard({
                 </div>
               </div>
             </div>
-            {/* Dropoff */}
             <div className="atc-route-line">
               <div className="atc-rail" style={{ paddingTop: 0 }}>
                 <div className="atc-node dropoff" />
@@ -1233,7 +951,6 @@ export default function ActiveTripCard({
             </div>
           </div>
 
-          {/* Stats */}
           <div className="atc-stats-bar">
             {[
               { val: `${activeTrip.tripDistanceMiles?.toFixed(1) ?? "--"} mi`, key: "Distance"  },
@@ -1247,10 +964,8 @@ export default function ActiveTripCard({
             ))}
           </div>
 
-          {/* Divider */}
           <div className="atc-divider" />
 
-          {/* Message toggle */}
           <div className="atc-msg-toggle-row">
             <button
               className={`atc-msg-toggle${unreadCount > 0 ? " has-msg" : ""}`}
@@ -1273,7 +988,6 @@ export default function ActiveTripCard({
             <DriverMessagePanel rideId={rideId} accent={accent} onUnreadChange={setUnreadCount} />
           )}
 
-          {/* CTA */}
           <div className="atc-cta-area">
             <button className="atc-cta-btn" onClick={onAdvance} disabled={advancePending}>
               <div className="atc-cta-inner">
