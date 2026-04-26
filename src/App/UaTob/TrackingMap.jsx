@@ -95,10 +95,31 @@ function approxPathLen(svgPts) {
 
 function closestPointOnPolyline(svgPts, px, py) {
   if (!svgPts.length) return { x: px, y: py };
+  if (svgPts.length === 1) return svgPts[0];
+
   let best = svgPts[0], bestDist = Infinity;
-  for (const pt of svgPts) {
-    const d = Math.hypot(pt.x - px, pt.y - py);
-    if (d < bestDist) { bestDist = d; best = pt; }
+
+  // Check every line segment, not just vertices.
+  // For each segment A→B, find the closest point on the segment to (px,py).
+  for (let i = 0; i < svgPts.length - 1; i++) {
+    const a = svgPts[i];
+    const b = svgPts[i + 1];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) continue;
+
+    // Project point onto segment, clamped to [0,1]
+    let t = ((px - a.x) * dx + (py - a.y) * dy) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+
+    const x = a.x + t * dx;
+    const y = a.y + t * dy;
+    const d = Math.hypot(x - px, y - py);
+    if (d < bestDist) {
+      bestDist = d;
+      best = { x, y };
+    }
   }
   return best;
 }
@@ -325,30 +346,48 @@ function AnimatedCar({ carSvg, driverColor, isInProgress, gpsSource, isCompleted
     >
       {isInProgress && gpsSource && <GpsBadge source={gpsSource.source} />}
 
-      <div style={{ animation: 'tmDriverBob 2.2s ease-in-out infinite' }}>
-        <div
-          style={{
-            width: 46, height: 46,
-            background: driverColor,
-            borderRadius: 16,
-            border: '3px solid #fff',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            transform: `rotate(${heading}deg)`,
-            transition: 'transform 2.5s cubic-bezier(.4,0,.2,1)',
-            boxShadow: `0 6px 20px ${driverColor}55, 0 0 0 5px ${driverColor}15`,
-          }}
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <rect x="3" y="8"  width="18" height="9"  rx="2.5" fill="#fff"/>
-            <path d="M6 8 L7.5 4 L16.5 4 L18 8Z" fill="#4ADE80"/>
-            <rect x="6.5"  y="4.5" width="3" height="2.5" rx=".6" fill="#fff" opacity=".9"/>
-            <rect x="10.5" y="4.5" width="3" height="2.5" rx=".6" fill="#fff" opacity=".9"/>
-            <circle cx="7.5"  cy="17" r="2"   fill={driverColor === '#111827' ? '#1f2937' : driverColor}/>
-            <circle cx="7.5"  cy="17" r=".85" fill="#4ADE80"/>
-            <circle cx="16.5" cy="17" r="2"   fill={driverColor === '#111827' ? '#1f2937' : driverColor}/>
-            <circle cx="16.5" cy="17" r=".85" fill="#4ADE80"/>
-          </svg>
-        </div>
+      {/* Standalone top-down car — no surrounding box */}
+      <div
+        style={{
+          transform: `rotate(${heading}deg)`,
+          transition: 'transform 2.5s cubic-bezier(.4,0,.2,1)',
+          animation: 'tmDriverBob 2.2s ease-in-out infinite',
+          filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.35))',
+          lineHeight: 0,
+        }}
+      >
+        <svg width="40" height="56" viewBox="0 0 40 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+          {/* Car body — pointed at top so heading rotation aligns with travel direction */}
+          <path
+            d="M8 12 Q8 4 20 4 Q32 4 32 12 L32 46 Q32 52 26 52 L14 52 Q8 52 8 46 Z"
+            fill={driverColor}
+            stroke="#fff"
+            strokeWidth="2"
+          />
+          {/* Front windshield */}
+          <path
+            d="M11 14 Q11 9 20 9 Q29 9 29 14 L28 22 L12 22 Z"
+            fill="#7DD3FC"
+            opacity="0.85"
+          />
+          {/* Rear windshield */}
+          <path
+            d="M12 38 L28 38 L28 46 Q28 48 26 48 L14 48 Q12 48 12 46 Z"
+            fill="#7DD3FC"
+            opacity="0.7"
+          />
+          {/* Roof divider line */}
+          <rect x="12" y="24" width="16" height="12" rx="1" fill={driverColor} opacity="0.7"/>
+          {/* Side mirrors */}
+          <rect x="5" y="14" width="3" height="3" rx="1" fill={driverColor}/>
+          <rect x="32" y="14" width="3" height="3" rx="1" fill={driverColor}/>
+          {/* Headlights */}
+          <circle cx="13" cy="7" r="1.5" fill="#FCD34D"/>
+          <circle cx="27" cy="7" r="1.5" fill="#FCD34D"/>
+          {/* Taillights */}
+          <rect x="11" y="49" width="4" height="2" rx="0.5" fill="#EF4444"/>
+          <rect x="25" y="49" width="4" height="2" rx="0.5" fill="#EF4444"/>
+        </svg>
       </div>
     </div>
   );
