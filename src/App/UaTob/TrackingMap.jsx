@@ -1,3 +1,105 @@
+Basic setup inside your component
+import mapboxgl from "mapbox-gl";
+import { useEffect, useRef } from "react";
+
+mapboxgl.accessToken = "YOUR_MAPBOX_TOKEN";
+
+function RealMap({ polyline, driver }) {
+  const mapRef = useRef(null);
+  const mapInstance = useRef(null);
+
+  useEffect(() => {
+    if (mapInstance.current) return;
+
+    mapInstance.current = new mapboxgl.Map({
+      container: mapRef.current,
+      style: "mapbox://styles/mapbox/streets-v12",
+      center: [-81.3792, 28.5383], // Orlando default
+      zoom: 13,
+    });
+
+  }, []);
+
+  return <div ref={mapRef} style={{ width: "100%", height: "100%" }} />;
+}
+🚗 Then instead of SVG:
+Draw route
+map.addSource("route", {
+  type: "geojson",
+  data: {
+    type: "Feature",
+    geometry: {
+      type: "LineString",
+      coordinates: decodedPolyline.map(([lat, lng]) => [lng, lat])
+    }
+  }
+});
+
+map.addLayer({
+  id: "route-line",
+  type: "line",
+  source: "route",
+  paint: {
+    "line-color": "#16A34A",
+    "line-width": 5
+  }
+});
+Add driver marker (your animated car)
+new mapboxgl.Marker({ element: customCarElement })
+  .setLngLat([driverLng, driverLat])
+  .addTo(map);
+💡 Hybrid Option (if you want minimal rewrite)
+
+If you don’t want to fully switch yet, you can:
+
+👉 Use a static map image (quick hack)
+
+From Mapbox Static API:
+
+https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/{lng},{lat},13,0/600x300?access_token=...
+
+Then:
+
+<img src={mapUrl} style={{ position: 'absolute', inset: 0 }} />
+
+BUT:
+
+❌ No animation sync
+❌ Won’t align perfectly with your SVG path
+❌ No zoom/pan
+🧠 My Recommendation
+
+Given how advanced your component already is (seriously, this is Uber-level logic):
+
+👉 Switch fully to Mapbox GL JS
+
+Keep:
+
+your GPS logic ✅
+your ETA logic ✅
+your animation logic (car) ✅
+
+Replace:
+
+SVG projection ❌
+fake map background ❌
+If you want
+
+I can rewrite your entire component to:
+
+use Mapbox
+keep your animations
+snap car to route (still!)
+preserve your UI (badges, ETA, etc.)
+
+Just say:
+👉 “convert this to Mapbox version”
+
+
+token pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA
+
+
+
 import React, { useMemo, useEffect, useRef, useCallback, useState } from 'react';
 
 // ── Helpers ────────────────────────────────────────────────────────────
