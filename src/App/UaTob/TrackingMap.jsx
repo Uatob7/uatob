@@ -151,17 +151,6 @@ function geoDistMeters(lat1, lng1, lat2, lng2) {
 }
 
 // ── GPS source resolution ─────────────────────────────────────────────
-// During in_progress, the driver and rider should be in the same vehicle.
-// We have two independent location streams, so we pick the freshest one and
-// fall back / blend when one stream goes stale.
-//
-// Strategy:
-//   1. If both driver+rider coords are present and within ~10m of each other,
-//      AVERAGE them — they agree, so use the midpoint for stability.
-//   2. Otherwise prefer whichever has the newer timestamp.
-//      (driverLocationAt vs riderLocationAt)
-//   3. If one is clearly stale (>45s old) and the other is fresh, use the fresh one.
-//   4. If timestamps are unavailable, prefer driver.
 function resolveGpsSource(payload, status) {
   const isInProgress = status === 'in_progress';
 
@@ -176,7 +165,6 @@ function resolveGpsSource(payload, status) {
   const driverEta = safeNum(payload.driverEtaMin ?? payload.dropoffEtaMin ?? 999);
   const riderEta  = safeNum(payload.riderDropoffEtaMin ?? payload.dropoffEtaMin ?? 999);
 
-  // ── Not in progress ─────────────────────────────────────────────
   if (!isInProgress) {
     if (hasDriver) return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta };
     if (hasRider)  return { source: 'rider',  lat: riderLat,  lng: riderLng,  etaMin: riderEta  };
@@ -188,7 +176,6 @@ function resolveGpsSource(payload, status) {
     };
   }
 
-  // ── In progress: blend or pick freshest ─────────────────────────
   if (!hasDriver && !hasRider) {
     return {
       source: 'static',
@@ -200,10 +187,8 @@ function resolveGpsSource(payload, status) {
   if (!hasDriver) return { source: 'rider',  lat: riderLat,  lng: riderLng,  etaMin: riderEta  };
   if (!hasRider)  return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta };
 
-  // Both present — check agreement
   const distMeters = geoDistMeters(driverLat, driverLng, riderLat, riderLng);
 
-  // (1) They agree (≤10m) → average for jitter-free positioning
   if (distMeters <= 10) {
     return {
       source: 'driver',
@@ -214,7 +199,6 @@ function resolveGpsSource(payload, status) {
     };
   }
 
-  // (2) Compare freshness
   const driverTs = tsToMs(payload.driverLocationAt);
   const riderTs  = tsToMs(payload.riderLocationAt);
   const now      = Date.now();
@@ -226,7 +210,6 @@ function resolveGpsSource(payload, status) {
   const driverStale = driverAge > STALE_MS;
   const riderStale  = riderAge  > STALE_MS;
 
-  // (3) One stale, one fresh → use fresh
   if (driverStale && !riderStale) {
     return { source: 'rider', lat: riderLat, lng: riderLng, etaMin: riderEta };
   }
@@ -234,15 +217,12 @@ function resolveGpsSource(payload, status) {
     return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta };
   }
 
-  // (4) Both fresh (or no timestamps) — pick whichever has newer timestamp,
-  //     defaulting to driver when timestamps are unavailable
   if (driverTs && riderTs) {
     return driverTs >= riderTs
       ? { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta }
       : { source: 'rider',  lat: riderLat,  lng: riderLng,  etaMin: riderEta  };
   }
 
-  // Default: driver
   return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta };
 }
 
@@ -263,7 +243,7 @@ const STATUS_META = {
   driver_arriving:  { label: 'Driver on the way',  dot: '#4ADE80' },
   arrived:          { label: 'Driver has arrived', dot: '#4ADE80' },
   in_progress:      { label: 'Heading to dropoff', dot: '#4ADE80' },
-  completed:        { label: 'Ride complete',     dot: '#94A3B8' },
+  completed:        { label: 'Ride complete',      dot: '#94A3B8' },
 };
 
 function prettyPayment(method = '') {
@@ -443,7 +423,6 @@ function AnimatedCar({ carSvg, driverColor, isInProgress, gpsSource, isCompleted
         <GpsBadge source={gpsSource.source} blended={gpsSource.blended} />
       )}
 
-      {/* Standalone top-down car — no surrounding box */}
       <div
         style={{
           transform: `rotate(${heading}deg)`,
@@ -454,34 +433,27 @@ function AnimatedCar({ carSvg, driverColor, isInProgress, gpsSource, isCompleted
         }}
       >
         <svg width="40" height="56" viewBox="0 0 40 56" fill="none" xmlns="http://www.w3.org/2000/svg">
-          {/* Car body — pointed at top so heading rotation aligns with travel direction */}
           <path
             d="M8 12 Q8 4 20 4 Q32 4 32 12 L32 46 Q32 52 26 52 L14 52 Q8 52 8 46 Z"
             fill={driverColor}
             stroke="#fff"
             strokeWidth="2"
           />
-          {/* Front windshield */}
           <path
             d="M11 14 Q11 9 20 9 Q29 9 29 14 L28 22 L12 22 Z"
             fill="#7DD3FC"
             opacity="0.85"
           />
-          {/* Rear windshield */}
           <path
             d="M12 38 L28 38 L28 46 Q28 48 26 48 L14 48 Q12 48 12 46 Z"
             fill="#7DD3FC"
             opacity="0.7"
           />
-          {/* Roof divider line */}
           <rect x="12" y="24" width="16" height="12" rx="1" fill={driverColor} opacity="0.7"/>
-          {/* Side mirrors */}
           <rect x="5" y="14" width="3" height="3" rx="1" fill={driverColor}/>
           <rect x="32" y="14" width="3" height="3" rx="1" fill={driverColor}/>
-          {/* Headlights */}
           <circle cx="13" cy="7" r="1.5" fill="#FCD34D"/>
           <circle cx="27" cy="7" r="1.5" fill="#FCD34D"/>
-          {/* Taillights */}
           <rect x="11" y="49" width="4" height="2" rx="0.5" fill="#EF4444"/>
           <rect x="25" y="49" width="4" height="2" rx="0.5" fill="#EF4444"/>
         </svg>
@@ -539,8 +511,6 @@ export default function TrackingMap({
   const riderLat  = safeNum(payload.riderLat);
   const riderLng  = safeNum(payload.riderLng);
 
-  // Timestamps (used for freshness comparison in resolveGpsSource).
-  // Reduce to numeric millis so the memo dep is stable across renders.
   const driverLocMs = tsToMs(payload.driverLocationAt);
   const riderLocMs  = tsToMs(payload.riderLocationAt);
   const updatedAtMs = tsToMs(payload.updatedAt);
@@ -560,33 +530,56 @@ export default function TrackingMap({
   const rawPolyline = payload.polyline ?? null;
   const decodedPts  = useMemo(() => decodePolyline(rawPolyline), [rawPolyline]);
 
+  // ── Build the geo-bounding set for the projection.
+  // We include the decoded polyline points PLUS the canonical pickup/dropoff
+  // coords so the projection always frames the full route even if the polyline
+  // endpoints don't exactly match those coords (floating-point rounding, etc.).
   const allGeoPoints = useMemo(() => {
     const pts = [...decodedPts];
     if (gpsSource) pts.push([gpsSource.lat, gpsSource.lng]);
-    if (payload.pickupLat  && payload.pickupLng)
-      pts.push([safeNum(payload.pickupLat),  safeNum(payload.pickupLng)]);
-    if (payload.dropoffLat && payload.dropoffLng)
-      pts.push([safeNum(payload.dropoffLat), safeNum(payload.dropoffLng)]);
+    const pLat = safeNum(payload.pickupLat);
+    const pLng = safeNum(payload.pickupLng);
+    const dLat = safeNum(payload.dropoffLat);
+    const dLng = safeNum(payload.dropoffLng);
+    if (pLat && pLng) pts.push([pLat, pLng]);
+    if (dLat && dLng) pts.push([dLat, dLng]);
     return pts;
   }, [decodedPts, gpsSource, payload.pickupLat, payload.pickupLng, payload.dropoffLat, payload.dropoffLng]);
 
+  // Project the polyline into SVG-space
   const svgPolyPts = useMemo(
     () => projectPoints(decodedPts, mapDims.W, mapDims.H),
     [decodedPts, mapDims.W, mapDims.H]
   );
 
-  const pickupSvg = useMemo(
-    () => isInProgress
-      ? null
-      : projectSingle(safeNum(payload.pickupLat), safeNum(payload.pickupLng), allGeoPoints, mapDims.W, mapDims.H),
-    [isInProgress, payload.pickupLat, payload.pickupLng, allGeoPoints, mapDims.W, mapDims.H]
-  );
+  // ── Pin positions ────────────────────────────────────────────────────
+  // Always snap to the actual ends of the projected polyline so the pins
+  // sit exactly where the line terminates, regardless of lat/lng precision.
+  //
+  // Pickup  → svgPolyPts[0]   (first decoded point = start of route)
+  // Dropoff → svgPolyPts[last] (last decoded point  = end of route)
+  //
+  // Fall back to projectSingle when no polyline is available.
+  const pickupSvg = useMemo(() => {
+    if (isInProgress) return null;                         // hide pickup while riding
+    if (svgPolyPts.length > 0) return svgPolyPts[0];      // ← polyline start
+    // no polyline — project from coords using the full geo-bounding set
+    const lat = safeNum(payload.pickupLat);
+    const lng = safeNum(payload.pickupLng);
+    if (!lat || !lng) return null;
+    return projectSingle(lat, lng, allGeoPoints, mapDims.W, mapDims.H);
+  }, [isInProgress, svgPolyPts, payload.pickupLat, payload.pickupLng, allGeoPoints, mapDims.W, mapDims.H]);
 
-  const dropoffSvg = useMemo(
-    () => projectSingle(safeNum(payload.dropoffLat), safeNum(payload.dropoffLng), allGeoPoints, mapDims.W, mapDims.H),
-    [payload.dropoffLat, payload.dropoffLng, allGeoPoints, mapDims.W, mapDims.H]
-  );
+  const dropoffSvg = useMemo(() => {
+    if (svgPolyPts.length > 0) return svgPolyPts[svgPolyPts.length - 1]; // ← polyline end
+    // no polyline — project from coords
+    const lat = safeNum(payload.dropoffLat);
+    const lng = safeNum(payload.dropoffLng);
+    if (!lat || !lng) return null;
+    return projectSingle(lat, lng, allGeoPoints, mapDims.W, mapDims.H);
+  }, [svgPolyPts, payload.dropoffLat, payload.dropoffLng, allGeoPoints, mapDims.W, mapDims.H]);
 
+  // Car position
   const carSvgRaw = useMemo(() => {
     if (driverPos) return driverPos;
     if (!gpsSource) return null;
@@ -637,7 +630,6 @@ export default function TrackingMap({
         : { text: 'Driver GPS', color: '#16A34A' }
     : null;
 
-  // Address strings
   const pickupShort  = shortAddr(payload.pickup ?? '');
   const pickupSub    = cityState(payload.pickup ?? '', payload.pickupCity, payload.pickupZip);
   const dropoffShort = shortAddr(payload.dropoff ?? '');
@@ -717,7 +709,7 @@ export default function TrackingMap({
           </svg>
         )}
 
-        {/* Pickup pin */}
+        {/* Pickup pin — anchored to polyline[0] */}
         {pickupSvg && (
           <div style={{
             position: 'absolute',
@@ -746,7 +738,7 @@ export default function TrackingMap({
           </div>
         )}
 
-        {/* Dropoff pin */}
+        {/* Dropoff pin — anchored to polyline[last] */}
         {dropoffSvg && (
           <div style={{
             position: 'absolute',
