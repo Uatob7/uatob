@@ -14,7 +14,15 @@ function getDriverColor(type = 'standard') {
   }
 }
 
-// ── Google encoded polyline decoder ───────────────────────────────────
+function getRideTierBg(type = 'standard') {
+  switch (type?.toLowerCase()) {
+    case 'premium': return { bg: '#F5F3FF', text: '#6D28D9', border: '#DDD6FE' };
+    case 'xl':      return { bg: '#FFFBEB', text: '#B45309', border: '#FDE68A' };
+    default:        return { bg: '#F0FDF4', text: '#15803D', border: '#BBF7D0' };
+  }
+}
+
+// ── Polyline decoder ──────────────────────────────────────────────────
 function decodePolyline(encoded) {
   if (!encoded) return [];
   const pts = [];
@@ -31,8 +39,8 @@ function decodePolyline(encoded) {
   return pts;
 }
 
-// ── Project lat/lng points into SVG space ─────────────────────────────
-function projectPoints(pts, W, H, pad = 48) {
+// ── Projection ────────────────────────────────────────────────────────
+function projectPoints(pts, W, H, pad = 56) {
   if (!pts.length || !W || !H) return [];
   const lats = pts.map(p => p[0]);
   const lngs = pts.map(p => p[1]);
@@ -51,7 +59,7 @@ function projectPoints(pts, W, H, pad = 48) {
   }));
 }
 
-function projectSingle(lat, lng, pts, W, H, pad = 48) {
+function projectSingle(lat, lng, pts, W, H, pad = 56) {
   if (!pts.length || !W || !H) return null;
   const lats = pts.map(p => p[0]);
   const lngs = pts.map(p => p[1]);
@@ -85,7 +93,6 @@ function approxPathLen(svgPts) {
   return Math.ceil(len) + 40;
 }
 
-// ── Snap to nearest point on polyline ────────────────────────────────
 function closestPointOnPolyline(svgPts, px, py) {
   if (!svgPts.length) return { x: px, y: py };
   let best = svgPts[0], bestDist = Infinity;
@@ -96,7 +103,6 @@ function closestPointOnPolyline(svgPts, px, py) {
   return best;
 }
 
-// ── Compute heading angle between two SVG points ──────────────────────
 function computeHeading(from, to) {
   if (!from || !to) return 0;
   const dx = to.x - from.x;
@@ -104,7 +110,7 @@ function computeHeading(from, to) {
   return Math.atan2(dx, -dy) * (180 / Math.PI);
 }
 
-// ── Resolve GPS source ────────────────────────────────────────────────
+// ── GPS source resolution ─────────────────────────────────────────────
 function resolveGpsSource(payload, status) {
   const isInProgress = status === 'in_progress';
 
@@ -145,6 +151,35 @@ function resolveGpsSource(payload, status) {
   };
 }
 
+// ── Address parsing ──────────────────────────────────────────────────
+function shortAddr(full = '') { return full.split(',')[0].trim(); }
+function cityState(full = '', cityHint = '', zip = '') {
+  const parts = full.split(',').map(s => s.trim()).filter(Boolean);
+  const city  = cityHint || parts[1] || '';
+  const state = parts[2]?.split(' ')[0] || '';
+  const out   = [city, state].filter(Boolean).join(', ');
+  return zip ? `${out} · ${zip}` : out;
+}
+
+// ── Status meta ──────────────────────────────────────────────────────
+const STATUS_META = {
+  searching_driver: { label: 'Finding driver',     dot: '#F59E0B' },
+  driver_assigned:  { label: 'Driver assigned',    dot: '#3B82F6' },
+  driver_arriving:  { label: 'Driver on the way',  dot: '#4ADE80' },
+  arrived:          { label: 'Driver has arrived', dot: '#4ADE80' },
+  in_progress:      { label: 'Heading to dropoff', dot: '#4ADE80' },
+  completed:        { label: 'Ride complete',     dot: '#94A3B8' },
+};
+
+function prettyPayment(method = '') {
+  const m = method.toLowerCase();
+  if (m === 'cashapp')    return 'Cash App';
+  if (m === 'applepay')   return 'Apple Pay';
+  if (m === 'googlepay')  return 'Google Pay';
+  if (m === 'card')       return 'Card';
+  return method ? method.charAt(0).toUpperCase() + method.slice(1) : '';
+}
+
 // ── Keyframes ─────────────────────────────────────────────────────────
 const KEYFRAMES = `
   @keyframes tmRipple {
@@ -152,8 +187,8 @@ const KEYFRAMES = `
     100% { transform: translate(-50%,-50%) scale(2.8); opacity: 0; }
   }
   @keyframes tmDriverBob {
-    0%, 100% { transform: translate(-50%,-50%) scale(1); }
-    50%       { transform: translate(-50%,-50%) scale(1.06); }
+    0%, 100% { transform: scale(1); }
+    50%       { transform: scale(1.05); }
   }
   @keyframes tmLiveDot {
     0%, 100% { opacity: 1; }
@@ -171,8 +206,8 @@ const KEYFRAMES = `
     to   { opacity: 1; transform: translateY(0); }
   }
   @keyframes tmPulsePin {
-    0%, 100% { box-shadow: 0 4px 18px rgba(22,163,74,0.4), 0 0 0 0 rgba(22,163,74,0.3); }
-    50%       { box-shadow: 0 4px 18px rgba(22,163,74,0.4), 0 0 0 10px rgba(22,163,74,0); }
+    0%, 100% { box-shadow: 0 4px 18px rgba(17,24,39,0.35), 0 0 0 0 rgba(17,24,39,0.25); }
+    50%       { box-shadow: 0 4px 18px rgba(17,24,39,0.35), 0 0 0 10px rgba(17,24,39,0); }
   }
   @keyframes tmBadgePop {
     0%   { transform: scale(0.6); opacity: 0; }
@@ -200,19 +235,22 @@ function MapBackground({ W, H }) {
       preserveAspectRatio="none"
     >
       <defs>
-        <pattern id="tm-grid" width="28" height="28" patternUnits="userSpaceOnUse">
-          <path d="M28 0L0 0 0 28" fill="none" stroke="rgba(0,0,0,.045)" strokeWidth=".7"/>
+        <pattern id="tm-grid" width="32" height="32" patternUnits="userSpaceOnUse">
+          <path d="M32 0L0 0 0 32" fill="none" stroke="rgba(0,0,0,.04)" strokeWidth=".7"/>
         </pattern>
       </defs>
-      <rect width={W} height={H} fill="#EEF2F0"/>
+      <rect width={W} height={H} fill="#F0F2EC"/>
       <rect width={W} height={H} fill="url(#tm-grid)"/>
-      <line x1={0}        y1={H * 0.37} x2={W}        y2={H * 0.34} stroke="#D4DBD7" strokeWidth={18} strokeLinecap="round"/>
-      <line x1={0}        y1={H * 0.64} x2={W}        y2={H * 0.69} stroke="#DAE2DE" strokeWidth={12} strokeLinecap="round"/>
-      <line x1={W * 0.26} y1={0}        x2={W * 0.24} y2={H}        stroke="#DAE2DE" strokeWidth={13} strokeLinecap="round"/>
-      <line x1={W * 0.63} y1={0}        x2={W * 0.66} y2={H}        stroke="#D4DBD7" strokeWidth={17} strokeLinecap="round"/>
-      <line x1={W * 0.43} y1={0}        x2={W * 0.41} y2={H}        stroke="#DDE5E2" strokeWidth={9}  strokeLinecap="round"/>
-      <line x1={0} y1={H * 0.37} x2={W} y2={H * 0.34} stroke="#fff" strokeWidth={1.5} strokeDasharray="18 10" opacity={0.7}/>
-      <line x1={W * 0.63} y1={0} x2={W * 0.66} y2={H} stroke="#fff" strokeWidth={1.5} strokeDasharray="18 10" opacity={0.6}/>
+
+      <line x1={0}        y1={H * 0.32} x2={W}        y2={H * 0.30} stroke="#D8DDD1" strokeWidth={20} strokeLinecap="round"/>
+      <line x1={0}        y1={H * 0.66} x2={W}        y2={H * 0.69} stroke="#DDE2D6" strokeWidth={14} strokeLinecap="round"/>
+      <line x1={W * 0.26} y1={0}        x2={W * 0.24} y2={H}        stroke="#DDE2D6" strokeWidth={15} strokeLinecap="round"/>
+      <line x1={W * 0.62} y1={0}        x2={W * 0.65} y2={H}        stroke="#D8DDD1" strokeWidth={18} strokeLinecap="round"/>
+      <line x1={W * 0.43} y1={0}        x2={W * 0.41} y2={H}        stroke="#DDE5D6" strokeWidth={9}  strokeLinecap="round"/>
+
+      <line x1={0} y1={H * 0.32} x2={W} y2={H * 0.30} stroke="#fff" strokeWidth={1.2} strokeDasharray="14 8" opacity={0.55}/>
+      <line x1={W * 0.62} y1={0} x2={W * 0.65} y2={H} stroke="#fff" strokeWidth={1.2} strokeDasharray="14 8" opacity={0.5}/>
+
       {[
         [0.07, 0.10, 0.09, 0.13],
         [0.19, 0.07, 0.07, 0.10],
@@ -222,14 +260,16 @@ function MapBackground({ W, H }) {
         [0.08, 0.54, 0.10, 0.08],
         [0.52, 0.20, 0.06, 0.14],
         [0.14, 0.30, 0.07, 0.09],
+        [0.78, 0.78, 0.10, 0.09],
+        [0.30, 0.80, 0.08, 0.08],
       ].map(([rx, ry, rw, rh], i) => (
-        <rect key={i} x={W*rx} y={H*ry} width={W*rw} height={H*rh} rx={3} fill="#C5CEC9" opacity={0.45}/>
+        <rect key={i} x={W*rx} y={H*ry} width={W*rw} height={H*rh} rx={3} fill="#CBD2C2" opacity={0.4}/>
       ))}
     </svg>
   );
 }
 
-// ── GPS badge ─────────────────────────────────────────────────────────
+// ── GPS source badge ──────────────────────────────────────────────────
 function GpsBadge({ source }) {
   const isRider = source === 'rider';
   const bg      = isRider ? '#3B82F6' : '#16A34A';
@@ -254,7 +294,7 @@ function GpsBadge({ source }) {
   );
 }
 
-// ── Animated Car ──────────────────────────────────────────────────────
+// ── Animated car ──────────────────────────────────────────────────────
 function AnimatedCar({ carSvg, driverColor, isInProgress, gpsSource, isCompleted }) {
   const prevPosRef = useRef(null);
   const [heading, setHeading] = useState(0);
@@ -277,31 +317,28 @@ function AnimatedCar({ carSvg, driverColor, isInProgress, gpsSource, isCompleted
         left: carSvg.x,
         top:  carSvg.y,
         zIndex: 20,
+        transform: 'translate(-50%, -50%)',
         transition: 'left 2.5s cubic-bezier(.4,0,.2,1), top 2.5s cubic-bezier(.4,0,.2,1)',
         willChange: 'left, top',
         animation: 'tmFadeUp .4s ease-out both',
       }}
     >
-      {isInProgress && gpsSource && (
-        <div style={{ position: 'absolute', top: 0, right: 0, transform: 'translate(-50%,-50%)', zIndex: 30 }}>
-          <GpsBadge source={gpsSource.source} />
-        </div>
-      )}
-      <div
-        style={{
-          width: 50, height: 50,
-          background: driverColor,
-          borderRadius: 18,
-          border: '3px solid #fff',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          transform: `translate(-50%, -50%) rotate(${heading}deg)`,
-          transition: 'transform 2.5s cubic-bezier(.4,0,.2,1)',
-          boxShadow: `0 6px 22px ${driverColor}60, 0 0 0 6px ${driverColor}18`,
-          position: 'relative',
-        }}
-      >
-        <div style={{ animation: 'tmDriverBob 2.2s ease-in-out infinite', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+      {isInProgress && gpsSource && <GpsBadge source={gpsSource.source} />}
+
+      <div style={{ animation: 'tmDriverBob 2.2s ease-in-out infinite' }}>
+        <div
+          style={{
+            width: 46, height: 46,
+            background: driverColor,
+            borderRadius: 16,
+            border: '3px solid #fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transform: `rotate(${heading}deg)`,
+            transition: 'transform 2.5s cubic-bezier(.4,0,.2,1)',
+            boxShadow: `0 6px 20px ${driverColor}55, 0 0 0 5px ${driverColor}15`,
+          }}
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
             <rect x="3" y="8"  width="18" height="9"  rx="2.5" fill="#fff"/>
             <path d="M6 8 L7.5 4 L16.5 4 L18 8Z" fill="#4ADE80"/>
             <rect x="6.5"  y="4.5" width="3" height="2.5" rx=".6" fill="#fff" opacity=".9"/>
@@ -310,7 +347,6 @@ function AnimatedCar({ carSvg, driverColor, isInProgress, gpsSource, isCompleted
             <circle cx="7.5"  cy="17" r=".85" fill="#4ADE80"/>
             <circle cx="16.5" cy="17" r="2"   fill={driverColor === '#111827' ? '#1f2937' : driverColor}/>
             <circle cx="16.5" cy="17" r=".85" fill="#4ADE80"/>
-            <rect x="19" y="9.5" width="2" height="1.4" rx=".4" fill="#FCD34D"/>
           </svg>
         </div>
       </div>
@@ -319,18 +355,6 @@ function AnimatedCar({ carSvg, driverColor, isInProgress, gpsSource, isCompleted
 }
 
 // ── Main component ────────────────────────────────────────────────────
-/**
- * Props:
- *   active          – array of ride objects from Firestore (uses active[0])
- *   bookingPayload  – optional override object (falls back to active[0])
- *   rideStatus      – optional override status string
- *   isTracking      – bool: show the status bar
- *   etaMin          – optional ETA override
- *   driverDistanceMiles   – optional distance override (heading to pickup)
- *   dropoffDistanceMiles  – optional distance override (heading to dropoff)
- *   distanceMiles         – generic distance fallback
- *   driverPos       – optional pre-projected { x, y } car position
- */
 export default function TrackingMap({
   active = [],
   bookingPayload: bookingPayloadProp,
@@ -343,14 +367,14 @@ export default function TrackingMap({
   driverPos,
 }) {
   const containerRef = useRef(null);
-  const [dims, setDims] = useState({ W: 0, H: 0 });
+  const [mapDims, setMapDims] = useState({ W: 0, H: 0 });
 
   useEffect(() => { injectStyles(); }, []);
 
   const updateDims = useCallback(() => {
     if (!containerRef.current) return;
     const { offsetWidth, offsetHeight } = containerRef.current;
-    setDims({ W: offsetWidth, H: offsetHeight });
+    setMapDims({ W: offsetWidth, H: offsetHeight });
   }, []);
 
   useEffect(() => {
@@ -360,39 +384,35 @@ export default function TrackingMap({
     return () => ro.disconnect();
   }, [updateDims]);
 
-  // Resolve payload: prop override takes precedence, then active[0]
+  // Resolve payload
   const payload     = bookingPayloadProp || active?.[0] || {};
   const status      = rideStatusProp || payload.status || '';
   const driverColor = getDriverColor(payload.rideType);
+  const tierStyle   = getRideTierBg(payload.rideType);
 
-  const STATUS_BAR_H = 108;
-  const mapH = Math.max(0, dims.H - STATUS_BAR_H);
-
-  // ── Status flags ──────────────────────────────────────────────────
+  // Status flags
   const headingToPickup  = ['driver_assigned', 'driver_arriving'].includes(status);
   const headingToDropoff = ['arrived', 'in_progress'].includes(status);
   const isInProgress     = status === 'in_progress';
   const isCompleted      = status === 'completed';
   const isArrived        = status === 'arrived';
 
-  // ── GPS primitives (explicit deps for memos) ──────────────────────
+  // GPS primitives
   const driverLat = safeNum(payload.driverLat);
   const driverLng = safeNum(payload.driverLng);
   const riderLat  = safeNum(payload.riderLat);
   const riderLng  = safeNum(payload.riderLng);
 
-  // ── Resolve GPS source ────────────────────────────────────────────
   const gpsSource = useMemo(
     () => resolveGpsSource(payload, status),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [status, driverLat, driverLng, riderLat, riderLng, payload.driverEtaMin, payload.riderDropoffEtaMin]
   );
 
-  // ── Decode polyline ───────────────────────────────────────────────
+  // Polyline
   const rawPolyline = payload.polyline ?? null;
   const decodedPts  = useMemo(() => decodePolyline(rawPolyline), [rawPolyline]);
 
-  // ── Bounding box includes pickup + dropoff + active GPS ───────────
   const allGeoPoints = useMemo(() => {
     const pts = [...decodedPts];
     if (gpsSource) pts.push([gpsSource.lat, gpsSource.lng]);
@@ -403,35 +423,28 @@ export default function TrackingMap({
     return pts;
   }, [decodedPts, gpsSource, payload.pickupLat, payload.pickupLng, payload.dropoffLat, payload.dropoffLng]);
 
-  // ── Project polyline ──────────────────────────────────────────────
   const svgPolyPts = useMemo(
-    () => projectPoints(decodedPts, dims.W, mapH),
-    [decodedPts, dims.W, mapH]
+    () => projectPoints(decodedPts, mapDims.W, mapDims.H),
+    [decodedPts, mapDims.W, mapDims.H]
   );
 
-  // ── Project pins ──────────────────────────────────────────────────
   const pickupSvg = useMemo(
     () => isInProgress
       ? null
-      : projectSingle(safeNum(payload.pickupLat), safeNum(payload.pickupLng), allGeoPoints, dims.W, mapH),
-    [isInProgress, payload.pickupLat, payload.pickupLng, allGeoPoints, dims.W, mapH]
+      : projectSingle(safeNum(payload.pickupLat), safeNum(payload.pickupLng), allGeoPoints, mapDims.W, mapDims.H),
+    [isInProgress, payload.pickupLat, payload.pickupLng, allGeoPoints, mapDims.W, mapDims.H]
   );
 
   const dropoffSvg = useMemo(
-    () => projectSingle(safeNum(payload.dropoffLat), safeNum(payload.dropoffLng), allGeoPoints, dims.W, mapH),
-    [payload.dropoffLat, payload.dropoffLng, allGeoPoints, dims.W, mapH]
+    () => projectSingle(safeNum(payload.dropoffLat), safeNum(payload.dropoffLng), allGeoPoints, mapDims.W, mapDims.H),
+    [payload.dropoffLat, payload.dropoffLng, allGeoPoints, mapDims.W, mapDims.H]
   );
 
-  // ── Project car → snap to polyline ───────────────────────────────
   const carSvgRaw = useMemo(() => {
     if (driverPos) return driverPos;
     if (!gpsSource) return null;
-    return projectSingle(gpsSource.lat, gpsSource.lng, allGeoPoints, dims.W, mapH);
-  }, [
-    driverPos,
-    gpsSource?.lat, gpsSource?.lng, gpsSource?.source,
-    allGeoPoints, dims.W, mapH,
-  ]);
+    return projectSingle(gpsSource.lat, gpsSource.lng, allGeoPoints, mapDims.W, mapDims.H);
+  }, [driverPos, gpsSource?.lat, gpsSource?.lng, gpsSource?.source, allGeoPoints, mapDims.W, mapDims.H]);
 
   const carSvg = useMemo(() => {
     if (!carSvgRaw || !svgPolyPts.length) return carSvgRaw;
@@ -441,27 +454,33 @@ export default function TrackingMap({
   const polylinePath = toSVGPath(svgPolyPts);
   const routeLen     = svgPolyPts.length > 1 ? approxPathLen(svgPolyPts) : 1200;
 
-  // ── Display values ────────────────────────────────────────────────
-  const displayEta = isInProgress && gpsSource
-    ? gpsSource.etaMin
-    : safeNum(etaMin ?? (headingToPickup ? payload.driverEtaMin : payload.dropoffEtaMin));
+  // Display values
+  const fabEta = useMemo(() => {
+    if (isCompleted) return null;
+    if (isInProgress || isArrived) {
+      return safeNum(payload.dropoffEtaMin ?? payload.riderDropoffEtaMin ?? etaMin);
+    }
+    if (headingToPickup) return safeNum(payload.driverEtaMin ?? etaMin);
+    return safeNum(etaMin);
+  }, [isCompleted, isInProgress, isArrived, headingToPickup, payload.dropoffEtaMin, payload.riderDropoffEtaMin, payload.driverEtaMin, etaMin]);
 
-  const displayDist = headingToPickup
+  const fabEtaLabel = (isInProgress || isArrived) ? 'min to dropoff' : 'min away';
+
+  const distanceVal = headingToPickup
     ? safeNum(driverDistanceMiles ?? payload.driverDistanceMiles)
-    : safeNum(dropoffDistanceMiles ?? distanceMiles ?? payload.dropoffDistanceMiles ?? payload.tripDistanceMiles);
+    : safeNum(dropoffDistanceMiles ?? distanceMiles ?? payload.tripDistanceMiles ?? payload.dropoffDistanceMiles);
+  const distanceLabel = headingToPickup ? 'driver away' : 'trip total';
 
-  // ── Status label ──────────────────────────────────────────────────
-  const statusLabel = isCompleted
-    ? 'Ride complete'
-    : isArrived
-      ? 'Driver has arrived'
-      : isInProgress
-        ? 'Heading to dropoff'
-        : headingToPickup
-          ? 'Driver on the way'
-          : 'Locating driver…';
+  const tripEtaVal = headingToPickup
+    ? safeNum(payload.driverEtaMin)
+    : safeNum(payload.tripDurationMin ?? payload.dropoffEtaMin);
 
-  const statusColor = isCompleted ? '#64748B' : isArrived ? '#F59E0B' : '#16A34A';
+  const fareVal = payload.fareTotal != null ? `$${Number(payload.fareTotal).toFixed(2)}` : null;
+  const paymentSub = payload.paymentStatus === 'succeeded' && payload.paymentMethod
+    ? `paid · ${prettyPayment(payload.paymentMethod)}`
+    : prettyPayment(payload.paymentMethod);
+
+  const statusMeta = STATUS_META[status] ?? STATUS_META.driver_assigned;
 
   const gpsLabel = isInProgress && gpsSource
     ? gpsSource.source === 'rider'
@@ -469,229 +488,238 @@ export default function TrackingMap({
       : { text: 'Driver GPS', color: '#16A34A' }
     : null;
 
+  // Address strings
+  const pickupShort  = shortAddr(payload.pickup ?? '');
+  const pickupSub    = cityState(payload.pickup ?? '', payload.pickupCity, payload.pickupZip);
+  const dropoffShort = shortAddr(payload.dropoff ?? '');
+  const dropoffSub   = cityState(payload.dropoff ?? '', payload.dropoffCity, payload.dropoffZip);
+
   return (
     <div
-      ref={containerRef}
       style={{
-        position: 'relative',
-        height: 360,
-        borderRadius: 24,
+        borderRadius: 22,
         overflow: 'hidden',
-        border: '1.5px solid rgba(0,0,0,0.08)',
-        boxShadow: '0 12px 40px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)',
-        background: '#EEF2F0',
+        border: '1px solid rgba(0,0,0,0.07)',
+        boxShadow: '0 12px 40px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.05)',
+        background: '#fff',
         fontFamily: "'Outfit', system-ui, sans-serif",
       }}
     >
-      {/* Map background */}
-      <MapBackground W={dims.W} H={mapH} />
+      {/* MAP AREA */}
+      <div
+        ref={containerRef}
+        style={{
+          position: 'relative',
+          height: 260,
+          background: '#F0F2EC',
+          overflow: 'hidden',
+        }}
+      >
+        <MapBackground W={mapDims.W} H={mapDims.H} />
 
-      {/* SVG route overlay */}
-      {dims.W > 0 && svgPolyPts.length > 1 && (
-        <svg
-          style={{ position: 'absolute', inset: 0, width: '100%', height: mapH, pointerEvents: 'none', zIndex: 3 }}
-          viewBox={`0 0 ${dims.W} ${mapH}`}
-        >
-          <defs>
-            <linearGradient id="tm-routeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%"   stopColor={headingToDropoff ? '#16A34A' : '#3B82F6'}/>
-              <stop offset="100%" stopColor={headingToDropoff ? '#22C55E' : '#111827'}/>
-            </linearGradient>
-            <filter id="tm-glow">
-              <feGaussianBlur stdDeviation="2.5" result="blur"/>
-              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-            </filter>
-          </defs>
+        {mapDims.W > 0 && svgPolyPts.length > 1 && (
+          <svg
+            style={{ position: 'absolute', inset: 0, width: '100%', height: mapDims.H, pointerEvents: 'none', zIndex: 3 }}
+            viewBox={`0 0 ${mapDims.W} ${mapDims.H}`}
+          >
+            <defs>
+              <linearGradient id="tm-routeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%"   stopColor={headingToDropoff ? '#16A34A' : '#3B82F6'}/>
+                <stop offset="100%" stopColor={headingToDropoff ? '#22C55E' : '#111827'}/>
+              </linearGradient>
+              <filter id="tm-glow">
+                <feGaussianBlur stdDeviation="2.5" result="blur"/>
+                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+            </defs>
 
-          <path d={polylinePath} fill="none" stroke="#fff" strokeWidth={9} strokeLinecap="round" strokeLinejoin="round" opacity={0.7}/>
-          <path d={polylinePath} fill="none" stroke={headingToDropoff ? '#BBF7D0' : '#BFDBFE'} strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" opacity={0.9}/>
-          <path
-            d={polylinePath}
-            fill="none"
-            stroke="url(#tm-routeGrad)"
-            strokeWidth={4.5}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            filter="url(#tm-glow)"
-            style={{
-              strokeDasharray: routeLen,
-              strokeDashoffset: routeLen,
-              animation: `tmRouteDraw 1.2s cubic-bezier(.4,0,.2,1) forwards`,
-              '--route-len': routeLen,
-            }}
-          />
-          <path
-            d={polylinePath}
-            fill="none"
-            stroke="rgba(255,255,255,.55)"
-            strokeWidth={1.8}
-            strokeLinecap="round"
-            strokeDasharray="7 18"
-            style={{ animation: 'tmDashFlow 1.4s linear infinite' }}
-          />
+            <path d={polylinePath} fill="none" stroke="#fff" strokeWidth={9}
+                  strokeLinecap="round" strokeLinejoin="round" opacity={0.85}/>
+            <path d={polylinePath} fill="none"
+                  stroke={headingToDropoff ? '#BBF7D0' : '#BFDBFE'}
+                  strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" opacity={0.9}/>
+            <path
+              d={polylinePath}
+              fill="none"
+              stroke="url(#tm-routeGrad)"
+              strokeWidth={4.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              filter="url(#tm-glow)"
+              style={{
+                strokeDasharray: routeLen,
+                strokeDashoffset: routeLen,
+                animation: `tmRouteDraw 1.2s cubic-bezier(.4,0,.2,1) forwards`,
+                '--route-len': routeLen,
+              }}
+            />
+            <path
+              d={polylinePath}
+              fill="none"
+              stroke="rgba(255,255,255,.6)"
+              strokeWidth={1.6}
+              strokeLinecap="round"
+              strokeDasharray="7 18"
+              style={{ animation: 'tmDashFlow 1.4s linear infinite' }}
+            />
 
-          {pickupSvg  && <circle cx={pickupSvg.x}  cy={pickupSvg.y}  r={28} fill="#111827" opacity={0.07}/>}
-          {dropoffSvg && <circle cx={dropoffSvg.x} cy={dropoffSvg.y} r={28} fill="#16A34A" opacity={0.10}/>}
-        </svg>
-      )}
+            {pickupSvg  && <circle cx={pickupSvg.x}  cy={pickupSvg.y}  r={26} fill="#16A34A" opacity={0.10}/>}
+            {dropoffSvg && <circle cx={dropoffSvg.x} cy={dropoffSvg.y} r={26} fill="#111827" opacity={0.08}/>}
+          </svg>
+        )}
 
-      {/* Pickup pin (hidden during in_progress) */}
-      {pickupSvg && (
+        {/* Pickup pin */}
+        {pickupSvg && (
+          <div style={{
+            position: 'absolute',
+            left: pickupSvg.x, top: pickupSvg.y,
+            zIndex: 10,
+            transform: 'translate(-50%, -50%)',
+            animation: 'tmFadeUp .5s ease-out .2s both',
+          }}>
+            <div style={{
+              width: 38, height: 38,
+              background: '#fff',
+              borderRadius: '50%',
+              border: '2.5px solid #16A34A',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 4px 14px rgba(22,163,74,0.30)',
+              position: 'relative',
+            }}>
+              {headingToPickup && (
+                <>
+                  <div style={{ position:'absolute', width:38, height:38, borderRadius:'50%', border:'2px solid rgba(22,163,74,.3)', top:'50%', left:'50%', animation:'tmRipple 2s ease-out infinite' }}/>
+                  <div style={{ position:'absolute', width:38, height:38, borderRadius:'50%', border:'2px solid rgba(22,163,74,.18)', top:'50%', left:'50%', animation:'tmRipple 2s ease-out .7s infinite' }}/>
+                </>
+              )}
+              <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#16A34A' }}/>
+            </div>
+          </div>
+        )}
+
+        {/* Dropoff pin */}
+        {dropoffSvg && (
+          <div style={{
+            position: 'absolute',
+            left: dropoffSvg.x, top: dropoffSvg.y,
+            zIndex: 10,
+            transform: 'translate(-50%, -50%)',
+            animation: 'tmFadeUp .5s ease-out .4s both',
+          }}>
+            <div style={{
+              width: 38, height: 38,
+              background: '#111827',
+              borderRadius: '50%',
+              border: '3px solid #fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 4px 18px rgba(17,24,39,0.35)',
+              animation: headingToDropoff ? 'tmPulsePin 2s ease-in-out infinite' : 'none',
+              position: 'relative',
+            }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }}/>
+            </div>
+          </div>
+        )}
+
+        <AnimatedCar
+          carSvg={carSvg}
+          driverColor={driverColor}
+          isInProgress={isInProgress}
+          gpsSource={gpsSource}
+          isCompleted={isCompleted}
+        />
+
+        {/* Status pill (top-left) */}
         <div style={{
-          position: 'absolute',
-          left: pickupSvg.x, top: pickupSvg.y,
-          zIndex: 10,
-          transform: 'translate(-50%, -50%)',
-          animation: 'tmFadeUp .5s ease-out .2s both',
+          position: 'absolute', top: 12, left: 12, zIndex: 25,
+          display: 'inline-flex', alignItems: 'center', gap: 7,
+          background: '#111827', color: '#fff',
+          borderRadius: 100, padding: '7px 12px 7px 9px',
+          fontSize: 11, fontWeight: 700, letterSpacing: '.3px',
+          boxShadow: '0 6px 18px rgba(17,24,39,0.20)',
+          whiteSpace: 'nowrap',
+          animation: 'tmFadeUp .4s ease-out both',
         }}>
           <div style={{
-            width: 42, height: 42,
+            width: 7, height: 7, borderRadius: '50%',
+            background: statusMeta.dot,
+            boxShadow: `0 0 0 3px ${statusMeta.dot}30`,
+            animation: isCompleted ? 'none' : 'tmLiveDot 1.4s ease-in-out infinite',
+          }}/>
+          {statusMeta.label}
+        </div>
+
+        {/* Ride tier badge (top-right) */}
+        {payload.rideLabel && (
+          <div style={{
+            position: 'absolute', top: 12, right: 12, zIndex: 25,
+            background: tierStyle.bg,
+            border: `1px solid ${tierStyle.border}`,
+            borderRadius: 10,
+            padding: '6px 11px',
+            fontSize: 10, fontWeight: 800,
+            color: tierStyle.text,
+            letterSpacing: '0.6px', textTransform: 'uppercase',
+            animation: 'tmFadeUp .4s ease-out .1s both',
+          }}>
+            {payload.rideLabel}
+          </div>
+        )}
+
+        {/* ETA FAB (bottom-right) */}
+        {fabEta != null && fabEta > 0 && fabEta < 999 && !isCompleted && (
+          <div style={{
+            position: 'absolute', bottom: 14, right: 14, zIndex: 25,
             background: '#fff',
-            borderRadius: '50%',
-            border: '2.5px solid #111827',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 14px rgba(0,0,0,0.18)',
-            position: 'relative',
+            borderRadius: 14,
+            padding: '9px 14px',
+            textAlign: 'center',
+            border: '1px solid rgba(0,0,0,0.06)',
+            boxShadow: '0 8px 24px rgba(17,24,39,0.14)',
+            minWidth: 78,
+            animation: 'tmFadeUp .4s ease-out .2s both',
           }}>
-            {headingToPickup && (
-              <>
-                <div style={{ position:'absolute', width:42, height:42, borderRadius:'50%', border:'2px solid rgba(17,24,39,.22)', top:'50%', left:'50%', animation:'tmRipple 2s ease-out infinite' }}/>
-                <div style={{ position:'absolute', width:42, height:42, borderRadius:'50%', border:'2px solid rgba(17,24,39,.12)', top:'50%', left:'50%', animation:'tmRipple 2s ease-out .7s infinite' }}/>
-              </>
-            )}
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="#111827"/>
-              <circle cx="12" cy="9" r="2.5" fill="#fff"/>
-            </svg>
-          </div>
-          <div style={{
-            position:'absolute', top:'110%', left:'50%', transform:'translateX(-50%)',
-            background:'#111827', color:'#fff', fontSize:9, fontWeight:700,
-            padding:'3px 8px', borderRadius:100, whiteSpace:'nowrap',
-            letterSpacing:'.3px', boxShadow:'0 2px 8px rgba(0,0,0,.2)', marginTop:4,
-          }}>
-            Pickup
-          </div>
-        </div>
-      )}
-
-      {/* Dropoff pin */}
-      {dropoffSvg && (
-        <div style={{
-          position: 'absolute',
-          left: dropoffSvg.x, top: dropoffSvg.y,
-          zIndex: 10,
-          transform: 'translate(-50%, -50%)',
-          animation: 'tmFadeUp .5s ease-out .4s both',
-        }}>
-          <div style={{
-            width: 42, height: 42,
-            background: '#16A34A',
-            borderRadius: '50%',
-            border: '3px solid #fff',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 18px rgba(22,163,74,0.45)',
-            animation: headingToDropoff ? 'tmPulsePin 2s ease-in-out infinite' : 'none',
-            position: 'relative',
-          }}>
-            {headingToDropoff && (
-              <>
-                <div style={{ position:'absolute', width:42, height:42, borderRadius:'50%', border:'2px solid rgba(22,163,74,.4)', top:'50%', left:'50%', animation:'tmRipple 2.2s ease-out infinite' }}/>
-                <div style={{ position:'absolute', width:42, height:42, borderRadius:'50%', border:'2px solid rgba(22,163,74,.25)', top:'50%', left:'50%', animation:'tmRipple 2.2s ease-out .8s infinite' }}/>
-              </>
-            )}
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="#fff"/>
-            </svg>
-          </div>
-          <div style={{
-            position:'absolute', top:'110%', left:'50%', transform:'translateX(-50%)',
-            background:'#16A34A', color:'#fff', fontSize:9, fontWeight:700,
-            padding:'3px 8px', borderRadius:100, whiteSpace:'nowrap',
-            letterSpacing:'.3px', boxShadow:'0 2px 8px rgba(22,163,74,.3)', marginTop:4,
-          }}>
-            Dropoff
-          </div>
-        </div>
-      )}
-
-      {/* Animated car */}
-      <AnimatedCar
-        carSvg={carSvg}
-        driverColor={driverColor}
-        isInProgress={isInProgress}
-        gpsSource={gpsSource}
-        isCompleted={isCompleted}
-        svgPolyPts={svgPolyPts}
-      />
-
-      {/* Status bar */}
-      {isTracking && (
-        <div style={{
-          position: 'absolute',
-          bottom: 0, left: 0, right: 0,
-          background: 'rgba(255,255,255,0.97)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          borderTop: '1px solid rgba(0,0,0,0.07)',
-          padding: '14px 16px 16px',
-          zIndex: 20,
-          boxShadow: '0 -6px 20px rgba(0,0,0,0.07)',
-        }}>
-          <div style={{
-            display: 'flex', alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: gpsLabel ? 8 : 0,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{
-                width: 8, height: 8,
-                background: statusColor,
-                borderRadius: '50%',
-                flexShrink: 0,
-                animation: isCompleted ? 'none' : 'tmLiveDot 1.5s ease-in-out infinite',
-              }}/>
-              <span style={{ fontSize: 14, fontWeight: 800, color: '#0F172A', letterSpacing: '-0.2px' }}>
-                {statusLabel}
-              </span>
+            <div style={{
+              fontSize: 22, fontWeight: 800,
+              color: '#111827', lineHeight: 1,
+              letterSpacing: '-0.5px',
+            }}>
+              {fabEta}
             </div>
-
-            {!isCompleted && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 11, color: '#94A3B8', fontWeight: 600 }}>
-                  {displayDist.toFixed(2)} mi
-                </span>
-                <div style={{
-                  background: statusColor,
-                  color: '#fff',
-                  fontSize: 12, fontWeight: 800,
-                  padding: '4px 12px',
-                  borderRadius: 100,
-                  letterSpacing: '0.2px',
-                  boxShadow: `0 2px 8px ${statusColor}44`,
-                }}>
-                  {displayEta} min
-                </div>
-              </div>
-            )}
-          </div>
-
-          {gpsLabel && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <div style={{
-                width: 6, height: 6, borderRadius: '50%',
-                background: gpsLabel.color, flexShrink: 0,
-              }}/>
-              <span style={{ fontSize: 11, color: gpsLabel.color, fontWeight: 700, letterSpacing: '.2px' }}>
-                {gpsLabel.text}
-              </span>
-              <span style={{ fontSize: 11, color: '#94A3B8', fontWeight: 500 }}>
-                · live position
-              </span>
+            <div style={{
+              fontSize: 10, color: '#9CA3AF', marginTop: 3,
+              fontWeight: 600, letterSpacing: '.3px',
+            }}>
+              {fabEtaLabel}
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+
+        {/* GPS source label (bottom-left) */}
+        {gpsLabel && (
+          <div style={{
+            position: 'absolute', bottom: 14, left: 14, zIndex: 25,
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            background: 'rgba(255,255,255,0.95)',
+            backdropFilter: 'blur(8px)',
+            border: '1px solid rgba(0,0,0,0.06)',
+            borderRadius: 10,
+            padding: '6px 10px',
+            boxShadow: '0 4px 14px rgba(17,24,39,0.10)',
+            animation: 'tmFadeUp .4s ease-out .3s both',
+          }}>
+            <div style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: gpsLabel.color,
+              animation: 'tmLiveDot 1.4s ease-in-out infinite',
+            }}/>
+            <span style={{ fontSize: 11, fontWeight: 700, color: gpsLabel.color, letterSpacing: '.2px' }}>
+              {gpsLabel.text}
+            </span>
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }
