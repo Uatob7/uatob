@@ -7,6 +7,15 @@ const axios = require("axios");
 if (!getApps().length) initializeApp();
 const db = getFirestore();
 
+// ── Active ride statuses where a driver location update matters ──────
+// Outside these states, we don't care about pinging the ride doc.
+const ACTIVE_RIDE_STATUSES = [
+  "driver_assigned",
+  "driver_arriving",
+  "arrived",
+  "in_progress",
+];
+
 // ── Helper: Extract city + ZIP ───────────────────────────
 function extractCityAndZip(components = []) {
   let city = "";
@@ -27,6 +36,51 @@ function extractCityAndZip(components = []) {
   return { city, zip };
 }
 
+// ── Helper: Find this driver's currently-active ride ─────
+// Looks for any ride where driverUid == uid AND status is in ACTIVE_RIDE_STATUSES.
+// Returns the DocumentReference, or null if none found.
+async function findActiveRideForDriver(driverUid) {
+  if (!driverUid) return null;
+  try {
+    const snap = await db
+      .collection("Rides")
+      .where("driverUid", "==", driverUid)
+      .where("status", "in", ACTIVE_RIDE_STATUSES)
+      .limit(1)
+      .get();
+
+    if (snap.empty) return null;
+    return snap.docs[0].ref;
+  } catch (err) {
+    console.error("findActiveRideForDriver error:", err.message);
+    return null;
+  }
+}
+
+// ── Helper: Update active ride with driver position ──────
+// Writes driverLat / driverLng / driverLocationAt so the rider's tracking
+// map can compare freshness against riderLocationAt and pick the freshest.
+async function pingDriverLocationOnActiveRide(driverUid, lat, lng) {
+  const rideRef = await findActiveRideForDriver(driverUid);
+  if (!rideRef) return null;
+
+  try {
+    await rideRef.set(
+      {
+        driverLat: lat,
+        driverLng: lng,
+        driverLocationAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+    return rideRef.id;
+  } catch (err) {
+    console.error("pingDriverLocationOnActiveRide error:", err.message);
+    return null;
+  }
+}
+
 // ─────────────────────────────────────────────────────────
 exports.DriverStatus = onCall(
   {
@@ -41,6 +95,7 @@ exports.DriverStatus = onCall(
       if (!uid?.trim()) {
         throw new HttpsError("invalid-argument", "uid is required");
       }
+      const driverUid = uid.trim();
 
       // ── Validate status ────────────────────────────────
       const VALID_STATUSES = ["online", "offline", "location_ping"];
@@ -102,7 +157,7 @@ exports.DriverStatus = onCall(
         }
       }
 
-      // ── Build Firestore update ─────────────────────────
+      // ── Build Firestore update for Drivers doc ─────────
       let update;
 
       if (status === "location_ping") {
@@ -137,10 +192,25 @@ exports.DriverStatus = onCall(
         };
       }
 
-      // ── Write to Firestore ─────────────────────────────
-      await db.collection("Drivers").doc(uid.trim()).set(update, { merge: true });
+      // ── Write to Drivers doc ───────────────────────────
+      await db.collection("Drivers").doc(driverUid).set(update, { merge: true });
 
-      return { ok: true, status, city, zip };
+      // ── If driver has an active ride, also update that ride's
+      //    driverLat / driverLng / driverLocationAt so the rider's
+      //    tracking map can use freshness-based GPS resolution.
+      let updatedRideId = null;
+      if (numLat != null && numLng != null && status !== "offline") {
+        updatedRideId = await pingDriverLocationOnActiveRide(driverUid, numLat, numLng);
+      }
+
+      return {
+        ok: true,
+        status,
+        city,
+        zip,
+        rideUpdated: !!updatedRideId,
+        rideId: updatedRideId,
+      };
     } catch (err) {
       console.error("❌ DriverStatus error:", err);
 
