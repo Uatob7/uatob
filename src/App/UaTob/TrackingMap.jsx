@@ -1,105 +1,3 @@
-Basic setup inside your component
-import mapboxgl from "mapbox-gl";
-import { useEffect, useRef } from "react";
-
-mapboxgl.accessToken = "YOUR_MAPBOX_TOKEN";
-
-function RealMap({ polyline, driver }) {
-  const mapRef = useRef(null);
-  const mapInstance = useRef(null);
-
-  useEffect(() => {
-    if (mapInstance.current) return;
-
-    mapInstance.current = new mapboxgl.Map({
-      container: mapRef.current,
-      style: "mapbox://styles/mapbox/streets-v12",
-      center: [-81.3792, 28.5383], // Orlando default
-      zoom: 13,
-    });
-
-  }, []);
-
-  return <div ref={mapRef} style={{ width: "100%", height: "100%" }} />;
-}
-🚗 Then instead of SVG:
-Draw route
-map.addSource("route", {
-  type: "geojson",
-  data: {
-    type: "Feature",
-    geometry: {
-      type: "LineString",
-      coordinates: decodedPolyline.map(([lat, lng]) => [lng, lat])
-    }
-  }
-});
-
-map.addLayer({
-  id: "route-line",
-  type: "line",
-  source: "route",
-  paint: {
-    "line-color": "#16A34A",
-    "line-width": 5
-  }
-});
-Add driver marker (your animated car)
-new mapboxgl.Marker({ element: customCarElement })
-  .setLngLat([driverLng, driverLat])
-  .addTo(map);
-💡 Hybrid Option (if you want minimal rewrite)
-
-If you don’t want to fully switch yet, you can:
-
-👉 Use a static map image (quick hack)
-
-From Mapbox Static API:
-
-https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/{lng},{lat},13,0/600x300?access_token=...
-
-Then:
-
-<img src={mapUrl} style={{ position: 'absolute', inset: 0 }} />
-
-BUT:
-
-❌ No animation sync
-❌ Won’t align perfectly with your SVG path
-❌ No zoom/pan
-🧠 My Recommendation
-
-Given how advanced your component already is (seriously, this is Uber-level logic):
-
-👉 Switch fully to Mapbox GL JS
-
-Keep:
-
-your GPS logic ✅
-your ETA logic ✅
-your animation logic (car) ✅
-
-Replace:
-
-SVG projection ❌
-fake map background ❌
-If you want
-
-I can rewrite your entire component to:
-
-use Mapbox
-keep your animations
-snap car to route (still!)
-preserve your UI (badges, ETA, etc.)
-
-Just say:
-👉 “convert this to Mapbox version”
-
-
-token pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA
-
-
-
 import React, { useMemo, useEffect, useRef, useCallback, useState } from 'react';
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -195,13 +93,10 @@ function approxPathLen(svgPts) {
   return Math.ceil(len) + 40;
 }
 
-// ── Snap to nearest point on polyline (segment-aware) ────────────────
 function closestPointOnPolyline(svgPts, px, py) {
   if (!svgPts.length) return { x: px, y: py };
   if (svgPts.length === 1) return svgPts[0];
-
   let best = svgPts[0], bestDist = Infinity;
-
   for (let i = 0; i < svgPts.length - 1; i++) {
     const a = svgPts[i];
     const b = svgPts[i + 1];
@@ -209,17 +104,12 @@ function closestPointOnPolyline(svgPts, px, py) {
     const dy = b.y - a.y;
     const lenSq = dx * dx + dy * dy;
     if (lenSq === 0) continue;
-
     let t = ((px - a.x) * dx + (py - a.y) * dy) / lenSq;
     t = Math.max(0, Math.min(1, t));
-
     const x = a.x + t * dx;
     const y = a.y + t * dy;
     const d = Math.hypot(x - px, y - py);
-    if (d < bestDist) {
-      bestDist = d;
-      best = { x, y };
-    }
+    if (d < bestDist) { bestDist = d; best = { x, y }; }
   }
   return best;
 }
@@ -231,7 +121,6 @@ function computeHeading(from, to) {
   return Math.atan2(dx, -dy) * (180 / Math.PI);
 }
 
-// ── Convert Firestore-style timestamp to millis ───────────────────────
 function tsToMs(ts) {
   if (!ts) return 0;
   if (typeof ts === 'number') return ts;
@@ -241,7 +130,6 @@ function tsToMs(ts) {
   return 0;
 }
 
-// Haversine distance in meters between two lat/lng points
 function geoDistMeters(lat1, lng1, lat2, lng2) {
   const R = 6371000;
   const toRad = (d) => (d * Math.PI) / 180;
@@ -255,80 +143,48 @@ function geoDistMeters(lat1, lng1, lat2, lng2) {
 // ── GPS source resolution ─────────────────────────────────────────────
 function resolveGpsSource(payload, status) {
   const isInProgress = status === 'in_progress';
-
   const driverLat = safeNum(payload.driverLat);
   const driverLng = safeNum(payload.driverLng);
   const riderLat  = safeNum(payload.riderLat);
   const riderLng  = safeNum(payload.riderLng);
-
   const hasDriver = driverLat !== 0 && driverLng !== 0;
   const hasRider  = riderLat !== 0 && riderLng !== 0;
-
   const driverEta = safeNum(payload.driverEtaMin ?? payload.dropoffEtaMin ?? 999);
   const riderEta  = safeNum(payload.riderDropoffEtaMin ?? payload.dropoffEtaMin ?? 999);
 
   if (!isInProgress) {
     if (hasDriver) return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta };
     if (hasRider)  return { source: 'rider',  lat: riderLat,  lng: riderLng,  etaMin: riderEta  };
-    return {
-      source: 'static',
-      lat: safeNum(payload.dropoffLat),
-      lng: safeNum(payload.dropoffLng),
-      etaMin: safeNum(payload.dropoffEtaMin),
-    };
+    return { source: 'static', lat: safeNum(payload.dropoffLat), lng: safeNum(payload.dropoffLng), etaMin: safeNum(payload.dropoffEtaMin) };
   }
 
   if (!hasDriver && !hasRider) {
-    return {
-      source: 'static',
-      lat: safeNum(payload.dropoffLat),
-      lng: safeNum(payload.dropoffLng),
-      etaMin: safeNum(payload.dropoffEtaMin),
-    };
+    return { source: 'static', lat: safeNum(payload.dropoffLat), lng: safeNum(payload.dropoffLng), etaMin: safeNum(payload.dropoffEtaMin) };
   }
   if (!hasDriver) return { source: 'rider',  lat: riderLat,  lng: riderLng,  etaMin: riderEta  };
   if (!hasRider)  return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta };
 
   const distMeters = geoDistMeters(driverLat, driverLng, riderLat, riderLng);
-
   if (distMeters <= 10) {
-    return {
-      source: 'driver',
-      lat: (driverLat + riderLat) / 2,
-      lng: (driverLng + riderLng) / 2,
-      etaMin: Math.min(driverEta, riderEta),
-      blended: true,
-    };
+    return { source: 'driver', lat: (driverLat + riderLat) / 2, lng: (driverLng + riderLng) / 2, etaMin: Math.min(driverEta, riderEta), blended: true };
   }
 
   const driverTs = tsToMs(payload.driverLocationAt);
   const riderTs  = tsToMs(payload.riderLocationAt);
   const now      = Date.now();
   const STALE_MS = 45_000;
-
   const driverAge = driverTs ? now - driverTs : Infinity;
   const riderAge  = riderTs  ? now - riderTs  : Infinity;
-
-  const driverStale = driverAge > STALE_MS;
-  const riderStale  = riderAge  > STALE_MS;
-
-  if (driverStale && !riderStale) {
-    return { source: 'rider', lat: riderLat, lng: riderLng, etaMin: riderEta };
-  }
-  if (riderStale && !driverStale) {
-    return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta };
-  }
-
+  if (driverAge > STALE_MS && riderAge <= STALE_MS) return { source: 'rider', lat: riderLat, lng: riderLng, etaMin: riderEta };
+  if (riderAge > STALE_MS && driverAge <= STALE_MS) return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta };
   if (driverTs && riderTs) {
     return driverTs >= riderTs
       ? { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta }
       : { source: 'rider',  lat: riderLat,  lng: riderLng,  etaMin: riderEta  };
   }
-
   return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta };
 }
 
-// ── Address parsing ──────────────────────────────────────────────────
 function shortAddr(full = '') { return full.split(',')[0].trim(); }
 function cityState(full = '', cityHint = '', zip = '') {
   const parts = full.split(',').map(s => s.trim()).filter(Boolean);
@@ -338,7 +194,6 @@ function cityState(full = '', cityHint = '', zip = '') {
   return zip ? `${out} · ${zip}` : out;
 }
 
-// ── Status meta ──────────────────────────────────────────────────────
 const STATUS_META = {
   searching_driver: { label: 'Finding driver',     dot: '#F59E0B' },
   driver_assigned:  { label: 'Driver assigned',    dot: '#3B82F6' },
@@ -350,10 +205,10 @@ const STATUS_META = {
 
 function prettyPayment(method = '') {
   const m = method.toLowerCase();
-  if (m === 'cashapp')    return 'Cash App';
-  if (m === 'applepay')   return 'Apple Pay';
-  if (m === 'googlepay')  return 'Google Pay';
-  if (m === 'card')       return 'Card';
+  if (m === 'cashapp')   return 'Cash App';
+  if (m === 'applepay')  return 'Apple Pay';
+  if (m === 'googlepay') return 'Google Pay';
+  if (m === 'card')      return 'Card';
   return method ? method.charAt(0).toUpperCase() + method.slice(1) : '';
 }
 
@@ -383,8 +238,6 @@ const KEYFRAMES = `
     70%  { transform: scale(1.15); }
     100% { transform: scale(1); opacity: 1; }
   }
-
-  /* MapView pin animations — SVG-based pulse + drop */
   @keyframes tmPinPulse {
     0%,100% { r: 13; opacity: 0.22; }
     50%      { r: 19; opacity: 0.07; }
@@ -407,91 +260,66 @@ function injectStyles() {
   _injected = true;
 }
 
-// ── Map background ────────────────────────────────────────────────────
-function MapBackground({ W, H }) {
-  if (!W || !H) return null;
-  return (
-    <svg
-      style={{ position: 'absolute', inset: 0, width: '100%', height: H, pointerEvents: 'none', zIndex: 1 }}
-      viewBox={`0 0 ${W} ${H}`}
-      preserveAspectRatio="none"
-    >
-      <defs>
-        <pattern id="tm-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-          <path d="M32 0L0 0 0 32" fill="none" stroke="rgba(0,0,0,.04)" strokeWidth=".7"/>
-        </pattern>
-      </defs>
-      <rect width={W} height={H} fill="#F0F2EC"/>
-      <rect width={W} height={H} fill="url(#tm-grid)"/>
+// ── Mapbox loader (CDN, idempotent) ──────────────────────────────────
+const MAPBOX_TOKEN = 'pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA';
 
-      <line x1={0}        y1={H * 0.32} x2={W}        y2={H * 0.30} stroke="#D8DDD1" strokeWidth={20} strokeLinecap="round"/>
-      <line x1={0}        y1={H * 0.66} x2={W}        y2={H * 0.69} stroke="#DDE2D6" strokeWidth={14} strokeLinecap="round"/>
-      <line x1={W * 0.26} y1={0}        x2={W * 0.24} y2={H}        stroke="#DDE2D6" strokeWidth={15} strokeLinecap="round"/>
-      <line x1={W * 0.62} y1={0}        x2={W * 0.65} y2={H}        stroke="#D8DDD1" strokeWidth={18} strokeLinecap="round"/>
-      <line x1={W * 0.43} y1={0}        x2={W * 0.41} y2={H}        stroke="#DDE5D6" strokeWidth={9}  strokeLinecap="round"/>
+let _mbLoaded = false;
+let _mbCallbacks = [];
 
-      <line x1={0} y1={H * 0.32} x2={W} y2={H * 0.30} stroke="#fff" strokeWidth={1.2} strokeDasharray="14 8" opacity={0.55}/>
-      <line x1={W * 0.62} y1={0} x2={W * 0.65} y2={H} stroke="#fff" strokeWidth={1.2} strokeDasharray="14 8" opacity={0.5}/>
+function loadMapbox(cb) {
+  if (_mbLoaded && window.mapboxgl) { cb(); return; }
+  _mbCallbacks.push(cb);
+  if (document.getElementById('mapbox-css')) return;
 
-      {[
-        [0.07, 0.10, 0.09, 0.13],
-        [0.19, 0.07, 0.07, 0.10],
-        [0.72, 0.13, 0.08, 0.11],
-        [0.82, 0.21, 0.11, 0.09],
-        [0.35, 0.54, 0.08, 0.11],
-        [0.08, 0.54, 0.10, 0.08],
-        [0.52, 0.20, 0.06, 0.14],
-        [0.14, 0.30, 0.07, 0.09],
-        [0.78, 0.78, 0.10, 0.09],
-        [0.30, 0.80, 0.08, 0.08],
-      ].map(([rx, ry, rw, rh], i) => (
-        <rect key={i} x={W*rx} y={H*ry} width={W*rw} height={H*rh} rx={3} fill="#CBD2C2" opacity={0.4}/>
-      ))}
-    </svg>
-  );
+  // CSS
+  const link = document.createElement('link');
+  link.id   = 'mapbox-css';
+  link.rel  = 'stylesheet';
+  link.href = 'https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css';
+  document.head.appendChild(link);
+
+  // JS
+  const script = document.createElement('script');
+  script.src = 'https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js';
+  script.onload = () => {
+    _mbLoaded = true;
+    _mbCallbacks.forEach(fn => fn());
+    _mbCallbacks = [];
+  };
+  document.head.appendChild(script);
 }
 
 // ── GPS source badge ──────────────────────────────────────────────────
 function GpsBadge({ source, blended }) {
   if (blended) {
     return (
-      <div
-        title="Driver + Rider GPS agree"
-        style={{
-          position: 'absolute', top: -6, right: -6,
-          width: 16, height: 16, borderRadius: '50%',
-          background: '#16A34A', border: '2px solid #fff',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 2,
-          boxShadow: '0 2px 6px rgba(22,163,74,0.55)',
-          animation: 'tmBadgePop .35s cubic-bezier(.34,1.4,.64,1) both',
-        }}
-      >
+      <div title="Driver + Rider GPS agree" style={{
+        position: 'absolute', top: -6, right: -6,
+        width: 16, height: 16, borderRadius: '50%',
+        background: '#16A34A', border: '2px solid #fff',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 2, boxShadow: '0 2px 6px rgba(22,163,74,0.55)',
+        animation: 'tmBadgePop .35s cubic-bezier(.34,1.4,.64,1) both',
+      }}>
         <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
           <path d="M2.5 6L5 8.5L9.5 3.5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       </div>
     );
   }
-
   const isRider = source === 'rider';
   const bg      = isRider ? '#3B82F6' : '#16A34A';
   const label   = isRider ? 'R' : 'D';
-  const title   = isRider ? 'Rider GPS' : 'Driver GPS';
   return (
-    <div
-      title={title}
-      style={{
-        position: 'absolute', top: -6, right: -6,
-        width: 16, height: 16, borderRadius: '50%',
-        background: bg, border: '2px solid #fff',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 8, fontWeight: 900, color: '#fff',
-        zIndex: 2,
-        boxShadow: `0 2px 6px ${bg}88`,
-        animation: 'tmBadgePop .35s cubic-bezier(.34,1.4,.64,1) both',
-      }}
-    >
+    <div title={isRider ? 'Rider GPS' : 'Driver GPS'} style={{
+      position: 'absolute', top: -6, right: -6,
+      width: 16, height: 16, borderRadius: '50%',
+      background: bg, border: '2px solid #fff',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: 8, fontWeight: 900, color: '#fff', zIndex: 2,
+      boxShadow: `0 2px 6px ${bg}88`,
+      animation: 'tmBadgePop .35s cubic-bezier(.34,1.4,.64,1) both',
+    }}>
       {label}
     </div>
   );
@@ -514,48 +342,29 @@ function AnimatedCar({ carSvg, driverColor, isInProgress, gpsSource, isCompleted
   if (!carSvg || isCompleted) return null;
 
   return (
-    <div
-      style={{
-        position: 'absolute',
-        left: carSvg.x,
-        top:  carSvg.y,
-        zIndex: 20,
-        transform: 'translate(-50%, -50%)',
-        transition: 'left 2.5s cubic-bezier(.4,0,.2,1), top 2.5s cubic-bezier(.4,0,.2,1)',
-        willChange: 'left, top',
-        animation: 'tmFadeUp .4s ease-out both',
-      }}
-    >
+    <div style={{
+      position: 'absolute',
+      left: carSvg.x, top: carSvg.y,
+      zIndex: 20,
+      transform: 'translate(-50%, -50%)',
+      transition: 'left 2.5s cubic-bezier(.4,0,.2,1), top 2.5s cubic-bezier(.4,0,.2,1)',
+      willChange: 'left, top',
+      animation: 'tmFadeUp .4s ease-out both',
+    }}>
       {isInProgress && gpsSource && (
         <GpsBadge source={gpsSource.source} blended={gpsSource.blended} />
       )}
-
-      <div
-        style={{
-          transform: `rotate(${heading}deg)`,
-          transition: 'transform 2.5s cubic-bezier(.4,0,.2,1)',
-          animation: 'tmDriverBob 2.2s ease-in-out infinite',
-          filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.35))',
-          lineHeight: 0,
-        }}
-      >
+      <div style={{
+        transform: `rotate(${heading}deg)`,
+        transition: 'transform 2.5s cubic-bezier(.4,0,.2,1)',
+        animation: 'tmDriverBob 2.2s ease-in-out infinite',
+        filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.35))',
+        lineHeight: 0,
+      }}>
         <svg width="40" height="56" viewBox="0 0 40 56" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path
-            d="M8 12 Q8 4 20 4 Q32 4 32 12 L32 46 Q32 52 26 52 L14 52 Q8 52 8 46 Z"
-            fill={driverColor}
-            stroke="#fff"
-            strokeWidth="2"
-          />
-          <path
-            d="M11 14 Q11 9 20 9 Q29 9 29 14 L28 22 L12 22 Z"
-            fill="#7DD3FC"
-            opacity="0.85"
-          />
-          <path
-            d="M12 38 L28 38 L28 46 Q28 48 26 48 L14 48 Q12 48 12 46 Z"
-            fill="#7DD3FC"
-            opacity="0.7"
-          />
+          <path d="M8 12 Q8 4 20 4 Q32 4 32 12 L32 46 Q32 52 26 52 L14 52 Q8 52 8 46 Z" fill={driverColor} stroke="#fff" strokeWidth="2"/>
+          <path d="M11 14 Q11 9 20 9 Q29 9 29 14 L28 22 L12 22 Z" fill="#7DD3FC" opacity="0.85"/>
+          <path d="M12 38 L28 38 L28 46 Q28 48 26 48 L14 48 Q12 48 12 46 Z" fill="#7DD3FC" opacity="0.7"/>
           <rect x="12" y="24" width="16" height="12" rx="1" fill={driverColor} opacity="0.7"/>
           <rect x="5" y="14" width="3" height="3" rx="1" fill={driverColor}/>
           <rect x="32" y="14" width="3" height="3" rx="1" fill={driverColor}/>
@@ -566,6 +375,83 @@ function AnimatedCar({ carSvg, driverColor, isInProgress, gpsSource, isCompleted
         </svg>
       </div>
     </div>
+  );
+}
+
+// ── Mapbox Map ────────────────────────────────────────────────────────
+function MapboxBackground({ W, H, centerLat, centerLng, decodedPts }) {
+  const mapContainerRef = useRef(null);
+  const mapRef          = useRef(null);
+  const initializedRef  = useRef(false);
+
+  // Compute initial center: prefer GPS, else midpoint of polyline, else Orlando
+  const initCenter = useMemo(() => {
+    if (centerLat && centerLng) return [centerLng, centerLat];
+    if (decodedPts.length) {
+      const midIdx = Math.floor(decodedPts.length / 2);
+      return [decodedPts[midIdx][1], decodedPts[midIdx][0]];
+    }
+    return [-81.3792, 28.5383]; // Orlando
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally stable — only for initial mount
+
+  // Init map once Mapbox loads
+  useEffect(() => {
+    if (!mapContainerRef.current || initializedRef.current) return;
+
+    loadMapbox(() => {
+      if (!mapContainerRef.current || initializedRef.current) return;
+      initializedRef.current = true;
+
+      window.mapboxgl.accessToken = MAPBOX_TOKEN;
+
+      mapRef.current = new window.mapboxgl.Map({
+        container: mapContainerRef.current,
+        style: 'mapbox://styles/mapbox/streets-v12',
+        center: initCenter,
+        zoom: 14,
+        attributionControl: false,
+        interactive: false, // disable pan/zoom — SVG overlay is projection-based
+      });
+
+      // Strip attribution clutter
+      mapRef.current.addControl(
+        new window.mapboxgl.AttributionControl({ compact: true }),
+        'bottom-right'
+      );
+    });
+
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+        initializedRef.current = false;
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Re-center when GPS changes
+  useEffect(() => {
+    if (!mapRef.current || !centerLat || !centerLng) return;
+    mapRef.current.easeTo({
+      center: [centerLng, centerLat],
+      duration: 2500,
+      easing: t => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
+    });
+  }, [centerLat, centerLng]);
+
+  return (
+    <div
+      ref={mapContainerRef}
+      style={{
+        position: 'absolute',
+        inset: 0,
+        width: '100%',
+        height: H || '100%',
+        zIndex: 1,
+      }}
+    />
   );
 }
 
@@ -599,20 +485,17 @@ export default function TrackingMap({
     return () => ro.disconnect();
   }, [updateDims]);
 
-  // Resolve payload
   const payload     = bookingPayloadProp || active?.[0] || {};
   const status      = rideStatusProp || payload.status || '';
   const driverColor = getDriverColor(payload.rideType);
   const tierStyle   = getRideTierBg(payload.rideType);
 
-  // Status flags
   const headingToPickup  = ['driver_assigned', 'driver_arriving'].includes(status);
   const headingToDropoff = ['arrived', 'in_progress'].includes(status);
   const isInProgress     = status === 'in_progress';
   const isCompleted      = status === 'completed';
   const isArrived        = status === 'arrived';
 
-  // GPS primitives
   const driverLat = safeNum(payload.driverLat);
   const driverLng = safeNum(payload.driverLng);
   const riderLat  = safeNum(payload.riderLat);
@@ -625,19 +508,12 @@ export default function TrackingMap({
   const gpsSource = useMemo(
     () => resolveGpsSource(payload, status),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      status,
-      driverLat, driverLng, riderLat, riderLng,
-      driverLocMs, riderLocMs, updatedAtMs,
-      payload.driverEtaMin, payload.riderDropoffEtaMin,
-    ]
+    [status, driverLat, driverLng, riderLat, riderLng, driverLocMs, riderLocMs, updatedAtMs,
+     payload.driverEtaMin, payload.riderDropoffEtaMin]
   );
 
-  // Polyline
   const rawPolyline = payload.polyline ?? null;
   const decodedPts  = useMemo(() => decodePolyline(rawPolyline), [rawPolyline]);
-
-  // Single bounding set = decoded polyline points only
   const boundingPts = decodedPts;
 
   const svgPolyPts = useMemo(
@@ -645,9 +521,8 @@ export default function TrackingMap({
     [boundingPts, mapDims.W, mapDims.H]
   );
 
-  // Pin positions — anchored directly to polyline endpoints
   const pickupSvg = useMemo(() => {
-    if (isInProgress) return null; // hide pickup while riding
+    if (isInProgress) return null;
     if (svgPolyPts.length > 0) return svgPolyPts[0];
     const lat = safeNum(payload.pickupLat);
     const lng = safeNum(payload.pickupLng);
@@ -663,10 +538,6 @@ export default function TrackingMap({
     return projectSingle(lat, lng, boundingPts.length ? boundingPts : [[lat, lng]], mapDims.W, mapDims.H);
   }, [svgPolyPts, payload.dropoffLat, payload.dropoffLng, boundingPts, mapDims.W, mapDims.H]);
 
-  // Car — project GPS into the SAME bounding box, then:
-  //   1. If within 50m of pickup  → snap exactly to pickupSvg
-  //   2. If within 50m of dropoff → snap exactly to dropoffSvg
-  //   3. Otherwise                → snap to nearest point on polyline
   const carSvgRaw = useMemo(() => {
     if (driverPos) return driverPos;
     if (!gpsSource || !boundingPts.length) return null;
@@ -675,63 +546,29 @@ export default function TrackingMap({
 
   const carSvg = useMemo(() => {
     if (!carSvgRaw) return carSvgRaw;
-
-    // Proximity snap to pickup pin
     if (pickupSvg && gpsSource) {
-      const distToPickup = geoDistMeters(
-        gpsSource.lat, gpsSource.lng,
-        safeNum(payload.pickupLat), safeNum(payload.pickupLng)
-      );
+      const distToPickup = geoDistMeters(gpsSource.lat, gpsSource.lng, safeNum(payload.pickupLat), safeNum(payload.pickupLng));
       if (distToPickup <= 50) return pickupSvg;
     }
-
-    // Proximity snap to dropoff pin
     if (dropoffSvg && gpsSource) {
-      const distToDropoff = geoDistMeters(
-        gpsSource.lat, gpsSource.lng,
-        safeNum(payload.dropoffLat), safeNum(payload.dropoffLng)
-      );
+      const distToDropoff = geoDistMeters(gpsSource.lat, gpsSource.lng, safeNum(payload.dropoffLat), safeNum(payload.dropoffLng));
       if (distToDropoff <= 50) return dropoffSvg;
     }
-
-    // Default: snap to nearest point on polyline
     if (!svgPolyPts.length) return carSvgRaw;
     return closestPointOnPolyline(svgPolyPts, carSvgRaw.x, carSvgRaw.y);
-  }, [
-    carSvgRaw, svgPolyPts, pickupSvg, dropoffSvg,
-    gpsSource?.lat, gpsSource?.lng,
-    payload.pickupLat, payload.pickupLng,
-    payload.dropoffLat, payload.dropoffLng,
-  ]);
+  }, [carSvgRaw, svgPolyPts, pickupSvg, dropoffSvg, gpsSource?.lat, gpsSource?.lng, payload.pickupLat, payload.pickupLng, payload.dropoffLat, payload.dropoffLng]);
 
   const polylinePath = toSVGPath(svgPolyPts);
   const routeLen     = svgPolyPts.length > 1 ? approxPathLen(svgPolyPts) : 1200;
 
-  // Display values
   const fabEta = useMemo(() => {
     if (isCompleted) return null;
-    if (isInProgress || isArrived) {
-      return safeNum(payload.dropoffEtaMin ?? payload.riderDropoffEtaMin ?? etaMin);
-    }
+    if (isInProgress || isArrived) return safeNum(payload.dropoffEtaMin ?? payload.riderDropoffEtaMin ?? etaMin);
     if (headingToPickup) return safeNum(payload.driverEtaMin ?? etaMin);
     return safeNum(etaMin);
   }, [isCompleted, isInProgress, isArrived, headingToPickup, payload.dropoffEtaMin, payload.riderDropoffEtaMin, payload.driverEtaMin, etaMin]);
 
   const fabEtaLabel = (isInProgress || isArrived) ? 'min to dropoff' : 'min away';
-
-  const distanceVal = headingToPickup
-    ? safeNum(driverDistanceMiles ?? payload.driverDistanceMiles)
-    : safeNum(dropoffDistanceMiles ?? distanceMiles ?? payload.tripDistanceMiles ?? payload.dropoffDistanceMiles);
-  const distanceLabel = headingToPickup ? 'driver away' : 'trip total';
-
-  const tripEtaVal = headingToPickup
-    ? safeNum(payload.driverEtaMin)
-    : safeNum(payload.tripDurationMin ?? payload.dropoffEtaMin);
-
-  const fareVal = payload.fareTotal != null ? `$${Number(payload.fareTotal).toFixed(2)}` : null;
-  const paymentSub = payload.paymentStatus === 'succeeded' && payload.paymentMethod
-    ? `paid · ${prettyPayment(payload.paymentMethod)}`
-    : prettyPayment(payload.paymentMethod);
 
   const statusMeta = STATUS_META[status] ?? STATUS_META.driver_assigned;
 
@@ -743,35 +580,38 @@ export default function TrackingMap({
         : { text: 'Driver GPS', color: '#16A34A' }
     : null;
 
-  const pickupShort  = shortAddr(payload.pickup ?? '');
-  const pickupSub    = cityState(payload.pickup ?? '', payload.pickupCity, payload.pickupZip);
-  const dropoffShort = shortAddr(payload.dropoff ?? '');
-  const dropoffSub   = cityState(payload.dropoff ?? '', payload.dropoffCity, payload.dropoffZip);
+  // Center for Mapbox: follow the car GPS
+  const mapCenterLat = gpsSource?.lat || safeNum(payload.pickupLat) || 28.5383;
+  const mapCenterLng = gpsSource?.lng || safeNum(payload.pickupLng) || -81.3792;
 
   return (
-    <div
-      style={{
-        borderRadius: 22,
-        overflow: 'hidden',
-        border: '1px solid rgba(0,0,0,0.07)',
-        boxShadow: '0 12px 40px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.05)',
-        background: '#fff',
-        fontFamily: "'Outfit', system-ui, sans-serif",
-      }}
-    >
+    <div style={{
+      borderRadius: 22,
+      overflow: 'hidden',
+      border: '1px solid rgba(0,0,0,0.07)',
+      boxShadow: '0 12px 40px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.05)',
+      background: '#fff',
+      fontFamily: "'Outfit', system-ui, sans-serif",
+    }}>
       {/* MAP AREA */}
       <div
         ref={containerRef}
         style={{
           position: 'relative',
           height: 260,
-          background: '#F0F2EC',
           overflow: 'hidden',
         }}
       >
-        <MapBackground W={mapDims.W} H={mapDims.H} />
+        {/* ── Mapbox replaces SVG background ── */}
+        <MapboxBackground
+          W={mapDims.W}
+          H={mapDims.H}
+          centerLat={mapCenterLat}
+          centerLng={mapCenterLng}
+          decodedPts={decodedPts}
+        />
 
-        {/* ── Single SVG layer holds polyline + pins, so they share coordinates ── */}
+        {/* ── SVG overlay: polyline + pins (zIndex 3, same as before) ── */}
         {mapDims.W > 0 && svgPolyPts.length > 1 && (
           <svg
             style={{ position: 'absolute', inset: 0, width: '100%', height: mapDims.H, pointerEvents: 'none', zIndex: 3 }}
@@ -788,7 +628,6 @@ export default function TrackingMap({
               </filter>
             </defs>
 
-            {/* ── Route line ── */}
             <path d={polylinePath} fill="none" stroke="#fff" strokeWidth={9}
                   strokeLinecap="round" strokeLinejoin="round" opacity={0.85}/>
             <path d={polylinePath} fill="none"
@@ -819,37 +658,17 @@ export default function TrackingMap({
               style={{ animation: 'tmDashFlow 1.4s linear infinite' }}
             />
 
-            {/* ── Pickup marker ── */}
             {pickupSvg && (
-              <g
-                className="tm-pin-drop"
-                style={{
-                  transformOrigin: `${pickupSvg.x}px ${pickupSvg.y}px`,
-                  animationDelay: '.1s',
-                }}
-              >
-                {headingToPickup && (
-                  <circle
-                    className="tm-pin-pulse"
-                    cx={pickupSvg.x} cy={pickupSvg.y}
-                    fill="#22C55E"
-                  />
-                )}
+              <g className="tm-pin-drop" style={{ transformOrigin: `${pickupSvg.x}px ${pickupSvg.y}px`, animationDelay: '.1s' }}>
+                {headingToPickup && <circle className="tm-pin-pulse" cx={pickupSvg.x} cy={pickupSvg.y} fill="#22C55E"/>}
                 <circle cx={pickupSvg.x} cy={pickupSvg.y} r={13}  fill="#fff" stroke="#22C55E" strokeWidth="2.5"/>
                 <circle cx={pickupSvg.x} cy={pickupSvg.y} r={6.5} fill="#22C55E"/>
                 <circle cx={pickupSvg.x} cy={pickupSvg.y} r={2.5} fill="#fff"/>
               </g>
             )}
 
-            {/* ── Dropoff marker ── */}
             {dropoffSvg && (
-              <g
-                className="tm-pin-drop"
-                style={{
-                  transformOrigin: `${dropoffSvg.x}px ${dropoffSvg.y}px`,
-                  animationDelay: '.3s',
-                }}
-              >
+              <g className="tm-pin-drop" style={{ transformOrigin: `${dropoffSvg.x}px ${dropoffSvg.y}px`, animationDelay: '.3s' }}>
                 <ellipse cx={dropoffSvg.x} cy={dropoffSvg.y + 26} rx={7} ry={3} fill="rgba(17,24,39,.15)"/>
                 <path
                   d={`M${dropoffSvg.x},${dropoffSvg.y + 26}
@@ -866,28 +685,20 @@ export default function TrackingMap({
           </svg>
         )}
 
-        {/* ── Pins for the no-polyline edge case ── */}
+        {/* Pins for no-polyline edge case */}
         {svgPolyPts.length <= 1 && pickupSvg && (
           <svg
             style={{ position: 'absolute', inset: 0, width: '100%', height: mapDims.H, pointerEvents: 'none', zIndex: 3 }}
             viewBox={`0 0 ${mapDims.W} ${mapDims.H}`}
           >
-            <g
-              className="tm-pin-drop"
-              style={{ transformOrigin: `${pickupSvg.x}px ${pickupSvg.y}px`, animationDelay: '.1s' }}
-            >
-              {headingToPickup && (
-                <circle className="tm-pin-pulse" cx={pickupSvg.x} cy={pickupSvg.y} fill="#22C55E"/>
-              )}
+            <g className="tm-pin-drop" style={{ transformOrigin: `${pickupSvg.x}px ${pickupSvg.y}px`, animationDelay: '.1s' }}>
+              {headingToPickup && <circle className="tm-pin-pulse" cx={pickupSvg.x} cy={pickupSvg.y} fill="#22C55E"/>}
               <circle cx={pickupSvg.x} cy={pickupSvg.y} r={13}  fill="#fff" stroke="#22C55E" strokeWidth="2.5"/>
               <circle cx={pickupSvg.x} cy={pickupSvg.y} r={6.5} fill="#22C55E"/>
               <circle cx={pickupSvg.x} cy={pickupSvg.y} r={2.5} fill="#fff"/>
             </g>
             {dropoffSvg && (
-              <g
-                className="tm-pin-drop"
-                style={{ transformOrigin: `${dropoffSvg.x}px ${dropoffSvg.y}px`, animationDelay: '.3s' }}
-              >
+              <g className="tm-pin-drop" style={{ transformOrigin: `${dropoffSvg.x}px ${dropoffSvg.y}px`, animationDelay: '.3s' }}>
                 <ellipse cx={dropoffSvg.x} cy={dropoffSvg.y + 26} rx={7} ry={3} fill="rgba(17,24,39,.15)"/>
                 <path
                   d={`M${dropoffSvg.x},${dropoffSvg.y + 26}
@@ -938,8 +749,7 @@ export default function TrackingMap({
             position: 'absolute', top: 12, right: 12, zIndex: 25,
             background: tierStyle.bg,
             border: `1px solid ${tierStyle.border}`,
-            borderRadius: 10,
-            padding: '6px 11px',
+            borderRadius: 10, padding: '6px 11px',
             fontSize: 10, fontWeight: 800,
             color: tierStyle.text,
             letterSpacing: '0.6px', textTransform: 'uppercase',
@@ -953,26 +763,17 @@ export default function TrackingMap({
         {fabEta != null && fabEta > 0 && fabEta < 999 && !isCompleted && (
           <div style={{
             position: 'absolute', bottom: 14, right: 14, zIndex: 25,
-            background: '#fff',
-            borderRadius: 14,
-            padding: '9px 14px',
+            background: '#fff', borderRadius: 14, padding: '9px 14px',
             textAlign: 'center',
             border: '1px solid rgba(0,0,0,0.06)',
             boxShadow: '0 8px 24px rgba(17,24,39,0.14)',
             minWidth: 78,
             animation: 'tmFadeUp .4s ease-out .2s both',
           }}>
-            <div style={{
-              fontSize: 22, fontWeight: 800,
-              color: '#111827', lineHeight: 1,
-              letterSpacing: '-0.5px',
-            }}>
+            <div style={{ fontSize: 22, fontWeight: 800, color: '#111827', lineHeight: 1, letterSpacing: '-0.5px' }}>
               {fabEta}
             </div>
-            <div style={{
-              fontSize: 10, color: '#9CA3AF', marginTop: 3,
-              fontWeight: 600, letterSpacing: '.3px',
-            }}>
+            <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 3, fontWeight: 600, letterSpacing: '.3px' }}>
               {fabEtaLabel}
             </div>
           </div>
@@ -986,8 +787,7 @@ export default function TrackingMap({
             background: 'rgba(255,255,255,0.95)',
             backdropFilter: 'blur(8px)',
             border: '1px solid rgba(0,0,0,0.06)',
-            borderRadius: 10,
-            padding: '6px 10px',
+            borderRadius: 10, padding: '6px 10px',
             boxShadow: '0 4px 14px rgba(17,24,39,0.10)',
             animation: 'tmFadeUp .4s ease-out .3s both',
           }}>
@@ -1002,7 +802,6 @@ export default function TrackingMap({
           </div>
         )}
       </div>
-
     </div>
   );
 }
