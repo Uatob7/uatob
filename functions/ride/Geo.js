@@ -8,6 +8,7 @@ exports.Geo = onCall(
  {
     region: "us-east1",
     secrets: [GOOGLE_MAPS_KEY],
+    invoker: "public",  // 👈 this is what's missing
   },
   async (request) => {
     const numLat = Number(request.data?.lat);
