@@ -59,12 +59,10 @@ function projectPoints(pts, W, H, pad = 56) {
   }));
 }
 
-function projectSingle(lat, lng, pts, W, H, pad = 56) {
-  if (!pts.length || !W || !H) return null;
-  const lats = pts.map(p => p[0]);
-  const lngs = pts.map(p => p[1]);
-  const minLat = Math.min(...lats), maxLat = Math.max(...lats);
-  const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+// Project a single lat/lng using a SHARED bounding box
+function projectSingleWithBounds(lat, lng, boundsObj, W, H, pad = 56) {
+  if (!boundsObj || !W || !H) return null;
+  const { minLat, maxLat, minLng, maxLng } = boundsObj;
   const dLat = maxLat - minLat || 0.002;
   const dLng = maxLng - minLng || 0.002;
   const scaleX = (W - pad * 2) / dLng;
@@ -75,6 +73,18 @@ function projectSingle(lat, lng, pts, W, H, pad = 56) {
   return {
     x: offX + (lng - minLng) * scale,
     y: H - (offY + (lat - minLat) * scale),
+  };
+}
+
+function computeBounds(pts) {
+  if (!pts.length) return null;
+  const lats = pts.map(p => p[0]);
+  const lngs = pts.map(p => p[1]);
+  return {
+    minLat: Math.min(...lats),
+    maxLat: Math.max(...lats),
+    minLng: Math.min(...lngs),
+    maxLng: Math.max(...lngs),
   };
 }
 
@@ -96,7 +106,7 @@ function approxPathLen(svgPts) {
 function closestPointOnPolyline(svgPts, px, py) {
   if (!svgPts.length) return { x: px, y: py };
   if (svgPts.length === 1) return svgPts[0];
-  let best = svgPts[0], bestDist = Infinity;
+  let best = svgPts[0], bestDist = Infinity, bestIdx = 0, bestT = 0;
   for (let i = 0; i < svgPts.length - 1; i++) {
     const a = svgPts[i];
     const b = svgPts[i + 1];
@@ -109,9 +119,44 @@ function closestPointOnPolyline(svgPts, px, py) {
     const x = a.x + t * dx;
     const y = a.y + t * dy;
     const d = Math.hypot(x - px, y - py);
-    if (d < bestDist) { bestDist = d; best = { x, y }; }
+    if (d < bestDist) { bestDist = d; best = { x, y }; bestIdx = i; bestT = t; }
+  }
+  return { ...best, segIdx: bestIdx, segT: bestT };
+}
+
+// Find closest segment on the GEO polyline (for trimming during in_progress)
+function closestSegmentOnGeoPolyline(geoPts, lat, lng) {
+  if (geoPts.length < 2) return { idx: 0, t: 0 };
+  let best = { idx: 0, t: 0 }, bestDist = Infinity;
+  for (let i = 0; i < geoPts.length - 1; i++) {
+    const a = geoPts[i];
+    const b = geoPts[i + 1];
+    const dLat = b[0] - a[0];
+    const dLng = b[1] - a[1];
+    const lenSq = dLat * dLat + dLng * dLng;
+    if (lenSq === 0) continue;
+    let t = ((lat - a[0]) * dLat + (lng - a[1]) * dLng) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    const px = a[0] + t * dLat;
+    const py = a[1] + t * dLng;
+    const d = Math.hypot(px - lat, py - lng);
+    if (d < bestDist) { bestDist = d; best = { idx: i, t }; }
   }
   return best;
+}
+
+// Trim the polyline to only include the part from the car onward
+function trimPolylineFromCar(geoPts, carLat, carLng) {
+  if (geoPts.length < 2 || !carLat || !carLng) return geoPts;
+  const { idx, t } = closestSegmentOnGeoPolyline(geoPts, carLat, carLng);
+
+  // Interpolated point on the segment
+  const a = geoPts[idx];
+  const b = geoPts[idx + 1];
+  const interp = [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
+
+  // Remaining path = interpolated start point + all vertices after segment idx
+  return [interp, ...geoPts.slice(idx + 1)];
 }
 
 function computeHeading(from, to) {
@@ -152,47 +197,60 @@ function resolveGpsSource(payload, status) {
   const driverEta = safeNum(payload.driverEtaMin ?? payload.dropoffEtaMin ?? 999);
   const riderEta  = safeNum(payload.riderDropoffEtaMin ?? payload.dropoffEtaMin ?? 999);
 
+  const driverTs = tsToMs(payload.driverLocationAt);
+  const riderTs  = tsToMs(payload.riderLocationAt);
+  const now      = Date.now();
+  const STALE_MS = 45_000;
+  const VERY_STALE_MS = 5 * 60_000; // 5 min — both stale = warn user
+  const driverAge = driverTs ? now - driverTs : Infinity;
+  const riderAge  = riderTs  ? now - riderTs  : Infinity;
+  const driverStale     = driverAge > STALE_MS;
+  const riderStale      = riderAge  > STALE_MS;
+  const bothVeryStale   = driverAge > VERY_STALE_MS && riderAge > VERY_STALE_MS;
+
   if (!isInProgress) {
-    if (hasDriver) return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta };
-    if (hasRider)  return { source: 'rider',  lat: riderLat,  lng: riderLng,  etaMin: riderEta  };
+    if (hasDriver) return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta, stale: driverStale, ageMs: driverAge };
+    if (hasRider)  return { source: 'rider',  lat: riderLat,  lng: riderLng,  etaMin: riderEta,  stale: riderStale,  ageMs: riderAge };
     return { source: 'static', lat: safeNum(payload.dropoffLat), lng: safeNum(payload.dropoffLng), etaMin: safeNum(payload.dropoffEtaMin) };
   }
 
   if (!hasDriver && !hasRider) {
     return { source: 'static', lat: safeNum(payload.dropoffLat), lng: safeNum(payload.dropoffLng), etaMin: safeNum(payload.dropoffEtaMin) };
   }
-  if (!hasDriver) return { source: 'rider',  lat: riderLat,  lng: riderLng,  etaMin: riderEta  };
-  if (!hasRider)  return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta };
+  if (!hasDriver) return { source: 'rider',  lat: riderLat,  lng: riderLng,  etaMin: riderEta,  stale: riderStale,  ageMs: riderAge };
+  if (!hasRider)  return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta, stale: driverStale, ageMs: driverAge };
 
   const distMeters = geoDistMeters(driverLat, driverLng, riderLat, riderLng);
-  if (distMeters <= 10) {
-    return { source: 'driver', lat: (driverLat + riderLat) / 2, lng: (driverLng + riderLng) / 2, etaMin: Math.min(driverEta, riderEta), blended: true };
+
+  // Blend more aggressively — within 25m means same vehicle
+  if (distMeters <= 25 && !driverStale && !riderStale) {
+    return {
+      source: 'driver',
+      lat: (driverLat + riderLat) / 2,
+      lng: (driverLng + riderLng) / 2,
+      etaMin: Math.min(driverEta, riderEta),
+      blended: true,
+      stale: false,
+      ageMs: Math.min(driverAge, riderAge),
+    };
   }
 
-  const driverTs = tsToMs(payload.driverLocationAt);
-  const riderTs  = tsToMs(payload.riderLocationAt);
-  const now      = Date.now();
-  const STALE_MS = 45_000;
-  const driverAge = driverTs ? now - driverTs : Infinity;
-  const riderAge  = riderTs  ? now - riderTs  : Infinity;
-  if (driverAge > STALE_MS && riderAge <= STALE_MS) return { source: 'rider', lat: riderLat, lng: riderLng, etaMin: riderEta };
-  if (riderAge > STALE_MS && driverAge <= STALE_MS) return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta };
+  // Stale handling — prefer fresh over stale
+  if (driverStale && !riderStale) return { source: 'rider', lat: riderLat, lng: riderLng, etaMin: riderEta, stale: false, ageMs: riderAge, otherStale: true };
+  if (riderStale && !driverStale) return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta, stale: false, ageMs: driverAge, otherStale: true };
+
+  // Both fresh, but coords disagree → take newest
   if (driverTs && riderTs) {
-    return driverTs >= riderTs
-      ? { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta }
-      : { source: 'rider',  lat: riderLat,  lng: riderLng,  etaMin: riderEta  };
+    const useDriver = driverTs >= riderTs;
+    return useDriver
+      ? { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta, stale: driverStale, ageMs: driverAge }
+      : { source: 'rider',  lat: riderLat,  lng: riderLng,  etaMin: riderEta,  stale: riderStale,  ageMs: riderAge };
   }
-  return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta };
+
+  return { source: 'driver', lat: driverLat, lng: driverLng, etaMin: driverEta, stale: driverStale, ageMs: driverAge, bothVeryStale };
 }
 
 function shortAddr(full = '') { return full.split(',')[0].trim(); }
-function cityState(full = '', cityHint = '', zip = '') {
-  const parts = full.split(',').map(s => s.trim()).filter(Boolean);
-  const city  = cityHint || parts[1] || '';
-  const state = parts[2]?.split(' ')[0] || '';
-  const out   = [city, state].filter(Boolean).join(', ');
-  return zip ? `${out} · ${zip}` : out;
-}
 
 const STATUS_META = {
   searching_driver: { label: 'Finding driver',     dot: '#F59E0B' },
@@ -203,54 +261,33 @@ const STATUS_META = {
   completed:        { label: 'Ride complete',      dot: '#94A3B8' },
 };
 
-function prettyPayment(method = '') {
-  const m = method.toLowerCase();
-  if (m === 'cashapp')   return 'Cash App';
-  if (m === 'applepay')  return 'Apple Pay';
-  if (m === 'googlepay') return 'Google Pay';
-  if (m === 'card')      return 'Card';
-  return method ? method.charAt(0).toUpperCase() + method.slice(1) : '';
+function prettyAge(ageMs) {
+  if (ageMs == null || ageMs === Infinity) return 'unknown';
+  const s = Math.round(ageMs / 1000);
+  if (s < 60) return `${s}s ago`;
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.round(m / 60);
+  return `${h}h ago`;
 }
 
 // ── Keyframes ─────────────────────────────────────────────────────────
 const KEYFRAMES = `
-  @keyframes tmDriverBob {
-    0%, 100% { transform: scale(1); }
-    50%       { transform: scale(1.05); }
-  }
-  @keyframes tmLiveDot {
-    0%, 100% { opacity: 1; }
-    50%       { opacity: 0.35; }
-  }
-  @keyframes tmRouteDraw {
-    from { stroke-dashoffset: var(--route-len, 2000); }
-    to   { stroke-dashoffset: 0; }
-  }
-  @keyframes tmDashFlow {
-    to { stroke-dashoffset: -40; }
-  }
-  @keyframes tmFadeUp {
-    from { opacity: 0; transform: translateY(6px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-  @keyframes tmBadgePop {
-    0%   { transform: scale(0.6); opacity: 0; }
-    70%  { transform: scale(1.15); }
-    100% { transform: scale(1); opacity: 1; }
-  }
-  @keyframes tmPinPulse {
-    0%,100% { r: 13; opacity: 0.22; }
-    50%      { r: 19; opacity: 0.07; }
-  }
-  @keyframes tmPinDrop {
-    0%   { transform: translateY(-10px) scale(.85); opacity: 0; }
-    65%  { transform: translateY(2px)   scale(1.06); opacity: 1; }
-    100% { transform: translateY(0)     scale(1);    opacity: 1; }
+  @keyframes tmDriverBob { 0%,100%{transform:scale(1)} 50%{transform:scale(1.05)} }
+  @keyframes tmLiveDot   { 0%,100%{opacity:1} 50%{opacity:.35} }
+  @keyframes tmRouteDraw { from{stroke-dashoffset:var(--route-len,2000)} to{stroke-dashoffset:0} }
+  @keyframes tmDashFlow  { to{stroke-dashoffset:-40} }
+  @keyframes tmFadeUp    { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes tmBadgePop  { 0%{transform:scale(.6);opacity:0} 70%{transform:scale(1.15)} 100%{transform:scale(1);opacity:1} }
+  @keyframes tmPinPulse  { 0%,100%{r:13;opacity:.22} 50%{r:19;opacity:.07} }
+  @keyframes tmPinDrop   {
+    0%   { transform:translateY(-10px) scale(.85); opacity:0 }
+    65%  { transform:translateY(2px)   scale(1.06); opacity:1 }
+    100% { transform:translateY(0)     scale(1);    opacity:1 }
   }
   .tm-pin-pulse { animation: tmPinPulse 2.2s ease-in-out infinite; }
   .tm-pin-drop  { animation: tmPinDrop  .55s cubic-bezier(.34,1.2,.64,1) both; }
 `;
-
 let _injected = false;
 function injectStyles() {
   if (_injected || typeof document === 'undefined') return;
@@ -260,32 +297,22 @@ function injectStyles() {
   _injected = true;
 }
 
-// ── Mapbox loader (CDN, idempotent) ──────────────────────────────────
+// ── Mapbox loader ─────────────────────────────────────────────────────
 const MAPBOX_TOKEN = 'pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA';
-
 let _mbLoaded = false;
 let _mbCallbacks = [];
-
 function loadMapbox(cb) {
   if (_mbLoaded && window.mapboxgl) { cb(); return; }
   _mbCallbacks.push(cb);
   if (document.getElementById('mapbox-css')) return;
-
-  // CSS
   const link = document.createElement('link');
   link.id   = 'mapbox-css';
   link.rel  = 'stylesheet';
   link.href = 'https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css';
   document.head.appendChild(link);
-
-  // JS
   const script = document.createElement('script');
   script.src = 'https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js';
-  script.onload = () => {
-    _mbLoaded = true;
-    _mbCallbacks.forEach(fn => fn());
-    _mbCallbacks = [];
-  };
+  script.onload = () => { _mbLoaded = true; _mbCallbacks.forEach(fn => fn()); _mbCallbacks = []; };
   document.head.appendChild(script);
 }
 
@@ -378,24 +405,25 @@ function AnimatedCar({ carSvg, driverColor, isInProgress, gpsSource, isCompleted
   );
 }
 
-// ── Mapbox Map ────────────────────────────────────────────────────────
-function MapboxBackground({ W, H, centerLat, centerLng, decodedPts }) {
+// ── Mapbox Background ─────────────────────────────────────────────────
+// Now fits bounds to (car position + remaining route) so the active part
+// of the trip stays centered & visible.
+function MapboxBackground({ boundsGeo }) {
   const mapContainerRef = useRef(null);
   const mapRef          = useRef(null);
   const initializedRef  = useRef(false);
 
-  // Compute initial center: prefer GPS, else midpoint of polyline, else Orlando
   const initCenter = useMemo(() => {
-    if (centerLat && centerLng) return [centerLng, centerLat];
-    if (decodedPts.length) {
-      const midIdx = Math.floor(decodedPts.length / 2);
-      return [decodedPts[midIdx][1], decodedPts[midIdx][0]];
+    if (boundsGeo) {
+      return [
+        (boundsGeo.minLng + boundsGeo.maxLng) / 2,
+        (boundsGeo.minLat + boundsGeo.maxLat) / 2,
+      ];
     }
-    return [-81.3792, 28.5383]; // Orlando
+    return [-81.3792, 28.5383];
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // intentionally stable — only for initial mount
+  }, []);
 
-  // Init map once Mapbox loads
   useEffect(() => {
     if (!mapContainerRef.current || initializedRef.current) return;
 
@@ -411,10 +439,9 @@ function MapboxBackground({ W, H, centerLat, centerLng, decodedPts }) {
         center: initCenter,
         zoom: 14,
         attributionControl: false,
-        interactive: false, // disable pan/zoom — SVG overlay is projection-based
+        interactive: false,
       });
 
-      // Strip attribution clutter
       mapRef.current.addControl(
         new window.mapboxgl.AttributionControl({ compact: true }),
         'bottom-right'
@@ -431,26 +458,23 @@ function MapboxBackground({ W, H, centerLat, centerLng, decodedPts }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Re-center when GPS changes
+  // Re-fit bounds when boundsGeo changes (new GPS, status flip, etc.)
   useEffect(() => {
-    if (!mapRef.current || !centerLat || !centerLng) return;
-    mapRef.current.easeTo({
-      center: [centerLng, centerLat],
-      duration: 2500,
-      easing: t => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
-    });
-  }, [centerLat, centerLng]);
+    if (!mapRef.current || !boundsGeo) return;
+    const fit = () => {
+      mapRef.current.fitBounds(
+        [[boundsGeo.minLng, boundsGeo.minLat], [boundsGeo.maxLng, boundsGeo.maxLat]],
+        { padding: 56, duration: 1200, maxZoom: 16 }
+      );
+    };
+    if (mapRef.current.loaded()) fit();
+    else mapRef.current.once('load', fit);
+  }, [boundsGeo?.minLat, boundsGeo?.maxLat, boundsGeo?.minLng, boundsGeo?.maxLng]);
 
   return (
     <div
       ref={mapContainerRef}
-      style={{
-        position: 'absolute',
-        inset: 0,
-        width: '100%',
-        height: H || '100%',
-        zIndex: 1,
-      }}
+      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 1 }}
     />
   );
 }
@@ -508,55 +532,95 @@ export default function TrackingMap({
   const gpsSource = useMemo(
     () => resolveGpsSource(payload, status),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [status, driverLat, driverLng, riderLat, riderLng, driverLocMs, riderLocMs, updatedAtMs,
+    [status, driverLat, driverLng, riderLat, riderLng,
+     driverLocMs, riderLocMs, updatedAtMs,
      payload.driverEtaMin, payload.riderDropoffEtaMin]
   );
 
   const rawPolyline = payload.polyline ?? null;
-  const decodedPts  = useMemo(() => decodePolyline(rawPolyline), [rawPolyline]);
-  const boundingPts = decodedPts;
+  const fullDecodedPts = useMemo(() => decodePolyline(rawPolyline), [rawPolyline]);
 
-  const svgPolyPts = useMemo(
-    () => projectPoints(boundingPts, mapDims.W, mapDims.H),
-    [boundingPts, mapDims.W, mapDims.H]
-  );
+  // ── Trim polyline during in_progress ─────────────────────────────────
+  // Show only the path from car forward to dropoff. Drops the already-
+  // travelled portion, which makes the active route easier to read.
+  const visiblePolyPts = useMemo(() => {
+    if (!isInProgress) return fullDecodedPts;
+    if (!gpsSource || !fullDecodedPts.length) return fullDecodedPts;
+    return trimPolylineFromCar(fullDecodedPts, gpsSource.lat, gpsSource.lng);
+  }, [fullDecodedPts, isInProgress, gpsSource?.lat, gpsSource?.lng]);
+
+  // ── Build a single bounding box for ALL projections ──────────────────
+  // Includes: visible polyline + car position + dropoff
+  // (pickup excluded during in_progress — they've left it)
+  const sharedBounds = useMemo(() => {
+    const all = [...visiblePolyPts];
+    if (gpsSource && gpsSource.lat && gpsSource.lng) all.push([gpsSource.lat, gpsSource.lng]);
+    if (!isInProgress && payload.pickupLat && payload.pickupLng) {
+      all.push([safeNum(payload.pickupLat), safeNum(payload.pickupLng)]);
+    }
+    if (payload.dropoffLat && payload.dropoffLng) {
+      all.push([safeNum(payload.dropoffLat), safeNum(payload.dropoffLng)]);
+    }
+    return computeBounds(all);
+  }, [visiblePolyPts, gpsSource?.lat, gpsSource?.lng, isInProgress,
+      payload.pickupLat, payload.pickupLng, payload.dropoffLat, payload.dropoffLng]);
+
+  // Project the visible polyline using the shared bounds
+  const svgPolyPts = useMemo(() => {
+    if (!sharedBounds || !visiblePolyPts.length) return [];
+    return visiblePolyPts.map(([la, ln]) =>
+      projectSingleWithBounds(la, ln, sharedBounds, mapDims.W, mapDims.H)
+    ).filter(Boolean);
+  }, [visiblePolyPts, sharedBounds, mapDims.W, mapDims.H]);
 
   const pickupSvg = useMemo(() => {
     if (isInProgress) return null;
     if (svgPolyPts.length > 0) return svgPolyPts[0];
+    if (!sharedBounds) return null;
     const lat = safeNum(payload.pickupLat);
     const lng = safeNum(payload.pickupLng);
     if (!lat || !lng) return null;
-    return projectSingle(lat, lng, boundingPts.length ? boundingPts : [[lat, lng]], mapDims.W, mapDims.H);
-  }, [isInProgress, svgPolyPts, payload.pickupLat, payload.pickupLng, boundingPts, mapDims.W, mapDims.H]);
+    return projectSingleWithBounds(lat, lng, sharedBounds, mapDims.W, mapDims.H);
+  }, [isInProgress, svgPolyPts, sharedBounds, payload.pickupLat, payload.pickupLng, mapDims.W, mapDims.H]);
 
   const dropoffSvg = useMemo(() => {
+    // During in_progress, dropoff is the end of the FULL polyline, not the visible (trimmed) one
+    if (isInProgress && fullDecodedPts.length) {
+      const last = fullDecodedPts[fullDecodedPts.length - 1];
+      return projectSingleWithBounds(last[0], last[1], sharedBounds, mapDims.W, mapDims.H);
+    }
     if (svgPolyPts.length > 0) return svgPolyPts[svgPolyPts.length - 1];
+    if (!sharedBounds) return null;
     const lat = safeNum(payload.dropoffLat);
     const lng = safeNum(payload.dropoffLng);
     if (!lat || !lng) return null;
-    return projectSingle(lat, lng, boundingPts.length ? boundingPts : [[lat, lng]], mapDims.W, mapDims.H);
-  }, [svgPolyPts, payload.dropoffLat, payload.dropoffLng, boundingPts, mapDims.W, mapDims.H]);
+    return projectSingleWithBounds(lat, lng, sharedBounds, mapDims.W, mapDims.H);
+  }, [isInProgress, fullDecodedPts, svgPolyPts, sharedBounds,
+      payload.dropoffLat, payload.dropoffLng, mapDims.W, mapDims.H]);
 
+  // Car position
   const carSvgRaw = useMemo(() => {
     if (driverPos) return driverPos;
-    if (!gpsSource || !boundingPts.length) return null;
-    return projectSingle(gpsSource.lat, gpsSource.lng, boundingPts, mapDims.W, mapDims.H);
-  }, [driverPos, gpsSource?.lat, gpsSource?.lng, gpsSource?.source, boundingPts, mapDims.W, mapDims.H]);
+    if (!gpsSource || !sharedBounds) return null;
+    return projectSingleWithBounds(gpsSource.lat, gpsSource.lng, sharedBounds, mapDims.W, mapDims.H);
+  }, [driverPos, gpsSource?.lat, gpsSource?.lng, sharedBounds, mapDims.W, mapDims.H]);
 
   const carSvg = useMemo(() => {
     if (!carSvgRaw) return carSvgRaw;
+    // Snap to pickup/dropoff if very close (avoid car floating off-pin at endpoints)
     if (pickupSvg && gpsSource) {
       const distToPickup = geoDistMeters(gpsSource.lat, gpsSource.lng, safeNum(payload.pickupLat), safeNum(payload.pickupLng));
-      if (distToPickup <= 50) return pickupSvg;
+      if (distToPickup <= 30) return pickupSvg;
     }
     if (dropoffSvg && gpsSource) {
       const distToDropoff = geoDistMeters(gpsSource.lat, gpsSource.lng, safeNum(payload.dropoffLat), safeNum(payload.dropoffLng));
-      if (distToDropoff <= 50) return dropoffSvg;
+      if (distToDropoff <= 30) return dropoffSvg;
     }
     if (!svgPolyPts.length) return carSvgRaw;
-    return closestPointOnPolyline(svgPolyPts, carSvgRaw.x, carSvgRaw.y);
-  }, [carSvgRaw, svgPolyPts, pickupSvg, dropoffSvg, gpsSource?.lat, gpsSource?.lng, payload.pickupLat, payload.pickupLng, payload.dropoffLat, payload.dropoffLng]);
+    const snapped = closestPointOnPolyline(svgPolyPts, carSvgRaw.x, carSvgRaw.y);
+    return { x: snapped.x, y: snapped.y };
+  }, [carSvgRaw, svgPolyPts, pickupSvg, dropoffSvg, gpsSource?.lat, gpsSource?.lng,
+      payload.pickupLat, payload.pickupLng, payload.dropoffLat, payload.dropoffLng]);
 
   const polylinePath = toSVGPath(svgPolyPts);
   const routeLen     = svgPolyPts.length > 1 ? approxPathLen(svgPolyPts) : 1200;
@@ -566,23 +630,22 @@ export default function TrackingMap({
     if (isInProgress || isArrived) return safeNum(payload.dropoffEtaMin ?? payload.riderDropoffEtaMin ?? etaMin);
     if (headingToPickup) return safeNum(payload.driverEtaMin ?? etaMin);
     return safeNum(etaMin);
-  }, [isCompleted, isInProgress, isArrived, headingToPickup, payload.dropoffEtaMin, payload.riderDropoffEtaMin, payload.driverEtaMin, etaMin]);
+  }, [isCompleted, isInProgress, isArrived, headingToPickup,
+      payload.dropoffEtaMin, payload.riderDropoffEtaMin, payload.driverEtaMin, etaMin]);
 
   const fabEtaLabel = (isInProgress || isArrived) ? 'min to dropoff' : 'min away';
 
   const statusMeta = STATUS_META[status] ?? STATUS_META.driver_assigned;
 
   const gpsLabel = isInProgress && gpsSource
-    ? gpsSource.blended
-      ? { text: 'GPS synced', color: '#16A34A' }
-      : gpsSource.source === 'rider'
-        ? { text: 'Rider GPS', color: '#3B82F6' }
-        : { text: 'Driver GPS', color: '#16A34A' }
+    ? gpsSource.bothVeryStale
+      ? { text: 'GPS offline', color: '#DC2626', stale: true }
+      : gpsSource.blended
+        ? { text: 'GPS synced', color: '#16A34A' }
+        : gpsSource.source === 'rider'
+          ? { text: 'Rider GPS', color: '#3B82F6', subtle: gpsSource.otherStale ? 'driver offline' : null }
+          : { text: 'Driver GPS', color: '#16A34A', subtle: gpsSource.otherStale ? 'rider offline' : null }
     : null;
-
-  // Center for Mapbox: follow the car GPS
-  const mapCenterLat = gpsSource?.lat || safeNum(payload.pickupLat) || 28.5383;
-  const mapCenterLng = gpsSource?.lng || safeNum(payload.pickupLng) || -81.3792;
 
   return (
     <div style={{
@@ -593,7 +656,6 @@ export default function TrackingMap({
       background: '#fff',
       fontFamily: "'Outfit', system-ui, sans-serif",
     }}>
-      {/* MAP AREA */}
       <div
         ref={containerRef}
         style={{
@@ -602,16 +664,9 @@ export default function TrackingMap({
           overflow: 'hidden',
         }}
       >
-        {/* ── Mapbox replaces SVG background ── */}
-        <MapboxBackground
-          W={mapDims.W}
-          H={mapDims.H}
-          centerLat={mapCenterLat}
-          centerLng={mapCenterLng}
-          decodedPts={decodedPts}
-        />
+        <MapboxBackground boundsGeo={sharedBounds} />
 
-        {/* ── SVG overlay: polyline + pins (zIndex 3, same as before) ── */}
+        {/* SVG overlay: polyline + pins */}
         {mapDims.W > 0 && svgPolyPts.length > 1 && (
           <svg
             style={{ position: 'absolute', inset: 0, width: '100%', height: mapDims.H, pointerEvents: 'none', zIndex: 3 }}
@@ -685,18 +740,20 @@ export default function TrackingMap({
           </svg>
         )}
 
-        {/* Pins for no-polyline edge case */}
-        {svgPolyPts.length <= 1 && pickupSvg && (
+        {/* No-polyline edge case */}
+        {svgPolyPts.length <= 1 && (pickupSvg || dropoffSvg) && (
           <svg
             style={{ position: 'absolute', inset: 0, width: '100%', height: mapDims.H, pointerEvents: 'none', zIndex: 3 }}
             viewBox={`0 0 ${mapDims.W} ${mapDims.H}`}
           >
-            <g className="tm-pin-drop" style={{ transformOrigin: `${pickupSvg.x}px ${pickupSvg.y}px`, animationDelay: '.1s' }}>
-              {headingToPickup && <circle className="tm-pin-pulse" cx={pickupSvg.x} cy={pickupSvg.y} fill="#22C55E"/>}
-              <circle cx={pickupSvg.x} cy={pickupSvg.y} r={13}  fill="#fff" stroke="#22C55E" strokeWidth="2.5"/>
-              <circle cx={pickupSvg.x} cy={pickupSvg.y} r={6.5} fill="#22C55E"/>
-              <circle cx={pickupSvg.x} cy={pickupSvg.y} r={2.5} fill="#fff"/>
-            </g>
+            {pickupSvg && (
+              <g className="tm-pin-drop" style={{ transformOrigin: `${pickupSvg.x}px ${pickupSvg.y}px`, animationDelay: '.1s' }}>
+                {headingToPickup && <circle className="tm-pin-pulse" cx={pickupSvg.x} cy={pickupSvg.y} fill="#22C55E"/>}
+                <circle cx={pickupSvg.x} cy={pickupSvg.y} r={13}  fill="#fff" stroke="#22C55E" strokeWidth="2.5"/>
+                <circle cx={pickupSvg.x} cy={pickupSvg.y} r={6.5} fill="#22C55E"/>
+                <circle cx={pickupSvg.x} cy={pickupSvg.y} r={2.5} fill="#fff"/>
+              </g>
+            )}
             {dropoffSvg && (
               <g className="tm-pin-drop" style={{ transformOrigin: `${dropoffSvg.x}px ${dropoffSvg.y}px`, animationDelay: '.3s' }}>
                 <ellipse cx={dropoffSvg.x} cy={dropoffSvg.y + 26} rx={7} ry={3} fill="rgba(17,24,39,.15)"/>
@@ -786,7 +843,7 @@ export default function TrackingMap({
             display: 'inline-flex', alignItems: 'center', gap: 6,
             background: 'rgba(255,255,255,0.95)',
             backdropFilter: 'blur(8px)',
-            border: '1px solid rgba(0,0,0,0.06)',
+            border: `1px solid ${gpsLabel.stale ? 'rgba(220,38,38,0.25)' : 'rgba(0,0,0,0.06)'}`,
             borderRadius: 10, padding: '6px 10px',
             boxShadow: '0 4px 14px rgba(17,24,39,0.10)',
             animation: 'tmFadeUp .4s ease-out .3s both',
@@ -799,6 +856,16 @@ export default function TrackingMap({
             <span style={{ fontSize: 11, fontWeight: 700, color: gpsLabel.color, letterSpacing: '.2px' }}>
               {gpsLabel.text}
             </span>
+            {gpsLabel.subtle && (
+              <span style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 500, marginLeft: 2 }}>
+                · {gpsLabel.subtle}
+              </span>
+            )}
+            {gpsSource?.ageMs > 0 && gpsSource?.ageMs !== Infinity && gpsLabel.stale && (
+              <span style={{ fontSize: 10, color: '#DC2626', fontWeight: 600, marginLeft: 2 }}>
+                · {prettyAge(gpsSource.ageMs)}
+              </span>
+            )}
           </div>
         )}
       </div>
