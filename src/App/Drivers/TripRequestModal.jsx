@@ -4,8 +4,11 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { firebase_app } from '@/firebase/config';
 import { C, TYPE_COLOR, TYPE_LABEL } from '@/App/Drivers/constants.js';
 
-const functions             = getFunctions(firebase_app, "us-east1");
+const functions = getFunctions(firebase_app, "us-east1");
 const callGetDriverToPickup = httpsCallable(functions, "getDriverToPickup");
+
+// Mapbox token
+const MAPBOX_TOKEN = 'pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA';
 
 // ── Polyline decoder ───────────────────────────────────────────────────
 function decodePolyline(encoded) {
@@ -24,62 +27,41 @@ function decodePolyline(encoded) {
   return pts;
 }
 
-// ── SVG projection ─────────────────────────────────────────────────────
-const SVG_W = 520, SVG_H = 200, PAD = 48;
+// ── Mapbox loader ──────────────────────────────────────────────────────
+let _mbLoaded = false;
+let _mbCallbacks = [];
 
-function project(pts) {
-  if (!pts.length) return [];
-  const lats = pts.map(p => p[0]);
-  const lngs = pts.map(p => p[1]);
-  const minLat = Math.min(...lats), maxLat = Math.max(...lats);
-  const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
-  const dLat = maxLat - minLat || 0.002;
-  const dLng = maxLng - minLng || 0.002;
-  const scaleX = (SVG_W - PAD * 2) / dLng;
-  const scaleY = (SVG_H - PAD * 2) / dLat;
-  const scale  = Math.min(scaleX, scaleY);
-  const offX   = (SVG_W - dLng * scale) / 2;
-  const offY   = (SVG_H - dLat * scale) / 2;
-  return pts.map(([la, ln]) => ({
-    x: offX + (ln - minLng) * scale,
-    y: SVG_H - (offY + (la - minLat) * scale),
-  }));
-}
+function loadMapbox(cb) {
+  if (_mbLoaded && window.mapboxgl) { cb(); return; }
+  _mbCallbacks.push(cb);
+  if (document.getElementById('mapbox-css')) return;
 
-function toSVGPath(svgPts) {
-  if (!svgPts.length) return '';
-  return svgPts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-}
+  const link = document.createElement('link');
+  link.id = 'mapbox-css';
+  link.rel = 'stylesheet';
+  link.href = 'https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css';
+  document.head.appendChild(link);
 
-function approxPathLen(svgPts) {
-  let len = 0;
-  for (let i = 1; i < svgPts.length; i++) {
-    const dx = svgPts[i].x - svgPts[i-1].x;
-    const dy = svgPts[i].y - svgPts[i-1].y;
-    len += Math.sqrt(dx*dx + dy*dy);
-  }
-  return Math.ceil(len) + 40;
+  const script = document.createElement('script');
+  script.src = 'https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js';
+  script.onload = () => {
+    _mbLoaded = true;
+    _mbCallbacks.forEach(fn => fn());
+    _mbCallbacks = [];
+  };
+  document.head.appendChild(script);
 }
 
 // ── CSS ────────────────────────────────────────────────────────────────
 const ROUTE_CSS = `
-  @keyframes trm-dashFlow  { to { stroke-dashoffset: -40 } }
   @keyframes trm-pulseRing { 0%,100%{r:10;opacity:.22} 50%{r:15;opacity:.07} }
-  @keyframes trm-pinDrop   {
-    0%   { transform: translateY(-10px) scale(.85); opacity: 0; }
-    65%  { transform: translateY(2px)   scale(1.06); opacity: 1; }
-    100% { transform: translateY(0)     scale(1);    opacity: 1; }
-  }
-  @keyframes trm-routeDraw { from { stroke-dashoffset: var(--trm-len,1200) } to { stroke-dashoffset: 0 } }
   @keyframes trm-fadeIn    { from { opacity:0 } to { opacity:1 } }
   @keyframes trm-shimmer   {
     0%   { transform: translateX(-100%) }
     100% { transform: translateX(200%) }
   }
 
-  .trm-flowing { animation: trm-dashFlow  1.3s linear infinite; }
   .trm-pulse   { animation: trm-pulseRing 2.2s ease-in-out infinite; }
-  .trm-route   { animation: trm-routeDraw 1s cubic-bezier(.4,0,.2,1) forwards; }
   .trm-fadein  { animation: trm-fadeIn .4s ease-out both; }
 
   .trm-map-wrap {
@@ -88,25 +70,34 @@ const ROUTE_CSS = `
     border: 1.5px solid rgba(255,255,255,.12);
     position: relative;
     margin-bottom: 16px;
+    background: #0F1420;
+    height: 200px;
   }
 
   .trm-map-pill {
     position: absolute; bottom: 10px; left: 50%;
     transform: translateX(-50%);
     display: flex; align-items: center; gap: 6px;
-    background: rgba(17,24,39,.82);
+    background: rgba(17,24,39,.92);
     backdrop-filter: blur(8px);
     color: #fff; border-radius: 100px;
-    padding: 5px 12px 5px 9px;
+    padding: 6px 14px 6px 10px;
     font-size: 11px; font-weight: 700;
     white-space: nowrap; pointer-events: none;
     box-shadow: 0 2px 12px rgba(0,0,0,.3);
     letter-spacing: .3px;
+    z-index: 10;
+    font-family: 'Outfit', sans-serif;
   }
   .trm-map-pill-dot {
     width: 6px; height: 6px; border-radius: 50%;
     background: #22C55E; flex-shrink: 0;
     box-shadow: 0 0 6px #22C55E;
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.9); }
   }
 
   .trm-skeleton {
@@ -118,137 +109,261 @@ const ROUTE_CSS = `
   }
 `;
 
-// ── Route SVG ──────────────────────────────────────────────────────────
-function RouteSVG({ svgPts, routeKey, driverLabel, pickupLabel }) {
-  const d       = toSVGPath(svgPts);
-  const len     = svgPts.length > 1 ? approxPathLen(svgPts) : 600;
-  const start   = svgPts[0]                  ?? { x: 60,  y: 160 };
-  const end     = svgPts[svgPts.length - 1] ?? { x: 460, y: 50  };
-  const hasPath = svgPts.length > 1;
+// ── Mapbox Map Component ───────────────────────────────────────────────
+function MapboxRouteMap({ polyline, driverLat, driverLng, pickupLat, pickupLng, distance, eta }) {
+  const mapContainerRef = useRef(null);
+  const mapRef = useRef(null);
+  const markersRef = useRef([]);
+  const initializedRef = useRef(false);
+
+  // Decode polyline once
+  const routePoints = useMemo(() => {
+    if (!polyline) return [];
+    return decodePolyline(polyline);
+  }, [polyline]);
+
+  // Calculate bounds from all points
+  const bounds = useMemo(() => {
+    const points = [];
+    if (driverLat && driverLng) points.push([driverLng, driverLat]);
+    if (pickupLat && pickupLng) points.push([pickupLng, pickupLat]);
+    if (routePoints.length) points.push(...routePoints.map(p => [p[1], p[0]]));
+    
+    if (points.length === 0) return null;
+    
+    const lngs = points.map(p => p[0]);
+    const lats = points.map(p => p[1]);
+    return {
+      minLng: Math.min(...lngs),
+      maxLng: Math.max(...lngs),
+      minLat: Math.min(...lats),
+      maxLat: Math.max(...lats),
+    };
+  }, [driverLat, driverLng, pickupLat, pickupLng, routePoints]);
+
+  // Initialize map
+  useEffect(() => {
+    if (!mapContainerRef.current || initializedRef.current) return;
+
+    loadMapbox(() => {
+      if (!mapContainerRef.current || initializedRef.current) return;
+      initializedRef.current = true;
+
+      window.mapboxgl.accessToken = MAPBOX_TOKEN;
+
+      // Default center (fallback to driver or pickup or Orlando)
+      let centerLng = -81.3792;
+      let centerLat = 28.5383;
+      if (driverLng && driverLat) {
+        centerLng = driverLng;
+        centerLat = driverLat;
+      } else if (pickupLng && pickupLat) {
+        centerLng = pickupLng;
+        centerLat = pickupLat;
+      }
+
+      mapRef.current = new window.mapboxgl.Map({
+        container: mapContainerRef.current,
+        style: 'mapbox://styles/mapbox/dark-v11',
+        center: [centerLng, centerLat],
+        zoom: 13,
+        attributionControl: false,
+      });
+
+      mapRef.current.addControl(
+        new window.mapboxgl.AttributionControl({ compact: true }),
+        'bottom-right'
+      );
+    });
+
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+        initializedRef.current = false;
+      }
+    };
+  }, []); // Empty dependency array - only run on mount
+
+  // Add route line
+  useEffect(() => {
+    if (!mapRef.current || !routePoints.length) return;
+
+    const waitForMap = () => {
+      if (!mapRef.current || !mapRef.current.isStyleLoaded()) {
+        setTimeout(waitForMap, 100);
+        return;
+      }
+
+      const geojson = {
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'LineString',
+          coordinates: routePoints.map(p => [p[1], p[0]]),
+        },
+      };
+
+      // Add source and layer
+      if (mapRef.current.getSource('route')) {
+        mapRef.current.getSource('route').setData(geojson);
+      } else {
+        mapRef.current.addSource('route', { type: 'geojson', data: geojson });
+        mapRef.current.addLayer({
+          id: 'route',
+          type: 'line',
+          source: 'route',
+          paint: {
+            'line-color': '#22C55E',
+            'line-width': 4,
+            'line-opacity': 0.9,
+            'line-gap-width': 0,
+            'line-blur': 0,
+          },
+        });
+        
+        // Add glow effect
+        mapRef.current.addLayer({
+          id: 'route-glow',
+          type: 'line',
+          source: 'route',
+          paint: {
+            'line-color': '#3B82F6',
+            'line-width': 8,
+            'line-opacity': 0.3,
+            'line-blur': 2,
+          },
+        });
+      }
+    };
+
+    waitForMap();
+  }, [routePoints]);
+
+  // Add markers and fit bounds
+  useEffect(() => {
+    if (!mapRef.current || !bounds) return;
+
+    const waitForMap = () => {
+      if (!mapRef.current || !mapRef.current.isStyleLoaded()) {
+        setTimeout(waitForMap, 100);
+        return;
+      }
+
+      // Clear existing markers
+      markersRef.current.forEach(marker => marker.remove());
+      markersRef.current = [];
+
+      // Add driver marker (if available)
+      if (driverLat && driverLng) {
+        const el = document.createElement('div');
+        el.innerHTML = `
+          <div style="
+            width: 32px;
+            height: 32px;
+            background: #3B82F6;
+            border-radius: 50%;
+            border: 3px solid #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+          ">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2">
+              <rect x="2" y="7" width="20" height="12" rx="2" ry="2"/>
+              <path d="M16 7V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v3"/>
+              <line x1="7" y1="15" x2="17" y2="15"/>
+            </svg>
+          </div>
+          <div style="
+            position: absolute;
+            bottom: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #3B82F6;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+            white-space: nowrap;
+            font-family: Outfit, sans-serif;
+          ">You</div>
+        `;
+        el.style.position = 'relative';
+        el.style.width = '32px';
+        el.style.height = '32px';
+        
+        const marker = new window.mapboxgl.Marker({ element: el })
+          .setLngLat([driverLng, driverLat])
+          .addTo(mapRef.current);
+        markersRef.current.push(marker);
+      }
+
+      // Add pickup marker
+      if (pickupLat && pickupLng) {
+        const el = document.createElement('div');
+        el.innerHTML = `
+          <div style="
+            width: 32px;
+            height: 32px;
+            background: #22C55E;
+            border-radius: 50%;
+            border: 3px solid #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+          ">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </div>
+          <div style="
+            position: absolute;
+            bottom: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #22C55E;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+            white-space: nowrap;
+            font-family: Outfit, sans-serif;
+          ">Pickup</div>
+        `;
+        el.style.position = 'relative';
+        el.style.width = '32px';
+        el.style.height = '32px';
+        
+        const marker = new window.mapboxgl.Marker({ element: el })
+          .setLngLat([pickupLng, pickupLat])
+          .addTo(mapRef.current);
+        markersRef.current.push(marker);
+      }
+
+      // Fit bounds to show all points
+      if (bounds) {
+        const padding = 50;
+        mapRef.current.fitBounds(
+          [[bounds.minLng, bounds.minLat], [bounds.maxLng, bounds.maxLat]],
+          { padding, duration: 800, maxZoom: 15 }
+        );
+      }
+    };
+
+    waitForMap();
+  }, [bounds, driverLat, driverLng, pickupLat, pickupLng]);
 
   return (
-    <svg
-      key={routeKey}
-      width="100%"
-      height={SVG_H}
-      viewBox={`0 0 ${SVG_W} ${SVG_H}`}
-      xmlns="http://www.w3.org/2000/svg"
-      preserveAspectRatio="xMidYMid meet"
-      aria-hidden="true"
-      style={{ display: 'block', background: '#0F1420' }}
-    >
-      <defs>
-        <pattern id="trm-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-          <path d="M32 0L0 0 0 32" fill="none" stroke="rgba(255,255,255,.04)" strokeWidth=".8"/>
-        </pattern>
-        <linearGradient id="trm-rg" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%"   stopColor="#3B82F6"/>
-          <stop offset="100%" stopColor="#22C55E"/>
-        </linearGradient>
-        <filter id="trm-glow" x="-30%" y="-30%" width="160%" height="160%">
-          <feGaussianBlur stdDeviation="3" result="blur"/>
-          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-        </filter>
-      </defs>
-
-      <rect width={SVG_W} height={SVG_H} fill="#0F1420"/>
-      <rect width={SVG_W} height={SVG_H} fill="url(#trm-grid)"/>
-
-      {hasPath && (() => {
-        const mx = (start.x + end.x) / 2;
-        const my = (start.y + end.y) / 2;
-        return (
-          <>
-            <rect x={0} y={my - 10} width={SVG_W} height={20} fill="rgba(255,255,255,.03)" />
-            <rect x={mx - 10} y={0} width={20} height={SVG_H} fill="rgba(255,255,255,.03)" />
-          </>
-        );
-      })()}
-
-      {hasPath && (
-        <path d={d} fill="none" stroke="rgba(59,130,246,.18)" strokeWidth="10"
-              strokeLinecap="round" strokeLinejoin="round"/>
-      )}
-
-      {hasPath && (
-        <path
-          className="trm-route"
-          d={d}
-          fill="none"
-          stroke="url(#trm-rg)"
-          strokeWidth="3.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          filter="url(#trm-glow)"
-          style={{ '--trm-len': len, strokeDasharray: len }}
-        />
-      )}
-
-      {hasPath && (
-        <path
-          className="trm-flowing"
-          d={d}
-          fill="none"
-          stroke="rgba(255,255,255,.35)"
-          strokeWidth="1.4"
-          strokeLinecap="round"
-          strokeDasharray="6,16"
-        />
-      )}
-
-      <g style={{ transformOrigin: `${start.x}px ${start.y}px`, animation: 'trm-pinDrop .5s cubic-bezier(.34,1.2,.64,1) .1s both' }}>
-        <circle className="trm-pulse" cx={start.x} cy={start.y} fill="#3B82F6"/>
-        <circle cx={start.x} cy={start.y} r={14} fill="#1e2a4a" stroke="#3B82F6" strokeWidth="2"/>
-        <g transform={`translate(${start.x - 8}, ${start.y - 6})`}>
-          <rect x="1" y="4"  width="14" height="7" rx="2" fill="#3B82F6"/>
-          <path d="M3 4 L5 1 L11 1 L13 4Z" fill="#3B82F6" opacity=".8"/>
-          <circle cx="4"  cy="11" r="1.5" fill="#0F1420"/>
-          <circle cx="12" cy="11" r="1.5" fill="#0F1420"/>
-          <rect x="2" y="5" width="4" height="3" rx="1" fill="rgba(255,255,255,.3)"/>
-          <rect x="10" y="5" width="4" height="3" rx="1" fill="rgba(255,255,255,.3)"/>
-        </g>
-      </g>
-
-      {(() => {
-        const text = driverLabel || 'Driver';
-        const lw   = Math.min(text.length * 5.8 + 20, 120);
-        const lx   = Math.max(4, Math.min(start.x - lw / 2, SVG_W - lw - 4));
-        const ly   = start.y > SVG_H - 38 ? start.y - 22 : start.y + 20;
-        return (
-          <>
-            <rect x={lx} y={ly} width={lw} height={15} rx={7} fill="#3B82F6" opacity=".9"/>
-            <text x={lx + lw/2} y={ly + 10.5} textAnchor="middle" fontFamily="Outfit,sans-serif" fontSize="8.5" fontWeight="700" fill="#fff" letterSpacing=".3">{text}</text>
-          </>
-        );
-      })()}
-
-      <g style={{ transformOrigin: `${end.x}px ${end.y}px`, animation: 'trm-pinDrop .5s cubic-bezier(.34,1.2,.64,1) .3s both' }}>
-        <ellipse cx={end.x} cy={end.y + 24} rx={6} ry={2.5} fill="rgba(34,197,94,.2)"/>
-        <path
-          d={`M${end.x},${end.y + 24}
-              C${end.x},${end.y + 24} ${end.x - 13},${end.y + 9}
-              ${end.x - 13},${end.y - 3}
-              A13,13 0 1,1 ${end.x + 13},${end.y - 3}
-              C${end.x + 13},${end.y + 9} ${end.x},${end.y + 24} Z`}
-          fill="#22C55E"
-        />
-        <circle cx={end.x} cy={end.y - 4} r={5.5} fill="#fff"/>
-        <circle cx={end.x} cy={end.y - 4} r={2}   fill="#22C55E"/>
-      </g>
-
-      {(() => {
-        const text = (pickupLabel || 'Pickup').slice(0, 20);
-        const lw   = Math.min(text.length * 5.8 + 20, 130);
-        const lx   = Math.max(4, Math.min(end.x - lw / 2, SVG_W - lw - 4));
-        const ly   = end.y > SVG_H - 50 ? end.y - 22 : end.y + 28;
-        return (
-          <>
-            <rect x={lx} y={ly} width={lw} height={15} rx={7} fill="#22C55E" opacity=".9"/>
-            <text x={lx + lw/2} y={ly + 10.5} textAnchor="middle" fontFamily="Outfit,sans-serif" fontSize="8.5" fontWeight="700" fill="#fff" letterSpacing=".3">{text}</text>
-          </>
-        );
-      })()}
-    </svg>
+    <div
+      ref={mapContainerRef}
+      className="trm-map-wrap"
+      style={{ width: '100%', height: '200px' }}
+    />
   );
 }
 
@@ -262,11 +377,20 @@ export default function TripRequestModal({
   actionPending = false,
 }) {
   const [driverDistance, setDriverDistance] = useState(null);
-  const [driverEta,      setDriverEta]      = useState(null);
-  const [polyline,       setPolyline]       = useState(null);
-  const [loadingGeo,     setLoadingGeo]     = useState(false);
-  const [routeKey,       setRouteKey]       = useState(0);
-  const prevTripId                          = useRef(null);
+  const [driverEta, setDriverEta] = useState(null);
+  const [polyline, setPolyline] = useState(null);
+  const [loadingGeo, setLoadingGeo] = useState(false);
+  const prevTripId = useRef(null);
+
+  // Add CSS to document - MUST be before any conditional returns
+  useEffect(() => {
+    if (!document.getElementById('trm-styles')) {
+      const style = document.createElement('style');
+      style.id = 'trm-styles';
+      style.textContent = ROUTE_CSS;
+      document.head.appendChild(style);
+    }
+  }, []);
 
   useEffect(() => {
     if (!tripRequest || !driver) return;
@@ -288,7 +412,6 @@ export default function TripRequestModal({
           setDriverDistance(data.distanceText);
           setDriverEta(data.etaText);
           setPolyline(data.polyline ?? null);
-          setRouteKey(k => k + 1);
         }
       } catch (err) {
         console.error('getDriverToPickup error:', err);
@@ -300,15 +423,12 @@ export default function TripRequestModal({
     fetchDriverDistance();
   }, [tripRequest?.id]);
 
-  const svgPts = useMemo(() => {
-    return polyline ? project(decodePolyline(polyline)) : [];
-  }, [polyline]);
-
+  // Move the early return AFTER all hooks
   if (!tripRequest) return null;
 
-  const fare     = `$${tripRequest.driverPayout?.toFixed(2) ?? '0.00'}`;
+  const fare = `$${tripRequest.driverPayout?.toFixed(2) ?? '0.00'}`;
   const distance = loadingGeo ? '…' : (driverDistance ?? `${tripRequest.tripDistanceMiles?.toFixed(1) ?? '—'} mi`);
-  const eta      = loadingGeo ? '…' : (driverEta      ?? `${tripRequest.tripDurationMin ?? '—'} min`);
+  const eta = loadingGeo ? '…' : (driverEta ?? `${tripRequest.tripDurationMin ?? '—'} min`);
 
   const pickupLabel = (tripRequest.pickup ?? '').split(',')[0].trim();
 
@@ -322,8 +442,6 @@ export default function TripRequestModal({
       padding: 16,
       animation: 'fadeIn .2s ease',
     }}>
-      <style>{ROUTE_CSS}</style>
-
       <div style={{
         background: C.surface,
         border: `1px solid ${C.border}`,
@@ -344,9 +462,9 @@ export default function TripRequestModal({
             <div style={{ marginTop: 6 }}>
               <span className="badge-chip" style={{
                 background: (TYPE_COLOR[tripRequest.rideType] ?? C.blue) + '18',
-                border:     `1px solid ${(TYPE_COLOR[tripRequest.rideType] ?? C.blue)}40`,
-                color:      TYPE_COLOR[tripRequest.rideType] ?? C.blue,
-                fontSize:   11,
+                border: `1px solid ${(TYPE_COLOR[tripRequest.rideType] ?? C.blue)}40`,
+                color: TYPE_COLOR[tripRequest.rideType] ?? C.blue,
+                fontSize: 11,
               }}>
                 {TYPE_LABEL[tripRequest.rideType] ?? tripRequest.rideType}
               </span>
@@ -378,24 +496,27 @@ export default function TripRequestModal({
           </div>
         </div>
 
-        <div className="trm-map-wrap">
-          {loadingGeo ? (
-            <div className="trm-skeleton"/>
-          ) : (
-            <RouteSVG
-              svgPts={svgPts}
-              routeKey={routeKey}
-              driverLabel="You"
-              pickupLabel={pickupLabel}
-            />
-          )}
-          {!loadingGeo && (
-            <div className="trm-map-pill trm-fadein">
-              <div className="trm-map-pill-dot"/>
-              {svgPts.length > 1 ? `${distance} · ${eta} to pickup` : 'Calculating route…'}
-            </div>
-          )}
-        </div>
+        {/* Mapbox Map Area */}
+        {loadingGeo ? (
+          <div className="trm-skeleton"/>
+        ) : (
+          <MapboxRouteMap
+            polyline={polyline}
+            driverLat={driver?.lat}
+            driverLng={driver?.lng}
+            pickupLat={tripRequest.pickupLat}
+            pickupLng={tripRequest.pickupLng}
+            distance={distance}
+            eta={eta}
+          />
+        )}
+        
+        {!loadingGeo && (
+          <div className="trm-map-pill trm-fadein">
+            <div className="trm-map-pill-dot"/>
+            {polyline ? `${distance} · ${eta} to pickup` : 'Calculating route…'}
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
           <div style={{
@@ -427,7 +548,7 @@ export default function TripRequestModal({
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 0.8 }}>
             {[
               { lbl: 'To Pickup', val: distance },
-              { lbl: 'ETA',       val: eta },
+              { lbl: 'ETA', val: eta },
             ].map(m => (
               <div key={m.lbl} style={{
                 background: C.surfaceAlt,
@@ -450,7 +571,7 @@ export default function TripRequestModal({
         <div className="route-pill" style={{ marginBottom: 16 }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'stretch' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, paddingTop: 2 }}>
-              <div style={{ width: 9, height: 9, background: C.blue,        borderRadius: '50%', flexShrink: 0 }}/>
+              <div style={{ width: 9, height: 9, background: C.blue, borderRadius: '50%', flexShrink: 0 }}/>
               <div style={{ width: 1, height: 26, background: C.border }}/>
               <div style={{ width: 9, height: 9, background: C.onlineGreen, borderRadius: 2, transform: 'rotate(45deg)', flexShrink: 0 }}/>
             </div>
@@ -482,7 +603,7 @@ export default function TripRequestModal({
               boxShadow: `0 2px 8px ${C.shadow}`,
               transition: 'all .2s',
             }}
-            onMouseEnter={e => { if (!actionPending) { e.currentTarget.style.borderColor = C.red;    e.currentTarget.style.color = C.red; } }}
+            onMouseEnter={e => { if (!actionPending) { e.currentTarget.style.borderColor = C.red; e.currentTarget.style.color = C.red; } }}
             onMouseLeave={e => { if (!actionPending) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textMid; } }}
             onClick={onDecline}
           >
@@ -511,7 +632,7 @@ export default function TripRequestModal({
               letterSpacing: '.3px',
             }}
             onMouseEnter={e => { if (!actionPending) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 8px 28px rgba(22,163,74,.4)'; } }}
-            onMouseLeave={e => { if (!actionPending) { e.currentTarget.style.transform = '';               e.currentTarget.style.boxShadow = '0 4px 18px rgba(22,163,74,.3)'; } }}
+            onMouseLeave={e => { if (!actionPending) { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 4px 18px rgba(22,163,74,.3)'; } }}
             onClick={onAccept}
           >
             <Check size={18}/> {actionPending ? 'Processing…' : `Accept · ${fare}`}
