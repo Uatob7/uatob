@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   MapPin, ChevronRight, Loader2, MessageCircle,
   Send, Check, X, AlertTriangle, UserX,
+  Navigation, Phone, Map,
 } from "lucide-react";
 import {
   getFirestore, collection, onSnapshot, addDoc, serverTimestamp,
@@ -56,7 +57,7 @@ function decodePolyline(encoded) {
     shift = 0; result = 0;
     do { b = encoded.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
     lng += (result & 1) ? ~(result >> 1) : (result >> 1);
-    pts.push([lng / 1e5, lat / 1e5]); // GeoJSON is [lng, lat]
+    pts.push([lng / 1e5, lat / 1e5]);
   }
   return pts;
 }
@@ -66,7 +67,7 @@ function closestSegmentOnPolyline(pts, lng, lat) {
   if (pts.length < 2) return { idx: 0, t: 0 };
   let best = { idx: 0, t: 0 }, bestDist = Infinity;
   for (let i = 0; i < pts.length - 1; i++) {
-    const a = pts[i];     // [lng, lat]
+    const a = pts[i];
     const b = pts[i + 1];
     const dLng = b[0] - a[0];
     const dLat = b[1] - a[1];
@@ -82,20 +83,15 @@ function closestSegmentOnPolyline(pts, lng, lat) {
   return best;
 }
 
-// ── Trim polyline from car position onward (for in_progress) ─────────────────
 function trimPolylineFromCar(pts, driverLng, driverLat) {
   if (pts.length < 2 || !driverLng || !driverLat) return pts;
   const { idx, t } = closestSegmentOnPolyline(pts, driverLng, driverLat);
   const a = pts[idx];
   const b = pts[idx + 1];
-  const interp = [
-    a[0] + t * (b[0] - a[0]),
-    a[1] + t * (b[1] - a[1]),
-  ];
+  const interp = [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
   return [interp, ...pts.slice(idx + 1)];
 }
 
-// ── Haversine distance (meters) ───────────────────────────────────────────────
 function geoDistMeters(lat1, lng1, lat2, lng2) {
   const R = 6371000;
   const toRad = d => (d * Math.PI) / 180;
@@ -108,26 +104,37 @@ function geoDistMeters(lat1, lng1, lat2, lng2) {
 // ── DriverMapBox CSS ──────────────────────────────────────────────────────────
 const DMB_CSS = `
   @keyframes dmb-ring {
-    0%   { transform: scale(1);   opacity: .6; }
-    100% { transform: scale(2.8); opacity: 0;  }
+    0%   { transform: scale(1);   opacity: .55; }
+    100% { transform: scale(2.6); opacity: 0;   }
+  }
+  @keyframes dmb-pickup-ring {
+    0%   { transform: scale(1);   opacity: .5; }
+    100% { transform: scale(2.4); opacity: 0;  }
   }
   @keyframes dmb-fadein { from { opacity: 0 } to { opacity: 1 } }
 
-  .dmb-driver-dot {
-    width: 14px; height: 14px; border-radius: 50%;
-    background: #22C55E; border: 2.5px solid #fff;
-    box-shadow: 0 2px 10px rgba(0,0,0,.6);
+  /* ── Car marker ── */
+  .dmb-car-wrap {
     position: relative;
+    filter: drop-shadow(0 3px 8px rgba(0,0,0,.7));
   }
-  .dmb-driver-dot::before {
-    content: ""; position: absolute; inset: -8px;
-    border-radius: 50%; background: rgba(34,197,94,.28);
-    animation: dmb-ring 2.2s ease-out infinite;
+
+  /* ── Pickup pulse ring ── */
+  .dmb-pickup-ring {
+    position: absolute;
+    inset: -10px;
+    border-radius: 50%;
+    background: rgba(34,197,94,.22);
+    animation: dmb-pickup-ring 2s ease-out infinite;
+    pointer-events: none;
   }
-  .dmb-driver-dot::after {
-    content: ""; position: absolute; inset: -14px;
-    border-radius: 50%; background: rgba(34,197,94,.10);
-    animation: dmb-ring 2.2s ease-out .55s infinite;
+  .dmb-pickup-ring-2 {
+    position: absolute;
+    inset: -18px;
+    border-radius: 50%;
+    background: rgba(34,197,94,.10);
+    animation: dmb-pickup-ring 2s ease-out .5s infinite;
+    pointer-events: none;
   }
 
   .dmb-map .mapboxgl-ctrl-logo          { display: none !important; }
@@ -150,96 +157,158 @@ function injectDmbCss() {
 }
 
 // ── Marker DOM factories ──────────────────────────────────────────────────────
-function makeDriverEl() {
+
+/**
+ * Custom SVG top-down car icon.
+ * accent — the stage color used to tint the car roof panel.
+ */
+function makeDriverEl(accent = "#38BDF8") {
   const wrap = document.createElement("div");
-  wrap.style.cssText = "width:14px;height:14px;position:relative;";
-  const dot = document.createElement("div");
-  dot.className = "dmb-driver-dot";
-  wrap.appendChild(dot);
+  wrap.className = "dmb-car-wrap";
+  wrap.style.cssText = "width:36px;height:52px;position:relative;";
+  wrap.innerHTML = `
+    <svg width="36" height="52" viewBox="0 0 36 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- Shadow ellipse -->
+      <ellipse cx="18" cy="50" rx="9" ry="2" fill="rgba(0,0,0,0.45)"/>
+
+      <!-- Car body — rounded rect with nose tapers -->
+      <path d="
+        M18 1
+        Q28 1 30 4
+        L32 46
+        Q28 50 18 50
+        Q8 50 4 46
+        L6 4
+        Q8 1 18 1
+        Z
+      " fill="#1E293B" stroke="rgba(255,255,255,.12)" stroke-width=".6"/>
+
+      <!-- Front windshield — trapezoid, light blue -->
+      <path d="M10 6 L26 6 L28 19 L8 19 Z" fill="#7DD3FC" opacity=".9"/>
+
+      <!-- Middle panel — roof, accent tinted -->
+      <rect x="9" y="21" width="18" height="13" rx="2" fill="${accent}" opacity=".65"/>
+
+      <!-- Rear window — lighter blue -->
+      <rect x="10" y="36" width="16" height="8" rx="1.5" fill="#7DD3FC" opacity=".5"/>
+
+      <!-- Left side mirror -->
+      <rect x="1" y="13" width="5" height="3" rx="1" fill="#0F172A" opacity=".85"/>
+
+      <!-- Right side mirror -->
+      <rect x="30" y="13" width="5" height="3" rx="1" fill="#0F172A" opacity=".85"/>
+
+      <!-- Headlights -->
+      <circle cx="9"  cy="5.5" r="1.5" fill="#FCD34D"/>
+      <circle cx="27" cy="5.5" r="1.5" fill="#FCD34D"/>
+
+      <!-- Taillights -->
+      <rect x="8"  y="46" width="6"  height="2.5" rx="1" fill="#EF4444" opacity=".9"/>
+      <rect x="22" y="46" width="6"  height="2.5" rx="1" fill="#EF4444" opacity=".9"/>
+    </svg>
+  `;
   return wrap;
 }
 
-function makePickupEl() {
+/**
+ * Pickup pin:
+ * outer white circle r=13, green stroke 2.5
+ * inner green circle r=6.5
+ * white dot center r=2.5
+ * shadow ellipse below
+ * pulse rings when headingToPickup=true
+ */
+function makePickupEl(withPulse = false) {
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "position:relative;width:30px;height:36px;";
+
+  if (withPulse) {
+    const r1 = document.createElement("div");
+    r1.className = "dmb-pickup-ring";
+    r1.style.cssText = "top:2px;left:2px;width:26px;height:26px;";
+    const r2 = document.createElement("div");
+    r2.className = "dmb-pickup-ring-2";
+    r2.style.cssText = "top:2px;left:2px;width:26px;height:26px;";
+    wrap.appendChild(r2);
+    wrap.appendChild(r1);
+  }
+
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("width", "30");
+  svg.setAttribute("height", "36");
+  svg.setAttribute("viewBox", "0 0 30 36");
+  svg.setAttribute("fill", "none");
+  svg.style.cssText = "position:absolute;top:0;left:0;filter:drop-shadow(0 3px 7px rgba(0,0,0,.5));";
+  svg.innerHTML = `
+    <!-- Shadow ellipse -->
+    <ellipse cx="15" cy="34" rx="7" ry="2" fill="rgba(0,0,0,0.3)"/>
+    <!-- Outer white circle, green stroke -->
+    <circle cx="15" cy="15" r="13" fill="white" stroke="#22C55E" stroke-width="2.5"/>
+    <!-- Inner green circle -->
+    <circle cx="15" cy="15" r="6.5" fill="#22C55E"/>
+    <!-- White dot center -->
+    <circle cx="15" cy="15" r="2.5" fill="white"/>
+  `;
+  wrap.appendChild(svg);
+  return wrap;
+}
+
+/**
+ * Dropoff pin:
+ * teardrop cubic bezier, shadow ellipse, white circle r=6, dark dot r=2.5
+ * pin tip points down, body ~28px tall
+ */
+function makeDropoffEl() {
   const el = document.createElement("div");
-  el.style.cssText = `
-    width:13px; height:13px; border-radius:50%;
-    background:#22C55E; border:2.5px solid #fff;
-    box-shadow:0 0 12px rgba(34,197,94,.65), 0 2px 6px rgba(0,0,0,.5);
+  el.style.cssText = "filter:drop-shadow(0 4px 8px rgba(0,0,0,.65));line-height:0;";
+  el.innerHTML = `
+    <svg width="26" height="36" viewBox="0 0 26 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- Shadow ellipse -->
+      <ellipse cx="13" cy="34.5" rx="6" ry="1.5" fill="rgba(0,0,0,0.28)"/>
+      <!-- Teardrop body (cubic bezier, tip at y=33) -->
+      <path d="
+        M13 33
+        C9 27 2 22 2 13
+        A11 11 0 0 1 24 13
+        C24 22 17 27 13 33
+        Z
+      " fill="#F1F5F9" stroke="rgba(0,0,0,.10)" stroke-width=".5"/>
+      <!-- White circle inside pin -->
+      <circle cx="13" cy="13" r="6" fill="white"/>
+      <!-- Dark dot inside white circle -->
+      <circle cx="13" cy="13" r="2.5" fill="#0F172A"/>
+    </svg>
   `;
   return el;
 }
 
-function makeDropoffEl() {
-  const el = document.createElement("div");
-  el.style.cssText = "filter:drop-shadow(0 4px 8px rgba(0,0,0,.7));line-height:0;";
-  el.innerHTML = `
-    <svg width="22" height="30" viewBox="0 0 22 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M11 30C11 30 0.5 18.5 0.5 11A10.5 10.5 0 0 1 21.5 11C21.5 18.5 11 30 11 30Z"
-            fill="#F1F5F9" stroke="rgba(0,0,0,.12)" stroke-width=".5"/>
-      <circle cx="11" cy="11" r="4.5" fill="#0F172A"/>
-      <circle cx="11" cy="11" r="2"   fill="#F1F5F9"/>
-    </svg>`;
-  return el;
-}
-
 // ── Mapbox source/layer helpers ───────────────────────────────────────────────
-const ROUTE_SOURCE   = "dmb-route";
-const ROUTE_LAYER_BG = "dmb-route-bg";
-const ROUTE_LAYER_FG = "dmb-route-fg";
+const ROUTE_SOURCE    = "dmb-route";
+const ROUTE_LAYER_BG  = "dmb-route-bg";
+const ROUTE_LAYER_FG  = "dmb-route-fg";
 const ROUTE_LAYER_DASH = "dmb-route-dash";
 
 function addRouteLayer(map, coords, accent) {
-  const geojson = {
-    type: "Feature",
-    geometry: { type: "LineString", coordinates: coords },
-  };
-
-  if (map.getSource(ROUTE_SOURCE)) {
-    map.getSource(ROUTE_SOURCE).setData(geojson);
-    return;
-  }
-
+  const geojson = { type: "Feature", geometry: { type: "LineString", coordinates: coords } };
+  if (map.getSource(ROUTE_SOURCE)) { map.getSource(ROUTE_SOURCE).setData(geojson); return; }
   map.addSource(ROUTE_SOURCE, { type: "geojson", data: geojson });
-
-  // White glow behind
-  map.addLayer({
-    id: ROUTE_LAYER_BG,
-    type: "line",
-    source: ROUTE_SOURCE,
+  map.addLayer({ id: ROUTE_LAYER_BG, type: "line", source: ROUTE_SOURCE,
     layout: { "line-cap": "round", "line-join": "round" },
-    paint: { "line-color": "#ffffff", "line-width": 8, "line-opacity": 0.35 },
+    paint: { "line-color": "#ffffff", "line-width": 8, "line-opacity": 0.3 },
   });
-
-  // Colored route
-  map.addLayer({
-    id: ROUTE_LAYER_FG,
-    type: "line",
-    source: ROUTE_SOURCE,
+  map.addLayer({ id: ROUTE_LAYER_FG, type: "line", source: ROUTE_SOURCE,
     layout: { "line-cap": "round", "line-join": "round" },
     paint: { "line-color": accent, "line-width": 4, "line-opacity": 0.95 },
   });
-
-  // Animated dash overlay
-  map.addLayer({
-    id: ROUTE_LAYER_DASH,
-    type: "line",
-    source: ROUTE_SOURCE,
+  map.addLayer({ id: ROUTE_LAYER_DASH, type: "line", source: ROUTE_SOURCE,
     layout: { "line-cap": "round", "line-join": "round" },
-    paint: {
-      "line-color": "#ffffff",
-      "line-width": 1.5,
-      "line-opacity": 0.5,
-      "line-dasharray": [0, 4],
-    },
+    paint: { "line-color": "#ffffff", "line-width": 1.5, "line-opacity": 0.45, "line-dasharray": [0, 4] },
   });
 }
 
 function updateRouteData(map, coords) {
   if (!map.getSource(ROUTE_SOURCE)) return;
-  map.getSource(ROUTE_SOURCE).setData({
-    type: "Feature",
-    geometry: { type: "LineString", coordinates: coords },
-  });
+  map.getSource(ROUTE_SOURCE).setData({ type: "Feature", geometry: { type: "LineString", coordinates: coords } });
 }
 
 function updateRouteColor(map, accent) {
@@ -256,41 +325,39 @@ function DriverMapBox({ activeTrip, tripStage, accent }) {
   const mapLoadedRef   = useRef(false);
   const latestRef      = useRef({});
 
-  const driverLat  = activeTrip?.driverLat;
-  const driverLng  = activeTrip?.driverLng;
-  const pickupLat  = activeTrip?.pickupLat;
-  const pickupLng  = activeTrip?.pickupLng;
-  const dropoffLat = activeTrip?.dropoffLat;
-  const dropoffLng = activeTrip?.dropoffLng;
+  const driverLat   = activeTrip?.driverLat;
+  const driverLng   = activeTrip?.driverLng;
+  const pickupLat   = activeTrip?.pickupLat;
+  const pickupLng   = activeTrip?.pickupLng;
+  const dropoffLat  = activeTrip?.dropoffLat;
+  const dropoffLng  = activeTrip?.dropoffLng;
   const polylineRaw = activeTrip?.polyline ?? null;
 
-  const isInProgress = tripStage === "in_progress";
-  const isArrived    = tripStage === "arrived";
+  const isInProgress     = tripStage === "in_progress";
+  const isArrived        = tripStage === "arrived";
+  const headingToPickup  = tripStage === "driver_assigned";
 
-  latestRef.current = { driverLat, driverLng, pickupLat, pickupLng, dropoffLat, dropoffLng, polylineRaw, isInProgress, accent };
+  latestRef.current = {
+    driverLat, driverLng, pickupLat, pickupLng, dropoffLat, dropoffLng,
+    polylineRaw, isInProgress, headingToPickup, accent,
+  };
 
-  // ── Build the visible route coords for the current state ────────────────
   function buildRouteCoords() {
     const { polylineRaw, driverLng, driverLat, isInProgress } = latestRef.current;
-    const full = decodePolyline(polylineRaw); // [[lng,lat], ...]
+    const full = decodePolyline(polylineRaw);
     if (!full.length) return [];
     if (!isInProgress) return full;
-    // Trim to show only the remaining path from driver forward
     return trimPolylineFromCar(full, driverLng, driverLat);
   }
 
-  // ── Compute fit bounds for current visible elements ──────────────────────
   function fitVisible(map, dur = 900) {
     const { driverLat, driverLng, pickupLat, pickupLng, dropoffLat, dropoffLng, isInProgress } = latestRef.current;
-
     const pts = [];
     if (driverLat && driverLng) pts.push([driverLng, driverLat]);
-    if (!isInProgress && pickupLat  && pickupLng)  pts.push([pickupLng, pickupLat]);
-    if (dropoffLat && dropoffLng)                  pts.push([dropoffLng, dropoffLat]);
-
+    if (!isInProgress && pickupLat && pickupLng) pts.push([pickupLng, pickupLat]);
+    if (dropoffLat && dropoffLng) pts.push([dropoffLng, dropoffLat]);
     if (!pts.length) return;
     if (pts.length === 1) { map.easeTo({ center: pts[0], zoom: 15, duration: dur }); return; }
-
     const bounds = pts.reduce(
       (b, p) => b.extend(p),
       new window.mapboxgl.LngLatBounds(pts[0], pts[0]),
@@ -315,49 +382,41 @@ function DriverMapBox({ activeTrip, tripStage, accent }) {
         : [-81.3792, 28.5383];
 
       window.mapboxgl.accessToken = MAPBOX_TOKEN;
-
       const map = new window.mapboxgl.Map({
-        container:          containerRef.current,
-        style:              "mapbox://styles/mapbox/dark-v11",
-        center:             initCenter,
-        zoom:               14,
+        container: containerRef.current,
+        style: "mapbox://styles/mapbox/dark-v11",
+        center: initCenter,
+        zoom: 14,
         attributionControl: false,
-        interactive:        false,
-        pitchWithRotate:    false,
-        fadeDuration:       150,
+        interactive: false,
+        pitchWithRotate: false,
+        fadeDuration: 150,
       });
-
-      map.addControl(
-        new window.mapboxgl.AttributionControl({ compact: true }),
-        "bottom-right",
-      );
-
+      map.addControl(new window.mapboxgl.AttributionControl({ compact: true }), "bottom-right");
       mapRef.current = map;
 
       map.on("load", () => {
         mapLoadedRef.current = true;
+        const { driverLat, driverLng, pickupLat, pickupLng, dropoffLat, dropoffLng, accent, headingToPickup } = latestRef.current;
 
-        const { driverLat, driverLng, pickupLat, pickupLng, dropoffLat, dropoffLng, accent } = latestRef.current;
-
-        // ── Draw route polyline ────────────────────────────────────────────
         const routeCoords = buildRouteCoords();
-        if (routeCoords.length >= 2) {
-          addRouteLayer(map, routeCoords, accent);
-        }
+        if (routeCoords.length >= 2) addRouteLayer(map, routeCoords, accent);
 
-        // ── Place markers ──────────────────────────────────────────────────
+        // Driver car marker
         if (driverLat && driverLng) {
           markersRef.current.driver = new window.mapboxgl.Marker({
-            element: makeDriverEl(), anchor: "center",
+            element: makeDriverEl(accent), anchor: "center",
           }).setLngLat([driverLng, driverLat]).addTo(map);
         }
 
+        // Pickup pin with pulse when heading to pickup
         if (pickupLat && pickupLng) {
           markersRef.current.pickup = new window.mapboxgl.Marker({
-            element: makePickupEl(), anchor: "center",
+            element: makePickupEl(headingToPickup), anchor: "center",
           }).setLngLat([pickupLng, pickupLat]).addTo(map);
         }
 
+        // Dropoff teardrop
         if (dropoffLat && dropoffLng) {
           markersRef.current.dropoff = new window.mapboxgl.Marker({
             element: makeDropoffEl(), anchor: "bottom",
@@ -378,104 +437,89 @@ function DriverMapBox({ activeTrip, tripStage, accent }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Driver location updates → move marker + trim route ──────────────────
+  // ── Driver location updates ──────────────────────────────────────────────
   useEffect(() => {
     if (!mapLoadedRef.current || !mapRef.current || !driverLat || !driverLng) return;
     const map = mapRef.current;
+    const { headingToPickup, accent } = latestRef.current;
 
-    // Snap driver to pickup if within 30m
-    const snapToPickup = pickupLat && pickupLng &&
-      geoDistMeters(driverLat, driverLng, pickupLat, pickupLng) <= 30;
-    const snapToDropoff = dropoffLat && dropoffLng &&
-      geoDistMeters(driverLat, driverLng, dropoffLat, dropoffLng) <= 30;
-
+    const snapToPickup  = pickupLat  && pickupLng  && geoDistMeters(driverLat, driverLng, pickupLat, pickupLng) <= 30;
+    const snapToDropoff = dropoffLat && dropoffLng && geoDistMeters(driverLat, driverLng, dropoffLat, dropoffLng) <= 30;
     const displayLng = snapToPickup ? pickupLng : snapToDropoff ? dropoffLng : driverLng;
     const displayLat = snapToPickup ? pickupLat : snapToDropoff ? dropoffLat : driverLat;
 
-    // Move or create driver marker
     if (markersRef.current.driver) {
       markersRef.current.driver.setLngLat([displayLng, displayLat]);
     } else {
       markersRef.current.driver = new window.mapboxgl.Marker({
-        element: makeDriverEl(), anchor: "center",
+        element: makeDriverEl(accent), anchor: "center",
       }).setLngLat([displayLng, displayLat]).addTo(map);
     }
 
-    // Update route: trim from current driver position onward
     const routeCoords = buildRouteCoords();
     if (routeCoords.length >= 2) {
-      if (map.getSource(ROUTE_SOURCE)) {
-        updateRouteData(map, routeCoords);
-      } else {
-        addRouteLayer(map, routeCoords, latestRef.current.accent);
-      }
+      map.getSource(ROUTE_SOURCE) ? updateRouteData(map, routeCoords) : addRouteLayer(map, routeCoords, accent);
     }
-
     fitVisible(map, 1200);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [driverLat, driverLng]);
 
-  // ── Polyline change (new ride or route update) ───────────────────────────
+  // ── Polyline change ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapLoadedRef.current || !mapRef.current) return;
     const map = mapRef.current;
     const routeCoords = buildRouteCoords();
     if (routeCoords.length >= 2) {
-      if (map.getSource(ROUTE_SOURCE)) {
-        updateRouteData(map, routeCoords);
-      } else {
-        addRouteLayer(map, routeCoords, latestRef.current.accent);
-      }
+      map.getSource(ROUTE_SOURCE) ? updateRouteData(map, routeCoords) : addRouteLayer(map, routeCoords, latestRef.current.accent);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [polylineRaw]);
 
-  // ── Accent color change → update route line color ────────────────────────
+  // ── Accent color ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapLoadedRef.current || !mapRef.current) return;
     updateRouteColor(mapRef.current, accent);
+    // Rebuild driver marker with new accent color
+    if (markersRef.current.driver && mapRef.current) {
+      const lngLat = markersRef.current.driver.getLngLat();
+      markersRef.current.driver.remove();
+      markersRef.current.driver = new window.mapboxgl.Marker({
+        element: makeDriverEl(accent), anchor: "center",
+      }).setLngLat(lngLat).addTo(mapRef.current);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accent]);
 
-  // ── Stage change: dim pickup when in_progress, re-trim route, re-fit ────
+  // ── Stage change: dim pickup, update pulse, re-trim, re-fit ─────────────
   useEffect(() => {
     if (!mapLoadedRef.current || !mapRef.current) return;
     const map = mapRef.current;
+    const { pickupLat, pickupLng, headingToPickup } = latestRef.current;
 
-    // Dim pickup when trip is underway
-    if (markersRef.current.pickup) {
-      markersRef.current.pickup.getElement().style.opacity = isInProgress ? "0.25" : "1";
+    // Rebuild pickup marker to toggle pulse rings
+    if (markersRef.current.pickup && pickupLat && pickupLng) {
+      markersRef.current.pickup.remove();
+      const newEl = makePickupEl(headingToPickup);
+      newEl.style.opacity = isInProgress ? "0.25" : "1";
+      markersRef.current.pickup = new window.mapboxgl.Marker({
+        element: newEl, anchor: "center",
+      }).setLngLat([pickupLng, pickupLat]).addTo(map);
     }
 
-    // Re-trim route for the new stage
     const routeCoords = buildRouteCoords();
     if (routeCoords.length >= 2) {
-      if (map.getSource(ROUTE_SOURCE)) {
-        updateRouteData(map, routeCoords);
-      } else {
-        addRouteLayer(map, routeCoords, latestRef.current.accent);
-      }
+      map.getSource(ROUTE_SOURCE) ? updateRouteData(map, routeCoords) : addRouteLayer(map, routeCoords, latestRef.current.accent);
     }
-
     fitVisible(map, 800);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tripStage]);
 
-  // ── ETA pill ─────────────────────────────────────────────────────────────
-  const etaMin = isInProgress
-    ? activeTrip?.dropoffEtaMin
-    : activeTrip?.driverEtaMin;
-  const etaLabel = isArrived
-    ? "Arrived"
-    : etaMin != null
-    ? `~${etaMin} min`
-    : null;
+  const etaMin = isInProgress ? activeTrip?.dropoffEtaMin : activeTrip?.driverEtaMin;
+  const etaLabel = isArrived ? "Arrived" : etaMin != null ? `~${etaMin} min` : null;
 
   return (
     <div style={{ position: "relative", height: 200, background: "#0B0D12" }}>
-      <div
-        ref={containerRef}
-        className="dmb-map"
+      <div ref={containerRef} className="dmb-map"
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
       />
 
@@ -502,13 +546,11 @@ function DriverMapBox({ activeTrip, tripStage, accent }) {
         borderRadius: 100, padding: "5px 12px",
         fontFamily: "'Outfit', sans-serif",
         fontSize: 10.5, fontWeight: 800, letterSpacing: ".1em",
-        color: "rgba(255,255,255,.7)",
-        pointerEvents: "none",
+        color: "rgba(255,255,255,.7)", pointerEvents: "none",
       }}>
         <span style={{
           width: 7, height: 7, borderRadius: "50%",
-          background: "#22C55E", flexShrink: 0,
-          boxShadow: "0 0 7px #22C55E",
+          background: "#22C55E", flexShrink: 0, boxShadow: "0 0 7px #22C55E",
           display: "inline-block",
         }} />
         LIVE
@@ -543,7 +585,16 @@ export default function ActiveTripCard({
   const [reassigning,  setReassigning]  = useState(false);
   const [reassignError, setReassignError] = useState("");
 
-  useEffect(() => { onUnreadChange?.(unreadCount); }, [unreadCount, onUnreadChange]);
+  // Stable callback — won't collapse showMessages on re-renders
+  const handleUnreadChange = useCallback((count) => {
+    setUnreadCount(count);
+    onUnreadChange?.(count);
+  }, [onUnreadChange]);
+
+  // Toggle message panel without collapsing it when unread count changes
+  const handleToggleMessages = useCallback(() => {
+    setShowMessages(prev => !prev);
+  }, []);
 
   if (!activeTrip) return null;
 
@@ -555,6 +606,24 @@ export default function ActiveTripCard({
 
   const openInMaps = (addr) => addr &&
     window.open(`https://maps.google.com/?q=${encodeURIComponent(addr)}`, "_blank");
+
+  // Navigate to current destination (pickup if enroute, dropoff if in_progress)
+  const openNavigation = () => {
+    const dest = isProgress ? activeTrip.dropoff : activeTrip.pickup;
+    const lat  = isProgress ? activeTrip.dropoffLat : activeTrip.pickupLat;
+    const lng  = isProgress ? activeTrip.dropoffLng : activeTrip.pickupLng;
+    if (lat && lng) {
+      window.open(`https://maps.google.com/?daddr=${lat},${lng}&dirflg=d`, "_blank");
+    } else if (dest) {
+      window.open(`https://maps.google.com/?daddr=${encodeURIComponent(dest)}&dirflg=d`, "_blank");
+    }
+  };
+
+  // Phone call — rider phone not in ride doc but attempt from contact field
+  const callRider = () => {
+    const phone = activeTrip.riderPhone ?? activeTrip.phone;
+    if (phone) window.open(`tel:${phone}`);
+  };
 
   const handleReassign = async () => {
     if (reassigning) return;
@@ -580,7 +649,12 @@ export default function ActiveTripCard({
         @keyframes atc-in     { from{opacity:0;transform:translateY(10px) scale(.98)} to{opacity:1;transform:none} }
         @keyframes atc-spin   { to{transform:rotate(360deg)} }
         @keyframes atc-modal  { from{opacity:0;transform:scale(.9) translateY(16px)} to{opacity:1;transform:none} }
-        @keyframes atc-msg-in { from{opacity:0;max-height:0} to{opacity:1;max-height:500px} }
+        @keyframes atc-msg-in { from{opacity:0;max-height:0} to{opacity:1;max-height:520px} }
+        @keyframes atc-badge-pop {
+          0%   { transform: scale(0);   opacity:0; }
+          60%  { transform: scale(1.3); opacity:1; }
+          100% { transform: scale(1);   opacity:1; }
+        }
 
         .atc-shell * { box-sizing: border-box; }
 
@@ -593,16 +667,12 @@ export default function ActiveTripCard({
           animation: atc-in .38s cubic-bezier(.22,1,.36,1) both;
         }
 
-        .atc-wrap {
-          background: #0C0E14;
-          position: relative;
-        }
+        .atc-wrap { background: #0C0E14; position: relative; }
 
         .atc-glow-bar {
           height: 3px;
           background: linear-gradient(90deg, transparent 0%, ${accent} 40%, ${accent}aa 70%, transparent 100%);
-          opacity: .6;
-          transition: background .4s;
+          opacity: .6; transition: background .4s;
         }
 
         .atc-stage-row {
@@ -703,6 +773,32 @@ export default function ActiveTripCard({
           text-transform: uppercase; color: rgba(255,255,255,.3);
         }
 
+        /* ── 3 Action buttons ── */
+        .atc-actions {
+          display: flex; gap: 8px;
+          margin: 14px 14px 0;
+        }
+        .atc-action-btn {
+          flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+          gap: 5px; padding: 10px 6px;
+          background: rgba(255,255,255,.04);
+          border: 1px solid rgba(255,255,255,.08);
+          border-radius: 14px; cursor: pointer;
+          transition: all .15s;
+          font-family: 'Outfit', sans-serif;
+          font-size: 10px; font-weight: 600;
+          color: rgba(255,255,255,.45);
+          letter-spacing: .03em;
+        }
+        .atc-action-btn:hover {
+          background: rgba(255,255,255,.08);
+          border-color: ${accent}40;
+          color: ${accent};
+        }
+        .atc-action-btn:hover svg { color: ${accent}; }
+        .atc-action-btn:active { transform: scale(.96); }
+        .atc-action-btn svg { color: rgba(255,255,255,.4); transition: color .15s; }
+
         .atc-divider { height: 1px; background: rgba(255,255,255,.05); margin: 14px 0; }
 
         .atc-msg-toggle-row {
@@ -720,6 +816,8 @@ export default function ActiveTripCard({
         .atc-msg-toggle.has-msg { border-color: ${accent}50; color: ${accent}; background: ${accent}12; }
         .atc-msg-toggle:hover   { border-color: rgba(255,255,255,.2); color: rgba(255,255,255,.8); }
         .atc-msg-toggle.has-msg:hover { border-color: ${accent}80; }
+
+        /* Badge pop animation */
         .atc-badge {
           position: absolute; top: -5px; right: -5px;
           background: #EF4444; color: #fff;
@@ -727,7 +825,9 @@ export default function ActiveTripCard({
           border-radius: 99px; padding: 0 4px;
           display: flex; align-items: center; justify-content: center;
           border: 2px solid #0C0E14;
+          animation: atc-badge-pop .3s cubic-bezier(.34,1.56,.64,1) both;
         }
+
         .atc-msg-close {
           background: none; border: none; cursor: pointer;
           color: rgba(255,255,255,.25); padding: 4px;
@@ -751,10 +851,17 @@ export default function ActiveTripCard({
           text-transform: uppercase; color: rgba(255,255,255,.35);
         }
         .atc-msg-list {
-          min-height: 100px; max-height: 180px; overflow-y: auto;
+          min-height: 100px; max-height: 200px; overflow-y: auto;
           padding: 10px 12px; display: flex; flex-direction: column; gap: 7px;
-          background: #0C0E14; overscroll-behavior: contain; scroll-behavior: smooth;
+          background: #0C0E14;
+          overscroll-behavior: contain;
+          scroll-behavior: smooth;
+          touch-action: pan-y;
         }
+        /* Prevent scroll bleed into card on iOS */
+        .atc-msg-list::-webkit-scrollbar { width: 2px; }
+        .atc-msg-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 2px; }
+
         .atc-msg-empty {
           text-align: center; color: rgba(255,255,255,.2);
           font-size: 12px; margin-top: 16px;
@@ -899,15 +1006,12 @@ export default function ActiveTripCard({
       )}
 
       <div className="atc-shell">
-        <DriverMapBox
-          activeTrip={activeTrip}
-          tripStage={tripStage}
-          accent={accent}
-        />
+        <DriverMapBox activeTrip={activeTrip} tripStage={tripStage} accent={accent} />
 
         <div className="atc-wrap">
           <div className="atc-glow-bar" />
 
+          {/* Stage + payout */}
           <div className="atc-stage-row">
             <div className="atc-stage-left">
               <div className="atc-stage-dot" />
@@ -916,6 +1020,7 @@ export default function ActiveTripCard({
             <div className="atc-fare-chip">${activeTrip.driverPayout?.toFixed(2) ?? "--"}</div>
           </div>
 
+          {/* Route */}
           <div className="atc-route">
             <div className="atc-route-line">
               <div className="atc-rail">
@@ -952,6 +1057,7 @@ export default function ActiveTripCard({
             </div>
           </div>
 
+          {/* Stats */}
           <div className="atc-stats-bar">
             {[
               { val: `${activeTrip.tripDistanceMiles?.toFixed(1) ?? "--"} mi`, key: "Distance"  },
@@ -965,15 +1071,34 @@ export default function ActiveTripCard({
             ))}
           </div>
 
+          {/* ── 3 Action Buttons ── */}
+          <div className="atc-actions">
+            <button className="atc-action-btn" onClick={() => openInMaps(isProgress ? activeTrip.dropoff : activeTrip.pickup)}>
+              <Map size={16} strokeWidth={1.8} />
+              Maps
+            </button>
+            <button className="atc-action-btn" onClick={callRider}>
+              <Phone size={16} strokeWidth={1.8} />
+              Call
+            </button>
+            <button className="atc-action-btn" onClick={openNavigation}>
+              <Navigation size={16} strokeWidth={1.8} />
+              Navigate
+            </button>
+          </div>
+
           <div className="atc-divider" />
 
+          {/* Message toggle */}
           <div className="atc-msg-toggle-row">
             <button
               className={`atc-msg-toggle${unreadCount > 0 ? " has-msg" : ""}`}
-              onClick={() => setShowMessages(v => !v)}
+              onClick={handleToggleMessages}
             >
               {unreadCount > 0 && (
-                <span className="atc-badge">{unreadCount > 9 ? "9+" : unreadCount}</span>
+                <span key={unreadCount} className="atc-badge">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
               )}
               <MessageCircle size={13} />
               {showMessages ? "Hide chat" : "Message rider"}
@@ -985,10 +1110,17 @@ export default function ActiveTripCard({
             )}
           </div>
 
+          {/* Message panel — keyed to rideId only, not showMessages, so state never resets */}
           {showMessages && rideId && (
-            <DriverMessagePanel rideId={rideId} accent={accent} onUnreadChange={setUnreadCount} />
+            <DriverMessagePanel
+              key={rideId}
+              rideId={rideId}
+              accent={accent}
+              onUnreadChange={handleUnreadChange}
+            />
           )}
 
+          {/* CTA */}
           <div className="atc-cta-area">
             <button className="atc-cta-btn" onClick={onAdvance} disabled={advancePending}>
               <div className="atc-cta-inner">
@@ -1021,6 +1153,7 @@ function DriverMessagePanel({ rideId, accent, onUnreadChange }) {
   const bottomRef     = useRef(null);
   const isAtBottomRef = useRef(true);
   const justSentRef   = useRef(false);
+  // Track showMessages internally so it never collapses on send
   const db        = getFirestore();
   const auth      = getAuth();
   const driverUid = auth.currentUser?.uid ?? null;
@@ -1035,23 +1168,27 @@ function DriverMessagePanel({ rideId, accent, onUnreadChange }) {
 
   useEffect(() => {
     if (!rideId) return;
-    const ref  = query(collection(db, "Rides", rideId, "Messages"), orderBy("createdAt", "asc"));
+    const ref   = query(collection(db, "Rides", rideId, "Messages"), orderBy("createdAt", "asc"));
     const unsub = onSnapshot(ref, (snap) => {
       const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setMessages(msgs);
       onUnreadChange?.(msgs.filter(m => m.senderRole === "rider" && !m.readByDriver).length);
     });
     return () => unsub();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rideId]);
 
+  // Mark rider messages as read
   useEffect(() => {
     if (!rideId) return;
     messages.forEach(msg => {
       if (msg.senderRole === "rider" && !msg.readByDriver)
         updateDoc(doc(db, "Rides", rideId, "Messages", msg.id), { readByDriver: true }).catch(() => {});
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, rideId]);
 
+  // Auto-scroll: only when at bottom or we just sent
   useEffect(() => {
     if (!bottomRef.current) return;
     if (isAtBottomRef.current || justSentRef.current) {
@@ -1062,18 +1199,29 @@ function DriverMessagePanel({ rideId, accent, onUnreadChange }) {
 
   async function sendMessage(text) {
     const trimmed = (text ?? input).trim();
-    if (!trimmed || !rideId || !driverUid) return;
-    setSending(true); justSentRef.current = true;
+    if (!trimmed || !rideId || !driverUid || sending) return;
+
+    setSending(true);
+    justSentRef.current = true;
+    // Capture and clear input immediately — don't touch showMessages
+    const msgText = trimmed;
+    setInput("");
+
     try {
       await addDoc(collection(db, "Rides", rideId, "Messages"), {
-        text: trimmed, senderUid: driverUid, senderRole: "driver",
+        text: msgText, senderUid: driverUid, senderRole: "driver",
         createdAt: serverTimestamp(), readByDriver: true, readByRider: false,
       });
-      setInput(""); setSent(true);
+      setSent(true);
       setTimeout(() => setSent(false), 2000);
     } catch (err) {
-      console.error(err); justSentRef.current = false;
-    } finally { setSending(false); }
+      console.error(err);
+      justSentRef.current = false;
+      // Restore input on failure
+      setInput(msgText);
+    } finally {
+      setSending(false);
+    }
   }
 
   function fmt(ts) {
@@ -1086,7 +1234,14 @@ function DriverMessagePanel({ rideId, accent, onUnreadChange }) {
   return (
     <div className="atc-msg-panel">
       <div className="atc-msg-header">Chat with rider</div>
-      <div className="atc-msg-list" ref={listRef} onScroll={handleScroll}>
+
+      <div
+        className="atc-msg-list"
+        ref={listRef}
+        onScroll={handleScroll}
+        // Prevent touch scroll from bubbling to the card
+        onTouchStart={e => e.stopPropagation()}
+      >
         {messages.length === 0 && <div className="atc-msg-empty">No messages yet. Say hi!</div>}
         {messages.map((msg, idx) => {
           const isDriver = msg.senderRole === "driver";
