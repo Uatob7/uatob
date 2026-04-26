@@ -1,23 +1,24 @@
 import { useState, useRef } from "react";
 import { Car, MapPin, ArrowRight, ChevronDown, Loader2, TrendingUp, Route, Clock } from "lucide-react";
 
-// ── Dark palette — self-contained, no external C import ───────────────────────
+// ── Light palette — modern, neutral, subtle ───────────────────────────────────
 const C = {
-  bg:         "#0C0E14",
-  surface:    "rgba(255,255,255,.03)",
-  surfaceHov: "rgba(255,255,255,.06)",
-  border:     "rgba(255,255,255,.08)",
-  text:       "#F1F5F9",
-  textMid:    "rgba(255,255,255,.5)",
-  textDim:    "rgba(255,255,255,.28)",
-  green:      "#22C55E",
-  blue:       "#38BDF8",
+  bg:         "#F8FAFC",
+  surface:    "#FFFFFF",
+  surfaceHov: "#F1F5F9",
+  border:     "#E2E8F0",
+  text:       "#0F172A",
+  textMid:    "#475569",
+  textDim:    "#94A3B8",
+  green:      "#10B981",
+  blue:       "#3B82F6",
+  accentClean: "#3B82F6",
 };
 
 const PAGE_SIZE = 8;
 
 const TYPE_META = {
-  economy:  { color: "#38BDF8", label: "Economy"  },
+  economy:  { color: "#3B82F6", label: "Economy"  },
   standard: { color: "#6366F1", label: "Standard" },
   xl:       { color: "#8B5CF6", label: "XL"       },
   premium:  { color: "#F59E0B", label: "Premium"  },
@@ -81,26 +82,35 @@ function SummaryStrip({ trips, online }) {
       display: "grid", gridTemplateColumns: "repeat(3,1fr)",
       background: C.surface,
       border: `1px solid ${C.border}`,
-      borderRadius: 16, overflow: "hidden",
+      borderRadius: 20,
+      overflow: "hidden",
+      boxShadow: "0 1px 2px rgba(0,0,0,0.03), 0 1px 3px rgba(0,0,0,0.05)",
     }}>
       {stats.map(({ icon: Icon, label, value, color }, i) => (
         <div key={label} style={{
-          padding: "13px 12px",
+          padding: "14px 16px",
           borderLeft: i > 0 ? `1px solid ${C.border}` : "none",
+          transition: "background 0.2s",
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
-            <Icon size={10} color={color} strokeWidth={2.2} />
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+            <div style={{
+              padding: 2, borderRadius: 6, background: `${color}0d`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <Icon size={12} color={color} strokeWidth={2.2} />
+            </div>
             <span style={{
-              fontSize: 9, fontWeight: 700, letterSpacing: ".09em",
+              fontSize: 10, fontWeight: 700, letterSpacing: ".08em",
               textTransform: "uppercase", color: C.textDim,
             }}>
               {label}
             </span>
           </div>
           <div style={{
-            fontFamily: "'IBM Plex Mono', monospace",
-            fontSize: 14.5, fontWeight: 600,
-            color: C.text, letterSpacing: "-.02em",
+            fontFamily: "'Inter', -apple-system, system-ui, monospace",
+            fontSize: 18, fontWeight: 700,
+            color: C.text, letterSpacing: "-0.02em",
+            lineHeight: 1.2,
           }}>
             {value}
           </div>
@@ -121,61 +131,64 @@ function TripCard({ trip, isLast, isNew }) {
       style={{
         display: "flex", alignItems: "stretch",
         borderBottom: !isLast ? `1px solid ${C.border}` : "none",
-        animation: isNew ? "tt-in .3s cubic-bezier(.22,1,.36,1) both" : "none",
-        transition: "background .15s",
+        animation: isNew ? "tt-in 0.25s cubic-bezier(0.2, 0.9, 0.4, 1.1) both" : "none",
+        transition: "background 0.15s",
         cursor: "pointer",
         overflow: "hidden",
+        background: C.surface,
       }}
       onMouseEnter={e => e.currentTarget.style.background = C.surfaceHov}
-      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+      onMouseLeave={e => e.currentTarget.style.background = C.surface}
     >
       {/* Left accent stripe */}
       <div style={{
         width: 3, flexShrink: 0,
-        background: `linear-gradient(to bottom, ${color}, ${color}44)`,
+        background: color,
       }} />
 
-      <div style={{ flex: 1, padding: "13px 14px", display: "flex", gap: 11, alignItems: "center" }}>
+      <div style={{ flex: 1, padding: "14px 16px", display: "flex", gap: 12, alignItems: "center" }}>
         {/* Icon bubble */}
         <div style={{
-          width: 38, height: 38, flexShrink: 0,
-          background: color + "14",
-          border: `1px solid ${color}28`,
-          borderRadius: 11,
+          width: 40, height: 40, flexShrink: 0,
+          background: `${color}0c`,
+          border: `1px solid ${color}18`,
+          borderRadius: 12,
           display: "flex", alignItems: "center", justifyContent: "center",
         }}>
-          <Car size={16} color={color} strokeWidth={1.8} />
+          <Car size={18} color={color} strokeWidth={1.8} />
         </div>
 
         {/* Route + meta */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
             <span style={{
-              fontSize: 9.5, fontWeight: 800, letterSpacing: ".06em", textTransform: "uppercase",
-              background: color + "16", border: `1px solid ${color}28`, color,
-              borderRadius: 6, padding: "2px 7px",
+              fontSize: 10, fontWeight: 700, letterSpacing: ".03em", textTransform: "uppercase",
+              background: `${color}0d`, border: `1px solid ${color}18`, color,
+              borderRadius: 20, padding: "2px 8px",
             }}>
               {trip.rideLabel ?? meta.label}
             </span>
-            <span style={{ fontSize: 10.5, color: C.textDim, fontWeight: 500 }}>
+            <span style={{ fontSize: 11, color: C.textDim, fontWeight: 500 }}>
               {formatTime(trip.completedAt ?? trip.updatedAt)}
             </span>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <MapPin size={9} color={C.textDim} strokeWidth={2} style={{ flexShrink: 0 }} />
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <MapPin size={10} color={C.textDim} strokeWidth={2} />
+              <span style={{
+                fontSize: 12, fontWeight: 500, color: C.textMid,
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                maxWidth: "140px",
+              }}>
+                {shortenAddress(trip.pickup)}
+              </span>
+            </div>
+            <ArrowRight size={10} color={C.textDim} strokeWidth={2} />
             <span style={{
-              fontSize: 11.5, fontWeight: 500, color: C.textMid,
+              fontSize: 12, fontWeight: 500, color: C.textMid,
               overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-              maxWidth: "38%",
-            }}>
-              {shortenAddress(trip.pickup)}
-            </span>
-            <ArrowRight size={9} color={C.textDim} strokeWidth={2} style={{ flexShrink: 0 }} />
-            <span style={{
-              fontSize: 11.5, fontWeight: 500, color: C.textMid,
-              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-              maxWidth: "38%",
+              maxWidth: "140px",
             }}>
               {shortenAddress(trip.dropoff)}
             </span>
@@ -185,8 +198,8 @@ function TripCard({ trip, isLast, isNew }) {
         {/* Payout */}
         <div style={{ textAlign: "right", flexShrink: 0 }}>
           <div style={{
-            fontFamily: "'IBM Plex Mono', monospace",
-            fontSize: 15, fontWeight: 700, color: C.text, letterSpacing: "-.02em",
+            fontFamily: "'Inter', -apple-system, system-ui, monospace",
+            fontSize: 16, fontWeight: 700, color: C.text, letterSpacing: "-0.01em",
             marginBottom: 2,
           }}>
             ${payout.toFixed(2)}
@@ -194,8 +207,8 @@ function TripCard({ trip, isLast, isNew }) {
           <div style={{ fontSize: 10, color: C.textDim, fontWeight: 500 }}>
             {[
               trip.tripDistanceMiles ? `${trip.tripDistanceMiles} mi` : "",
-              trip.tripDurationMin   ? `${trip.tripDurationMin}m`     : "",
-            ].filter(Boolean).join(" · ")}
+              trip.tripDurationMin   ? `${trip.tripDurationMin} min`   : "",
+            ].filter(Boolean).join(" • ")}
           </div>
         </div>
       </div>
@@ -207,10 +220,10 @@ function TripCard({ trip, isLast, isNew }) {
 function DayGroup({ label, trips, newFromIdx }) {
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 2px 8px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "0 2px 10px 2px" }}>
         <span style={{
-          fontSize: 10, fontWeight: 800, letterSpacing: ".1em",
-          textTransform: "uppercase", color: C.textDim, whiteSpace: "nowrap",
+          fontSize: 11, fontWeight: 800, letterSpacing: ".1em",
+          textTransform: "uppercase", color: C.textDim,
         }}>
           {label}
         </span>
@@ -220,7 +233,10 @@ function DayGroup({ label, trips, newFromIdx }) {
       <div style={{
         background: C.surface,
         border: `1px solid ${C.border}`,
-        borderRadius: 16, overflow: "hidden",
+        borderRadius: 20,
+        overflow: "hidden",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.03), 0 2px 5px rgba(0,0,0,0.05)",
+        transition: "box-shadow 0.2s",
       }}>
         {trips.map((trip, i) => (
           <TripCard
@@ -255,44 +271,64 @@ export default function TripsTab({ completedRides = [], online }) {
       setVisibleCount(v => v + PAGE_SIZE);
       setLoadingMore(false);
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 60);
-    }, 300);
+    }, 280);
   }
 
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;900&family=IBM+Plex+Mono:wght@500;600;700&display=swap');
-        @keyframes slideUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:none} }
-        @keyframes tt-in   { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:none} }
-        @keyframes tt-spin { to{transform:rotate(360deg)} }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap');
+        @keyframes slideUp { 
+          from { opacity: 0; transform: translateY(12px); } 
+          to { opacity: 1; transform: translateY(0); } 
+        }
+        @keyframes tt-in { 
+          from { opacity: 0; transform: translateX(-6px); } 
+          to { opacity: 1; transform: translateX(0); } 
+        }
+        @keyframes tt-spin { 
+          to { transform: rotate(360deg); } 
+        }
+        * {
+          box-sizing: border-box;
+        }
       `}</style>
 
       <div style={{
-        padding: "18px 16px 32px",
-        display: "flex", flexDirection: "column", gap: 16,
-        animation: "slideUp .38s ease-out forwards",
+        padding: "24px 20px 36px",
+        display: "flex", flexDirection: "column", gap: 20,
+        animation: "slideUp 0.35s ease-out forwards",
         background: C.bg, minHeight: "100%",
         color: C.text,
+        fontFamily: "'Inter', -apple-system, system-ui, sans-serif",
       }}>
 
         {/* ── Header ── */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{
-            fontSize: 26, fontWeight: 900, color: C.text,
-            letterSpacing: "-0.5px", fontFamily: "'Syne', sans-serif",
-          }}>
-            Trip History
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <h1 style={{
+              fontSize: 28, fontWeight: 800, color: C.text,
+              letterSpacing: "-0.01em", margin: 0, lineHeight: 1.2,
+            }}>
+              Trip History
+            </h1>
+            <p style={{
+              fontSize: 13, color: C.textMid, marginTop: 4, marginBottom: 0,
+            }}>
+              View and manage your completed rides
+            </p>
           </div>
           <div style={{
-            background: online ? "rgba(34,197,94,.1)" : C.surface,
-            border: online ? "1px solid rgba(34,197,94,.25)" : `1px solid ${C.border}`,
-            borderRadius: 100, padding: "5px 13px",
+            background: online ? `${C.green}0c` : C.surface,
+            border: online ? `1px solid ${C.green}20` : `1px solid ${C.border}`,
+            borderRadius: 100, padding: "5px 14px",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
           }}>
             <span style={{
-              fontSize: 11, fontWeight: 800, letterSpacing: ".08em",
-              color: online ? accentColor : C.textDim,
+              fontSize: 11, fontWeight: 700, letterSpacing: ".05em",
+              color: online ? C.green : C.textDim,
             }}>
-              {completedRides.length} TRIPS
+              {completedRides.length} TOTAL TRIPS
             </span>
           </div>
         </div>
@@ -301,19 +337,20 @@ export default function TripsTab({ completedRides = [], online }) {
         {completedRides.length === 0 ? (
           <div style={{
             background: C.surface, border: `1px solid ${C.border}`,
-            borderRadius: 18, padding: "48px 20px",
+            borderRadius: 24, padding: "56px 24px",
             textAlign: "center", display: "flex", flexDirection: "column",
-            alignItems: "center", gap: 10,
+            alignItems: "center", gap: 12,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.03)",
           }}>
             <div style={{
-              width: 52, height: 52, borderRadius: 16,
-              background: "rgba(255,255,255,.04)", border: `1px solid ${C.border}`,
-              display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 2,
+              width: 56, height: 56, borderRadius: 20,
+              background: C.surfaceHov, border: `1px solid ${C.border}`,
+              display: "flex", alignItems: "center", justifyContent: "center",
             }}>
-              <Car size={22} color={C.textDim} strokeWidth={1.5} />
+              <Car size={24} color={C.textDim} strokeWidth={1.5} />
             </div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: C.textMid }}>No trips yet</div>
-            <div style={{ fontSize: 12.5, color: C.textDim, maxWidth: 200, lineHeight: 1.6 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: C.textMid }}>No trips yet</div>
+            <div style={{ fontSize: 13, color: C.textDim, maxWidth: 220, lineHeight: 1.5 }}>
               Completed rides will appear here after your first trip.
             </div>
           </div>
@@ -323,7 +360,7 @@ export default function TripsTab({ completedRides = [], online }) {
             <SummaryStrip trips={completedRides} online={online} />
 
             {/* ── Grouped trip list ── */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               {groups.map(({ key, trips: dayTrips }) => {
                 const groupStart = visible.indexOf(dayTrips[0]);
                 const newFrom    = newFromCount != null
@@ -347,29 +384,30 @@ export default function TripsTab({ completedRides = [], online }) {
                   onClick={handleLoadMore}
                   disabled={loadingMore}
                   style={{
-                    width: "100%", padding: "13px 20px",
+                    width: "100%", padding: "14px 20px",
                     background: C.surface, border: `1px solid ${C.border}`,
-                    borderRadius: 14, cursor: loadingMore ? "not-allowed" : "pointer",
+                    borderRadius: 40, cursor: loadingMore ? "default" : "pointer",
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                    transition: "background .15s", fontFamily: "inherit",
+                    transition: "all 0.2s",
+                    fontFamily: "inherit", fontWeight: 600, fontSize: 13,
+                    color: C.textMid,
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
                   }}
-                  onMouseEnter={e => { if (!loadingMore) e.currentTarget.style.background = C.surfaceHov; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = C.surface; }}
+                  onMouseEnter={e => { if (!loadingMore) e.currentTarget.style.background = C.surfaceHov; e.currentTarget.style.borderColor = "#CBD5E1"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = C.surface; e.currentTarget.style.borderColor = C.border; }}
                 >
                   {loadingMore ? (
                     <>
-                      <Loader2 size={14} color={C.textDim} strokeWidth={2}
-                        style={{ animation: "tt-spin .9s linear infinite" }} />
-                      <span style={{ fontSize: 13, fontWeight: 600, color: C.textDim }}>Loading…</span>
+                      <Loader2 size={15} color={C.textDim} strokeWidth={2}
+                        style={{ animation: "tt-spin 0.8s linear infinite" }} />
+                      <span>Loading trips…</span>
                     </>
                   ) : (
                     <>
-                      <ChevronDown size={14} color={C.textDim} strokeWidth={2} />
-                      <span style={{ fontSize: 13, fontWeight: 600, color: C.textMid }}>
-                        Load {Math.min(PAGE_SIZE, remaining)} more
-                      </span>
+                      <ChevronDown size={15} strokeWidth={2} />
+                      <span>Load {Math.min(PAGE_SIZE, remaining)} more trip{Math.min(PAGE_SIZE, remaining) !== 1 ? 's' : ''}</span>
                       <span style={{ fontSize: 12, color: C.textDim, fontWeight: 500 }}>
-                        · {remaining} remaining
+                        ({remaining} left)
                       </span>
                     </>
                   )}
@@ -379,9 +417,9 @@ export default function TripsTab({ completedRides = [], online }) {
 
             {/* ── All loaded ── */}
             {!hasMore && completedRides.length > PAGE_SIZE && (
-              <div style={{ textAlign: "center", padding: "4px 0" }}>
-                <span style={{ fontSize: 11, color: C.textDim, fontWeight: 700, letterSpacing: ".08em" }}>
-                  ALL {completedRides.length} TRIPS LOADED
+              <div style={{ textAlign: "center", padding: "8px 0 4px" }}>
+                <span style={{ fontSize: 11, color: C.textDim, fontWeight: 700, letterSpacing: ".08em", background: C.surfaceHov, padding: "6px 14px", borderRadius: 100 }}>
+                  ✓ ALL {completedRides.length} TRIPS LOADED
                 </span>
               </div>
             )}
