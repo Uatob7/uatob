@@ -257,10 +257,6 @@ function prettyPayment(method = '') {
 
 // ── Keyframes ─────────────────────────────────────────────────────────
 const KEYFRAMES = `
-  @keyframes tmRipple {
-    0%   { transform: translate(-50%,-50%) scale(0.6); opacity: 0.7; }
-    100% { transform: translate(-50%,-50%) scale(2.8); opacity: 0; }
-  }
   @keyframes tmDriverBob {
     0%, 100% { transform: scale(1); }
     50%       { transform: scale(1.05); }
@@ -280,15 +276,24 @@ const KEYFRAMES = `
     from { opacity: 0; transform: translateY(6px); }
     to   { opacity: 1; transform: translateY(0); }
   }
-  @keyframes tmPulsePin {
-    0%, 100% { box-shadow: 0 4px 18px rgba(17,24,39,0.35), 0 0 0 0 rgba(17,24,39,0.25); }
-    50%       { box-shadow: 0 4px 18px rgba(17,24,39,0.35), 0 0 0 10px rgba(17,24,39,0); }
-  }
   @keyframes tmBadgePop {
     0%   { transform: scale(0.6); opacity: 0; }
     70%  { transform: scale(1.15); }
     100% { transform: scale(1); opacity: 1; }
   }
+
+  /* MapView pin animations — SVG-based pulse + drop */
+  @keyframes tmPinPulse {
+    0%,100% { r: 13; opacity: 0.22; }
+    50%      { r: 19; opacity: 0.07; }
+  }
+  @keyframes tmPinDrop {
+    0%   { transform: translateY(-10px) scale(.85); opacity: 0; }
+    65%  { transform: translateY(2px)   scale(1.06); opacity: 1; }
+    100% { transform: translateY(0)     scale(1);    opacity: 1; }
+  }
+  .tm-pin-pulse { animation: tmPinPulse 2.2s ease-in-out infinite; }
+  .tm-pin-drop  { animation: tmPinDrop  .55s cubic-bezier(.34,1.2,.64,1) both; }
 `;
 
 let _injected = false;
@@ -530,26 +535,18 @@ export default function TrackingMap({
   const rawPolyline = payload.polyline ?? null;
   const decodedPts  = useMemo(() => decodePolyline(rawPolyline), [rawPolyline]);
 
-  // ── Single bounding set = decoded polyline points only.
-  // Every projection (polyline, pins, car) must use the SAME bounding box so
-  // that svgPolyPts[0] and svgPolyPts[last] land exactly where the line ends.
-  // Extra GPS coords are NOT added here — they would shift the bounding box and
-  // cause the line endpoints to drift away from the pin positions.
-  const boundingPts = decodedPts; // alias for clarity
+  // Single bounding set = decoded polyline points only
+  const boundingPts = decodedPts;
 
-  // Project the polyline into SVG-space using the shared bounding box
   const svgPolyPts = useMemo(
     () => projectPoints(boundingPts, mapDims.W, mapDims.H),
     [boundingPts, mapDims.W, mapDims.H]
   );
 
-  // ── Pin positions ─────────────────────────────────────────────────────
-  // Pins are taken directly from the projected polyline endpoints so they
-  // are guaranteed to sit exactly where the line starts/ends.
+  // Pin positions — anchored directly to polyline endpoints
   const pickupSvg = useMemo(() => {
-    if (isInProgress) return null;                              // hide pickup while riding
-    if (svgPolyPts.length > 0) return svgPolyPts[0];           // ← exact polyline start
-    // no polyline yet — fall back to projecting raw coords
+    if (isInProgress) return null; // hide pickup while riding
+    if (svgPolyPts.length > 0) return svgPolyPts[0];
     const lat = safeNum(payload.pickupLat);
     const lng = safeNum(payload.pickupLng);
     if (!lat || !lng) return null;
@@ -557,8 +554,7 @@ export default function TrackingMap({
   }, [isInProgress, svgPolyPts, payload.pickupLat, payload.pickupLng, boundingPts, mapDims.W, mapDims.H]);
 
   const dropoffSvg = useMemo(() => {
-    if (svgPolyPts.length > 0) return svgPolyPts[svgPolyPts.length - 1]; // ← exact polyline end
-    // no polyline yet — fall back to projecting raw coords
+    if (svgPolyPts.length > 0) return svgPolyPts[svgPolyPts.length - 1];
     const lat = safeNum(payload.dropoffLat);
     const lng = safeNum(payload.dropoffLng);
     if (!lat || !lng) return null;
@@ -644,6 +640,7 @@ export default function TrackingMap({
       >
         <MapBackground W={mapDims.W} H={mapDims.H} />
 
+        {/* ── Single SVG layer holds polyline + pins, so they share coordinates ── */}
         {mapDims.W > 0 && svgPolyPts.length > 1 && (
           <svg
             style={{ position: 'absolute', inset: 0, width: '100%', height: mapDims.H, pointerEvents: 'none', zIndex: 3 }}
@@ -660,6 +657,7 @@ export default function TrackingMap({
               </filter>
             </defs>
 
+            {/* ── Route line ── */}
             <path d={polylinePath} fill="none" stroke="#fff" strokeWidth={9}
                   strokeLinecap="round" strokeLinejoin="round" opacity={0.85}/>
             <path d={polylinePath} fill="none"
@@ -690,62 +688,97 @@ export default function TrackingMap({
               style={{ animation: 'tmDashFlow 1.4s linear infinite' }}
             />
 
-            {pickupSvg  && <circle cx={pickupSvg.x}  cy={pickupSvg.y}  r={26} fill="#16A34A" opacity={0.10}/>}
-            {dropoffSvg && <circle cx={dropoffSvg.x} cy={dropoffSvg.y} r={26} fill="#111827" opacity={0.08}/>}
+            {/* ── Pickup marker (MapView style — stacked concentric circles on polyline[0]) ── */}
+            {pickupSvg && (
+              <g
+                className="tm-pin-drop"
+                style={{
+                  transformOrigin: `${pickupSvg.x}px ${pickupSvg.y}px`,
+                  animationDelay: '.1s',
+                }}
+              >
+                {/* Pulsing halo (only while heading to pickup) */}
+                {headingToPickup && (
+                  <circle
+                    className="tm-pin-pulse"
+                    cx={pickupSvg.x} cy={pickupSvg.y}
+                    fill="#22C55E"
+                  />
+                )}
+                {/* White ring with green stroke */}
+                <circle cx={pickupSvg.x} cy={pickupSvg.y} r={13}  fill="#fff" stroke="#22C55E" strokeWidth="2.5"/>
+                {/* Green core */}
+                <circle cx={pickupSvg.x} cy={pickupSvg.y} r={6.5} fill="#22C55E"/>
+                {/* White dot */}
+                <circle cx={pickupSvg.x} cy={pickupSvg.y} r={2.5} fill="#fff"/>
+              </g>
+            )}
+
+            {/* ── Dropoff marker (MapView teardrop on polyline[last]) ── */}
+            {dropoffSvg && (
+              <g
+                className="tm-pin-drop"
+                style={{
+                  transformOrigin: `${dropoffSvg.x}px ${dropoffSvg.y}px`,
+                  animationDelay: '.3s',
+                }}
+              >
+                {/* Shadow under teardrop */}
+                <ellipse cx={dropoffSvg.x} cy={dropoffSvg.y + 26} rx={7} ry={3} fill="rgba(17,24,39,.15)"/>
+                {/* Teardrop body */}
+                <path
+                  d={`M${dropoffSvg.x},${dropoffSvg.y + 26}
+                      C${dropoffSvg.x},${dropoffSvg.y + 26} ${dropoffSvg.x - 14},${dropoffSvg.y + 10}
+                      ${dropoffSvg.x - 14},${dropoffSvg.y - 4}
+                      A14,14 0 1,1 ${dropoffSvg.x + 14},${dropoffSvg.y - 4}
+                      C${dropoffSvg.x + 14},${dropoffSvg.y + 10} ${dropoffSvg.x},${dropoffSvg.y + 26} Z`}
+                  fill="#111827"
+                />
+                {/* White circle inside */}
+                <circle cx={dropoffSvg.x} cy={dropoffSvg.y - 5} r={6}   fill="#fff"/>
+                {/* Black dot in middle */}
+                <circle cx={dropoffSvg.x} cy={dropoffSvg.y - 5} r={2.5} fill="#111827"/>
+              </g>
+            )}
           </svg>
         )}
 
-        {/* Pickup pin — anchored to polyline[0] */}
-        {pickupSvg && (
-          <div style={{
-            position: 'absolute',
-            left: pickupSvg.x, top: pickupSvg.y,
-            zIndex: 10,
-            transform: 'translate(-50%, -50%)',
-            animation: 'tmFadeUp .5s ease-out .2s both',
-          }}>
-            <div style={{
-              width: 38, height: 38,
-              background: '#fff',
-              borderRadius: '50%',
-              border: '2.5px solid #16A34A',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 4px 14px rgba(22,163,74,0.30)',
-              position: 'relative',
-            }}>
+        {/* ── Pins for the no-polyline edge case (rendered as fallback HTML) ── */}
+        {svgPolyPts.length <= 1 && pickupSvg && (
+          <svg
+            style={{ position: 'absolute', inset: 0, width: '100%', height: mapDims.H, pointerEvents: 'none', zIndex: 3 }}
+            viewBox={`0 0 ${mapDims.W} ${mapDims.H}`}
+          >
+            <g
+              className="tm-pin-drop"
+              style={{ transformOrigin: `${pickupSvg.x}px ${pickupSvg.y}px`, animationDelay: '.1s' }}
+            >
               {headingToPickup && (
-                <>
-                  <div style={{ position:'absolute', width:38, height:38, borderRadius:'50%', border:'2px solid rgba(22,163,74,.3)', top:'50%', left:'50%', animation:'tmRipple 2s ease-out infinite' }}/>
-                  <div style={{ position:'absolute', width:38, height:38, borderRadius:'50%', border:'2px solid rgba(22,163,74,.18)', top:'50%', left:'50%', animation:'tmRipple 2s ease-out .7s infinite' }}/>
-                </>
+                <circle className="tm-pin-pulse" cx={pickupSvg.x} cy={pickupSvg.y} fill="#22C55E"/>
               )}
-              <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#16A34A' }}/>
-            </div>
-          </div>
-        )}
-
-        {/* Dropoff pin — anchored to polyline[last] */}
-        {dropoffSvg && (
-          <div style={{
-            position: 'absolute',
-            left: dropoffSvg.x, top: dropoffSvg.y,
-            zIndex: 10,
-            transform: 'translate(-50%, -50%)',
-            animation: 'tmFadeUp .5s ease-out .4s both',
-          }}>
-            <div style={{
-              width: 38, height: 38,
-              background: '#111827',
-              borderRadius: '50%',
-              border: '3px solid #fff',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 4px 18px rgba(17,24,39,0.35)',
-              animation: headingToDropoff ? 'tmPulsePin 2s ease-in-out infinite' : 'none',
-              position: 'relative',
-            }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }}/>
-            </div>
-          </div>
+              <circle cx={pickupSvg.x} cy={pickupSvg.y} r={13}  fill="#fff" stroke="#22C55E" strokeWidth="2.5"/>
+              <circle cx={pickupSvg.x} cy={pickupSvg.y} r={6.5} fill="#22C55E"/>
+              <circle cx={pickupSvg.x} cy={pickupSvg.y} r={2.5} fill="#fff"/>
+            </g>
+            {dropoffSvg && (
+              <g
+                className="tm-pin-drop"
+                style={{ transformOrigin: `${dropoffSvg.x}px ${dropoffSvg.y}px`, animationDelay: '.3s' }}
+              >
+                <ellipse cx={dropoffSvg.x} cy={dropoffSvg.y + 26} rx={7} ry={3} fill="rgba(17,24,39,.15)"/>
+                <path
+                  d={`M${dropoffSvg.x},${dropoffSvg.y + 26}
+                      C${dropoffSvg.x},${dropoffSvg.y + 26} ${dropoffSvg.x - 14},${dropoffSvg.y + 10}
+                      ${dropoffSvg.x - 14},${dropoffSvg.y - 4}
+                      A14,14 0 1,1 ${dropoffSvg.x + 14},${dropoffSvg.y - 4}
+                      C${dropoffSvg.x + 14},${dropoffSvg.y + 10} ${dropoffSvg.x},${dropoffSvg.y + 26} Z`}
+                  fill="#111827"
+                />
+                <circle cx={dropoffSvg.x} cy={dropoffSvg.y - 5} r={6}   fill="#fff"/>
+                <circle cx={dropoffSvg.x} cy={dropoffSvg.y - 5} r={2.5} fill="#111827"/>
+              </g>
+            )}
+          </svg>
         )}
 
         <AnimatedCar
