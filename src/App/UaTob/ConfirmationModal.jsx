@@ -1,3 +1,4 @@
+
 // src/App/UaTob/ConfirmationModal.jsx
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Clock, Car, CheckCircle, RotateCcw, Loader2, Bell, AlertCircle } from 'lucide-react';
@@ -9,7 +10,6 @@ import { firebase_app } from '@/firebase/config';
 
 const db = getFirestore(firebase_app);
 const functions = getFunctions(firebase_app, "us-east1");
-const callableCancelRide = httpsCallable(functions, "cancelRide");
 const callableExtendRideSearch = httpsCallable(functions, "extendRideSearch");
 const callableSaveRiderToken = httpsCallable(functions, "saveRiderFcmToken");
 
@@ -216,16 +216,7 @@ export default function ConfirmationModal({
       closeTimeoutRef.current = setTimeout(() => onPaymentCancelled?.(), 260);
       return;
     }
-    if (status === 'timeout' && rideId && riderUid) {
-      setActionLoading(true);
-      try {
-        await callableCancelRide({ rideId, uid: riderUid });
-      } catch (err) {
-        console.error('Cancel error:', err);
-      } finally {
-        setActionLoading(false);
-      }
-    }
+    // timeout cleanup is handled by the backend — nothing to do here
     setVisible(false);
     closeTimeoutRef.current = setTimeout(() => onClose?.(), 260);
   };
@@ -262,7 +253,7 @@ export default function ConfirmationModal({
     setNotifError("");
   };
 
-  // ─── Redesigned Notification Popup ────────────────────────────────────────
+  // ─── Notification Popup ────────────────────────────────────────────────────
   const NotificationPopup = () => {
     const hasError = !!notifError;
 
@@ -331,7 +322,7 @@ export default function ConfirmationModal({
               borderRadius: '28px',
               overflow: 'hidden',
               boxShadow: '0 32px 80px rgba(0,0,0,.22), 0 0 0 1px rgba(0,0,0,.06)',
-              animation: `notifCardIn .32s cubic-bezier(.34,1.46,.64,1) both, ${hasError ? 'errorShake .4s ease' : 'none'}`,
+              animation: `notifCardIn .32s cubic-bezier(.34,1.46,.64,1) both${hasError ? ', errorShake .4s ease' : ''}`,
               fontFamily: "'DM Sans', sans-serif",
             }}
           >
@@ -350,11 +341,13 @@ export default function ConfirmationModal({
               {/* Decorative grid lines */}
               <div style={{
                 position: 'absolute', inset: 0, opacity: .18,
-                backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 22px, ${hasError ? '#FCA5A5' : '#93C5FD'} 22px, ${hasError ? '#FCA5A5' : '#93C5FD'} 23px),
-                                  repeating-linear-gradient(90deg, transparent, transparent 22px, ${hasError ? '#FCA5A5' : '#93C5FD'} 22px, ${hasError ? '#FCA5A5' : '#93C5FD'} 23px)`,
+                backgroundImage: `
+                  repeating-linear-gradient(0deg, transparent, transparent 22px, ${hasError ? '#FCA5A5' : '#93C5FD'} 22px, ${hasError ? '#FCA5A5' : '#93C5FD'} 23px),
+                  repeating-linear-gradient(90deg, transparent, transparent 22px, ${hasError ? '#FCA5A5' : '#93C5FD'} 22px, ${hasError ? '#FCA5A5' : '#93C5FD'} 23px)
+                `,
               }} />
 
-              {/* Pulse rings behind icon */}
+              {/* Pulse rings */}
               {!notifLoading && !hasError && (
                 <>
                   {[0, 1, 2].map(i => (
@@ -371,7 +364,7 @@ export default function ConfirmationModal({
                 </>
               )}
 
-              {/* Icon container */}
+              {/* Icon */}
               <div style={{
                 position: 'relative', zIndex: 1,
                 width: '72px', height: '72px',
@@ -385,7 +378,6 @@ export default function ConfirmationModal({
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 {notifLoading ? (
-                  /* Spinner */
                   <svg width="28" height="28" viewBox="0 0 28 28" fill="none"
                     style={{ animation: 'notifSpin .85s linear infinite' }}>
                     <circle cx="14" cy="14" r="11" stroke="rgba(255,255,255,.25)" strokeWidth="2.5" />
@@ -412,11 +404,7 @@ export default function ConfirmationModal({
                 textAlign: 'center',
                 lineHeight: 1.2,
               }}>
-                {notifLoading
-                  ? 'Connecting…'
-                  : hasError
-                    ? 'Permission failed'
-                    : 'Stay in the loop'}
+                {notifLoading ? 'Connecting…' : hasError ? 'Permission failed' : 'Stay in the loop'}
               </div>
 
               {/* Subheading */}
@@ -441,7 +429,7 @@ export default function ConfirmationModal({
             {/* Bottom action zone */}
             <div style={{ padding: '20px 20px 22px', background: '#fff' }}>
 
-              {/* Feature pill — only shown in default state */}
+              {/* Feature pill — default state only */}
               {!notifLoading && !hasError && (
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: '10px',
@@ -485,7 +473,7 @@ export default function ConfirmationModal({
                 </div>
               )}
 
-              {/* Action buttons */}
+              {/* Buttons */}
               {!notifLoading && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
                   <button
@@ -539,7 +527,6 @@ export default function ConfirmationModal({
   };
   // ──────────────────────────────────────────────────────────────────────────
 
-  // Main render
   return (
     <div style={{
       position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)',
@@ -556,6 +543,7 @@ export default function ConfirmationModal({
         transition: 'transform .28s cubic-bezier(.34,1.56,.64,1), opacity .25s ease',
         transform: visible ? 'scale(1) translateY(0)' : 'scale(.94) translateY(16px)',
       }}>
+
         {/* CHECKING PAYMENT */}
         {status === 'checking_payment' && (
           <div style={{ padding: '40px', textAlign: 'center' }}>
@@ -746,9 +734,9 @@ export default function ConfirmationModal({
         )}
 
         <style>{`
-          @keyframes radarRing  { 0% { transform: scale(0.55); opacity: .8; } 100% { transform: scale(1.75); opacity: 0; } }
-          @keyframes burstRing  { 0% { transform: translate(-50%,-50%) scale(0.5); opacity: .5; } 100% { transform: translate(-50%,-50%) scale(1.5); opacity: 0; } }
-          @keyframes spin       { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+          @keyframes radarRing { 0% { transform: scale(0.55); opacity: .8; } 100% { transform: scale(1.75); opacity: 0; } }
+          @keyframes burstRing { 0% { transform: translate(-50%,-50%) scale(0.5); opacity: .5; } 100% { transform: translate(-50%,-50%) scale(1.5); opacity: 0; } }
+          @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         `}</style>
       </div>
     </div>
