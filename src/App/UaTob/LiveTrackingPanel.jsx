@@ -11,329 +11,13 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
-import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { firebase_app } from '@/firebase/config';
 import TrackingMap from '@/App/UaTob/TrackingMap.jsx';
 
 // ── Callables ──────────────────────────────────────────────────────────────
-const functions            = getFunctions(firebase_app, 'us-east1');
-const callRiderLocation    = httpsCallable(functions, 'riderLocation');
-const callSaveRiderToken   = httpsCallable(functions, 'saveRiderFcmToken');
-
-// ── VAPID key ──────────────────────────────────────────────────────────────
-const VAPID_KEY = 'BJ_sRHZonSGCKk2mB2i9ofTRS8ouFVMV-I15FX4sqdUXHyVb1lo6H-N4GMPrlcIIshRlykQicaxkxxFxcYcI4JQ';
-
-// ── FCM registration ───────────────────────────────────────────────────────
-async function registerRiderFcmToken(uid) {
-  if (!('Notification' in window)) throw new Error('Push notifications aren\'t supported in this browser');
-
-  const permission = await window.Notification.requestPermission();
-  if (permission !== 'granted') throw new Error('You\'ll need to allow notifications to get ride updates');
-
-  const messaging = getMessaging(firebase_app);
-  const token = await getToken(messaging, { vapidKey: VAPID_KEY });
-  if (!token) throw new Error('Something went wrong setting up notifications. Try again.');
-
-  await callSaveRiderToken({ uid, token });
-  console.log('[UaTob Rider] FCM token registered');
-}
-
-// ── Popup styles ───────────────────────────────────────────────────────────
-const POPUP_STYLES = `
-  @keyframes riderFadeIn {
-    from { opacity: 0; }
-    to   { opacity: 1; }
-  }
-  @keyframes riderSlideUp {
-    from { opacity: 0; transform: translateY(28px) scale(.94); }
-    to   { opacity: 1; transform: translateY(0) scale(1); }
-  }
-  @keyframes riderSpin {
-    from { transform: rotate(0deg); }
-    to   { transform: rotate(360deg); }
-  }
-  @keyframes riderPulseRing {
-    0%   { transform: scale(1);    opacity: .6; }
-    100% { transform: scale(1.6);  opacity: 0;  }
-  }
-  @keyframes riderShimmer {
-    0%   { background-position: -200% 0; }
-    100% { background-position:  200% 0; }
-  }
-  @keyframes riderFloat {
-    0%, 100% { transform: translateY(0); }
-    50%      { transform: translateY(-3px); }
-  }
-  .rider-enable-btn {
-    position: relative;
-    overflow: hidden;
-    transition: transform .15s ease, box-shadow .25s ease, filter .2s ease;
-  }
-  .rider-enable-btn:hover  { filter: brightness(1.06); }
-  .rider-enable-btn:active { transform: scale(0.975); }
-  .rider-enable-btn::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,.25), transparent);
-    background-size: 200% 100%;
-    animation: riderShimmer 2.6s ease-in-out infinite;
-    pointer-events: none;
-  }
-  .rider-skip-btn {
-    transition: all .15s ease;
-  }
-  .rider-skip-btn:hover {
-    background: #F9FAFB !important;
-    border-color: #D1D5DB !important;
-    color: #374151 !important;
-  }
-  .rider-feature-row {
-    transition: transform .2s ease, background .2s ease;
-  }
-  .rider-feature-row:hover {
-    transform: translateX(2px);
-  }
-`;
-
-// ── Notification popup ─────────────────────────────────────────────────────
-function RiderNotificationPopup({ onEnable, onSkip, loading, error }) {
-  const isError = Boolean(error);
-  const brand   = isError ? '#DC2626' : '#16A34A';
-  const brandLt = isError ? '#991B1B' : '#15803D';
-  const brandDk = isError ? '#7F1D1D' : '#14532D';
-
-  return (
-    <div
-      onClick={(e) => { if (e.target === e.currentTarget && !loading) onSkip(); }}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 1050,
-        background: 'rgba(15,23,42,.55)',
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '20px',
-        animation: 'riderFadeIn .22s ease',
-      }}
-    >
-      <style>{POPUP_STYLES}</style>
-
-      <div
-        style={{
-          position: 'relative',
-          width: '100%',
-          maxWidth: '380px',
-          background: '#fff',
-          borderRadius: '28px',
-          overflow: 'hidden',
-          boxShadow: '0 30px 80px rgba(15,23,42,.35), 0 8px 20px rgba(15,23,42,.12), inset 0 1px 0 rgba(255,255,255,.8)',
-          animation: 'riderSlideUp .4s cubic-bezier(.34,1.56,.64,1)',
-          border: '1px solid rgba(255,255,255,.6)',
-        }}
-      >
-        {/* Decorative gradient header */}
-        <div style={{
-          position: 'relative',
-          background: isError
-            ? `radial-gradient(circle at 30% 20%, ${brand}22, transparent 55%),
-               radial-gradient(circle at 80% 80%, ${brandLt}18, transparent 55%),
-               linear-gradient(135deg, #FEF2F2, #FEE2E2)`
-            : `radial-gradient(circle at 30% 20%, ${brand}26, transparent 55%),
-               radial-gradient(circle at 80% 80%, ${brandLt}1F, transparent 55%),
-               linear-gradient(135deg, #F0FDF4, #DCFCE7)`,
-          padding: '36px 24px 28px',
-          textAlign: 'center',
-          borderBottom: `1px solid ${isError ? '#FECACA' : '#BBF7D0'}`,
-        }}>
-          {/* Icon with pulse rings */}
-          <div style={{ position: 'relative', display: 'inline-block', marginBottom: '18px' }}>
-            {!loading && !isError && (
-              <>
-                <span style={{
-                  position: 'absolute', inset: 0,
-                  borderRadius: '50%',
-                  border: `2px solid ${brand}`,
-                  animation: 'riderPulseRing 2s ease-out infinite',
-                  opacity: .5,
-                }} />
-                <span style={{
-                  position: 'absolute', inset: 0,
-                  borderRadius: '50%',
-                  border: `2px solid ${brand}`,
-                  animation: 'riderPulseRing 2s ease-out .7s infinite',
-                  opacity: .3,
-                }} />
-              </>
-            )}
-            <div style={{
-              position: 'relative',
-              width: '76px', height: '76px',
-              borderRadius: '50%',
-              background: isError
-                ? 'linear-gradient(135deg, #FFF, #FEE2E2)'
-                : 'linear-gradient(135deg, #FFF, #DCFCE7)',
-              border: `2px solid ${isError ? '#FCA5A5' : '#86EFAC'}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: `0 8px 24px ${brand}33, inset 0 1px 2px rgba(255,255,255,.9)`,
-              animation: !loading && !isError ? 'riderFloat 3s ease-in-out infinite' : 'none',
-            }}>
-              {loading
-                ? <Loader2 size={30} color={brand} strokeWidth={2.5} style={{ animation: 'riderSpin 1s linear infinite' }} />
-                : isError
-                  ? <AlertCircle size={30} color={brand} strokeWidth={2.3} />
-                  : <BellRing size={30} color={brand} strokeWidth={2.2} />
-              }
-            </div>
-          </div>
-
-          {/* Title */}
-          <div style={{
-            fontFamily: "'Barlow Condensed', sans-serif",
-            fontSize: '26px',
-            fontWeight: 900,
-            color: '#0F172A',
-            letterSpacing: '-0.6px',
-            lineHeight: 1.1,
-            marginBottom: '8px',
-          }}>
-            {loading
-              ? 'Setting things up…'
-              : isError
-                ? 'Oops, something went wrong'
-                : 'Never miss your ride'
-            }
-          </div>
-
-          {/* Subtitle */}
-          <div style={{
-            fontSize: '14px',
-            color: '#475569',
-            fontWeight: 500,
-            lineHeight: 1.55,
-            maxWidth: '300px',
-            margin: '0 auto',
-          }}>
-            {loading
-              ? 'Just a moment while we enable your notifications'
-              : isError
-                ? error
-                : 'Get instant alerts when your driver is assigned, on the way, and waiting.'
-            }
-          </div>
-        </div>
-
-        {/* Body */}
-        <div style={{ padding: '22px 24px 24px' }}>
-          {/* Feature list */}
-          {!loading && !isError && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '22px' }}>
-              {[
-                { icon: '🚗', title: 'Driver assigned',     desc: 'Know the moment you\'re matched' },
-                { icon: '📍', title: 'Arrival alerts',      desc: 'Head out at the perfect time' },
-                { icon: '✅', title: 'Trip updates',        desc: 'Stay in the loop every step' },
-              ].map(({ icon, title, desc }) => (
-                <div
-                  key={title}
-                  className="rider-feature-row"
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '12px',
-                    background: '#F8FAFC',
-                    borderRadius: '14px',
-                    padding: '11px 13px',
-                    border: '1px solid #F1F5F9',
-                  }}
-                >
-                  <div style={{
-                    flexShrink: 0,
-                    width: '36px', height: '36px',
-                    borderRadius: '10px',
-                    background: '#FFF',
-                    border: '1px solid #E2E8F0',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '18px',
-                    boxShadow: '0 1px 2px rgba(15,23,42,.04)',
-                  }}>
-                    {icon}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{
-                      fontSize: '13.5px',
-                      fontWeight: 700,
-                      color: '#0F172A',
-                      lineHeight: 1.2,
-                      marginBottom: '2px',
-                      fontFamily: "'Barlow', sans-serif",
-                    }}>
-                      {title}
-                    </div>
-                    <div style={{
-                      fontSize: '12px',
-                      color: '#64748B',
-                      fontWeight: 500,
-                      lineHeight: 1.3,
-                    }}>
-                      {desc}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Buttons */}
-          {!loading && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
-              <button
-                className="rider-enable-btn"
-                onClick={onEnable}
-                style={{
-                  width: '100%',
-                  padding: '15px 20px',
-                  borderRadius: '14px',
-                  border: 'none',
-                  background: isError
-                    ? `linear-gradient(135deg, ${brand}, ${brandLt} 55%, ${brandDk})`
-                    : `linear-gradient(135deg, #22C55E, #16A34A 55%, #15803D)`,
-                  color: '#fff',
-                  fontSize: '15px',
-                  fontWeight: 800,
-                  fontFamily: "'Barlow', sans-serif",
-                  letterSpacing: '-0.1px',
-                  cursor: 'pointer',
-                  boxShadow: `0 8px 20px ${brand}4D, 0 2px 4px ${brand}33, inset 0 1px 0 rgba(255,255,255,.25)`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  gap: '8px',
-                }}
-              >
-                <Bell size={17} strokeWidth={2.5} />
-                {isError ? 'Try again' : 'Turn on notifications'}
-              </button>
-              <button
-                className="rider-skip-btn"
-                onClick={onSkip}
-                style={{
-                  width: '100%',
-                  padding: '13px 20px',
-                  borderRadius: '14px',
-                  border: '1.5px solid #E2E8F0',
-                  background: '#fff',
-                  color: '#64748B',
-                  fontSize: '14px',
-                  fontWeight: 700,
-                  fontFamily: "'Barlow', sans-serif",
-                  cursor: 'pointer',
-                }}
-              >
-                Maybe later
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+const functions         = getFunctions(firebase_app, 'us-east1');
+const callRiderLocation = httpsCallable(functions, 'riderLocation');
 
 // ── Status → progress steps ────────────────────────────────
 const STEPS = [
@@ -639,16 +323,11 @@ function MessagePanel({ rideId, driverUid, driverName, driverColor, onClose }) {
 
 // ── Main component ─────────────────────────────────────────
 export default function LiveTrackingPanel({ active, onRideDone }) {
-
-
   const auth    = getAuth();
   const riderUid = auth.currentUser?.uid ?? null;
 
   const [driverDoc,       setDriverDoc]       = useState(null);
   const [showMessage,     setShowMessage]      = useState(false);
-  const [showNotifPopup,  setShowNotifPopup]   = useState(false);
-  const [notifLoading,    setNotifLoading]     = useState(false);
-  const [notifError,      setNotifError]       = useState('');
 
   const currentRide = useMemo(() => {
     if (!active?.length) return null;
@@ -660,67 +339,6 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
   }, [active]);
 
   const driverUid = currentRide?.driverUid;
-
-  // ── Show notification popup on mount if permission not yet decided ─────
-  useEffect(() => {
-    if (!riderUid) return;
-    if ('Notification' in window && window.Notification.permission === 'default') {
-      setShowNotifPopup(true);
-    } else if ('Notification' in window && window.Notification.permission === 'granted') {
-      registerRiderFcmToken(riderUid).catch(err =>
-        console.warn('[UaTob Rider] Silent token refresh failed:', err.message)
-      );
-    }
-  }, [riderUid]);
-
-  // ── Foreground push handler ────────────────────────────────────────────
-  useEffect(() => {
-    if (!riderUid) return;
-    let unsub = () => {};
-    try {
-      const messaging = getMessaging(firebase_app);
-      unsub = onMessage(messaging, async (payload) => {
-        const title = payload.notification?.title ?? 'Ride Update';
-        const body  = payload.notification?.body  ?? '';
-        if ('serviceWorker' in navigator) {
-          try {
-            const reg = await navigator.serviceWorker.ready;
-            reg.showNotification(title, {
-              body,
-              icon:     '/icon.png',
-              tag:      payload.data?.rideId ?? 'uatob-rider',
-              renotify: true,
-              data:     payload.data || {},
-            });
-          } catch (swErr) {
-            console.warn('[UaTob Rider] SW notification failed:', swErr.message);
-          }
-        }
-      });
-    } catch (err) {
-      console.warn('[UaTob Rider] onMessage setup failed:', err.message);
-    }
-    return unsub;
-  }, [riderUid]);
-
-  // ── Notification popup handlers ────────────────────────────────────────
-  const handleEnableNotifications = useCallback(async () => {
-    setNotifLoading(true);
-    setNotifError('');
-    try {
-      await registerRiderFcmToken(riderUid);
-      setShowNotifPopup(false);
-    } catch (err) {
-      setNotifError(err.message || 'Registration failed. Please try again.');
-    } finally {
-      setNotifLoading(false);
-    }
-  }, [riderUid]);
-
-  const handleSkipNotifications = useCallback(() => {
-    setShowNotifPopup(false);
-    setNotifError('');
-  }, []);
 
   // ── Live driver doc ────────────────────────────────────────────────────
   useEffect(() => {
@@ -800,13 +418,6 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
   const driverLng = currentRide?.driverLng ?? null;
   const hasLiveLocation = driverLat !== null && driverLng !== null;
 
-  const driverPos = useMemo(() => {
-    if (!hasLiveLocation) return null;
-    const x = ((driverLng + 180) / 360) * 100;
-    const y = ((90 - driverLat) / 180) * 100;
-    return { x: +x.toFixed(1), y: +y.toFixed(1) };
-  }, [driverLat, driverLng, hasLiveLocation]);
-
   const headingToPickup  = ['driver_assigned', 'driver_arriving'].includes(liveStatus);
   const headingToDropoff = ['arrived', 'in_progress'].includes(liveStatus);
 
@@ -832,27 +443,12 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
   return (
     <div className="glass" style={{ padding: '26px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
 
-      {/* ── Notification popup ── */}
-      {showNotifPopup && (
-        <RiderNotificationPopup
-          loading={notifLoading}
-          error={notifError}
-          onEnable={handleEnableNotifications}
-          onSkip={handleSkipNotifications}
-        />
-      )}
-
       {/* ── Map ── */}
-
-        <TrackingMap
+      <TrackingMap
         active={active}
         isTracking={true}
-
       />
 
-
-      
-     
       {/* ── Header row ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>

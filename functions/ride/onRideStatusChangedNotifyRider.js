@@ -6,7 +6,7 @@ if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
 
 // ─────────────────────────────────────────────────────────────
-// Status → rider-facing push copy
+// Status → rider‑facing push copy
 // ─────────────────────────────────────────────────────────────
 function buildRiderPush(newStatus, ride, driver) {
   const driverName = driver?.firstName
@@ -107,23 +107,31 @@ exports.onRideStatusChangedNotifyRider = onDocumentUpdated(
         return null;
       }
 
-      // ── Get rider FCM token ───────────────────────────────────────
+      // ── Get rider FCM token (field name is "token", not "fcmToken") ──
       const accountSnap = await db.collection("Accounts").doc(riderUid).get();
       if (!accountSnap.exists) {
         console.log(`[RideStatus] Rider account ${riderUid} not found`);
         return null;
       }
 
-      const fcmToken = accountSnap.data()?.fcmToken;
+      const fcmToken = accountSnap.data()?.token;   // ✅ changed from fcmToken
       if (!fcmToken) {
         console.log(`[RideStatus] Rider ${riderUid} has no FCM token — skipping push`);
         return null;
       }
 
-      // ── Get driver doc (for name, vehicle, etc.) ──────────────────
-      let driver = null;
+      // ── Get driver UID (supports both top‑level field or nested driver object) ──
+      let driverUid = null;
       if (after.driverUid) {
-        const driverSnap = await db.collection("Drivers").doc(after.driverUid).get();
+        driverUid = after.driverUid;
+      } else if (after.driver && after.driver.uid) {
+        driverUid = after.driver.uid;
+      }
+
+      // ── Get driver doc (for name, vehicle, etc.) ──
+      let driver = null;
+      if (driverUid) {
+        const driverSnap = await db.collection("Drivers").doc(driverUid).get();
         if (driverSnap.exists) driver = driverSnap.data();
       }
 
@@ -180,8 +188,9 @@ exports.onRideStatusChangedNotifyRider = onDocumentUpdated(
           errCode === "messaging/registration-token-not-registered" ||
           errCode === "messaging/invalid-registration-token"
         ) {
+          // Remove the stale token from the rider's account
           await db.collection("Accounts").doc(riderUid).update({
-            fcmToken: admin.firestore.FieldValue.delete(),
+            token: admin.firestore.FieldValue.delete(),
           });
           console.log(`🧹 Removed stale FCM token for rider ${riderUid}`);
         } else {
