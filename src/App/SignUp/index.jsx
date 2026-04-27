@@ -75,27 +75,27 @@ const STEPS = [
   { id: 5, label: "Verify",    icon: Shield },
 ];
 
-/* ─── Car colors with swatches ───────────────────────────────────────── */
+/* ─── Car colors — plain names with swatches ─────────────────────────── */
 const CAR_COLORS = [
-  { value: "",              label: "Select color…",  hex: null },
-  { value: "Pearl White",   label: "Pearl White",    hex: "#F5F5F0" },
-  { value: "Gloss White",   label: "Gloss White",    hex: "#FFFFFF" },
-  { value: "Silver",        label: "Silver",         hex: "#C0C0C0" },
-  { value: "Charcoal",      label: "Charcoal",       hex: "#4A4A4A" },
-  { value: "Matte Black",   label: "Matte Black",    hex: "#1A1A1A" },
-  { value: "Midnight Blue", label: "Midnight Blue",  hex: "#1C2B4A" },
-  { value: "Ocean Blue",    label: "Ocean Blue",     hex: "#1E6FA8" },
-  { value: "Sky Blue",      label: "Sky Blue",       hex: "#5DADE2" },
-  { value: "Forest Green",  label: "Forest Green",   hex: "#1E5631" },
-  { value: "Emerald",       label: "Emerald",        hex: "#2ECC71" },
-  { value: "Crimson Red",   label: "Crimson Red",    hex: "#B71C1C" },
-  { value: "Candy Red",     label: "Candy Red",      hex: "#E53935" },
-  { value: "Champagne",     label: "Champagne",      hex: "#C8A96E" },
-  { value: "Bronze",        label: "Bronze",         hex: "#8B6914" },
-  { value: "Titanium Gray", label: "Titanium Gray",  hex: "#737373" },
-  { value: "Navy",          label: "Navy",           hex: "#0A2342" },
-  { value: "Orange",        label: "Orange",         hex: "#E8651A" },
-  { value: "Other",         label: "Other",          hex: "#E5E7EB" },
+  { value: "",        label: "Select color…", hex: null        },
+  { value: "White",   label: "White",         hex: "#FFFFFF"   },
+  { value: "Black",   label: "Black",         hex: "#111111"   },
+  { value: "Silver",  label: "Silver",        hex: "#C0C0C0"   },
+  { value: "Gray",    label: "Gray",          hex: "#808080"   },
+  { value: "Red",     label: "Red",           hex: "#CC0000"   },
+  { value: "Blue",    label: "Blue",          hex: "#1A4FA0"   },
+  { value: "Green",   label: "Green",         hex: "#1A7A34"   },
+  { value: "Yellow",  label: "Yellow",        hex: "#E8C200"   },
+  { value: "Orange",  label: "Orange",        hex: "#E06010"   },
+  { value: "Brown",   label: "Brown",         hex: "#7B4F2E"   },
+  { value: "Beige",   label: "Beige",         hex: "#D4C5A9"   },
+  { value: "Gold",    label: "Gold",          hex: "#C8A830"   },
+  { value: "Purple",  label: "Purple",        hex: "#6B3FA0"   },
+  { value: "Maroon",  label: "Maroon",        hex: "#7B0020"   },
+  { value: "Navy",    label: "Navy",          hex: "#0A1F5C"   },
+  { value: "Teal",    label: "Teal",          hex: "#007070"   },
+  { value: "Pink",    label: "Pink",          hex: "#E06090"   },
+  { value: "Other",   label: "Other",         hex: "#E5E7EB"   },
 ];
 
 /* ─── Valid year options ─────────────────────────────────────────────── */
@@ -306,12 +306,12 @@ function SelectField({ label, value, onChange, options, icon: Icon, isValid }) {
 /* ─── COLOR PICKER with swatches ─────────────────────────────────────── */
 function ColorPicker({ value, onChange, error }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef(null);
+  const pickerRef = useRef(null);
   const selected = CAR_COLORS.find(c => c.value === value) || CAR_COLORS[0];
 
   useEffect(() => {
     if (!open) return;
-    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const handler = e => { if (pickerRef.current && !pickerRef.current.contains(e.target)) setOpen(false); };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
@@ -320,7 +320,7 @@ function ColorPicker({ value, onChange, error }) {
   const showOk = hasVal && !error && !open;
 
   return (
-    <div style={{ marginBottom: 16 }} ref={ref}>
+    <div style={{ marginBottom: 16 }} ref={pickerRef}>
       <div style={{ fontSize: 10.5, fontWeight: 800, color: open ? C.accent : C.textMid, marginBottom: 7, letterSpacing: "1.6px", textTransform: "uppercase", fontFamily: "'DM Sans', sans-serif", transition: "color .2s" }}>
         Color
       </div>
@@ -337,7 +337,11 @@ function ColorPicker({ value, onChange, error }) {
         }}
       >
         {selected.hex ? (
-          <div style={{ width: 22, height: 22, borderRadius: 7, background: selected.hex, border: `1.5px solid rgba(0,0,0,.12)`, flexShrink: 0, boxShadow: selected.value === "Pearl White" || selected.value === "Gloss White" ? "inset 0 0 0 1px rgba(0,0,0,.08)" : "none" }} />
+          <div style={{
+            width: 22, height: 22, borderRadius: 7, background: selected.hex,
+            border: `1.5px solid rgba(0,0,0,.15)`, flexShrink: 0,
+            boxShadow: selected.value === "White" ? "inset 0 0 0 1px rgba(0,0,0,.1)" : "none",
+          }} />
         ) : (
           <div style={{ width: 22, height: 22, borderRadius: 7, background: C.surfaceRaised, border: `1.5px solid ${C.border}`, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <div style={{ width: 10, height: 10, borderRadius: "50%", background: C.borderBright }} />
@@ -380,8 +384,8 @@ function ColorPicker({ value, onChange, error }) {
             >
               <div style={{
                 width: 20, height: 20, borderRadius: 6, flexShrink: 0,
-                background: c.hex, border: "1.5px solid rgba(0,0,0,.1)",
-                boxShadow: c.value === "Gloss White" || c.value === "Pearl White" ? "inset 0 0 0 1px rgba(0,0,0,.07)" : "none",
+                background: c.hex, border: `1.5px solid rgba(0,0,0,.12)`,
+                boxShadow: c.value === "White" ? "inset 0 0 0 1px rgba(0,0,0,.08)" : "none",
               }} />
               <span style={{ fontSize: 12.5, fontWeight: 500, color: value === c.value ? C.accent : C.text, fontFamily: "'DM Sans', sans-serif", lineHeight: 1.2, flex: 1 }}>
                 {c.label}
@@ -623,7 +627,6 @@ function StepVehicle({ data, setData, errors }) {
 
       <div style={{ display: "flex", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          {/* Year as dropdown */}
           <SelectField label="Year" icon={Calendar} value={data.year}
             onChange={v => setData(d => ({ ...d, year: v }))}
             isValid={Boolean(data.year)}
@@ -639,7 +642,6 @@ function StepVehicle({ data, setData, errors }) {
         </div>
       </div>
 
-      {/* License plate — auto-uppercase */}
       <InputField label="License Plate" placeholder="ABC-1234" icon={CreditCard}
         value={data.plate}
         onChange={v => setData(d => ({ ...d, plate: v.toUpperCase() }))}
@@ -647,7 +649,6 @@ function StepVehicle({ data, setData, errors }) {
         hint="Auto-formatted to uppercase, as shown on your registration."
         isValid={data.plate.trim().length >= 4} />
 
-      {/* Ride type cards */}
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 10.5, fontWeight: 800, color: C.textMid, marginBottom: 10, letterSpacing: "1.6px", textTransform: "uppercase", fontFamily: "'DM Sans', sans-serif" }}>
           Ride Types You Can Offer
@@ -890,7 +891,6 @@ function PendingScreen({ firstName, email }) {
       `}} />
       <div style={{ textAlign: "center", maxWidth: 420, width: "100%", animation: "scaleIn .55s cubic-bezier(.34,1.56,.64,1)" }}>
 
-        {/* Animated ring + check */}
         <div style={{ position: "relative", width: 96, height: 96, margin: "0 auto 30px", animation: "ringPop .6s cubic-bezier(.34,1.56,.64,1)" }}>
           <svg width="96" height="96" viewBox="0 0 96 96" fill="none" style={{ position: "absolute", inset: 0 }}>
             <circle cx="48" cy="48" r="44" stroke="rgba(22,163,74,.15)" strokeWidth="3" fill="none" />
