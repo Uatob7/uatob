@@ -1,12 +1,11 @@
-// src/App/SignUp/UaTobDriverSignup.jsx — redesigned
+// src/App/SignUp/UaTobDriverSignup.jsx
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/router";
 import {
   Car, User, FileText, Shield, Camera, Check, ChevronRight,
-  ChevronLeft, Eye, EyeOff, Upload, Phone, Mail, Lock,
+  ChevronLeft, ChevronDown, Eye, EyeOff, Upload, Phone, Mail, Lock,
   MapPin, Calendar, CreditCard, AlertCircle, Zap,
-  CheckCircle, Clock, ArrowRight, X, Star, Users, Crown,
-  Gauge, Sparkles, ChevronDown
+  CheckCircle, Clock, ArrowRight, X, Crown, Users, Sparkles, Hash,
 } from "lucide-react";
 import signUp from '@/firebase/auth/signup';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
@@ -17,6 +16,7 @@ import { useApplicationSubmitted } from "@/App/SignUp/useApplicationSubmitted";
 const storage   = getStorage(firebase_app);
 const functions = getFunctions(firebase_app, "us-east1");
 
+// ── Callables ─────────────────────────────────────────────────────────
 const callCreateDriverProfile = httpsCallable(functions, "createDriverProfile");
 
 /* ─── localStorage helpers ───────────────────────────────────────────── */
@@ -31,131 +31,66 @@ const LS_KEYS = {
 };
 
 function lsGet(key, fallback) {
-  try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
-  catch { return fallback; }
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch { return fallback; }
 }
+
 function lsSet(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
 }
+
 function lsClear() {
   Object.values(LS_KEYS).forEach(k => localStorage.removeItem(k));
 }
 
-/* ─── Default state ──────────────────────────────────────────────────── */
+/* ─── Default state values ───────────────────────────────────────────── */
 const DEFAULT_ACCOUNT = { firstName: "", lastName: "", email: "", password: "", confirmPassword: "", terms: false };
 const DEFAULT_CONTACT = { phone: "", address: "", city: "", state: "", zip: "" };
 const DEFAULT_VEHICLE = { make: "", model: "", year: "", color: "", plate: "", vin: "", rideTypes: [] };
 const DEFAULT_DOC = {
-  licenseFront: false, licenseFrontUrl: "",
-  licenseBack:  false, licenseBackUrl:  "",
-  licenseNumber: "",
-  registration:  false, registrationUrl:  "",
-  insurance:     false, insuranceUrl:     "",
-  profilePhoto:  false, profilePhotoUrl:  "",
+  licenseFront:    false, licenseFrontUrl:    "",
+  licenseBack:     false, licenseBackUrl:     "",
+  licenseNumber:   "",
+  registration:    false, registrationUrl:    "",
+  insurance:       false, insuranceUrl:       "",
+  profilePhoto:    false, profilePhotoUrl:    "",
 };
 
 const COMPLETED_STATUSES = ["approved", "online", "active", "suspended", "offline"];
 const MAX_VEHICLE_YEAR   = new Date().getFullYear() + 1;
 
-/* ─── Design tokens ──────────────────────────────────────────────────── */
-const C = {
-  bg: "#F8F9FA", surface: "#FFFFFF", surfaceRaised: "#F3F4F6",
-  surfaceBright: "#EAECEF", border: "#E2E5E9", borderBright: "#CDD1D8",
-  accent: "#16A34A", accentDim: "#15803D", accentGlow: "rgba(22,163,74,.1)",
-  accentBorder: "rgba(22,163,74,.22)", text: "#0F1117", textMid: "#4B5563",
-  textDim: "#9BA3AF", red: "#DC2626", blue: "#2563EB", green: "#16A34A",
-  purple: "#7C3AED", amber: "#D97706",
-};
-
-const STEPS = [
-  { id: 1, label: "Account",   icon: User },
-  { id: 2, label: "Contact",   icon: Phone },
-  { id: 3, label: "Vehicle",   icon: Car },
-  { id: 4, label: "Documents", icon: FileText },
-  { id: 5, label: "Verify",    icon: Shield },
+/* ─── Vehicle colors with hex swatches ───────────────────────────────── */
+const VEHICLE_COLORS = [
+  { value: "Black",    label: "Black",         hex: "#0F0F10" },
+  { value: "White",    label: "White",         hex: "#FAFAF7" },
+  { value: "Silver",   label: "Silver",        hex: "#C0C5CC" },
+  { value: "Gray",     label: "Gray",          hex: "#6B7280" },
+  { value: "Red",      label: "Red",           hex: "#DC2626" },
+  { value: "Blue",     label: "Blue",          hex: "#2563EB" },
+  { value: "Navy",     label: "Navy",          hex: "#1E3A8A" },
+  { value: "Green",    label: "Green",         hex: "#16A34A" },
+  { value: "Yellow",   label: "Yellow",        hex: "#F59E0B" },
+  { value: "Orange",   label: "Orange",        hex: "#EA580C" },
+  { value: "Brown",    label: "Brown",         hex: "#78350F" },
+  { value: "Beige",    label: "Beige / Tan",   hex: "#D4C5A0" },
+  { value: "Gold",     label: "Gold",          hex: "#D4AF37" },
+  { value: "Purple",   label: "Purple",        hex: "#7C3AED" },
+  { value: "Maroon",   label: "Maroon",        hex: "#7F1D1D" },
+  { value: "Other",    label: "Other",         hex: "#9CA3AF" },
 ];
 
-/* ─── Car colors — plain names with swatches ─────────────────────────── */
-const CAR_COLORS = [
-  { value: "",        label: "Select color…", hex: null        },
-  { value: "White",   label: "White",         hex: "#FFFFFF"   },
-  { value: "Black",   label: "Black",         hex: "#111111"   },
-  { value: "Silver",  label: "Silver",        hex: "#C0C0C0"   },
-  { value: "Gray",    label: "Gray",          hex: "#808080"   },
-  { value: "Red",     label: "Red",           hex: "#CC0000"   },
-  { value: "Blue",    label: "Blue",          hex: "#1A4FA0"   },
-  { value: "Green",   label: "Green",         hex: "#1A7A34"   },
-  { value: "Yellow",  label: "Yellow",        hex: "#E8C200"   },
-  { value: "Orange",  label: "Orange",        hex: "#E06010"   },
-  { value: "Brown",   label: "Brown",         hex: "#7B4F2E"   },
-  { value: "Beige",   label: "Beige",         hex: "#D4C5A9"   },
-  { value: "Gold",    label: "Gold",          hex: "#C8A830"   },
-  { value: "Purple",  label: "Purple",        hex: "#6B3FA0"   },
-  { value: "Maroon",  label: "Maroon",        hex: "#7B0020"   },
-  { value: "Navy",    label: "Navy",          hex: "#0A1F5C"   },
-  { value: "Teal",    label: "Teal",          hex: "#007070"   },
-  { value: "Pink",    label: "Pink",          hex: "#E06090"   },
-  { value: "Other",   label: "Other",         hex: "#E5E7EB"   },
-];
-
-/* ─── Valid year options ─────────────────────────────────────────────── */
-const YEAR_OPTIONS = (() => {
-  const opts = [{ value: "", label: "Select year…" }];
-  for (let y = MAX_VEHICLE_YEAR; y >= 2005; y--) opts.push({ value: String(y), label: String(y) });
-  return opts;
+/* ─── Year options (current+1 down to 2005) ──────────────────────────── */
+const VEHICLE_YEARS = (() => {
+  const years = [{ value: "", label: "Select year…" }];
+  for (let y = MAX_VEHICLE_YEAR; y >= 2005; y--) {
+    years.push({ value: String(y), label: String(y) });
+  }
+  return years;
 })();
 
-/* ─── States ─────────────────────────────────────────────────────────── */
-const ALL_STATES = [
-  { value: "",   label: "Select state…" },
-  { value: "AL", label: "Alabama" },        { value: "AK", label: "Alaska" },
-  { value: "AZ", label: "Arizona" },        { value: "AR", label: "Arkansas" },
-  { value: "CA", label: "California" },     { value: "CO", label: "Colorado" },
-  { value: "CT", label: "Connecticut" },    { value: "DE", label: "Delaware" },
-  { value: "FL", label: "Florida" },        { value: "GA", label: "Georgia" },
-  { value: "HI", label: "Hawaii" },         { value: "ID", label: "Idaho" },
-  { value: "IL", label: "Illinois" },       { value: "IN", label: "Indiana" },
-  { value: "IA", label: "Iowa" },           { value: "KS", label: "Kansas" },
-  { value: "KY", label: "Kentucky" },       { value: "LA", label: "Louisiana" },
-  { value: "ME", label: "Maine" },          { value: "MD", label: "Maryland" },
-  { value: "MA", label: "Massachusetts" },  { value: "MI", label: "Michigan" },
-  { value: "MN", label: "Minnesota" },      { value: "MS", label: "Mississippi" },
-  { value: "MO", label: "Missouri" },       { value: "MT", label: "Montana" },
-  { value: "NE", label: "Nebraska" },       { value: "NV", label: "Nevada" },
-  { value: "NH", label: "New Hampshire" },  { value: "NJ", label: "New Jersey" },
-  { value: "NM", label: "New Mexico" },     { value: "NY", label: "New York" },
-  { value: "NC", label: "North Carolina" }, { value: "ND", label: "North Dakota" },
-  { value: "OH", label: "Ohio" },           { value: "OK", label: "Oklahoma" },
-  { value: "OR", label: "Oregon" },         { value: "PA", label: "Pennsylvania" },
-  { value: "RI", label: "Rhode Island" },   { value: "SC", label: "South Carolina" },
-  { value: "SD", label: "South Dakota" },   { value: "TN", label: "Tennessee" },
-  { value: "TX", label: "Texas" },          { value: "UT", label: "Utah" },
-  { value: "VT", label: "Vermont" },        { value: "VA", label: "Virginia" },
-  { value: "WA", label: "Washington" },     { value: "WV", label: "West Virginia" },
-  { value: "WI", label: "Wisconsin" },      { value: "WY", label: "Wyoming" },
-];
-
-/* ─── Password strength ──────────────────────────────────────────────── */
-function getPasswordStrength(pw) {
-  if (!pw) return { score: 0, label: "", color: "transparent" };
-  let score = 0;
-  if (pw.length >= 8)  score++;
-  if (pw.length >= 12) score++;
-  if (/[A-Z]/.test(pw)) score++;
-  if (/[0-9]/.test(pw)) score++;
-  if (/[^A-Za-z0-9]/.test(pw)) score++;
-  const map = [
-    { label: "",          color: "transparent" },
-    { label: "Too weak",  color: "#DC2626" },
-    { label: "Weak",      color: "#F97316" },
-    { label: "Fair",      color: "#EAB308" },
-    { label: "Good",      color: "#22C55E" },
-    { label: "Strong",    color: "#16A34A" },
-  ];
-  return { score, ...map[score] };
-}
-
-/* ─── UaTob Icon ─────────────────────────────────────────────────────── */
+/* ─── UaTob SVG Icon ─────────────────────────────────────────────────── */
 function UaTobIcon({ size = 38 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
@@ -185,94 +120,149 @@ function UaTobIcon({ size = 38 }) {
   );
 }
 
-/* ─── INPUT FIELD with valid-state checkmark ─────────────────────────── */
-function InputField({
-  label, placeholder, type = "text", icon: Icon,
-  value, onChange, error, hint, suffix, isValid,
-  onBlurValidate,
-}) {
+/* ─── Design tokens ──────────────────────────────────────────────────── */
+const C = {
+  bg: "#FAFAF7", surface: "#FFFFFF", surfaceRaised: "#F9FAF7",
+  surfaceBright: "#F3F4F0", border: "#E8E6DD", borderBright: "#D8D5CC",
+  accent: "#16A34A", accentDim: "#15803D", accentGlow: "rgba(22,163,74,.1)",
+  accentBorder: "rgba(22,163,74,.22)", text: "#0F0F10", textMid: "#5A5A52",
+  textDim: "#9A988E", red: "#DC2626", blue: "#2563EB", green: "#16A34A",
+  purple: "#7C3AED", amber: "#D97706",
+};
+
+const STEPS = [
+  { id: 1, label: "Account",   icon: User },
+  { id: 2, label: "Contact",   icon: Phone },
+  { id: 3, label: "Vehicle",   icon: Car },
+  { id: 4, label: "Documents", icon: FileText },
+  { id: 5, label: "Verify",    icon: Shield },
+];
+
+const ALL_STATES = [
+  { value: "",   label: "Select state…" },
+  { value: "AL", label: "Alabama" },        { value: "AK", label: "Alaska" },
+  { value: "AZ", label: "Arizona" },        { value: "AR", label: "Arkansas" },
+  { value: "CA", label: "California" },     { value: "CO", label: "Colorado" },
+  { value: "CT", label: "Connecticut" },    { value: "DE", label: "Delaware" },
+  { value: "FL", label: "Florida" },        { value: "GA", label: "Georgia" },
+  { value: "HI", label: "Hawaii" },         { value: "ID", label: "Idaho" },
+  { value: "IL", label: "Illinois" },       { value: "IN", label: "Indiana" },
+  { value: "IA", label: "Iowa" },           { value: "KS", label: "Kansas" },
+  { value: "KY", label: "Kentucky" },       { value: "LA", label: "Louisiana" },
+  { value: "ME", label: "Maine" },          { value: "MD", label: "Maryland" },
+  { value: "MA", label: "Massachusetts" },  { value: "MI", label: "Michigan" },
+  { value: "MN", label: "Minnesota" },      { value: "MS", label: "Mississippi" },
+  { value: "MO", label: "Missouri" },       { value: "MT", label: "Montana" },
+  { value: "NE", label: "Nebraska" },       { value: "NV", label: "Nevada" },
+  { value: "NH", label: "New Hampshire" },  { value: "NJ", label: "New Jersey" },
+  { value: "NM", label: "New Mexico" },     { value: "NY", label: "New York" },
+  { value: "NC", label: "North Carolina" }, { value: "ND", label: "North Dakota" },
+  { value: "OH", label: "Ohio" },           { value: "OK", label: "Oklahoma" },
+  { value: "OR", label: "Oregon" },         { value: "PA", label: "Pennsylvania" },
+  { value: "RI", label: "Rhode Island" },   { value: "SC", label: "South Carolina" },
+  { value: "SD", label: "South Dakota" },   { value: "TN", label: "Tennessee" },
+  { value: "TX", label: "Texas" },          { value: "UT", label: "Utah" },
+  { value: "VT", label: "Vermont" },        { value: "VA", label: "Virginia" },
+  { value: "WA", label: "Washington" },     { value: "WV", label: "West Virginia" },
+  { value: "WI", label: "Wisconsin" },      { value: "WY", label: "Wyoming" },
+];
+
+/* ─── Password strength helper ───────────────────────────────────────── */
+function getPasswordStrength(pw = "") {
+  if (!pw) return { score: 0, label: "", color: C.border };
+  let score = 0;
+  if (pw.length >= 8) score++;
+  if (pw.length >= 12) score++;
+  if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score++;
+  if (/\d/.test(pw)) score++;
+  if (/[^a-zA-Z0-9]/.test(pw)) score++;
+  if (score <= 1) return { score: 1, label: "Weak",      color: C.red };
+  if (score <= 2) return { score: 2, label: "Fair",      color: C.amber };
+  if (score <= 3) return { score: 3, label: "Good",      color: C.blue };
+  if (score <= 4) return { score: 4, label: "Strong",    color: C.green };
+  return                  { score: 5, label: "Excellent", color: C.green };
+}
+
+/* ─── FIELD COMPONENTS ───────────────────────────────────────────────── */
+
+function InputField({ label, placeholder, type = "text", icon: Icon, value, onChange, error, hint, suffix, valid, autoCapitalize }) {
   const [focused, setFocused] = useState(false);
   const [showPw,  setShowPw]  = useState(false);
-  const isPw    = type === "password";
-  const hasVal  = value && value.length > 0;
-  const showOk  = isValid && hasVal && !error && !focused;
+  const isPw = type === "password";
+  const showValid = valid && value && !error && !focused;
 
   return (
     <div style={{ marginBottom: 16 }}>
       {label && (
         <div style={{
-          fontSize: 10.5, fontWeight: 800, color: focused ? C.accent : C.textMid,
-          marginBottom: 7, letterSpacing: "1.6px", textTransform: "uppercase",
-          fontFamily: "'DM Sans', sans-serif", transition: "color .2s",
+          fontSize: 11, fontWeight: 700,
+          color: focused ? C.accent : error ? C.red : C.textMid,
+          marginBottom: 7, letterSpacing: "1.5px", textTransform: "uppercase",
+          fontFamily: "'Barlow Condensed', sans-serif", transition: "color .2s",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
         }}>
-          {label}
+          <span>{label}</span>
+          {showValid && <Check size={11} color={C.green} strokeWidth={2.6}/>}
         </div>
       )}
       <div style={{ position: "relative" }}>
         {Icon && (
           <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", zIndex: 1, pointerEvents: "none" }}>
-            <Icon size={15} color={focused ? C.accent : showOk ? C.green : C.textDim} style={{ transition: "color .2s" }} />
+            <Icon size={15} color={focused ? C.accent : error ? C.red : C.textDim} style={{ transition: "color .2s" }} />
           </div>
         )}
         <input
           type={isPw && showPw ? "text" : type}
           placeholder={placeholder}
           value={value}
-          onChange={e => onChange(e.target.value)}
+          onChange={e => onChange(autoCapitalize ? e.target.value.toUpperCase() : e.target.value)}
           onFocus={() => setFocused(true)}
-          onBlur={() => { setFocused(false); onBlurValidate?.(); }}
+          onBlur={() => setFocused(false)}
           style={{
-            width: "100%", background: showOk ? "rgba(22,163,74,.02)" : C.surface,
-            border: `1.5px solid ${error ? C.red : showOk ? "rgba(22,163,74,.4)" : focused ? C.accent : C.border}`,
-            borderRadius: 12, padding: `13px ${isPw || suffix || showOk ? 44 : 14}px 13px ${Icon ? 42 : 14}px`,
-            color: C.text, fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500,
-            outline: "none", transition: "all .2s",
-            boxShadow: focused ? `0 0 0 3px rgba(22,163,74,.1)` : showOk ? `0 0 0 3px rgba(22,163,74,.06)` : error ? `0 0 0 3px rgba(220,38,38,.07)` : "none",
+            width: "100%", background: C.surface,
+            border: `1.5px solid ${error ? C.red : focused ? C.accent : showValid ? "rgba(22,163,74,.35)" : C.border}`,
+            borderRadius: 13, padding: `13px ${isPw || suffix ? 44 : 14}px 13px ${Icon ? 42 : 14}px`,
+            color: C.text, fontFamily: "'Barlow', sans-serif", fontSize: 14, fontWeight: 500,
+            outline: "none", transition: "border-color .2s, box-shadow .2s",
+            boxShadow: focused ? `0 0 0 4px rgba(22,163,74,.12)` : error ? `0 0 0 3px rgba(220,38,38,.07)` : "none",
           }}
         />
-        {showOk && !isPw && (
-          <div style={{ position: "absolute", right: 13, top: "50%", transform: "translateY(-50%)", width: 20, height: 20, borderRadius: "50%", background: "rgba(22,163,74,.14)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Check size={11} color={C.green} strokeWidth={3} />
-          </div>
-        )}
         {isPw && (
-          <button onClick={() => setShowPw(p => !p)} style={{ position: "absolute", right: 13, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: C.textDim, display: "flex", padding: 2 }}>
+          <button type="button" onClick={() => setShowPw(p => !p)} style={{ position: "absolute", right: 13, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: C.textDim, display: "flex", padding: 2 }}>
             {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
           </button>
         )}
-        {suffix && !isPw && !showOk && (
-          <div style={{ position: "absolute", right: 13, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: C.textDim, fontWeight: 700, pointerEvents: "none", fontFamily: "'DM Sans', sans-serif" }}>
+        {suffix && !isPw && (
+          <div style={{ position: "absolute", right: 13, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: C.textDim, fontWeight: 600, pointerEvents: "none" }}>
             {suffix}
           </div>
         )}
       </div>
       {error && (
-        <div style={{ fontSize: 11.5, color: C.red, marginTop: 5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4, fontFamily: "'DM Sans', sans-serif" }}>
+        <div style={{ fontSize: 11.5, color: C.red, marginTop: 5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
           <AlertCircle size={11} />{error}
         </div>
       )}
       {hint && !error && (
-        <div style={{ fontSize: 11, color: C.textDim, marginTop: 5, fontWeight: 500, fontFamily: "'DM Sans', sans-serif" }}>{hint}</div>
+        <div style={{ fontSize: 11, color: C.textDim, marginTop: 5, fontWeight: 500 }}>{hint}</div>
       )}
     </div>
   );
 }
 
-/* ─── SELECT FIELD ───────────────────────────────────────────────────── */
-function SelectField({ label, value, onChange, options, icon: Icon, isValid }) {
+function SelectField({ label, value, onChange, options, icon: Icon, error }) {
   const [focused, setFocused] = useState(false);
-  const showOk = isValid && value && !focused;
   return (
     <div style={{ marginBottom: 16 }}>
       {label && (
-        <div style={{ fontSize: 10.5, fontWeight: 800, color: focused ? C.accent : C.textMid, marginBottom: 7, letterSpacing: "1.6px", textTransform: "uppercase", fontFamily: "'DM Sans', sans-serif", transition: "color .2s" }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: focused ? C.accent : error ? C.red : C.textMid, marginBottom: 7, letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif", transition: "color .2s" }}>
           {label}
         </div>
       )}
       <div style={{ position: "relative" }}>
         {Icon && (
           <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
-            <Icon size={15} color={focused ? C.accent : showOk ? C.green : C.textDim} />
+            <Icon size={15} color={focused ? C.accent : C.textDim} />
           </div>
         )}
         <select
@@ -281,118 +271,136 @@ function SelectField({ label, value, onChange, options, icon: Icon, isValid }) {
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           style={{
-            width: "100%", background: showOk ? "rgba(22,163,74,.02)" : C.surface,
-            border: `1.5px solid ${showOk ? "rgba(22,163,74,.4)" : focused ? C.accent : C.border}`,
-            borderRadius: 12, padding: `13px 40px 13px ${Icon ? 42 : 14}px`,
-            color: value ? C.text : C.textDim, fontFamily: "'DM Sans', sans-serif",
-            fontSize: 14, fontWeight: 500, outline: "none",
-            appearance: "none", cursor: "pointer", transition: "all .2s",
-            boxShadow: focused ? `0 0 0 3px rgba(22,163,74,.1)` : showOk ? `0 0 0 3px rgba(22,163,74,.06)` : "none",
+            width: "100%", background: C.surface,
+            border: `1.5px solid ${error ? C.red : focused ? C.accent : C.border}`,
+            borderRadius: 13, padding: `13px 36px 13px ${Icon ? 42 : 14}px`,
+            color: value ? C.text : C.textDim,
+            fontFamily: "'Barlow', sans-serif", fontSize: 14, fontWeight: 500, outline: "none",
+            appearance: "none", cursor: "pointer", transition: "border-color .2s",
+            boxShadow: focused ? `0 0 0 4px rgba(22,163,74,.12)` : "none",
           }}
         >
           {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
-        <div style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
-          {showOk
-            ? <div style={{ width: 20, height: 20, borderRadius: "50%", background: "rgba(22,163,74,.14)", display: "flex", alignItems: "center", justifyContent: "center" }}><Check size={11} color={C.green} strokeWidth={3} /></div>
-            : <ChevronDown size={15} color={C.textDim} />
-          }
-        </div>
+        <ChevronDown size={14} color={C.textDim} style={{ position: "absolute", right: 13, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
       </div>
+      {error && (
+        <div style={{ fontSize: 11.5, color: C.red, marginTop: 5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+          <AlertCircle size={11} />{error}
+        </div>
+      )}
     </div>
   );
 }
 
-/* ─── COLOR PICKER with swatches ─────────────────────────────────────── */
-function ColorPicker({ value, onChange, error }) {
+/* ─── COLOR PICKER (custom dropdown with swatches) ───────────────────── */
+
+function ColorPickerField({ label, value, onChange, error }) {
   const [open, setOpen] = useState(false);
-  const pickerRef = useRef(null);
-  const selected = CAR_COLORS.find(c => c.value === value) || CAR_COLORS[0];
+  const wrapperRef = useRef(null);
+  const selected = VEHICLE_COLORS.find(c => c.value === value);
 
   useEffect(() => {
     if (!open) return;
-    const handler = e => { if (pickerRef.current && !pickerRef.current.contains(e.target)) setOpen(false); };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    const onClick = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
   }, [open]);
 
-  const hasVal = value && value.length > 0;
-  const showOk = hasVal && !error && !open;
-
   return (
-    <div style={{ marginBottom: 16 }} ref={pickerRef}>
-      <div style={{ fontSize: 10.5, fontWeight: 800, color: open ? C.accent : C.textMid, marginBottom: 7, letterSpacing: "1.6px", textTransform: "uppercase", fontFamily: "'DM Sans', sans-serif", transition: "color .2s" }}>
-        Color
-      </div>
-      <div
+    <div style={{ marginBottom: 16, position: "relative" }} ref={wrapperRef}>
+      {label && (
+        <div style={{
+          fontSize: 11, fontWeight: 700,
+          color: open ? C.accent : error ? C.red : C.textMid,
+          marginBottom: 7, letterSpacing: "1.5px", textTransform: "uppercase",
+          fontFamily: "'Barlow Condensed', sans-serif", transition: "color .2s",
+        }}>
+          {label}
+        </div>
+      )}
+
+      <button
+        type="button"
         onClick={() => setOpen(o => !o)}
         style={{
-          background: showOk ? "rgba(22,163,74,.02)" : C.surface,
-          border: `1.5px solid ${error ? C.red : showOk ? "rgba(22,163,74,.4)" : open ? C.accent : C.border}`,
-          borderRadius: 12, padding: "13px 14px", cursor: "pointer",
-          display: "flex", alignItems: "center", gap: 10,
-          transition: "all .2s",
-          boxShadow: open ? `0 0 0 3px rgba(22,163,74,.1)` : showOk ? `0 0 0 3px rgba(22,163,74,.06)` : "none",
-          position: "relative",
+          width: "100%", background: C.surface,
+          border: `1.5px solid ${error ? C.red : open ? C.accent : C.border}`,
+          borderRadius: 13, padding: "12px 14px",
+          fontFamily: "'Barlow', sans-serif", fontSize: 14, fontWeight: 500,
+          color: selected ? C.text : C.textDim,
+          outline: "none", cursor: "pointer",
+          display: "flex", alignItems: "center", gap: 12,
+          transition: "all .2s", textAlign: "left",
+          boxShadow: open ? `0 0 0 4px rgba(22,163,74,.12)` : "none",
         }}
       >
-        {selected.hex ? (
-          <div style={{
-            width: 22, height: 22, borderRadius: 7, background: selected.hex,
-            border: `1.5px solid rgba(0,0,0,.15)`, flexShrink: 0,
-            boxShadow: selected.value === "White" ? "inset 0 0 0 1px rgba(0,0,0,.1)" : "none",
-          }} />
-        ) : (
-          <div style={{ width: 22, height: 22, borderRadius: 7, background: C.surfaceRaised, border: `1.5px solid ${C.border}`, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <div style={{ width: 10, height: 10, borderRadius: "50%", background: C.borderBright }} />
-          </div>
-        )}
-        <span style={{ flex: 1, fontSize: 14, fontWeight: 500, fontFamily: "'DM Sans', sans-serif", color: value ? C.text : C.textDim }}>
-          {selected.label}
+        {/* Swatch */}
+        <div style={{
+          width: 26, height: 26, borderRadius: 8,
+          background: selected
+            ? selected.hex
+            : `repeating-linear-gradient(45deg, ${C.borderBright}, ${C.borderBright} 4px, ${C.surfaceBright} 4px, ${C.surfaceBright} 8px)`,
+          border: `1.5px solid ${selected ? "rgba(0,0,0,0.15)" : C.border}`,
+          flexShrink: 0,
+          boxShadow: selected ? "inset 0 1px 2px rgba(0,0,0,0.15), inset 0 -1px 1px rgba(255,255,255,0.2)" : "none",
+        }}/>
+        <span style={{ flex: 1 }}>
+          {selected ? selected.label : "Select color…"}
         </span>
-        <div style={{ flexShrink: 0 }}>
-          {showOk
-            ? <div style={{ width: 20, height: 20, borderRadius: "50%", background: "rgba(22,163,74,.14)", display: "flex", alignItems: "center", justifyContent: "center" }}><Check size={11} color={C.green} strokeWidth={3} /></div>
-            : <ChevronDown size={15} color={C.textDim} style={{ transition: "transform .2s", transform: open ? "rotate(180deg)" : "rotate(0deg)" }} />
-          }
-        </div>
-      </div>
+        <ChevronDown
+          size={14}
+          color={C.textDim}
+          style={{
+            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform .2s",
+          }}
+        />
+      </button>
 
       {open && (
         <div style={{
-          position: "absolute", zIndex: 999, marginTop: 6,
-          background: C.surface, border: `1.5px solid ${C.border}`,
-          borderRadius: 14, boxShadow: "0 12px 40px rgba(0,0,0,.13)",
-          padding: 10, width: "calc(100% - 0px)",
-          display: "grid", gridTemplateColumns: "1fr 1fr",
-          gap: 4, maxHeight: 280, overflowY: "auto",
-          animation: "swatchReveal .15s ease-out",
+          position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
+          background: C.surface, border: `1px solid ${C.border}`,
+          borderRadius: 14, padding: 6,
+          maxHeight: 280, overflowY: "auto",
+          boxShadow: "0 12px 32px rgba(0,0,0,.12), 0 4px 12px rgba(0,0,0,.06)",
+          zIndex: 50,
+          animation: "dsFadeDown .18s cubic-bezier(.34,1.2,.64,1) both",
         }}>
-          {CAR_COLORS.filter(c => c.value !== "").map(c => (
-            <div
-              key={c.value}
-              onClick={() => { onChange(c.value); setOpen(false); }}
-              style={{
-                display: "flex", alignItems: "center", gap: 9,
-                padding: "9px 10px", borderRadius: 9, cursor: "pointer",
-                background: value === c.value ? C.accentGlow : "transparent",
-                border: `1px solid ${value === c.value ? C.accentBorder : "transparent"}`,
-                transition: "all .15s",
-              }}
-              onMouseEnter={e => { if (value !== c.value) e.currentTarget.style.background = C.surfaceRaised; }}
-              onMouseLeave={e => { if (value !== c.value) e.currentTarget.style.background = "transparent"; }}
-            >
-              <div style={{
-                width: 20, height: 20, borderRadius: 6, flexShrink: 0,
-                background: c.hex, border: `1.5px solid rgba(0,0,0,.12)`,
-                boxShadow: c.value === "White" ? "inset 0 0 0 1px rgba(0,0,0,.08)" : "none",
-              }} />
-              <span style={{ fontSize: 12.5, fontWeight: 500, color: value === c.value ? C.accent : C.text, fontFamily: "'DM Sans', sans-serif", lineHeight: 1.2, flex: 1 }}>
-                {c.label}
-              </span>
-              {value === c.value && <Check size={11} color={C.accent} strokeWidth={3} />}
-            </div>
-          ))}
+          {VEHICLE_COLORS.map((c) => {
+            const isSelected = c.value === value;
+            return (
+              <button
+                key={c.value}
+                type="button"
+                onClick={() => { onChange(c.value); setOpen(false); }}
+                style={{
+                  width: "100%", display: "flex", alignItems: "center", gap: 12,
+                  padding: "9px 10px", border: "none", borderRadius: 10,
+                  background: isSelected ? C.accentGlow : "transparent",
+                  cursor: "pointer", fontFamily: "inherit",
+                  fontSize: 14, fontWeight: 600,
+                  color: isSelected ? C.accent : C.text,
+                  textAlign: "left", transition: "background .12s",
+                }}
+                onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = C.surfaceBright; }}
+                onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = "transparent"; }}
+              >
+                <div style={{
+                  width: 22, height: 22, borderRadius: 7,
+                  background: c.hex,
+                  border: `1.5px solid ${c.hex === "#FAFAF7" ? C.border : "rgba(0,0,0,0.12)"}`,
+                  flexShrink: 0,
+                  boxShadow: "inset 0 1px 2px rgba(0,0,0,0.1), inset 0 -1px 1px rgba(255,255,255,0.15)",
+                }}/>
+                <span style={{ flex: 1 }}>{c.label}</span>
+                {isSelected && <Check size={14} color={C.accent} strokeWidth={2.6}/>}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -405,7 +413,33 @@ function ColorPicker({ value, onChange, error }) {
   );
 }
 
+/* ─── PASSWORD STRENGTH METER ────────────────────────────────────────── */
+
+function PasswordStrengthMeter({ password }) {
+  const { score, label, color } = getPasswordStrength(password);
+  if (!password) return null;
+  return (
+    <div style={{ marginTop: -10, marginBottom: 16 }}>
+      <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
+        {[1, 2, 3, 4, 5].map(i => (
+          <div key={i} style={{
+            flex: 1, height: 4, borderRadius: 2,
+            background: i <= score ? color : C.surfaceBright,
+            transition: "background .25s, transform .25s",
+            transform: i <= score ? "scaleY(1)" : "scaleY(0.7)",
+          }}/>
+        ))}
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, fontWeight: 700, letterSpacing: ".05em" }}>
+        <span style={{ color: C.textDim }}>Password strength</span>
+        <span style={{ color }}>{label}</span>
+      </div>
+    </div>
+  );
+}
+
 /* ─── UPLOAD BOX ─────────────────────────────────────────────────────── */
+
 function UploadBox({ label, hint, icon: Icon = Upload, uploaded, previewUrl, uploading, progress = 0, error, onFileSelect, onRemove }) {
   const inputRef = useRef(null);
   const isPdf = previewUrl && previewUrl.startsWith("data:application/pdf");
@@ -417,31 +451,35 @@ function UploadBox({ label, hint, icon: Icon = Upload, uploaded, previewUrl, upl
         style={{
           background: uploaded ? "rgba(22,163,74,.04)" : uploading ? "rgba(22,163,74,.02)" : C.surfaceRaised,
           border: `1.5px dashed ${error ? C.red : uploaded ? "rgba(22,163,74,.4)" : uploading ? C.accent : C.border}`,
-          borderRadius: 14, padding: previewUrl && !isPdf ? "12px 18px 18px" : "20px 18px",
+          borderRadius: 16, padding: previewUrl && !isPdf ? "12px 18px 18px" : "22px 18px",
           cursor: uploading ? "default" : "pointer",
           display: "flex", flexDirection: "column", alignItems: "center", gap: 10,
           transition: "all .25s", textAlign: "center", position: "relative", overflow: "hidden",
         }}
       >
-        <input ref={inputRef} type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" capture={false} style={{ display: "none" }}
-          onChange={e => { const f = e.target.files?.[0]; if (f) onFileSelect(f); e.target.value = ""; }} />
+        <input
+          ref={inputRef} type="file" accept=".jpg,.jpeg,.png,.webp,.pdf"
+          capture={false} style={{ display: "none" }}
+          onChange={e => { const f = e.target.files?.[0]; if (f) onFileSelect(f); e.target.value = ""; }}
+        />
 
         {previewUrl && !isPdf && (
           <div style={{ width: "100%", position: "relative" }}>
-            <img src={previewUrl} alt="preview" style={{ width: "100%", maxHeight: 110, objectFit: "cover", borderRadius: 8, display: "block" }} />
+            <img src={previewUrl} alt="preview" style={{ width: "100%", maxHeight: 120, objectFit: "cover", borderRadius: 10, display: "block" }} />
             {!uploading && onRemove && (
-              <button onClick={e => { e.stopPropagation(); onRemove(); }} style={{ position: "absolute", top: 6, right: 6, width: 24, height: 24, borderRadius: "50%", background: "rgba(0,0,0,.55)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <button type="button" onClick={e => { e.stopPropagation(); onRemove(); }} style={{ position: "absolute", top: 6, right: 6, width: 24, height: 24, borderRadius: "50%", background: "rgba(0,0,0,.55)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <X size={12} color="#fff" />
               </button>
             )}
           </div>
         )}
+
         {isPdf && (
-          <div style={{ width: "100%", background: "rgba(37,99,235,.07)", border: "1px solid rgba(37,99,235,.18)", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ width: "100%", background: "rgba(37,99,235,.07)", border: "1px solid rgba(37,99,235,.18)", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
             <FileText size={16} color={C.blue} />
-            <span style={{ fontSize: 12.5, fontWeight: 600, color: C.blue, fontFamily: "'DM Sans', sans-serif" }}>PDF uploaded</span>
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: C.blue }}>PDF uploaded</span>
             {!uploading && onRemove && (
-              <button onClick={e => { e.stopPropagation(); onRemove(); }} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: C.textDim, display: "flex" }}>
+              <button type="button" onClick={e => { e.stopPropagation(); onRemove(); }} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: C.textDim, display: "flex" }}>
                 <X size={14} />
               </button>
             )}
@@ -458,14 +496,15 @@ function UploadBox({ label, hint, icon: Icon = Upload, uploaded, previewUrl, upl
         </div>
 
         <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: uploading ? C.accent : uploaded ? C.green : C.text, marginBottom: 3, fontFamily: "'DM Sans', sans-serif" }}>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: uploading ? C.accent : uploaded ? C.green : C.text, marginBottom: 3 }}>
             {uploading ? `Uploading… ${progress}%` : uploaded ? `Uploaded ✓ — tap to replace` : label}
           </div>
-          <div style={{ fontSize: 11.5, color: C.textDim, fontWeight: 500, fontFamily: "'DM Sans', sans-serif" }}>{hint}</div>
+          <div style={{ fontSize: 11.5, color: C.textDim, fontWeight: 500 }}>{hint}</div>
         </div>
       </div>
+
       {error && (
-        <div style={{ fontSize: 11.5, color: C.red, marginTop: 5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4, paddingLeft: 2, fontFamily: "'DM Sans', sans-serif" }}>
+        <div style={{ fontSize: 11.5, color: C.red, marginTop: 5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4, paddingLeft: 2 }}>
           <AlertCircle size={11} />{error}
         </div>
       )}
@@ -473,75 +512,87 @@ function UploadBox({ label, hint, icon: Icon = Upload, uploaded, previewUrl, upl
   );
 }
 
-/* ─── PASSWORD STRENGTH METER ────────────────────────────────────────── */
-function PasswordStrengthBar({ password }) {
-  const { score, label, color } = getPasswordStrength(password);
-  if (!password) return null;
-  return (
-    <div style={{ marginTop: -8, marginBottom: 14 }}>
-      <div style={{ display: "flex", gap: 4, marginBottom: 5 }}>
-        {[1, 2, 3, 4, 5].map(i => (
-          <div key={i} style={{
-            flex: 1, height: 3, borderRadius: 2,
-            background: i <= score ? color : C.surfaceBright,
-            transition: "background .3s",
-          }} />
-        ))}
-      </div>
-      {label && (
-        <div style={{ fontSize: 11, fontWeight: 700, color, fontFamily: "'DM Sans', sans-serif", letterSpacing: ".3px" }}>
-          {label}
-        </div>
-      )}
-    </div>
-  );
-}
+/* ─── STEP COMPONENTS ────────────────────────────────────────────────── */
 
-/* ─── STEP 1: ACCOUNT ────────────────────────────────────────────────── */
 function StepAccount({ data, setData, errors }) {
-  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email);
-  const pwOk    = getPasswordStrength(data.password).score >= 3;
-  const cpwOk   = data.password && data.password === data.confirmPassword;
+  const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email);
 
   return (
     <div>
       <div style={{ display: "flex", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <InputField label="First Name" placeholder="Marcus" icon={User} value={data.firstName}
-            onChange={v => setData(d => ({ ...d, firstName: v }))} error={errors.firstName}
-            isValid={data.firstName.trim().length >= 2} />
+          <InputField
+            label="First Name" placeholder="Marcus" icon={User}
+            value={data.firstName}
+            onChange={v => setData(d => ({ ...d, firstName: v }))}
+            error={errors.firstName}
+            valid={data.firstName.trim().length > 0}
+          />
         </div>
         <div style={{ flex: 1 }}>
-          <InputField label="Last Name" placeholder="Johnson" value={data.lastName}
-            onChange={v => setData(d => ({ ...d, lastName: v }))} error={errors.lastName}
-            isValid={data.lastName.trim().length >= 2} />
+          <InputField
+            label="Last Name" placeholder="Johnson"
+            value={data.lastName}
+            onChange={v => setData(d => ({ ...d, lastName: v }))}
+            error={errors.lastName}
+            valid={data.lastName.trim().length > 0}
+          />
         </div>
       </div>
-      <InputField label="Email Address" placeholder="marcus@example.com" type="email" icon={Mail}
-        value={data.email} onChange={v => setData(d => ({ ...d, email: v }))} error={errors.email}
-        isValid={emailOk} />
-      <InputField label="Password" placeholder="Min. 8 characters" type="password" icon={Lock}
-        value={data.password} onChange={v => setData(d => ({ ...d, password: v }))} error={errors.password}
-        hint="Use uppercase, lowercase, numbers, and symbols." isValid={pwOk} />
-      <PasswordStrengthBar password={data.password} />
-      <InputField label="Confirm Password" placeholder="Re-enter password" type="password" icon={Lock}
-        value={data.confirmPassword} onChange={v => setData(d => ({ ...d, confirmPassword: v }))} error={errors.confirmPassword}
-        isValid={cpwOk} />
+      <InputField
+        label="Email Address" placeholder="marcus@example.com"
+        type="email" icon={Mail}
+        value={data.email}
+        onChange={v => setData(d => ({ ...d, email: v }))}
+        error={errors.email}
+        valid={validEmail}
+      />
+      <InputField
+        label="Password" placeholder="Min. 8 characters"
+        type="password" icon={Lock}
+        value={data.password}
+        onChange={v => setData(d => ({ ...d, password: v }))}
+        error={errors.password}
+      />
+      <PasswordStrengthMeter password={data.password}/>
+      <InputField
+        label="Confirm Password" placeholder="Re-enter password"
+        type="password" icon={Lock}
+        value={data.confirmPassword}
+        onChange={v => setData(d => ({ ...d, confirmPassword: v }))}
+        error={errors.confirmPassword}
+        valid={data.confirmPassword && data.password === data.confirmPassword}
+      />
 
-      <div style={{ background: C.surfaceRaised, border: `1px solid ${data.terms ? C.accentBorder : C.border}`, borderRadius: 13, padding: "14px 16px", display: "flex", gap: 12, alignItems: "flex-start", transition: "border-color .2s" }}>
-        <div onClick={() => setData(d => ({ ...d, terms: !d.terms }))}
-          style={{ width: 21, height: 21, borderRadius: 7, border: `1.5px solid ${data.terms ? C.accent : C.borderBright}`, background: data.terms ? C.accentGlow : "transparent", flexShrink: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", marginTop: 1, transition: "all .2s" }}>
-          {data.terms && <Check size={12} color={C.accent} strokeWidth={3} />}
+      {/* Terms */}
+      <div
+        onClick={() => setData(d => ({ ...d, terms: !d.terms }))}
+        style={{
+          background: data.terms ? "rgba(22,163,74,.05)" : C.surfaceRaised,
+          border: `1.5px solid ${data.terms ? "rgba(22,163,74,.3)" : errors.terms ? C.red : C.border}`,
+          borderRadius: 14, padding: "14px 16px",
+          display: "flex", gap: 12, alignItems: "flex-start",
+          cursor: "pointer", transition: "all .2s",
+        }}
+      >
+        <div style={{
+          width: 22, height: 22, borderRadius: 7,
+          border: `2px solid ${data.terms ? C.accent : C.border}`,
+          background: data.terms ? C.accent : "transparent",
+          flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+          marginTop: 1, transition: "all .2s",
+        }}>
+          {data.terms && <Check size={13} color="#fff" strokeWidth={3}/>}
         </div>
-        <div style={{ fontSize: 12.5, color: C.textMid, fontWeight: 500, lineHeight: 1.6, fontFamily: "'DM Sans', sans-serif" }}>
+        <div style={{ fontSize: 12.5, color: C.textMid, fontWeight: 500, lineHeight: 1.6 }}>
           I agree to UaTob's{" "}
-          <a href="/driver-terms" style={{ color: C.accent, cursor: "pointer", textDecoration: "none", fontWeight: 700 }}>Driver Terms of Service</a>
+          <a href="/driver-terms" onClick={e => e.stopPropagation()} style={{ color: C.accent, fontWeight: 700, textDecoration: "none" }}>Driver Terms</a>
           {" "}and{" "}
-          <a href="/privacy-policy" style={{ color: C.accent, cursor: "pointer", textDecoration: "none", fontWeight: 700 }}>Privacy Policy</a>
+          <a href="/privacy-policy" onClick={e => e.stopPropagation()} style={{ color: C.accent, fontWeight: 700, textDecoration: "none" }}>Privacy Policy</a>
         </div>
       </div>
       {errors.terms && (
-        <div style={{ fontSize: 11.5, color: C.red, marginTop: 6, fontWeight: 600, display: "flex", alignItems: "center", gap: 4, fontFamily: "'DM Sans', sans-serif" }}>
+        <div style={{ fontSize: 11.5, color: C.red, marginTop: 6, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
           <AlertCircle size={11} />{errors.terms}
         </div>
       )}
@@ -549,158 +600,196 @@ function StepAccount({ data, setData, errors }) {
   );
 }
 
-/* ─── STEP 2: CONTACT ────────────────────────────────────────────────── */
 function StepContact({ data, setData, errors }) {
-  const phoneOk = data.phone.trim().length >= 10;
-  const zipOk   = /^\d{5}(-\d{4})?$/.test(data.zip);
-
   return (
     <div>
-      <InputField label="Mobile Number" placeholder="+1 (555) 000-0000" type="tel" icon={Phone}
-        value={data.phone} onChange={v => setData(d => ({ ...d, phone: v }))} error={errors.phone}
-        hint="We'll send a verification code to this number." isValid={phoneOk} />
-      <InputField label="Street Address" placeholder="123 Main Street, Apt 4B" icon={MapPin}
-        value={data.address} onChange={v => setData(d => ({ ...d, address: v }))} error={errors.address}
-        isValid={data.address.trim().length >= 5} />
+      <InputField label="Mobile Number" placeholder="+1 (555) 000-0000" type="tel" icon={Phone} value={data.phone} onChange={v => setData(d => ({ ...d, phone: v }))} error={errors.phone} hint="We'll send a verification code to this number." />
+      <InputField label="Street Address" placeholder="123 Main Street, Apt 4B" icon={MapPin} value={data.address} onChange={v => setData(d => ({ ...d, address: v }))} error={errors.address} />
       <div style={{ display: "flex", gap: 12 }}>
         <div style={{ flex: 1.2 }}>
-          <InputField label="City" placeholder="Orlando"
-            value={data.city} onChange={v => setData(d => ({ ...d, city: v }))} error={errors.city}
-            isValid={data.city.trim().length >= 2} />
+          <InputField label="City" placeholder="Orlando" value={data.city} onChange={v => setData(d => ({ ...d, city: v }))} error={errors.city} />
         </div>
         <div style={{ flex: 0.8 }}>
-          <InputField label="ZIP Code" placeholder="32801"
-            value={data.zip} onChange={v => setData(d => ({ ...d, zip: v }))} error={errors.zip}
-            isValid={zipOk} />
+          <InputField label="ZIP Code" placeholder="32801" value={data.zip} onChange={v => setData(d => ({ ...d, zip: v }))} error={errors.zip} />
         </div>
       </div>
-      <SelectField label="State" icon={MapPin} value={data.state}
-        onChange={v => setData(d => ({ ...d, state: v }))} options={ALL_STATES}
-        isValid={Boolean(data.state)} />
-
-      <div style={{ background: "rgba(22,163,74,.04)", border: "1px solid rgba(22,163,74,.2)", borderRadius: 13, padding: "13px 16px", display: "flex", gap: 12, alignItems: "center" }}>
-        <div style={{ width: 34, height: 34, background: C.accentGlow, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <Phone size={14} color={C.accent} />
+      <SelectField label="State" icon={MapPin} value={data.state} onChange={v => setData(d => ({ ...d, state: v }))} options={ALL_STATES} error={errors.state} />
+      <div style={{
+        background: "linear-gradient(135deg, rgba(22,163,74,.05), rgba(22,163,74,.02))",
+        border: "1px solid rgba(22,163,74,.2)",
+        borderRadius: 14, padding: "14px 16px",
+        display: "flex", gap: 12, alignItems: "center",
+      }}>
+        <div style={{
+          width: 36, height: 36,
+          background: "linear-gradient(135deg, rgba(22,163,74,.18), rgba(22,163,74,.08))",
+          border: "1px solid rgba(22,163,74,.25)",
+          borderRadius: 11,
+          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+        }}>
+          <Phone size={15} color={C.accent} />
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 700, color: C.accent, marginBottom: 2, fontFamily: "'DM Sans', sans-serif" }}>SMS Verification Required</div>
-          <div style={{ fontSize: 11.5, color: C.textMid, fontFamily: "'DM Sans', sans-serif" }}>Your number will be verified on the next step.</div>
+          <div style={{ fontSize: 12.5, fontWeight: 800, color: "#15803D", marginBottom: 2 }}>SMS verification on next step</div>
+          <div style={{ fontSize: 11.5, color: C.textMid, fontWeight: 500 }}>We'll send a 6-digit code to confirm your number.</div>
         </div>
       </div>
     </div>
   );
 }
 
-/* ─── STEP 3: VEHICLE ────────────────────────────────────────────────── */
 function StepVehicle({ data, setData, errors }) {
   const RIDE_TYPES = [
-    { id: "economy",  label: "Economy",  c: "#D97706", bg: "#FEF3C7", desc: "Budget rides",  Icon: Gauge  },
-    { id: "standard", label: "Standard", c: "#2563EB", bg: "#EFF6FF", desc: "4 passengers",  Icon: Star   },
-    { id: "xl",       label: "XL",       c: "#16A34A", bg: "#F0FDF4", desc: "6 passengers",  Icon: Users  },
-    { id: "premium",  label: "Premium",  c: "#7C3AED", bg: "#F5F3FF", desc: "Luxury cars",   Icon: Crown  },
+    { id: "economy",  label: "Economy",  desc: "Budget rides",  c: "#16A34A", Icon: Car   },
+    { id: "standard", label: "Standard", desc: "4 passengers",  c: "#2563EB", Icon: Car   },
+    { id: "xl",       label: "XL",       desc: "6 passengers",  c: "#D97706", Icon: Users },
+    { id: "premium",  label: "Premium",  desc: "Luxury cars",   c: "#7C3AED", Icon: Crown },
   ];
 
   return (
     <div>
       <div style={{ display: "flex", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <SelectField label="Make" icon={Car} value={data.make}
-            onChange={v => setData(d => ({ ...d, make: v }))}
-            isValid={Boolean(data.make)}
-            options={[
-              { value: "", label: "Select make…" }, { value: "Toyota", label: "Toyota" },
-              { value: "Honda", label: "Honda" },   { value: "Ford", label: "Ford" },
-              { value: "Chevrolet", label: "Chevrolet" }, { value: "Tesla", label: "Tesla" },
-              { value: "BMW", label: "BMW" },       { value: "Mercedes", label: "Mercedes" },
-              { value: "Hyundai", label: "Hyundai" }, { value: "Kia", label: "Kia" },
-              { value: "Nissan", label: "Nissan" }, { value: "Subaru", label: "Subaru" },
-              { value: "Volkswagen", label: "Volkswagen" }, { value: "Jeep", label: "Jeep" },
-              { value: "Other", label: "Other" },
-            ]} />
+          <SelectField label="Make" icon={Car} value={data.make} onChange={v => setData(d => ({ ...d, make: v }))} options={[
+            { value: "", label: "Select…" }, { value: "Toyota", label: "Toyota" }, { value: "Honda", label: "Honda" },
+            { value: "Ford", label: "Ford" }, { value: "Chevrolet", label: "Chevrolet" }, { value: "Tesla", label: "Tesla" },
+            { value: "BMW", label: "BMW" }, { value: "Mercedes", label: "Mercedes" }, { value: "Hyundai", label: "Hyundai" },
+            { value: "Kia", label: "Kia" }, { value: "Nissan", label: "Nissan" }, { value: "Subaru", label: "Subaru" },
+            { value: "Volkswagen", label: "Volkswagen" }, { value: "Jeep", label: "Jeep" }, { value: "Other", label: "Other" },
+          ]} />
         </div>
         <div style={{ flex: 1 }}>
-          <InputField label="Model" placeholder="Camry, Civic…"
-            value={data.model} onChange={v => setData(d => ({ ...d, model: v }))} error={errors.model}
-            isValid={data.model.trim().length >= 1} />
+          <InputField label="Model" placeholder="Camry, Civic…" value={data.model} onChange={v => setData(d => ({ ...d, model: v }))} error={errors.model} />
         </div>
       </div>
-
       <div style={{ display: "flex", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <SelectField label="Year" icon={Calendar} value={data.year}
+          <SelectField
+            label="Year" icon={Calendar}
+            value={data.year}
             onChange={v => setData(d => ({ ...d, year: v }))}
-            isValid={Boolean(data.year)}
-            options={YEAR_OPTIONS} />
-          {errors.year && (
-            <div style={{ fontSize: 11.5, color: C.red, marginTop: -10, marginBottom: 16, fontWeight: 600, display: "flex", alignItems: "center", gap: 4, fontFamily: "'DM Sans', sans-serif" }}>
-              <AlertCircle size={11} />{errors.year}
-            </div>
-          )}
+            options={VEHICLE_YEARS}
+            error={errors.year}
+          />
         </div>
-        <div style={{ flex: 1, position: "relative" }}>
-          <ColorPicker value={data.color} onChange={v => setData(d => ({ ...d, color: v }))} error={errors.color} />
+        <div style={{ flex: 1 }}>
+          <ColorPickerField
+            label="Color"
+            value={data.color}
+            onChange={v => setData(d => ({ ...d, color: v }))}
+            error={errors.color}
+          />
         </div>
       </div>
-
-      <InputField label="License Plate" placeholder="ABC-1234" icon={CreditCard}
+      <InputField
+        label="License Plate" placeholder="ABC-1234" icon={CreditCard}
         value={data.plate}
-        onChange={v => setData(d => ({ ...d, plate: v.toUpperCase() }))}
+        onChange={v => setData(d => ({ ...d, plate: v }))}
         error={errors.plate}
-        hint="Auto-formatted to uppercase, as shown on your registration."
-        isValid={data.plate.trim().length >= 4} />
+        hint="Enter as shown on your registration."
+        autoCapitalize
+      />
 
+      {/* Ride types — premium card grid */}
       <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 10.5, fontWeight: 800, color: C.textMid, marginBottom: 10, letterSpacing: "1.6px", textTransform: "uppercase", fontFamily: "'DM Sans', sans-serif" }}>
-          Ride Types You Can Offer
+        <div style={{
+          fontSize: 11, fontWeight: 700, color: C.textMid,
+          marginBottom: 10, letterSpacing: "1.5px", textTransform: "uppercase",
+          fontFamily: "'Barlow Condensed', sans-serif",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <span>Ride Types You Can Offer</span>
+          {data.rideTypes?.length > 0 && (
+            <span style={{
+              fontSize: 10, color: C.accent, letterSpacing: 0,
+              fontFamily: "'Barlow', sans-serif", textTransform: "none",
+            }}>
+              {data.rideTypes.length} selected
+            </span>
+          )}
         </div>
+
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           {RIDE_TYPES.map(rt => {
             const selected = data.rideTypes?.includes(rt.id);
+            const Icon = rt.Icon;
             return (
-              <div key={rt.id}
-                onClick={() => setData(d => { const cur = d.rideTypes || []; return { ...d, rideTypes: selected ? cur.filter(r => r !== rt.id) : [...cur, rt.id] }; })}
+              <div
+                key={rt.id}
+                onClick={() => setData(d => {
+                  const cur = d.rideTypes || [];
+                  return { ...d, rideTypes: selected ? cur.filter(r => r !== rt.id) : [...cur, rt.id] };
+                })}
                 style={{
-                  background: selected ? rt.bg : C.surface,
+                  background: selected ? `linear-gradient(135deg, ${rt.c}10, ${rt.c}04)` : C.surfaceRaised,
                   border: `1.5px solid ${selected ? rt.c + "50" : C.border}`,
-                  borderRadius: 13, padding: "13px 14px", cursor: "pointer",
-                  transition: "all .2s", position: "relative", overflow: "hidden",
-                  boxShadow: selected ? `0 2px 12px ${rt.c}20` : "none",
+                  borderRadius: 14, padding: "12px 14px",
+                  cursor: "pointer", transition: "all .2s",
+                  position: "relative",
+                  display: "flex", alignItems: "center", gap: 10,
+                  boxShadow: selected ? `0 4px 12px ${rt.c}15` : "none",
+                }}
+              >
+                <div style={{
+                  width: 36, height: 36, borderRadius: 10,
+                  background: selected
+                    ? `linear-gradient(135deg, ${rt.c}, ${rt.c}DD)`
+                    : C.surfaceBright,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  flexShrink: 0,
+                  boxShadow: selected ? `0 3px 8px ${rt.c}40` : "none",
+                  transition: "all .2s",
                 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
-                  <div style={{ width: 28, height: 28, borderRadius: 8, background: selected ? rt.c + "1A" : C.surfaceRaised, display: "flex", alignItems: "center", justifyContent: "center", transition: "background .2s" }}>
-                    <rt.Icon size={14} color={selected ? rt.c : C.textDim} />
-                  </div>
-                  <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13.5, fontWeight: 800, color: selected ? rt.c : C.text, letterSpacing: ".2px" }}>
+                  <Icon size={16} color={selected ? "#fff" : C.textDim} strokeWidth={2.2}/>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 14, fontWeight: 800,
+                    color: selected ? rt.c : C.text,
+                    fontFamily: "'Barlow Condensed', sans-serif",
+                    letterSpacing: ".3px",
+                  }}>
                     {rt.label}
                   </div>
-                  {selected && (
-                    <div style={{ marginLeft: "auto", width: 18, height: 18, borderRadius: "50%", background: rt.c, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <Check size={10} color="#fff" strokeWidth={3} />
-                    </div>
-                  )}
+                  <div style={{ fontSize: 10.5, color: C.textDim, fontWeight: 600, marginTop: 1 }}>
+                    {rt.desc}
+                  </div>
                 </div>
-                <div style={{ fontSize: 11, color: selected ? rt.c : C.textDim, fontWeight: 600, fontFamily: "'DM Sans', sans-serif", paddingLeft: 36 }}>
-                  {rt.desc}
-                </div>
+                {selected && (
+                  <div style={{
+                    position: "absolute", top: 6, right: 6,
+                    width: 16, height: 16, borderRadius: "50%",
+                    background: rt.c,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    boxShadow: `0 2px 4px ${rt.c}50`,
+                  }}>
+                    <Check size={9} color="#fff" strokeWidth={3.2}/>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
         {errors.rideTypes && (
-          <div style={{ fontSize: 11.5, color: C.red, marginTop: 6, fontWeight: 600, display: "flex", alignItems: "center", gap: 4, fontFamily: "'DM Sans', sans-serif" }}>
+          <div style={{ fontSize: 11.5, color: C.red, marginTop: 6, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
             <AlertCircle size={11} />{errors.rideTypes}
           </div>
         )}
       </div>
 
-      <InputField label="Vehicle VIN (Optional)" placeholder="1HGBH41JXMN109186"
-        value={data.vin} onChange={v => setData(d => ({ ...d, vin: v }))}
-        hint="17-character Vehicle Identification Number" isValid={data.vin.length === 17} />
+      <InputField
+        label="Vehicle VIN" placeholder="1HGBH41JXMN109186" icon={Hash}
+        value={data.vin}
+        onChange={v => setData(d => ({ ...d, vin: v }))}
+        hint="17-character Vehicle Identification Number (optional)"
+        autoCapitalize
+      />
     </div>
   );
 }
 
 /* ─── STEP 4: DOCUMENTS ──────────────────────────────────────────────── */
+
 function StepDocuments({ data, setData, errors, uid }) {
   const [uploadState, setUploadState] = useState({
     licenseFront: { uploading: false, progress: 0, localPreview: "" },
@@ -746,8 +835,14 @@ function StepDocuments({ data, setData, errors, uid }) {
 
   const preview = (slot) => uploadState[slot].localPreview || data[`${slot}Url`] || "";
 
-  const SectionLabel = ({ children }) => (
-    <div style={{ fontSize: 10.5, fontWeight: 800, color: C.textMid, marginBottom: 12, letterSpacing: "1.6px", textTransform: "uppercase", fontFamily: "'DM Sans', sans-serif" }}>
+  const SectionLabel = ({ children, icon: Icon }) => (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 8,
+      fontSize: 11, fontWeight: 700, color: C.textMid,
+      marginBottom: 12, letterSpacing: "1.5px", textTransform: "uppercase",
+      fontFamily: "'Barlow Condensed', sans-serif",
+    }}>
+      {Icon && <Icon size={12} color={C.textDim} strokeWidth={2.2}/>}
       {children}
     </div>
   );
@@ -755,13 +850,25 @@ function StepDocuments({ data, setData, errors, uid }) {
 
   return (
     <div>
-      <div style={{ background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 14, padding: "13px 16px", marginBottom: 20, display: "flex", gap: 12, alignItems: "center" }}>
-        <Shield size={15} color={C.blue} />
-        <div style={{ fontSize: 12.5, color: C.textMid, lineHeight: 1.55, fontFamily: "'DM Sans', sans-serif" }}>
-          All documents are <strong style={{ color: C.text }}>encrypted and stored securely</strong>. We only use them for driver verification.
+      <div style={{
+        background: "linear-gradient(135deg, rgba(37,99,235,.04), rgba(37,99,235,.02))",
+        border: "1px solid rgba(37,99,235,.20)",
+        borderRadius: 16, padding: "14px 16px", marginBottom: 20,
+        display: "flex", gap: 12, alignItems: "center",
+      }}>
+        <div style={{
+          width: 36, height: 36, borderRadius: 11,
+          background: "rgba(37,99,235,.12)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          flexShrink: 0,
+        }}>
+          <Shield size={16} color={C.blue} strokeWidth={2.2}/>
+        </div>
+        <div style={{ fontSize: 12.5, color: C.textMid, lineHeight: 1.55 }}>
+          All documents are <strong style={{ color: C.text }}>encrypted and stored securely</strong>. Used only for verification.
         </div>
       </div>
-      <SectionLabel>Driver's License</SectionLabel>
+      <SectionLabel icon={CreditCard}>Driver's License</SectionLabel>
       <div style={{ display: "flex", gap: 10 }}>
         <div style={{ flex: 1 }}>
           <UploadBox label="Front Side" hint="Tap to upload photo" icon={Camera} uploaded={data.licenseFront} previewUrl={preview("licenseFront")} uploading={uploadState.licenseFront.uploading} progress={uploadState.licenseFront.progress} error={errors?.licenseFront} onFileSelect={f => uploadFile("licenseFront", f)} onRemove={() => removeSlot("licenseFront")} />
@@ -770,41 +877,63 @@ function StepDocuments({ data, setData, errors, uid }) {
           <UploadBox label="Back Side" hint="Tap to upload photo" icon={Camera} uploaded={data.licenseBack} previewUrl={preview("licenseBack")} uploading={uploadState.licenseBack.uploading} progress={uploadState.licenseBack.progress} error={errors?.licenseBack} onFileSelect={f => uploadFile("licenseBack", f)} onRemove={() => removeSlot("licenseBack")} />
         </div>
       </div>
-      <InputField label="License Number" placeholder="D1234567" icon={FileText}
-        value={data.licenseNumber} onChange={v => setData(d => ({ ...d, licenseNumber: v }))}
-        hint="As shown on your license" error={errors?.licenseNumber}
-        isValid={data.licenseNumber.trim().length >= 5} />
+      <InputField label="License Number" placeholder="D1234567" icon={FileText} value={data.licenseNumber} onChange={v => setData(d => ({ ...d, licenseNumber: v }))} hint="As shown on your license" error={errors?.licenseNumber} autoCapitalize/>
       <Divider />
-      <SectionLabel>Vehicle Registration &amp; Insurance</SectionLabel>
+      <SectionLabel icon={Car}>Vehicle Registration &amp; Insurance</SectionLabel>
       <UploadBox label="Vehicle Registration" hint="Photo or PDF accepted" icon={FileText} uploaded={data.registration} previewUrl={preview("registration")} uploading={uploadState.registration.uploading} progress={uploadState.registration.progress} error={errors?.registration} onFileSelect={f => uploadFile("registration", f)} onRemove={() => removeSlot("registration")} />
-      <UploadBox label="Proof of Insurance" hint="Must be current & valid" icon={Shield} uploaded={data.insurance} previewUrl={preview("insurance")} uploading={uploadState.insurance.uploading} progress={uploadState.insurance.progress} error={errors?.insurance} onFileSelect={f => uploadFile("insurance", f)} onRemove={() => removeSlot("insurance")} />
+      <UploadBox label="Proof of Insurance" hint="Must be current &amp; valid" icon={Shield} uploaded={data.insurance} previewUrl={preview("insurance")} uploading={uploadState.insurance.uploading} progress={uploadState.insurance.progress} error={errors?.insurance} onFileSelect={f => uploadFile("insurance", f)} onRemove={() => removeSlot("insurance")} />
       <Divider />
-      <SectionLabel>Profile Photo</SectionLabel>
+      <SectionLabel icon={User}>Profile Photo</SectionLabel>
       <UploadBox label="Your Photo" hint="Clear, recent headshot · No sunglasses" icon={Camera} uploaded={data.profilePhoto} previewUrl={preview("profilePhoto")} uploading={uploadState.profilePhoto.uploading} progress={uploadState.profilePhoto.progress} error={errors?.profilePhoto} onFileSelect={f => uploadFile("profilePhoto", f)} onRemove={() => removeSlot("profilePhoto")} />
     </div>
   );
 }
 
 /* ─── STEP 5: VERIFY ─────────────────────────────────────────────────── */
+
 function StepVerify({ accountData, contactData, vehicleData, docData }) {
   const allDocs = docData.licenseFront && docData.licenseBack && docData.registration && docData.insurance && docData.profilePhoto;
-  const colorMeta = CAR_COLORS.find(c => c.value === vehicleData.color);
+  const colorMeta = VEHICLE_COLORS.find(c => c.value === vehicleData.color);
 
-  const Section = ({ title, items }) => (
-    <div style={{ marginBottom: 16 }}>
-      <div style={{ fontSize: 10.5, fontWeight: 800, color: C.textMid, marginBottom: 10, letterSpacing: "1.6px", textTransform: "uppercase", fontFamily: "'DM Sans', sans-serif" }}>{title}</div>
-      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,.04)" }}>
+  const Section = ({ title, items, icon: Icon }) => (
+    <div style={{ marginBottom: 18 }}>
+      <div style={{
+        display: "flex", alignItems: "center", gap: 8,
+        fontSize: 11, fontWeight: 700, color: C.textMid,
+        marginBottom: 10, letterSpacing: "1.5px", textTransform: "uppercase",
+        fontFamily: "'Barlow Condensed', sans-serif", paddingLeft: 4,
+      }}>
+        {Icon && <Icon size={11} color={C.textDim} strokeWidth={2.2}/>}
+        {title}
+      </div>
+      <div style={{
+        background: C.surface, border: `1px solid ${C.border}`,
+        borderRadius: 16, overflow: "hidden",
+        boxShadow: "0 1px 4px rgba(0,0,0,.04)",
+      }}>
         {items.map((item, i) => (
-          <div key={i} style={{ padding: "12px 16px", borderBottom: i < items.length - 1 ? `1px solid ${C.border}` : "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 12.5, color: C.textMid, fontWeight: 500, fontFamily: "'DM Sans', sans-serif" }}>{item.label}</span>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, maxWidth: "55%" }}>
+          <div key={i} style={{
+            padding: "12px 16px",
+            borderBottom: i < items.length - 1 ? `1px solid ${C.border}` : "none",
+            display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12,
+          }}>
+            <span style={{ fontSize: 12.5, color: C.textMid, fontWeight: 500 }}>{item.label}</span>
+            <span style={{
+              fontSize: 13, color: item.val ? C.text : C.textDim, fontWeight: 600,
+              maxWidth: "60%", textAlign: "right",
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end",
+            }}>
               {item.swatch && (
-                <div style={{ width: 16, height: 16, borderRadius: 5, background: item.swatch, border: "1px solid rgba(0,0,0,.12)", flexShrink: 0 }} />
+                <div style={{
+                  width: 14, height: 14, borderRadius: 4,
+                  background: item.swatch,
+                  border: "1px solid rgba(0,0,0,.15)",
+                  flexShrink: 0,
+                }}/>
               )}
-              <span style={{ fontSize: 13, color: item.val ? C.text : C.textDim, fontWeight: 700, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "'DM Sans', sans-serif" }}>
-                {item.val || "—"}
-              </span>
-            </div>
+              {item.val || "—"}
+            </span>
           </div>
         ))}
       </div>
@@ -813,62 +942,124 @@ function StepVerify({ accountData, contactData, vehicleData, docData }) {
 
   return (
     <div>
-      <div style={{ background: allDocs ? "rgba(22,163,74,.05)" : "rgba(22,163,74,.04)", border: `1px solid ${allDocs ? "rgba(22,163,74,.25)" : "rgba(22,163,74,.18)"}`, borderRadius: 14, padding: "15px 17px", marginBottom: 22, display: "flex", gap: 12, alignItems: "center" }}>
-        <div style={{ width: 38, height: 38, background: allDocs ? "rgba(22,163,74,.12)" : C.accentGlow, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          {allDocs ? <CheckCircle size={18} color={C.green} /> : <Clock size={18} color={C.accent} />}
+      <div style={{
+        background: allDocs
+          ? "linear-gradient(135deg, rgba(22,163,74,.08), rgba(22,163,74,.03))"
+          : "linear-gradient(135deg, rgba(217,119,6,.08), rgba(217,119,6,.03))",
+        border: `1.5px solid ${allDocs ? "rgba(22,163,74,.3)" : "rgba(217,119,6,.3)"}`,
+        borderRadius: 18, padding: "18px 20px", marginBottom: 22,
+        display: "flex", gap: 14, alignItems: "center",
+      }}>
+        <div style={{
+          width: 44, height: 44,
+          background: allDocs
+            ? "linear-gradient(135deg,#22C55E,#16A34A)"
+            : "linear-gradient(135deg,#F59E0B,#D97706)",
+          borderRadius: 13,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          flexShrink: 0,
+          boxShadow: allDocs ? "0 6px 16px rgba(22,163,74,.35)" : "0 6px 16px rgba(217,119,6,.35)",
+        }}>
+          {allDocs ? <CheckCircle size={20} color="#fff" /> : <Clock size={20} color="#fff" />}
         </div>
-        <div>
-          <div style={{ fontSize: 13.5, fontWeight: 700, color: C.accent, marginBottom: 2, fontFamily: "'DM Sans', sans-serif" }}>{allDocs ? "All documents uploaded" : "Some documents missing"}</div>
-          <div style={{ fontSize: 11.5, color: C.textMid, fontFamily: "'DM Sans', sans-serif" }}>{allDocs ? "Your application is ready to submit for review." : "You can still submit — upload remaining docs later."}</div>
+        <div style={{ flex: 1 }}>
+          <div style={{
+            fontSize: 16, fontWeight: 900,
+            fontFamily: "'Barlow Condensed', sans-serif",
+            color: allDocs ? "#15803D" : "#92400E",
+            marginBottom: 2,
+          }}>
+            {allDocs ? "Ready to submit ✓" : "Some documents missing"}
+          </div>
+          <div style={{ fontSize: 12, color: C.textMid, fontWeight: 500 }}>
+            {allDocs ? "All required documents uploaded." : "You can still submit — upload missing docs later."}
+          </div>
         </div>
       </div>
 
-      <Section title="Account"   items={[
+      <Section title="Account" icon={User} items={[
         { label: "Name",  val: `${accountData.firstName} ${accountData.lastName}` },
         { label: "Email", val: accountData.email },
       ]} />
-      <Section title="Contact"   items={[
-        { label: "Phone",          val: contactData.phone },
-        { label: "Address",        val: contactData.address },
-        { label: "City / State",   val: contactData.city && contactData.state ? `${contactData.city}, ${contactData.state} ${contactData.zip}` : "" },
+
+      <Section title="Contact" icon={Phone} items={[
+        { label: "Phone",        val: contactData.phone },
+        { label: "Address",      val: contactData.address },
+        { label: "City / State", val: contactData.city && contactData.state
+          ? `${contactData.city}, ${contactData.state} ${contactData.zip}` : "" },
       ]} />
-      <Section title="Vehicle"   items={[
-        { label: "Vehicle",    val: vehicleData.make && vehicleData.model ? `${vehicleData.year} ${vehicleData.make} ${vehicleData.model}` : "" },
-        { label: "Color",      val: vehicleData.color, swatch: colorMeta?.hex },
-        { label: "Plate",      val: vehicleData.plate },
-        { label: "Ride Types", val: vehicleData.rideTypes?.join(", ") },
+
+      <Section title="Vehicle" icon={Car} items={[
+        { label: "Vehicle", val: vehicleData.make && vehicleData.model
+          ? `${vehicleData.year} ${vehicleData.make} ${vehicleData.model}` : "" },
+        { label: "Color",   val: vehicleData.color, swatch: colorMeta?.hex },
+        { label: "Plate",   val: vehicleData.plate?.toUpperCase() },
+        { label: "Tiers",   val: vehicleData.rideTypes?.map(r => r.charAt(0).toUpperCase() + r.slice(1)).join(", ") },
       ]} />
-      <Section title="Documents" items={[
+
+      <Section title="Documents" icon={FileText} items={[
         { label: "Driver's License", val: (docData.licenseFront && docData.licenseBack) ? "✓ Uploaded" : "Pending" },
         { label: "Registration",     val: docData.registration ? "✓ Uploaded" : "Pending" },
-        { label: "Insurance",        val: docData.insurance    ? "✓ Uploaded" : "Pending" },
+        { label: "Insurance",        val: docData.insurance ? "✓ Uploaded" : "Pending" },
         { label: "Profile Photo",    val: docData.profilePhoto ? "✓ Uploaded" : "Pending" },
       ]} />
 
       {(docData.licenseFrontUrl || docData.profilePhotoUrl) && (
         <div style={{ marginBottom: 18 }}>
-          <div style={{ fontSize: 10.5, fontWeight: 800, color: C.textMid, marginBottom: 10, letterSpacing: "1.6px", textTransform: "uppercase", fontFamily: "'DM Sans', sans-serif" }}>Document Previews</div>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 8,
+            fontSize: 11, fontWeight: 700, color: C.textMid,
+            marginBottom: 10, letterSpacing: "1.5px", textTransform: "uppercase",
+            fontFamily: "'Barlow Condensed', sans-serif", paddingLeft: 4,
+          }}>
+            <Eye size={11} color={C.textDim} strokeWidth={2.2}/>
+            Document Previews
+          </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {[
               { url: docData.licenseFrontUrl, label: "License Front" },
-              { url: docData.licenseBackUrl,  label: "License Back"  },
-              { url: docData.registrationUrl, label: "Registration"  },
-              { url: docData.insuranceUrl,    label: "Insurance"     },
+              { url: docData.licenseBackUrl,  label: "License Back" },
+              { url: docData.registrationUrl, label: "Registration" },
+              { url: docData.insuranceUrl,    label: "Insurance" },
               { url: docData.profilePhotoUrl, label: "Profile Photo" },
             ].filter(d => d.url && !d.url.startsWith("data:application/pdf")).map((d, i) => (
               <div key={i} style={{ flex: "1 1 calc(33% - 6px)", minWidth: 90 }}>
-                <img src={d.url} alt={d.label} style={{ width: "100%", height: 66, objectFit: "cover", borderRadius: 9, display: "block", border: `1px solid ${C.border}` }} />
-                <div style={{ fontSize: 10, color: C.textDim, fontWeight: 700, textAlign: "center", marginTop: 4, fontFamily: "'DM Sans', sans-serif", letterSpacing: ".5px", textTransform: "uppercase" }}>{d.label}</div>
+                <img src={d.url} alt={d.label} style={{
+                  width: "100%", height: 70, objectFit: "cover",
+                  borderRadius: 10, display: "block",
+                  border: `1px solid ${C.border}`,
+                }} />
+                <div style={{
+                  fontSize: 9.5, color: C.textDim, fontWeight: 700,
+                  textAlign: "center", marginTop: 4,
+                  fontFamily: "'Barlow Condensed', sans-serif",
+                  letterSpacing: ".5px", textTransform: "uppercase",
+                }}>
+                  {d.label}
+                </div>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      <div style={{ background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 13, padding: "13px 16px", display: "flex", gap: 10, alignItems: "flex-start" }}>
-        <Zap size={14} color={C.accent} style={{ flexShrink: 0, marginTop: 1 }} />
-        <div style={{ fontSize: 12, color: C.textMid, lineHeight: 1.6, fontFamily: "'DM Sans', sans-serif" }}>
-          After submission, our team will review your application within <strong style={{ color: C.text }}>24–48 hours</strong>. You'll receive an email when you're approved to start driving.
+      <div style={{
+        background: "linear-gradient(135deg, rgba(22,163,74,.05), rgba(22,163,74,.02))",
+        border: "1px solid rgba(22,163,74,.2)",
+        borderRadius: 14, padding: "14px 16px",
+        display: "flex", gap: 12, alignItems: "center",
+      }}>
+        <div style={{
+          width: 32, height: 32, borderRadius: 10,
+          background: C.accentGlow,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          flexShrink: 0,
+        }}>
+          <Zap size={14} color={C.accent} strokeWidth={2.2}/>
+        </div>
+        <div style={{ fontSize: 12, color: C.textMid, lineHeight: 1.55 }}>
+          After submission, our team reviews your application within{" "}
+          <strong style={{ color: C.text }}>24–48 hours</strong>. You'll be notified by email.
         </div>
       </div>
     </div>
@@ -876,76 +1067,112 @@ function StepVerify({ accountData, contactData, vehicleData, docData }) {
 }
 
 /* ─── PENDING SCREEN ─────────────────────────────────────────────────── */
+
 function PendingScreen({ firstName, email }) {
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', color: C.text, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+    <div style={{ minHeight: "100vh", background: C.bg, fontFamily: '"Barlow", system-ui, sans-serif', color: C.text, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <style dangerouslySetInnerHTML={{ __html: `
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800;900&family=Barlow+Condensed:wght@500;600;700;800;900&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        @keyframes scaleIn  { from { opacity:0; transform:scale(.88) } to { opacity:1; transform:scale(1) } }
-        @keyframes fadeUp   { from { opacity:0; transform:translateY(18px) } to { opacity:1; transform:translateY(0) } }
-        @keyframes pulse    { 0%,100%{opacity:1} 50%{opacity:.45} }
-        @keyframes ringPop  { 0%{transform:scale(.7);opacity:0} 70%{transform:scale(1.07)} 100%{transform:scale(1);opacity:1} }
-        @keyframes tickDraw { from{stroke-dashoffset:40} to{stroke-dashoffset:0} }
-        @keyframes shimmer  { 0%{background-position:-200% center} 100%{background-position:200% center} }
+        @keyframes scaleIn { from { opacity: 0; transform: scale(.85) } to { opacity: 1; transform: scale(1) } }
+        @keyframes fadeUp  { from { opacity: 0; transform: translateY(20px) } to { opacity: 1; transform: translateY(0) } }
+        @keyframes pulse   { 0%,100% { opacity: 1 } 50% { opacity: .5 } }
+        @keyframes psGlow  { 0%,100% { box-shadow: 0 0 0 0 rgba(22,163,74,.3); } 50% { box-shadow: 0 0 0 16px rgba(22,163,74,0); } }
       `}} />
-      <div style={{ textAlign: "center", maxWidth: 420, width: "100%", animation: "scaleIn .55s cubic-bezier(.34,1.56,.64,1)" }}>
-
-        <div style={{ position: "relative", width: 96, height: 96, margin: "0 auto 30px", animation: "ringPop .6s cubic-bezier(.34,1.56,.64,1)" }}>
-          <svg width="96" height="96" viewBox="0 0 96 96" fill="none" style={{ position: "absolute", inset: 0 }}>
-            <circle cx="48" cy="48" r="44" stroke="rgba(22,163,74,.15)" strokeWidth="3" fill="none" />
-            <circle cx="48" cy="48" r="44" stroke="url(#ring-grad)" strokeWidth="3" fill="none"
-              strokeDasharray="276" strokeDashoffset="0" strokeLinecap="round"
-              style={{ transformOrigin: "center", transform: "rotate(-90deg)" }} />
-            <defs>
-              <linearGradient id="ring-grad" x1="0" y1="0" x2="96" y2="96" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stopColor="#22C55E" />
-                <stop offset="100%" stopColor="#16A34A" />
-              </linearGradient>
-            </defs>
-          </svg>
-          <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(22,163,74,.08)", borderRadius: "50%" }}>
-            <svg width="38" height="38" viewBox="0 0 38 38" fill="none">
-              <polyline points="8,20 16,28 30,12" stroke="#16A34A" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"
-                strokeDasharray="40" strokeDashoffset="0"
-                style={{ animation: "tickDraw .5s ease-out .3s both" }} />
-            </svg>
-          </div>
+      <div style={{ textAlign: "center", maxWidth: 420, width: "100%", animation: "scaleIn .6s cubic-bezier(.34,1.56,.64,1)" }}>
+        <div style={{
+          width: 96, height: 96,
+          background: "linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D)",
+          borderRadius: "50%",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          margin: "0 auto 28px",
+          boxShadow: "0 12px 32px rgba(22,163,74,.4)",
+          animation: "psGlow 2.5s ease-in-out infinite",
+          position: "relative",
+        }}>
+          <CheckCircle size={44} color="#fff" strokeWidth={2.2}/>
+          <Sparkles
+            size={14}
+            color="#FCD34D"
+            fill="#FCD34D"
+            strokeWidth={0}
+            style={{
+              position: "absolute", top: 8, right: 8,
+              filter: "drop-shadow(0 2px 4px rgba(245,158,11,0.5))",
+            }}
+          />
         </div>
 
-        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 36, fontWeight: 800, color: C.text, letterSpacing: "-1.2px", marginBottom: 8, lineHeight: 1.05 }}>
-          You're in, {firstName}!
+        <div style={{
+          fontFamily: "'Barlow Condensed', sans-serif",
+          fontSize: 38, fontWeight: 900,
+          color: C.text,
+          letterSpacing: "-1px",
+          marginBottom: 10, lineHeight: 1.1,
+        }}>
+          You're in,<br/>{firstName}!
         </div>
-        <div style={{ display: "inline-block", fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: "2px", textTransform: "uppercase", background: "linear-gradient(90deg,#16A34A,#22C55E,#16A34A)", backgroundSize: "200%", backgroundClip: "text", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", animation: "shimmer 3s linear infinite", marginBottom: 20 }}>
-          Application Submitted
+        <div style={{ fontSize: 15, color: C.textMid, lineHeight: 1.7, marginBottom: 32 }}>
+          Application submitted. Our team is reviewing now —<br/>
+          you'll hear back within <strong style={{ color: C.accent }}>24–48 hours</strong>.
         </div>
-
-        <div style={{ fontSize: 15, color: C.textMid, lineHeight: 1.7, marginBottom: 32, fontFamily: "'DM Sans', sans-serif" }}>
-          Our team is reviewing your application.<br />
-          You'll hear back within <strong style={{ color: C.accent }}>24–48 hours</strong>.
-        </div>
-
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {[
             { icon: Mail,  label: "Confirmation sent to", val: email,                      c: C.blue   },
             { icon: Clock, label: "Review time",          val: "24–48 hours",               c: C.accent },
             { icon: Zap,   label: "Once approved",        val: "Start earning immediately", c: C.green  },
           ].map((item, i) => (
-            <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 13, padding: "13px 17px", display: "flex", gap: 12, alignItems: "center", animation: `fadeUp .45s ease-out ${0.25 + i * 0.1}s both`, boxShadow: "0 1px 6px rgba(0,0,0,.04)" }}>
-              <div style={{ width: 36, height: 36, background: item.c + "12", borderRadius: 11, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <item.icon size={16} color={item.c} />
+            <div key={i} style={{
+              background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14,
+              padding: "13px 16px", display: "flex", gap: 12, alignItems: "center",
+              animation: `fadeUp .5s ease-out ${0.2 + i * 0.1}s both`,
+              boxShadow: "0 1px 4px rgba(0,0,0,.04)",
+            }}>
+              <div style={{
+                width: 36, height: 36,
+                background: `linear-gradient(135deg, ${item.c}18, ${item.c}08)`,
+                border: `1px solid ${item.c}25`,
+                borderRadius: 11,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                flexShrink: 0,
+              }}>
+                <item.icon size={16} color={item.c} strokeWidth={2.2}/>
               </div>
-              <div style={{ textAlign: "left" }}>
-                <div style={{ fontSize: 10.5, color: C.textDim, fontWeight: 700, letterSpacing: "1.4px", textTransform: "uppercase", fontFamily: "'DM Sans', sans-serif" }}>{item.label}</div>
-                <div style={{ fontSize: 13.5, color: C.text, fontWeight: 700, marginTop: 2, fontFamily: "'DM Sans', sans-serif" }}>{item.val}</div>
+              <div style={{ textAlign: "left", flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontSize: 10, color: C.textDim, fontWeight: 700,
+                  letterSpacing: ".08em", textTransform: "uppercase",
+                  fontFamily: "'Barlow Condensed', sans-serif",
+                }}>
+                  {item.label}
+                </div>
+                <div style={{
+                  fontSize: 13.5, color: C.text, fontWeight: 700, marginTop: 2,
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                }}>
+                  {item.val}
+                </div>
               </div>
             </div>
           ))}
         </div>
-
-        <div style={{ marginTop: 26, display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(245,158,11,.07)", border: "1px solid rgba(245,158,11,.22)", borderRadius: 100, padding: "10px 20px" }}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#F59E0B", animation: "pulse 1.5s ease-in-out infinite" }} />
-          <span style={{ fontSize: 12, fontWeight: 800, color: "#B45309", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "1.2px", textTransform: "uppercase" }}>
+        <div style={{
+          marginTop: 28,
+          display: "inline-flex", alignItems: "center", gap: 8,
+          background: "rgba(245,158,11,.08)",
+          border: "1px solid rgba(245,158,11,.25)",
+          borderRadius: 100, padding: "10px 20px",
+        }}>
+          <div style={{
+            width: 8, height: 8, borderRadius: "50%",
+            background: "#F59E0B",
+            animation: "pulse 1.5s ease-in-out infinite",
+          }} />
+          <span style={{
+            fontSize: 12, fontWeight: 800, color: "#B45309",
+            fontFamily: "'Barlow Condensed', sans-serif",
+            letterSpacing: ".1em", textTransform: "uppercase",
+          }}>
             Pending Review
           </span>
         </div>
@@ -955,6 +1182,7 @@ function PendingScreen({ firstName, email }) {
 }
 
 /* ─── MAIN COMPONENT ─────────────────────────────────────────────────── */
+
 export default function UaTobDriverSignup({ uid, driverSignUp }) {
   const router = useRouter();
   const { drivers } = useApplicationSubmitted(uid);
@@ -1008,8 +1236,8 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
     const savedStep = driverSignUp.currentStep ?? 1;
     if (savedStep > 1) { setStep(s => Math.max(s, savedStep)); setShowResumeBanner(true); }
     if (driverSignUp.firstName || driverSignUp.lastName || driverSignUp.email) setAccountData(d => ({ ...d, firstName: driverSignUp.firstName || d.firstName, lastName: driverSignUp.lastName || d.lastName, email: driverSignUp.email || d.email }));
-    if (driverSignUp.contact)   setContactData(d => ({ ...d, ...driverSignUp.contact }));
-    if (driverSignUp.vehicle)   setVehicleData(d => ({ ...d, ...driverSignUp.vehicle }));
+    if (driverSignUp.contact) setContactData(d => ({ ...d, ...driverSignUp.contact }));
+    if (driverSignUp.vehicle) setVehicleData(d => ({ ...d, ...driverSignUp.vehicle }));
     if (driverSignUp.documents) setDocData(d => ({ ...d, ...driverSignUp.documents }));
   }, [driverSignUp, drivers]);
 
@@ -1022,7 +1250,6 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
 
   if (driverSignUp && COMPLETED_STATUSES.includes(driverSignUp.status)) return null;
 
-  /* ── API helpers ─────────────────────────────────────────────────── */
   const createDriverProfile = async (uid, data) => {
     const { data: res } = await callCreateDriverProfile({
       uid,
@@ -1037,7 +1264,8 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
     if (!id) return;
     try {
       await callCreateDriverProfile({
-        uid: id, currentStep: nextStep,
+        uid: id,
+        currentStep: nextStep,
         accountData: { firstName: accountData.firstName, lastName: accountData.lastName, email: accountData.email },
         contact:   contactData,
         vehicle:   vehicleData,
@@ -1050,16 +1278,36 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
 
   const submitDriverData = async (uid) => {
     const { data: res } = await callCreateDriverProfile({
-      uid, submit: true,
-      contact: { phone: contactData.phone, address: contactData.address, city: contactData.city, state: contactData.state, zip: contactData.zip },
-      vehicle: { make: vehicleData.make, model: vehicleData.model, year: vehicleData.year, color: vehicleData.color, plate: vehicleData.plate, vin: vehicleData.vin, rideTypes: vehicleData.rideTypes },
+      uid,
+      submit: true,
+      contact: {
+        phone:   contactData.phone,
+        address: contactData.address,
+        city:    contactData.city,
+        state:   contactData.state,
+        zip:     contactData.zip,
+      },
+      vehicle: {
+        make:      vehicleData.make,
+        model:     vehicleData.model,
+        year:      vehicleData.year,
+        color:     vehicleData.color,
+        plate:     vehicleData.plate?.toUpperCase(),
+        vin:       vehicleData.vin?.toUpperCase(),
+        rideTypes: vehicleData.rideTypes,
+      },
       documents: {
-        licenseFront: docData.licenseFront, licenseFrontUrl: docData.licenseFrontUrl,
-        licenseBack:  docData.licenseBack,  licenseBackUrl:  docData.licenseBackUrl,
-        licenseNumber: docData.licenseNumber,
-        registration:  docData.registration, registrationUrl: docData.registrationUrl,
-        insurance:     docData.insurance,    insuranceUrl:    docData.insuranceUrl,
-        profilePhoto:  docData.profilePhoto, profilePhotoUrl: docData.profilePhotoUrl,
+        licenseFront:    docData.licenseFront,
+        licenseFrontUrl: docData.licenseFrontUrl,
+        licenseBack:     docData.licenseBack,
+        licenseBackUrl:  docData.licenseBackUrl,
+        licenseNumber:   docData.licenseNumber,
+        registration:    docData.registration,
+        registrationUrl: docData.registrationUrl,
+        insurance:       docData.insurance,
+        insuranceUrl:    docData.insuranceUrl,
+        profilePhoto:    docData.profilePhoto,
+        profilePhotoUrl: docData.profilePhotoUrl,
       },
     });
     if (res?.error) throw new Error(res.error);
@@ -1067,6 +1315,7 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
   };
 
   /* ── Validation ── */
+
   const validate = () => {
     const e = {};
     if (step === 1) {
@@ -1086,9 +1335,8 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
     }
     if (step === 3) {
       if (!vehicleData.model.trim()) e.model = "Required";
-      const yr = parseInt(vehicleData.year, 10);
-      if (!vehicleData.year || yr < 2005 || yr > MAX_VEHICLE_YEAR) e.year = `Enter a year between 2005–${MAX_VEHICLE_YEAR}`;
-      if (!vehicleData.color.trim()) e.color = "Required";
+      if (!vehicleData.year || Number(vehicleData.year) < 2005 || Number(vehicleData.year) > MAX_VEHICLE_YEAR) e.year = `Select year between 2005–${MAX_VEHICLE_YEAR}`;
+      if (!vehicleData.color) e.color = "Pick a color";
       if (!vehicleData.plate.trim()) e.plate = "Required";
       if (!vehicleData.rideTypes?.length) e.rideTypes = "Select at least one ride type";
     }
@@ -1102,11 +1350,13 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
   };
 
   /* ── Navigation ── */
+
   const goNext = async () => {
     if (loading || animating || !validate()) return;
     setSubmitError(null);
     try {
       setLoading(true);
+
       if (step === 1) {
         if (isExistingUser) {
           await saveProgress(2, uid);
@@ -1135,6 +1385,7 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
         setSubmitted(true);
         return;
       }
+
       setDirection("forward");
       setAnimating(true);
       setTimeout(() => {
@@ -1143,6 +1394,7 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
         setAnimating(false);
         scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
       }, 200);
+
     } catch (err) {
       console.error("❌ Error:", err);
       if (step === 1 && !isExistingUser) setErrors({ email: err.message || "Signup failed. Please try again." });
@@ -1186,73 +1438,90 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
     );
   }
 
-  const STEP_TITLES = [
-    "Create your account",
-    "Where are you located?",
-    "Tell us about your vehicle",
-    "Upload your documents",
-    "Review & submit",
-  ];
-  const STEP_SUBTITLES = [
-    "Set up your UaTob driver profile.",
-    "We need your contact and location details.",
-    "Your vehicle must meet our quality standards.",
-    "Securely upload your required documents.",
-    "Double-check everything before submitting.",
+  const stepTitles = [
+    { title: "Create your account",    sub: "Set up your UaTob driver profile." },
+    { title: "Where are you located?", sub: "We need your contact and address." },
+    { title: "Tell us about your car", sub: "Your vehicle must meet our standards." },
+    { title: "Upload your documents",  sub: "Securely upload required IDs." },
+    { title: "Review & submit",        sub: "Double-check before submitting." },
   ];
 
   const mainStyles = `
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800;900&family=Barlow+Condensed:wght@500;600;700;800;900&display=swap');
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    input::placeholder { color: ${C.textDim}; font-family: 'DM Sans', sans-serif; }
+    input::placeholder { color: ${C.textDim}; }
     select option { background: ${C.surface}; color: ${C.text}; }
     input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
-    @keyframes slideForward  { from{opacity:0;transform:translateX(24px)} to{opacity:1;transform:translateX(0)} }
-    @keyframes slideBack     { from{opacity:0;transform:translateX(-24px)} to{opacity:1;transform:translateX(0)} }
-    @keyframes fadeOut       { to{opacity:0} }
-    @keyframes revealUp      { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
-    @keyframes greenPulse    { 0%,100%{box-shadow:0 4px 18px rgba(22,163,74,.22)} 50%{box-shadow:0 4px 30px rgba(22,163,74,.48)} }
-    @keyframes errorShake    { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-5px)} 40%,80%{transform:translateX(5px)} }
-    @keyframes slideDown     { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
-    @keyframes swatchReveal  { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes slideForward { from { opacity: 0; transform: translateX(28px)  } to { opacity: 1; transform: translateX(0) } }
+    @keyframes slideBack    { from { opacity: 0; transform: translateX(-28px) } to { opacity: 1; transform: translateX(0) } }
+    @keyframes fadeOut      { to { opacity: 0 } }
+    @keyframes revealUp     { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
+    @keyframes greenPulse   { 0%,100% { box-shadow: 0 8px 24px rgba(22,163,74,.3) } 50% { box-shadow: 0 8px 32px rgba(22,163,74,.5) } }
+    @keyframes errorShake   { 0%,100% { transform: translateX(0) } 20%,60% { transform: translateX(-6px) } 40%,80% { transform: translateX(6px) } }
+    @keyframes slideDown    { from { opacity: 0; transform: translateY(-10px) } to { opacity: 1; transform: translateY(0) } }
+    @keyframes spin         { to { transform: rotate(360deg) } }
+    @keyframes dsFadeDown   { from { opacity: 0; transform: translateY(-6px) } to { opacity: 1; transform: translateY(0) } }
     .green-btn {
       background: linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D);
-      border: none; border-radius: 14px; color: #fff;
-      font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 15px;
-      cursor: pointer; transition: all .22s; letter-spacing: .4px;
+      border: none; border-radius: 100px; color: #fff;
+      font-family: 'Barlow', sans-serif; font-weight: 800; font-size: 15px;
+      cursor: pointer; transition: all .22s; letter-spacing: .3px;
       display: flex; align-items: center; justify-content: center; gap: 8px;
       animation: greenPulse 3s ease-in-out infinite;
     }
-    .green-btn:hover    { transform:translateY(-1px); box-shadow:0 8px 28px rgba(22,163,74,.4)!important; }
-    .green-btn:disabled { opacity:.6; cursor:not-allowed; transform:none; animation:none; }
+    .green-btn:hover    { transform: translateY(-1px); filter: brightness(1.08); }
+    .green-btn:disabled { opacity: .6; cursor: not-allowed; transform: none; animation: none; }
     .ghost-btn {
-      background:${C.surface}; border:1.5px solid ${C.border}; border-radius:14px;
-      color:${C.textMid}; font-family:'DM Sans',sans-serif; font-weight:700; font-size:14px;
-      cursor:pointer; transition:all .2s; display:flex; align-items:center; justify-content:center; gap:6px;
+      background: ${C.surface}; border: 1.5px solid ${C.border};
+      border-radius: 100px; color: ${C.textMid};
+      font-family: 'Barlow', sans-serif; font-weight: 700; font-size: 14px;
+      cursor: pointer; transition: all .2s;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
     }
-    .ghost-btn:hover { border-color:${C.accent}; color:${C.accent}; }
-    ::-webkit-scrollbar { width:4px; }
-    ::-webkit-scrollbar-track { background:transparent; }
-    ::-webkit-scrollbar-thumb { background:${C.surfaceBright}; border-radius:4px; }
+    .ghost-btn:hover { border-color: ${C.text}; color: ${C.text}; }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: ${C.surfaceBright}; border-radius: 4px; }
   `;
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', color: C.text }}>
+    <div style={{ minHeight: "100vh", background: C.bg, fontFamily: '"Barlow", system-ui, sans-serif', color: C.text }}>
       <style dangerouslySetInnerHTML={{ __html: mainStyles }} />
-      <div style={{ maxWidth: 560, margin: "0 auto", padding: "0 16px 120px", minHeight: "100vh" }}>
+      <div style={{ maxWidth: 560, margin: "0 auto", padding: "0 16px 130px", minHeight: "100vh" }}>
 
         {/* Header */}
-        <div style={{ padding: "28px 0 24px", display: "flex", alignItems: "center", gap: 14 }}>
-          <UaTobIcon size={38} />
+        <div style={{ padding: "26px 0 22px", display: "flex", alignItems: "center", gap: 14 }}>
+          <UaTobIcon size={42} />
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 10, fontWeight: 800, color: C.textDim, letterSpacing: "2.2px", textTransform: "uppercase", marginBottom: 2, fontFamily: "'DM Sans', sans-serif" }}>Driver Signup</div>
-            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 800, color: C.text, letterSpacing: "-0.4px" }}>Start Driving Today</div>
+            <div style={{
+              fontFamily: "'Barlow Condensed', sans-serif",
+              fontSize: 10, fontWeight: 700, color: C.textDim,
+              letterSpacing: "2px", textTransform: "uppercase", marginBottom: 2,
+            }}>
+              UaTob · Driver Signup
+            </div>
+            <div style={{
+              fontFamily: "'Barlow Condensed', sans-serif",
+              fontSize: 22, fontWeight: 900, color: C.text,
+              letterSpacing: "-0.5px",
+            }}>
+              Start Driving Today
+            </div>
           </div>
           {(step > 1 || accountData.firstName) && (
-            <button onClick={restartForm}
-              style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 9, padding: "7px 12px", fontSize: 10.5, fontWeight: 800, color: C.textDim, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", letterSpacing: "1.2px", textTransform: "uppercase", transition: "all .2s" }}
+            <button
+              type="button" onClick={restartForm}
+              style={{
+                background: "none", border: `1px solid ${C.border}`,
+                borderRadius: 100, padding: "7px 12px",
+                fontSize: 11, fontWeight: 700, color: C.textDim,
+                cursor: "pointer", fontFamily: "'Barlow Condensed', sans-serif",
+                letterSpacing: ".5px", textTransform: "uppercase",
+                transition: "all .2s",
+              }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = C.red; e.currentTarget.style.color = C.red; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textDim; }}>
+              onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textDim; }}
+            >
               Start Over
             </button>
           )}
@@ -1260,42 +1529,82 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
 
         {/* Resume banner */}
         {showResumeBanner && (
-          <div style={{ background: "rgba(22,163,74,.05)", border: "1px solid rgba(22,163,74,.2)", borderRadius: 13, padding: "13px 16px", marginBottom: 20, display: "flex", gap: 12, alignItems: "center", animation: "slideDown .3s ease" }}>
-            <div style={{ width: 34, height: 34, background: C.accentGlow, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <CheckCircle size={16} color={C.accent} />
+          <div style={{
+            background: "linear-gradient(135deg, rgba(22,163,74,.06), rgba(22,163,74,.02))",
+            border: "1px solid rgba(22,163,74,.25)",
+            borderRadius: 14, padding: "13px 16px", marginBottom: 18,
+            display: "flex", gap: 12, alignItems: "center",
+            animation: "slideDown .3s ease",
+          }}>
+            <div style={{
+              width: 36, height: 36,
+              background: "linear-gradient(135deg, rgba(22,163,74,.18), rgba(22,163,74,.08))",
+              border: "1px solid rgba(22,163,74,.25)",
+              borderRadius: 10,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              flexShrink: 0,
+            }}>
+              <CheckCircle size={16} color={C.accent} strokeWidth={2.2}/>
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: C.accent, marginBottom: 2, fontFamily: "'DM Sans', sans-serif" }}>Progress saved — welcome back!</div>
-              <div style={{ fontSize: 11.5, color: C.textMid, fontFamily: "'DM Sans', sans-serif" }}>Resuming from step {step} of {STEPS.length}.</div>
+              <div style={{ fontSize: 12.5, fontWeight: 800, color: "#15803D", marginBottom: 2 }}>
+                Welcome back!
+              </div>
+              <div style={{ fontSize: 11.5, color: C.textMid, fontWeight: 500 }}>
+                Resuming from step {step} of {STEPS.length}.
+              </div>
             </div>
-            <button onClick={() => setShowResumeBanner(false)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, fontSize: 18, lineHeight: 1, padding: "0 2px" }}>×</button>
+            <button
+              type="button" onClick={() => setShowResumeBanner(false)}
+              style={{
+                background: "none", border: "none",
+                cursor: "pointer", color: C.textDim,
+                fontSize: 22, lineHeight: 1, padding: "0 2px",
+              }}
+            >×</button>
           </div>
         )}
 
         {/* Progress bar */}
-        <div style={{ marginBottom: 26 }}>
-          <div style={{ height: 3, background: C.surfaceBright, borderRadius: 2, marginBottom: 16, overflow: "hidden" }}>
-            <div style={{ height: "100%", width: `${pct}%`, background: "linear-gradient(90deg,#15803D,#16A34A,#22C55E)", borderRadius: 2, transition: "width .5s cubic-bezier(.34,1.2,.64,1)", boxShadow: "0 0 10px rgba(22,163,74,.35)" }} />
+        <div style={{ marginBottom: 24 }}>
+          <div style={{
+            height: 6, background: C.surfaceBright,
+            borderRadius: 100, marginBottom: 16,
+            overflow: "hidden", position: "relative",
+          }}>
+            <div style={{
+              height: "100%", width: `${pct}%`,
+              background: "linear-gradient(90deg,#15803D,#16A34A,#22C55E)",
+              borderRadius: 100,
+              transition: "width .5s cubic-bezier(.34,1.2,.64,1)",
+              boxShadow: "0 0 12px rgba(22,163,74,.5)",
+            }} />
           </div>
-          <div style={{ display: "flex", gap: 5 }}>
+          <div style={{ display: "flex", gap: 6 }}>
             {STEPS.map(s => {
               const done   = step > s.id;
               const active = step === s.id;
               return (
                 <div key={s.id} style={{
-                  flex: 1, background: done ? C.accentGlow : active ? C.surface : C.surfaceRaised,
-                  border: `1.5px solid ${done ? C.accentBorder : active ? "rgba(22,163,74,.35)" : C.border}`,
-                  borderRadius: 11, padding: "9px 5px", textAlign: "center", transition: "all .3s",
-                  boxShadow: active ? "0 2px 10px rgba(22,163,74,.12), 0 1px 4px rgba(0,0,0,.06)" : "none",
-                  transform: active ? "translateY(-1px)" : "none",
+                  flex: 1,
+                  background: done
+                    ? "linear-gradient(135deg, rgba(22,163,74,.12), rgba(22,163,74,.04))"
+                    : active ? C.surface : C.surfaceRaised,
+                  border: `1.5px solid ${done ? "rgba(22,163,74,.35)" : active ? C.accent : C.border}`,
+                  borderRadius: 12, padding: "8px 4px",
+                  textAlign: "center", transition: "all .3s",
+                  boxShadow: active ? "0 4px 14px rgba(22,163,74,.18)" : "none",
+                  transform: active ? "translateY(-1px)" : "translateY(0)",
                 }}>
-                  <div style={{ display: "flex", justifyContent: "center", marginBottom: 5 }}>
-                    {done
-                      ? <div style={{ width: 18, height: 18, borderRadius: "50%", background: C.accentGlow, display: "flex", alignItems: "center", justifyContent: "center" }}><Check size={10} color={C.accent} strokeWidth={3} /></div>
-                      : <s.icon size={13} color={active ? C.accent : C.textDim} />
-                    }
+                  <div style={{ display: "flex", justifyContent: "center", marginBottom: 4, height: 18 }}>
+                    {done ? <Check size={14} color={C.accent} strokeWidth={2.8}/> : <s.icon size={14} color={active ? C.accent : C.textDim} strokeWidth={2.2}/>}
                   </div>
-                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 9, fontWeight: 800, color: done || active ? C.accent : C.textDim, letterSpacing: "1.1px", textTransform: "uppercase" }}>
+                  <div style={{
+                    fontFamily: "'Barlow Condensed', sans-serif",
+                    fontSize: 9, fontWeight: 800,
+                    color: done || active ? C.accent : C.textDim,
+                    letterSpacing: "1px", textTransform: "uppercase",
+                  }}>
                     {s.label}
                   </div>
                 </div>
@@ -1306,27 +1615,54 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
 
         {/* Step title */}
         <div style={{ marginBottom: 22 }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: C.accent, letterSpacing: "2px", textTransform: "uppercase", marginBottom: 5, fontFamily: "'DM Sans', sans-serif" }}>
+          <div style={{
+            display: "inline-block",
+            background: C.accentGlow,
+            border: `1px solid ${C.accentBorder}`,
+            borderRadius: 100, padding: "3px 10px",
+            fontSize: 10, fontWeight: 800, color: C.accent,
+            letterSpacing: ".15em", textTransform: "uppercase",
+            fontFamily: "'Barlow Condensed', sans-serif",
+            marginBottom: 8,
+          }}>
             Step {step} of {STEPS.length}
           </div>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 800, color: C.text, letterSpacing: "-0.6px", animation: "revealUp .32s ease-out", lineHeight: 1.15 }}>
-            {STEP_TITLES[step - 1]}
+          <div style={{
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontSize: 28, fontWeight: 900, color: C.text,
+            letterSpacing: "-0.5px",
+            animation: "revealUp .35s ease-out",
+            lineHeight: 1.1,
+          }}>
+            {stepTitles[step - 1].title}
           </div>
-          <div style={{ fontSize: 13.5, color: C.textMid, marginTop: 5, fontWeight: 500, fontFamily: "'DM Sans', sans-serif" }}>
-            {STEP_SUBTITLES[step - 1]}
+          <div style={{ fontSize: 13.5, color: C.textMid, marginTop: 5, fontWeight: 500 }}>
+            {stepTitles[step - 1].sub}
           </div>
         </div>
 
         {/* Submit error */}
         {submitError && (
-          <div style={{ background: "rgba(220,38,38,.06)", border: "1px solid rgba(220,38,38,.25)", borderRadius: 13, padding: "13px 16px", marginBottom: 18, display: "flex", gap: 10, alignItems: "center", animation: "errorShake .4s ease" }}>
+          <div style={{
+            background: "rgba(220,38,38,.06)",
+            border: "1px solid rgba(220,38,38,.25)",
+            borderRadius: 14, padding: "13px 16px", marginBottom: 18,
+            display: "flex", gap: 10, alignItems: "center",
+            animation: "errorShake .4s ease",
+          }}>
             <AlertCircle size={16} color={C.red} style={{ flexShrink: 0 }} />
-            <div style={{ fontSize: 13, color: C.red, fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>{submitError}</div>
+            <div style={{ fontSize: 13, color: C.red, fontWeight: 600 }}>{submitError}</div>
           </div>
         )}
 
         {/* Step content */}
-        <div ref={scrollRef} style={{ animation: animating ? "fadeOut .15s ease forwards" : direction === "forward" ? "slideForward .32s cubic-bezier(.25,.46,.45,.94)" : "slideBack .32s cubic-bezier(.25,.46,.45,.94)" }}>
+        <div ref={scrollRef} style={{
+          animation: animating
+            ? "fadeOut .15s ease forwards"
+            : direction === "forward"
+              ? "slideForward .35s cubic-bezier(.25,.46,.45,.94)"
+              : "slideBack .35s cubic-bezier(.25,.46,.45,.94)",
+        }}>
           {step === 1 && <StepAccount   data={accountData} setData={setAccountData} errors={errors} isExistingUser={isExistingUser} />}
           {step === 2 && <StepContact   data={contactData} setData={setContactData} errors={errors} />}
           {step === 3 && <StepVehicle   data={vehicleData} setData={setVehicleData} errors={errors} />}
@@ -1336,30 +1672,44 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
       </div>
 
       {/* Sticky bottom nav */}
-      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "rgba(248,249,250,.97)", backdropFilter: "blur(28px)", borderTop: `1px solid ${C.border}`, padding: "12px 20px 18px", boxShadow: "0 -10px 40px rgba(0,0,0,.07)" }}>
+      <div style={{
+        position: "fixed", bottom: 0, left: 0, right: 0,
+        background: "rgba(250,250,247,.95)",
+        backdropFilter: "blur(24px)",
+        borderTop: `1px solid ${C.border}`,
+        padding: "14px 20px 18px",
+        boxShadow: "0 -8px 32px rgba(0,0,0,.06)",
+      }}>
         <div style={{ maxWidth: 560, margin: "0 auto", display: "flex", gap: 10, alignItems: "center" }}>
           {step > 1 && (
-            <button className="ghost-btn" onClick={goBack} style={{ padding: "14px 20px", flexShrink: 0 }}>
-              <ChevronLeft size={16} /> Back
+            <button type="button" className="ghost-btn" onClick={goBack} style={{ padding: "15px 22px" }}>
+              <ChevronLeft size={17} /> Back
             </button>
           )}
-          <button className="green-btn" onClick={goNext} disabled={loading || animating} style={{ flex: 1, padding: "15px 24px" }}>
+          <button
+            type="button" className="green-btn"
+            onClick={goNext} disabled={loading || animating}
+            style={{ flex: 1, padding: "16px 24px" }}
+          >
             {loading
-              ? <><div style={{ width: 16, height: 16, border: "2.5px solid rgba(255,255,255,.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin .7s linear infinite" }} /><span>Please wait…</span></>
+              ? <span>Please wait…</span>
               : step === 5
-                ? <><Sparkles size={16} /><span>Submit Application</span><ArrowRight size={16} /></>
-                : <><span>Continue</span><ChevronRight size={16} /></>
+                ? <><Sparkles size={16} fill="#fff" strokeWidth={0}/> <span>Submit Application</span></>
+                : <><span>Continue</span><ArrowRight size={17} /></>
             }
           </button>
         </div>
-        <div style={{ display: "flex", justifyContent: "center", gap: 5, marginTop: 10 }}>
+        <div style={{ display: "flex", justifyContent: "center", gap: 5, marginTop: 12 }}>
           {STEPS.map(s => (
-            <div key={s.id} style={{ width: step === s.id ? 22 : 6, height: 3, background: step >= s.id ? C.accent : C.surfaceBright, borderRadius: 2, transition: "all .35s cubic-bezier(.34,1.2,.64,1)" }} />
+            <div key={s.id} style={{
+              width: step === s.id ? 22 : 6, height: 3,
+              background: step >= s.id ? C.accent : C.surfaceBright,
+              borderRadius: 2,
+              transition: "all .35s cubic-bezier(.34,1.2,.64,1)",
+            }} />
           ))}
         </div>
       </div>
-
-      <style dangerouslySetInnerHTML={{ __html: `@keyframes spin { to{transform:rotate(360deg)} }` }} />
     </div>
   );
 }
