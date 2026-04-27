@@ -6,6 +6,7 @@ import {
   CheckCircle, AlertCircle, XCircle, Upload, X, Eye,
   Camera, Loader2, CheckCircle2, RefreshCw, Banknote,
   ArrowUpRight, ArrowDownLeft, Receipt, Users, MapPin,
+  Award, Sparkles, Crown, Palette, Hash, Tag,
 } from 'lucide-react';
 import { C } from '@/App/Drivers/constants.js';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
@@ -36,16 +37,80 @@ function fmtMoney(val) {
   return `$${Number(val).toFixed(2)}`;
 }
 
+// ─── Smart star renderer ──────────────────────────────────────────────────
+function StarRow({ rating = 0, size = 14 }) {
+  const stars = [];
+  for (let i = 1; i <= 5; i++) {
+    const fill = rating >= i ? 1 : rating >= i - 0.5 ? 0.5 : 0;
+    stars.push(
+      <div key={i} style={{ position: "relative", width: size, height: size }}>
+        <Star size={size} color="#E5E7EB" fill="#E5E7EB" strokeWidth={0}/>
+        {fill > 0 && (
+          <div style={{
+            position: "absolute", top: 0, left: 0,
+            width: `${fill * 100}%`, height: "100%",
+            overflow: "hidden",
+          }}>
+            <Star size={size} color="#F59E0B" fill="#F59E0B" strokeWidth={0}/>
+          </div>
+        )}
+      </div>
+    );
+  }
+  return <div style={{ display: "inline-flex", gap: 2 }}>{stars}</div>;
+}
+
+// ─── Status badge for driver ──────────────────────────────────────────────
+function DriverStatusBadge({ status, online }) {
+  const meta = {
+    approved: { label: online ? "Active" : "Approved", color: "#16A34A", bg: "rgba(22,163,74,.12)" },
+    pending:  { label: "Under Review",                 color: "#D97706", bg: "rgba(217,119,6,.12)"  },
+    rejected: { label: "Action Needed",                color: "#DC2626", bg: "rgba(220,38,38,.12)"  },
+  }[status] || { label: "Pending Setup", color: "#6B7280", bg: "rgba(107,114,128,.12)" };
+
+  return (
+    <div style={{
+      display: "inline-flex", alignItems: "center", gap: 5,
+      background: meta.bg,
+      border: `1px solid ${meta.color}30`,
+      borderRadius: 100, padding: "4px 10px",
+    }}>
+      <div style={{
+        width: 6, height: 6, borderRadius: "50%",
+        background: meta.color,
+        boxShadow: `0 0 6px ${meta.color}80`,
+        animation: status === "approved" && online ? "ptLiveDot 1.6s ease-in-out infinite" : "none",
+      }}/>
+      <span className="mono" style={{
+        fontSize: 9.5, fontWeight: 800, letterSpacing: ".08em",
+        textTransform: "uppercase", color: meta.color,
+      }}>
+        {meta.label}
+      </span>
+    </div>
+  );
+}
+
 // ─── Shared components ─────────────────────────────────────────────────────
 const SectionHeader = ({ title, onBack }) => (
   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
     <button
       onClick={onBack}
-      style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex", alignItems: "center" }}
+      style={{
+        background: C.surface,
+        border: `1px solid ${C.border}`,
+        padding: 8,
+        borderRadius: 10,
+        cursor: "pointer",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        transition: "background .15s",
+      }}
+      onMouseEnter={e => e.currentTarget.style.background = C.surfaceAlt}
+      onMouseLeave={e => e.currentTarget.style.background = C.surface}
     >
-      <ArrowLeft size={20} color={C.text} />
+      <ArrowLeft size={16} color={C.text} strokeWidth={2.4}/>
     </button>
-    <div className="condensed" style={{ fontSize: 26, fontWeight: 900, color: C.text, letterSpacing: "-0.5px" }}>
+    <div className="condensed" style={{ fontSize: 24, fontWeight: 900, color: C.text, letterSpacing: "-0.5px" }}>
       {title}
     </div>
   </div>
@@ -267,7 +332,6 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
 
   const uid = driver?.uid ?? null;
 
-  // Live listener so withdrawal status updates in real time
   useEffect(() => {
     if (!uid) return;
     const unsub = onSnapshot(
@@ -299,10 +363,6 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
   const rideBreakdown = withdrawal.rideBreakdown ?? [];
   const lastSynced    = earnings.lastSyncedAt;
 
-  // ── Smart amount + count derivation ───────────────────────────────
-  // After a successful payout, totalPayout & rideCount on the doc reset to 0
-  // but rideBreakdown still holds the rides that were just paid out. So when
-  // status is "paid", derive the displayed amount from the breakdown.
   const breakdownSum = rideBreakdown.reduce(
     (sum, r) => sum + (Number(r.driverPayout) || 0),
     0
@@ -319,7 +379,6 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
     ? breakdownCount
     : (withdrawal.rideCount ?? breakdownCount);
 
-  // Pending hero only shows if there's actually money waiting + status is pending
   const showPendingHero = payoutStatus === "pending" && (withdrawal.totalPayout ?? 0) > 0;
 
   const statusMeta = {
@@ -352,12 +411,13 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
     <button
       onClick={() => setTab(id)}
       style={{
-        flex: 1, padding: "9px 0", border: "none", cursor: "pointer",
+        flex: 1, padding: "10px 0", border: "none", cursor: "pointer",
         background: tab === id ? C.text : "transparent",
-        color:      tab === id ? (C.bg ?? "#fff") : C.textMid,
-        borderRadius: 10, fontSize: 13, fontWeight: 700,
+        color:      tab === id ? "#fff" : C.textMid,
+        borderRadius: 100, fontSize: 13, fontWeight: 800,
         fontFamily: "'Barlow Condensed', sans-serif", letterSpacing: "-0.2px",
         transition: "all .18s",
+        boxShadow: tab === id ? "0 4px 12px rgba(0,0,0,0.18)" : "none",
       }}
     >
       {label}
@@ -374,14 +434,13 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
 
       <SectionHeader title="Payment & Payouts" onBack={onBack} />
 
-      <div style={{ display: "flex", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 13, padding: 4, gap: 4 }}>
+      <div style={{ display: "flex", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 100, padding: 4, gap: 4 }}>
         <TabBtn id="overview" label="Overview" />
         <TabBtn id="history"  label="Payout History" />
       </div>
 
       {tab === "overview" && (
         <>
-          {/* ── Pending payout hero (only when truly pending with money) ── */}
           {showPendingHero && (
             <div style={{
               background: "linear-gradient(135deg,#0F172A,#1E293B)",
@@ -438,7 +497,6 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
             </div>
           )}
 
-          {/* ── Last payout success card (when status is paid) ── */}
           {isPaid && breakdownCount > 0 && (
             <div style={{
               background: "linear-gradient(135deg,#F0FDF4,#DCFCE7)",
@@ -485,7 +543,6 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
             </div>
           )}
 
-          {/* ── 80% split card ── */}
           <div style={{
             background: "linear-gradient(135deg,#F0FDF4,#DCFCE7,#F0FDF4)",
             border: "1.5px solid rgba(22,163,74,.28)",
@@ -507,7 +564,6 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
             </div>
           </div>
 
-          {/* ── Stat grid ── */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
             {[
               { label: "Today",      value: fmtMoney(todayEarnings), sub: `${todayTrips} trip${todayTrips !== 1 ? "s" : ""}`, color: C.onlineGreen },
@@ -523,7 +579,6 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
             ))}
           </div>
 
-          {/* ── Weekly bar chart ── */}
           {dailyBreakdown.length > 0 && (
             <div className="card" style={{ padding: "18px 18px 14px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
@@ -573,7 +628,6 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
 
       {tab === "history" && (
         <>
-          {/* ── Current/last payout hero ── */}
           <div style={{
             background: statusMeta.bg,
             border: `1.5px solid ${statusMeta.border}`,
@@ -607,7 +661,6 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
               </div>
             </div>
 
-            {/* Meta row */}
             <div style={{ display: "flex", gap: 8 }}>
               {[
                 { Icon: Receipt, label: `${heroRideCount} ride${heroRideCount !== 1 ? "s" : ""}` },
@@ -621,7 +674,6 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
             </div>
           </div>
 
-          {/* ── Ride breakdown ── */}
           {rideBreakdown.length > 0 && (
             <div>
               <div className="lbl" style={{ marginBottom: 8, paddingLeft: 2 }}>
@@ -679,7 +731,6 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
                   </div>
                 ))}
 
-                {/* Total summary footer */}
                 <div style={{
                   marginTop: 4,
                   background: isPaid ? "#F0FDF4" : C.surfaceAlt,
@@ -698,7 +749,6 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
             </div>
           )}
 
-          {/* ── No breakdown fallback ── */}
           {rideBreakdown.length === 0 && (
             <div style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 14, padding: "26px 20px", textAlign: "center" }}>
               <Receipt size={26} color={C.textDim} style={{ marginBottom: 10 }} />
@@ -711,9 +761,6 @@ const PaymentPayoutsSection = ({ driver, onBack }) => {
             </div>
           )}
 
-     
-
-          {/* ── Deposit note ── */}
           <div style={{ background: "#F0FDF4", border: "1px solid rgba(22,163,74,.2)", borderRadius: 13, padding: "13px 16px", display: "flex", gap: 10, alignItems: "center" }}>
             <Zap size={16} color={C.onlineGreen} />
             <span style={{ fontSize: 12.5, color: "#15803D", fontWeight: 600 }}>Earnings deposit within 24 hrs of completing rides</span>
@@ -796,25 +843,40 @@ export default function ProfileTab({ driver, online, onSignOut }) {
   const [activeSection, setActiveSection] = useState(driver?.status === "rejected" ? "documents" : null);
   const accentColor = online ? C.onlineGreen : C.offlineInk;
 
-  const firstName   = driver?.firstName ?? "";
-  const lastName    = driver?.lastName  ?? "";
-  const fullName    = `${firstName} ${lastName}`.trim() || "Driver";
-  const totalTrips  = driver?.earnings?.month?.trips ?? 0;
-  const memberSince = formatDate(driver?.createdAt);
-  const vehicle     = driver?.vehicle ?? {};
-  const makeModel   = [vehicle.make, vehicle.model, vehicle.year].filter(Boolean).join(" ") || "—";
-  const plate       = vehicle.plate ?? "—";
-  const color       = vehicle.color ?? "—";
-  const rideTypes   = Array.isArray(vehicle.rideTypes) && vehicle.rideTypes.length > 0
-    ? vehicle.rideTypes.map(r => r.charAt(0).toUpperCase() + r.slice(1)).join(", ")
-    : "—";
+  const firstName    = driver?.firstName ?? "";
+  const lastName     = driver?.lastName  ?? "";
+  const fullName     = `${firstName} ${lastName}`.trim() || "Driver";
+  const totalTrips   = driver?.totalRides ?? driver?.earnings?.month?.trips ?? 0;
+  const memberSince  = formatDate(driver?.createdAt);
+  const profilePhoto = driver?.documents?.profilePhotoUrl;
+  const avgRating    = driver?.averageRating ?? 0;
+  const totalReviews = driver?.totalReviews ?? 0;
+  const monthEarnings = driver?.earnings?.month?.earnings ?? 0;
 
-  const settingsItems = [
-    { id: "documents",     Icon: Shield,     label: "Documents & Insurance", accent: C.blue      },
-    { id: "payments",      Icon: DollarSign, label: "Payment & Payouts",     accent: accentColor },
-    { id: "notifications", Icon: Bell,       label: "Notifications",         accent: C.textMid   },
-    { id: "settings",      Icon: Settings,   label: "App Settings",          accent: C.purple    },
-    { id: "signout",       Icon: LogOut,     label: "Sign Out",              accent: C.red       },
+  const vehicle    = driver?.vehicle ?? {};
+  const makeModel  = [vehicle.make, vehicle.model].filter(Boolean).join(" ") || "—";
+  const carYear    = vehicle.year || "";
+  const plate      = vehicle.plate ?? "—";
+  const carColor   = vehicle.color ?? "—";
+  const rideTypes  = Array.isArray(vehicle.rideTypes) && vehicle.rideTypes.length > 0
+    ? vehicle.rideTypes.map(r => r.charAt(0).toUpperCase() + r.slice(1))
+    : [];
+
+  const driverStatus = driver?.status === "online" || driver?.status === "offline"
+    ? "approved"
+    : driver?.status;
+
+  // Group settings by section
+  const accountItems = [
+    { id: "documents",     Icon: Shield,     label: "Documents & Insurance", accent: C.blue,
+      sub: driver?.status === "rejected" ? "Action required" : "View & update" },
+    { id: "payments",      Icon: DollarSign, label: "Payment & Payouts",     accent: C.onlineGreen,
+      sub: driver?.transferCapability === "enabled" ? "Connected" : "Setup needed" },
+  ];
+
+  const prefsItems = [
+    { id: "notifications", Icon: Bell,       label: "Notifications",    accent: "#D97706" },
+    { id: "settings",      Icon: Settings,   label: "App Settings",     accent: C.purple ?? "#7C3AED" },
   ];
 
   if (activeSection === "documents")
@@ -828,64 +890,517 @@ export default function ProfileTab({ driver, online, onSignOut }) {
 
   return (
     <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14, animation: "slideUp .38s ease-out forwards" }}>
+      <style>{`
+        @keyframes ptLiveDot { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+        @keyframes ptShine {
+          0%,100% { transform: translateX(-100%) skewX(-15deg); opacity: 0; }
+          50%      { opacity: 0.4; }
+          100%     { transform: translateX(200%) skewX(-15deg); opacity: 0; }
+        }
+      `}</style>
 
-      {/* Driver hero */}
+      {/* ── Driver hero ── */}
       <div style={{
-        background: online ? "linear-gradient(135deg,#F0FDF4,#DCFCE7,#F0FDF4)" : "linear-gradient(135deg,#F9FAFB,#F3F4F6,#F9FAFB)",
-        border: online ? "1.5px solid rgba(22,163,74,.28)" : `1px solid ${C.border}`,
-        borderRadius: 22, padding: "28px 24px", textAlign: "center",
-        position: "relative", overflow: "hidden",
-        boxShadow: online ? "0 4px 24px rgba(22,163,74,.1)" : `0 2px 12px ${C.shadow}`,
+        background: online
+          ? "linear-gradient(135deg,#F0FDF4 0%,#DCFCE7 50%,#F0FDF4 100%)"
+          : "linear-gradient(135deg,#FAFAF7 0%,#F5F5F0 50%,#FAFAF7 100%)",
+        border: online ? "1.5px solid rgba(22,163,74,.28)" : `1.5px solid ${C.border}`,
+        borderRadius: 24,
+        padding: "24px 22px 22px",
+        position: "relative",
+        overflow: "hidden",
+        boxShadow: online
+          ? "0 8px 28px rgba(22,163,74,.14), 0 1px 3px rgba(22,163,74,.06)"
+          : `0 4px 16px ${C.shadow}`,
       }}>
-        <div style={{ position: "absolute", inset: 0, background: `repeating-linear-gradient(45deg,transparent,transparent 60px,${online ? "rgba(22,163,74,.03)" : "rgba(0,0,0,.015)"} 60px,${online ? "rgba(22,163,74,.03)" : "rgba(0,0,0,.015)"} 61px)` }} />
-        <div style={{ width: 72, height: 72, background: online ? "linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D)" : "linear-gradient(135deg,#374151,#111827 55%,#0A0A0A)", border: "3px solid rgba(255,255,255,.8)", borderRadius: "50%", margin: "0 auto 14px", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: online ? "0 0 0 6px rgba(22,163,74,.15), 0 8px 24px rgba(22,163,74,.3)" : "0 0 0 6px rgba(0,0,0,.07), 0 8px 24px rgba(0,0,0,.18)", position: "relative" }}>
-          <span style={{ fontSize: 26, fontWeight: 900, color: "#fff", fontFamily: "'Barlow Condensed', sans-serif" }}>
-            {firstName.charAt(0).toUpperCase()}{lastName.charAt(0).toUpperCase()}
-          </span>
-        </div>
-        <div className="condensed" style={{ fontSize: 26, fontWeight: 900, color: C.text, letterSpacing: "-0.5px" }}>{fullName}</div>
-        <div style={{ fontSize: 13, color: online ? accentColor : C.textMid, marginTop: 4, fontWeight: 600 }}>
-          Driver since {memberSince} · {totalTrips} trip{totalTrips !== 1 ? "s" : ""}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, marginTop: 12 }}>
-          {[...Array(5)].map((_, i) => <Star key={i} size={15} fill="#F59E0B" color="#F59E0B" />)}
-          <span className="mono" style={{ fontSize: 16, fontWeight: 700, color: C.text, marginLeft: 5 }}>
-            {driver?.averageRating != null ? driver.averageRating.toFixed(2) : "—"}
-          </span>
+        {/* Decorative diagonal stripes */}
+        <div style={{
+          position: "absolute", inset: 0,
+          background: online
+            ? "repeating-linear-gradient(45deg,transparent,transparent 60px,rgba(22,163,74,.04) 60px,rgba(22,163,74,.04) 61px)"
+            : "repeating-linear-gradient(45deg,transparent,transparent 60px,rgba(0,0,0,.012) 60px,rgba(0,0,0,.012) 61px)",
+          pointerEvents: "none",
+        }}/>
+        {online && (
+          <div style={{
+            position: "absolute", top: -50, right: -50,
+            width: 180, height: 180, borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(22,163,74,.18) 0%, transparent 70%)",
+            pointerEvents: "none",
+          }}/>
+        )}
+
+        <div style={{ position: "relative" }}>
+          {/* Top row: avatar + status */}
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
+            <div style={{ position: "relative" }}>
+              {/* Avatar */}
+              <div style={{
+                width: 78, height: 78,
+                borderRadius: "50%",
+                background: profilePhoto
+                  ? `url(${profilePhoto}) center/cover, ${online ? "linear-gradient(135deg,#22C55E,#16A34A)" : "linear-gradient(135deg,#374151,#111827)"}`
+                  : online
+                    ? "linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D)"
+                    : "linear-gradient(135deg,#374151,#111827 55%,#0A0A0A)",
+                border: "3px solid rgba(255,255,255,.85)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                boxShadow: online
+                  ? "0 0 0 6px rgba(22,163,74,.15), 0 8px 24px rgba(22,163,74,.3)"
+                  : "0 0 0 6px rgba(0,0,0,.06), 0 8px 20px rgba(0,0,0,.15)",
+                position: "relative",
+              }}>
+                {!profilePhoto && (
+                  <span style={{
+                    fontSize: 28, fontWeight: 900, color: "#fff",
+                    fontFamily: "'Barlow Condensed', sans-serif",
+                    letterSpacing: "-0.5px",
+                  }}>
+                    {firstName.charAt(0).toUpperCase()}{lastName.charAt(0).toUpperCase()}
+                  </span>
+                )}
+              </div>
+
+              {/* Online dot indicator on avatar */}
+              {online && (
+                <div style={{
+                  position: "absolute", bottom: 4, right: 4,
+                  width: 18, height: 18, borderRadius: "50%",
+                  background: "#22C55E",
+                  border: "3px solid #fff",
+                  boxShadow: "0 2px 6px rgba(34,197,94,0.5)",
+                  animation: "ptLiveDot 1.6s ease-in-out infinite",
+                }}/>
+              )}
+            </div>
+
+            <DriverStatusBadge status={driverStatus} online={online}/>
+          </div>
+
+          {/* Name */}
+          <div className="condensed" style={{
+            fontSize: 26, fontWeight: 900, color: C.text,
+            letterSpacing: "-0.5px", lineHeight: 1.1,
+            marginBottom: 6,
+          }}>
+            {fullName}
+          </div>
+
+          {/* Sub-info row */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10,
+            fontSize: 12, color: online ? "#15803D" : C.textMid,
+            fontWeight: 600,
+            flexWrap: "wrap",
+            marginBottom: 14,
+          }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+              <Award size={11} strokeWidth={2.4}/>
+              Driver since {memberSince}
+            </span>
+            <span style={{ width: 3, height: 3, borderRadius: "50%", background: online ? "rgba(22,163,74,.4)" : C.border }}/>
+            <span>{totalTrips} trip{totalTrips !== 1 ? "s" : ""}</span>
+          </div>
+
+          {/* Stats row */}
+          <div style={{ display: "flex", gap: 8 }}>
+            {/* Rating */}
+            <div style={{
+              flex: 1,
+              background: "rgba(255,255,255,0.7)",
+              backdropFilter: "blur(8px)",
+              border: "1px solid rgba(255,255,255,0.5)",
+              borderRadius: 12,
+              padding: "10px 12px",
+            }}>
+              <div className="mono" style={{
+                fontSize: 9, fontWeight: 700, letterSpacing: ".08em",
+                textTransform: "uppercase", color: C.textDim,
+                marginBottom: 4,
+              }}>
+                Rating
+              </div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
+                <span className="condensed" style={{
+                  fontSize: 18, fontWeight: 900, color: C.text,
+                  letterSpacing: "-0.3px",
+                  fontVariantNumeric: "tabular-nums",
+                }}>
+                  {avgRating > 0 ? avgRating.toFixed(2) : "—"}
+                </span>
+                <Star size={11} fill="#F59E0B" color="#F59E0B" strokeWidth={0}/>
+              </div>
+              <div style={{ marginTop: 3 }}>
+                <StarRow rating={avgRating} size={9}/>
+              </div>
+            </div>
+
+            {/* Total earned this month */}
+            <div style={{
+              flex: 1,
+              background: "rgba(255,255,255,0.7)",
+              backdropFilter: "blur(8px)",
+              border: "1px solid rgba(255,255,255,0.5)",
+              borderRadius: 12,
+              padding: "10px 12px",
+            }}>
+              <div className="mono" style={{
+                fontSize: 9, fontWeight: 700, letterSpacing: ".08em",
+                textTransform: "uppercase", color: C.textDim,
+                marginBottom: 4,
+              }}>
+                This month
+              </div>
+              <div className="condensed" style={{
+                fontSize: 18, fontWeight: 900, color: C.text,
+                letterSpacing: "-0.3px", lineHeight: 1.05,
+                fontVariantNumeric: "tabular-nums",
+              }}>
+                {fmtMoney(monthEarnings)}
+              </div>
+              <div style={{
+                fontSize: 10, fontWeight: 600,
+                color: C.textDim, marginTop: 3,
+              }}>
+                {driver?.earnings?.month?.trips ?? 0} trips
+              </div>
+            </div>
+
+            {/* Reviews */}
+            <div style={{
+              flex: 1,
+              background: "rgba(255,255,255,0.7)",
+              backdropFilter: "blur(8px)",
+              border: "1px solid rgba(255,255,255,0.5)",
+              borderRadius: 12,
+              padding: "10px 12px",
+            }}>
+              <div className="mono" style={{
+                fontSize: 9, fontWeight: 700, letterSpacing: ".08em",
+                textTransform: "uppercase", color: C.textDim,
+                marginBottom: 4,
+              }}>
+                Reviews
+              </div>
+              <div className="condensed" style={{
+                fontSize: 18, fontWeight: 900, color: C.text,
+                letterSpacing: "-0.3px", lineHeight: 1.05,
+                fontVariantNumeric: "tabular-nums",
+              }}>
+                {totalReviews}
+              </div>
+              <div style={{
+                fontSize: 10, fontWeight: 600,
+                color: C.textDim, marginTop: 3,
+              }}>
+                all-time
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Vehicle */}
-      <div className="card" style={{ padding: "20px" }}>
-        <div className="condensed" style={{ fontSize: 16, fontWeight: 800, color: C.text, marginBottom: 14, letterSpacing: "-0.3px" }}>Vehicle</div>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          {[{ label: "Make & Model", value: makeModel }, { label: "Plate", value: plate }, { label: "Color", value: color }, { label: "Ride Types", value: rideTypes }].map(v => (
-            <div key={v.label} style={{ flex: "1 1 calc(50% - 5px)", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 13, padding: "13px 15px" }}>
-              <div className="lbl">{v.label}</div>
-              <div style={{ fontSize: 13.5, fontWeight: 700, color: C.text, textTransform: "capitalize" }}>{v.value}</div>
+      {/* ── Vehicle card ── */}
+      <div style={{
+        background: C.surface,
+        border: `1px solid ${C.border}`,
+        borderRadius: 22,
+        padding: "20px",
+        position: "relative",
+        overflow: "hidden",
+        boxShadow: `0 1px 3px ${C.shadow}`,
+      }}>
+        {/* Decorative car silhouette in background */}
+        <div style={{
+          position: "absolute", top: 16, right: -20,
+          opacity: 0.04, pointerEvents: "none",
+        }}>
+          <Car size={120} strokeWidth={1} color={C.text}/>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14, position: "relative" }}>
+          <div>
+            <div className="mono" style={{
+              fontSize: 10, fontWeight: 700, color: C.textDim,
+              letterSpacing: ".1em", textTransform: "uppercase",
+              marginBottom: 4,
+            }}>
+              Your Vehicle
+            </div>
+            <div className="condensed" style={{
+              fontSize: 22, fontWeight: 900, color: C.text,
+              letterSpacing: "-0.5px", lineHeight: 1.1,
+              textTransform: "capitalize",
+            }}>
+              {makeModel}
+            </div>
+            {carYear && (
+              <div style={{
+                fontSize: 12, color: C.textDim,
+                fontWeight: 600, marginTop: 2,
+              }}>
+                {carYear}
+              </div>
+            )}
+          </div>
+
+          {/* Plate badge */}
+          <div style={{
+            background: "linear-gradient(135deg,#FAFAF7,#F0EFE8)",
+            border: "2px solid #1F2937",
+            borderRadius: 8,
+            padding: "5px 10px",
+            position: "relative",
+          }}>
+            <div className="mono" style={{
+              fontSize: 7, fontWeight: 800, color: "#1F2937",
+              letterSpacing: ".1em", textTransform: "uppercase",
+              opacity: 0.7,
+            }}>
+              Plate
+            </div>
+            <div className="condensed" style={{
+              fontSize: 16, fontWeight: 900, color: "#1F2937",
+              letterSpacing: ".5px", lineHeight: 1,
+              fontFamily: "'Inter Mono', monospace",
+              textTransform: "uppercase",
+            }}>
+              {plate}
+            </div>
+          </div>
+        </div>
+
+        {/* Vehicle attributes row */}
+        <div style={{ display: "flex", gap: 8, position: "relative" }}>
+          {/* Color */}
+          <div style={{
+            flex: 1,
+            background: C.surfaceAlt,
+            border: `1px solid ${C.border}`,
+            borderRadius: 12,
+            padding: "10px 12px",
+            display: "flex", alignItems: "center", gap: 10,
+          }}>
+            <div style={{
+              width: 24, height: 24, borderRadius: 8,
+              background: getCarColorHex(carColor),
+              border: "1.5px solid rgba(0,0,0,0.12)",
+              flexShrink: 0,
+              boxShadow: "inset 0 1px 2px rgba(0,0,0,0.1)",
+            }}/>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="lbl" style={{ marginBottom: 1 }}>Color</div>
+              <div style={{
+                fontSize: 12, fontWeight: 700, color: C.text,
+                textTransform: "capitalize",
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              }}>
+                {carColor}
+              </div>
+            </div>
+          </div>
+
+          {/* Tier badges */}
+          <div style={{
+            flex: 1,
+            background: C.surfaceAlt,
+            border: `1px solid ${C.border}`,
+            borderRadius: 12,
+            padding: "10px 12px",
+          }}>
+            <div className="lbl" style={{ marginBottom: 4 }}>Tiers</div>
+            {rideTypes.length > 0 ? (
+              <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                {rideTypes.map(t => (
+                  <span key={t} style={{
+                    fontSize: 9.5, fontWeight: 800,
+                    background: t === "Premium" ? "#F5F3FF" : t === "Xl" ? "#FFFBEB" : "#F0FDF4",
+                    color: t === "Premium" ? "#6D28D9" : t === "Xl" ? "#B45309" : "#15803D",
+                    border: `1px solid ${t === "Premium" ? "#DDD6FE" : t === "Xl" ? "#FDE68A" : "#BBF7D0"}`,
+                    padding: "2px 6px",
+                    borderRadius: 5,
+                    textTransform: "uppercase",
+                    letterSpacing: ".04em",
+                  }}>
+                    {t}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.textDim }}>—</div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Account section ── */}
+      <div>
+        <div className="lbl" style={{ marginBottom: 8, paddingLeft: 4 }}>Account</div>
+        <div style={{
+          background: C.surface,
+          border: `1px solid ${C.border}`,
+          borderRadius: 16,
+          overflow: "hidden",
+          boxShadow: `0 1px 3px ${C.shadow}`,
+        }}>
+          {accountItems.map(({ id, Icon, label, accent, sub }, i, arr) => (
+            <div
+              key={label}
+              onClick={() => setActiveSection(id)}
+              style={{
+                padding: "14px 18px",
+                borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none",
+                display: "flex", alignItems: "center", gap: 14,
+                cursor: "pointer",
+                transition: "background .15s",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = C.surfaceAlt}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+            >
+              <div style={{
+                width: 38, height: 38,
+                background: `linear-gradient(135deg, ${accent}18, ${accent}08)`,
+                border: `1px solid ${accent}25`,
+                borderRadius: 11,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                flexShrink: 0,
+              }}>
+                <Icon size={17} color={accent} strokeWidth={2.2}/>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontSize: 14.5, fontWeight: 700, color: C.text,
+                  letterSpacing: "-0.1px",
+                }}>
+                  {label}
+                </div>
+                {sub && (
+                  <div style={{
+                    fontSize: 11.5, fontWeight: 600,
+                    color: id === "documents" && driver?.status === "rejected" ? C.red : C.textDim,
+                    marginTop: 1,
+                  }}>
+                    {sub}
+                  </div>
+                )}
+              </div>
+              <ChevronRight size={15} color={C.textDim} strokeWidth={2.2}/>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Settings list */}
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        {settingsItems.map(({ id, Icon, label, accent }, i, arr) => (
-          <div
-            key={label}
-            onClick={() => id === "signout" ? onSignOut?.() : setActiveSection(id)}
-            style={{ padding: "15px 20px", borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none", display: "flex", alignItems: "center", gap: 14, cursor: "pointer", transition: "background .15s" }}
-            onMouseEnter={e => e.currentTarget.style.background = C.surfaceAlt}
-            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-          >
-            <div style={{ width: 36, height: 36, background: accent + "12", borderRadius: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Icon size={16} color={accent} />
+      {/* ── Preferences section ── */}
+      <div>
+        <div className="lbl" style={{ marginBottom: 8, paddingLeft: 4 }}>Preferences</div>
+        <div style={{
+          background: C.surface,
+          border: `1px solid ${C.border}`,
+          borderRadius: 16,
+          overflow: "hidden",
+          boxShadow: `0 1px 3px ${C.shadow}`,
+        }}>
+          {prefsItems.map(({ id, Icon, label, accent }, i, arr) => (
+            <div
+              key={label}
+              onClick={() => setActiveSection(id)}
+              style={{
+                padding: "14px 18px",
+                borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none",
+                display: "flex", alignItems: "center", gap: 14,
+                cursor: "pointer",
+                transition: "background .15s",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = C.surfaceAlt}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+            >
+              <div style={{
+                width: 38, height: 38,
+                background: `linear-gradient(135deg, ${accent}18, ${accent}08)`,
+                border: `1px solid ${accent}25`,
+                borderRadius: 11,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                flexShrink: 0,
+              }}>
+                <Icon size={17} color={accent} strokeWidth={2.2}/>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontSize: 14.5, fontWeight: 700, color: C.text,
+                  letterSpacing: "-0.1px",
+                }}>
+                  {label}
+                </div>
+              </div>
+              <ChevronRight size={15} color={C.textDim} strokeWidth={2.2}/>
             </div>
-            <span style={{ flex: 1, fontSize: 14.5, fontWeight: 600, color: label === "Sign Out" ? C.red : C.text }}>{label}</span>
-            {id !== "signout" && <ChevronRight size={14} color={C.textDim} />}
-          </div>
-        ))}
+          ))}
+        </div>
+      </div>
+
+      {/* ── Sign out — visually distinct, last ── */}
+      <button
+        onClick={() => onSignOut?.()}
+        style={{
+          marginTop: 8,
+          background: C.surface,
+          border: `1.5px solid ${C.border}`,
+          borderRadius: 16,
+          padding: "14px 18px",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+          cursor: "pointer",
+          fontFamily: "inherit",
+          transition: "all .15s",
+          color: C.red,
+        }}
+        onMouseEnter={e => {
+          e.currentTarget.style.background = "#FEF2F2";
+          e.currentTarget.style.borderColor = "#FCA5A5";
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.background = C.surface;
+          e.currentTarget.style.borderColor = C.border;
+        }}
+      >
+        <LogOut size={15} strokeWidth={2.2}/>
+        <span style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: "-0.1px" }}>
+          Sign Out
+        </span>
+      </button>
+
+      {/* App version footer */}
+      <div style={{
+        textAlign: "center",
+        padding: "4px 0 8px",
+      }}>
+        <span className="mono" style={{
+          fontSize: 10, fontWeight: 600, color: C.textDim,
+          letterSpacing: ".05em",
+        }}>
+          UaTob Driver · v1.1.0
+        </span>
       </div>
     </div>
   );
+}
+
+// ── Helper: convert color name → hex for vehicle color swatch ─────────
+function getCarColorHex(name = "") {
+  const map = {
+    black:  "#1A1A1A",
+    white:  "#F5F5F0",
+    silver: "#C0C0C0",
+    gray:   "#6B7280",
+    grey:   "#6B7280",
+    red:    "#DC2626",
+    blue:   "#2563EB",
+    green:  "#16A34A",
+    yellow: "#F59E0B",
+    orange: "#EA580C",
+    brown:  "#78350F",
+    purple: "#7C3AED",
+    gold:   "#D4AF37",
+    beige:  "#D4C5A0",
+  };
+  return map[name.toLowerCase()] || "#9CA3AF";
 }
