@@ -313,7 +313,7 @@ const FAQ_ITEMS = [
   },
   {
     q: "When do I get paid?",
-    a: "Payouts are processed every Monday for the previous week's earnings. Funds typically arrive within 1–2 business days.",
+    a: "Payouts are processed daily. Funds typically arrive within 1–2 business days depending on your bank.",
   },
   {
     q: "What happens if a rider doesn't show up?",
@@ -397,7 +397,7 @@ function SupportOverlay({ onClose, driver }) {
 
               {/* Live chat */}
               <a
-                href="sms:+14072550000"
+                href="sms:+14079426078"
                 className="sup-card"
               >
                 <div className="sup-card-icon" style={{ background: "linear-gradient(135deg,#EFF6FF,#DBEAFE)", border: "1px solid #BFDBFE" }}>
@@ -413,7 +413,7 @@ function SupportOverlay({ onClose, driver }) {
 
               {/* Phone */}
               <a
-                href="tel:+14072550000"
+                href="tel:+14079426078"
                 className="sup-card"
               >
                 <div className="sup-card-icon" style={{ background: "linear-gradient(135deg,#F0FDF4,#DCFCE7)", border: "1px solid #BBF7D0" }}>
@@ -421,7 +421,7 @@ function SupportOverlay({ onClose, driver }) {
                 </div>
                 <div className="sup-card-body">
                   <div className="sup-card-label">Call support</div>
-                  <div className="sup-card-sub">+1 (407) 255-0000</div>
+                  <div className="sup-card-sub">+1 (407) 942-6078</div>
                 </div>
                 <ChevronRight size={16} color="#9CA3AF" />
               </a>
