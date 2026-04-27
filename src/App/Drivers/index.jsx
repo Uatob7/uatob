@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Bell, Star, LocateFixed, Loader2, X, AlertCircle, CheckCircle2, Info } from "lucide-react";
+import { Star, LocateFixed, Loader2, X, AlertCircle, CheckCircle2, Info,
+         HeadphonesIcon, MessageSquare, Phone, Mail, ChevronRight, ExternalLink } from "lucide-react";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 
@@ -37,7 +38,7 @@ const TRIP_BUTTON_LABELS = {
   in_progress:     "Complete Trip",
 };
 
-// ── localStorage helpers for seen review IDs ──────────────────────────
+// ── localStorage helpers ──────────────────────────────────────────────
 const LS_SEEN_REVIEWS_KEY = 'uatob_driver_seen_reviews';
 function loadSeenReviews()    { try { return new Set(JSON.parse(localStorage.getItem(LS_SEEN_REVIEWS_KEY) || '[]')); } catch { return new Set(); } }
 function saveSeenReviews(set) { try { localStorage.setItem(LS_SEEN_REVIEWS_KEY, JSON.stringify([...set])); } catch (_) {} }
@@ -45,23 +46,21 @@ function saveSeenReviews(set) { try { localStorage.setItem(LS_SEEN_REVIEWS_KEY, 
 // ── FCM Push Registration ─────────────────────────────────────────────
 async function registerFcmToken(uid) {
   try {
-    if (!("Notification" in window)) { console.warn("[UaTob] Push not supported"); return; }
+    if (!("Notification" in window)) return;
     const permission = await window.Notification.requestPermission();
-    if (permission !== "granted") { console.warn("[UaTob] Push permission denied"); return; }
+    if (permission !== "granted") return;
     const messaging = getMessaging(firebase_app);
     const token = await getToken(messaging, {
       vapidKey: "BJ_sRHZonSGCKk2mB2i9ofTRS8ouFVMV-I15FX4sqdUXHyVb1lo6H-N4GMPrlcIIshRlykQicaxkxxFxcYcI4JQ",
     });
-    if (!token) { console.warn("[UaTob] FCM returned empty token"); return; }
+    if (!token) return;
     await callSaveFcmToken({ driverId: uid, token });
-    console.log("[UaTob] FCM token registered");
   } catch (err) {
     console.warn("[UaTob] Push registration failed:", err.message);
   }
 }
 
-
-// ── Trip request chime ────────────────────────────────────────────────
+// ── Audio helpers (unchanged) ─────────────────────────────────────────
 function playRequestChime() {
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -70,151 +69,467 @@ function playRequestChime() {
     master.gain.value = 0.18;
     master.connect(ctx.destination);
     const playTone = ({ freq, type = "sine", start, duration, volume = 0.25 }) => {
-      const osc  = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = type;
-      osc.frequency.setValueAtTime(freq, start);
-      osc.connect(gain);
-      gain.connect(master);
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.type = type; osc.frequency.setValueAtTime(freq, start);
+      osc.connect(gain); gain.connect(master);
       gain.gain.setValueAtTime(0.0001, start);
       gain.gain.exponentialRampToValueAtTime(volume, start + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-      osc.start(start);
-      osc.stop(start + duration);
+      osc.start(start); osc.stop(start + duration);
     };
-    const now     = ctx.currentTime + 0.02;
-    const pattern = [
-      { t: 0.00, f1: 740,  f2: 1110, d: 0.18 },
-      { t: 0.24, f1: 880,  f2: 1320, d: 0.18 },
-      { t: 0.48, f1: 1047, f2: 1568, d: 0.26 },
-      { t: 0.95, f1: 740,  f2: 1110, d: 0.18 },
-      { t: 1.19, f1: 880,  f2: 1320, d: 0.18 },
-      { t: 1.43, f1: 1047, f2: 1568, d: 0.30 },
-    ];
-    pattern.forEach(({ t, f1, f2, d }) => {
-      playTone({ freq: f1, type: "sine",     start: now + t, duration: d, volume: 0.22 });
-      playTone({ freq: f2, type: "triangle", start: now + t, duration: d, volume: 0.12 });
-    });
-    const noise     = ctx.createBufferSource();
-    const buffer    = ctx.createBuffer(1, ctx.sampleRate * 0.08, ctx.sampleRate);
-    const data      = buffer.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / 1800);
-    noise.buffer    = buffer;
-    const noiseGain = ctx.createGain();
-    noiseGain.gain.value = 0.03;
-    noise.connect(noiseGain);
-    noiseGain.connect(master);
-    noise.start(now + 0.01);
-    noise.stop(now + 0.08);
-    setTimeout(() => ctx.close().catch(() => {}), 3000);
-  } catch (err) { console.warn("Audio playback failed:", err); }
+    const now = ctx.currentTime + 0.02;
+    [{ t:0.00,f1:740,f2:1110,d:0.18},{t:0.24,f1:880,f2:1320,d:0.18},
+     {t:0.48,f1:1047,f2:1568,d:0.26},{t:0.95,f1:740,f2:1110,d:0.18},
+     {t:1.19,f1:880,f2:1320,d:0.18},{t:1.43,f1:1047,f2:1568,d:0.30}]
+      .forEach(({t,f1,f2,d}) => {
+        playTone({freq:f1,type:"sine",    start:now+t,duration:d,volume:0.22});
+        playTone({freq:f2,type:"triangle",start:now+t,duration:d,volume:0.12});
+      });
+    setTimeout(() => ctx.close().catch(()=>{}), 3000);
+  } catch(e) {}
 }
 
 function playAcceptSound() {
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    const ctx = new AudioCtx();
-    const master = ctx.createGain();
-    master.gain.value = 0.22;
-    master.connect(ctx.destination);
-    const playTone = ({ freq, type = "sine", start, duration, volume }) => {
-      const osc  = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = type;
-      osc.frequency.setValueAtTime(freq, start);
-      osc.connect(gain);
-      gain.connect(master);
-      gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime(volume, start + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-      osc.start(start);
-      osc.stop(start + duration);
+    const ctx = new AudioCtx(), master = ctx.createGain();
+    master.gain.value = 0.22; master.connect(ctx.destination);
+    const playTone = ({freq,type="sine",start,duration,volume}) => {
+      const osc=ctx.createOscillator(), gain=ctx.createGain();
+      osc.type=type; osc.frequency.setValueAtTime(freq,start);
+      osc.connect(gain); gain.connect(master);
+      gain.gain.setValueAtTime(0.0001,start);
+      gain.gain.exponentialRampToValueAtTime(volume,start+0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001,start+duration);
+      osc.start(start); osc.stop(start+duration);
     };
-    const now = ctx.currentTime + 0.02;
-    playTone({ freq: 784,  type: "sine",     start: now,        duration: 0.14, volume: 0.28 });
-    playTone({ freq: 1568, type: "triangle", start: now,        duration: 0.14, volume: 0.10 });
-    playTone({ freq: 1047, type: "sine",     start: now + 0.13, duration: 0.22, volume: 0.32 });
-    playTone({ freq: 2093, type: "triangle", start: now + 0.13, duration: 0.22, volume: 0.08 });
-    const bodyOsc  = ctx.createOscillator();
-    const bodyGain = ctx.createGain();
-    bodyOsc.type = "sine";
-    bodyOsc.frequency.setValueAtTime(180, now);
-    bodyOsc.frequency.exponentialRampToValueAtTime(60, now + 0.12);
-    bodyGain.gain.setValueAtTime(0.0001, now);
-    bodyGain.gain.exponentialRampToValueAtTime(0.18, now + 0.01);
-    bodyGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
-    bodyOsc.connect(bodyGain);
-    bodyGain.connect(master);
-    bodyOsc.start(now);
-    bodyOsc.stop(now + 0.12);
-    setTimeout(() => ctx.close().catch(() => {}), 2000);
-  } catch (err) { console.warn("Accept sound failed:", err); }
+    const now = ctx.currentTime+0.02;
+    playTone({freq:784, type:"sine",    start:now,       duration:0.14,volume:0.28});
+    playTone({freq:1568,type:"triangle",start:now,       duration:0.14,volume:0.10});
+    playTone({freq:1047,type:"sine",    start:now+0.13,  duration:0.22,volume:0.32});
+    playTone({freq:2093,type:"triangle",start:now+0.13,  duration:0.22,volume:0.08});
+    setTimeout(() => ctx.close().catch(()=>{}), 2000);
+  } catch(e) {}
 }
 
 function playDeclineSound() {
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    const ctx = new AudioCtx();
-    const master = ctx.createGain();
-    master.gain.value = 0.20;
-    master.connect(ctx.destination);
-    const playTone = ({ freq, type = "sine", start, duration, volume }) => {
-      const osc  = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = type;
-      osc.frequency.setValueAtTime(freq, start);
-      osc.connect(gain);
-      gain.connect(master);
-      gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime(volume, start + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-      osc.start(start);
-      osc.stop(start + duration);
+    const ctx = new AudioCtx(), master = ctx.createGain();
+    master.gain.value = 0.20; master.connect(ctx.destination);
+    const playTone = ({freq,type="sine",start,duration,volume}) => {
+      const osc=ctx.createOscillator(), gain=ctx.createGain();
+      osc.type=type; osc.frequency.setValueAtTime(freq,start);
+      osc.connect(gain); gain.connect(master);
+      gain.gain.setValueAtTime(0.0001,start);
+      gain.gain.exponentialRampToValueAtTime(volume,start+0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001,start+duration);
+      osc.start(start); osc.stop(start+duration);
     };
-    const now = ctx.currentTime + 0.02;
-    playTone({ freq: 330, type: "sine",   start: now,        duration: 0.16, volume: 0.22 });
-    playTone({ freq: 660, type: "square", start: now,        duration: 0.10, volume: 0.04 });
-    playTone({ freq: 247, type: "sine",   start: now + 0.13, duration: 0.20, volume: 0.18 });
-    playTone({ freq: 494, type: "square", start: now + 0.13, duration: 0.14, volume: 0.03 });
-    const thudOsc  = ctx.createOscillator();
-    const thudGain = ctx.createGain();
-    thudOsc.type = "sine";
-    thudOsc.frequency.setValueAtTime(100, now);
-    thudOsc.frequency.exponentialRampToValueAtTime(40, now + 0.14);
-    thudGain.gain.setValueAtTime(0.0001, now);
-    thudGain.gain.exponentialRampToValueAtTime(0.15, now + 0.01);
-    thudGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
-    thudOsc.connect(thudGain);
-    thudGain.connect(master);
-    thudOsc.start(now);
-    thudOsc.stop(now + 0.14);
-    setTimeout(() => ctx.close().catch(() => {}), 2000);
-  } catch (err) { console.warn("Decline sound failed:", err); }
+    const now = ctx.currentTime+0.02;
+    playTone({freq:330,type:"sine",  start:now,     duration:0.16,volume:0.22});
+    playTone({freq:247,type:"sine",  start:now+0.13,duration:0.20,volume:0.18});
+    setTimeout(() => ctx.close().catch(()=>{}), 2000);
+  } catch(e) {}
+}
+
+// ── Custom Support Icon SVG ───────────────────────────────────────────
+function SupportIcon({ size = 20, color = "currentColor" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Headset arc */}
+      <path
+        d="M4 14v-3a8 8 0 0 1 16 0v3"
+        stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+      />
+      {/* Left ear cup */}
+      <rect x="2" y="13" width="4" height="6" rx="2"
+        stroke={color} strokeWidth="1.8" fill="none"/>
+      {/* Right ear cup */}
+      <rect x="18" y="13" width="4" height="6" rx="2"
+        stroke={color} strokeWidth="1.8" fill="none"/>
+      {/* Mic arm */}
+      <path
+        d="M22 19v1a4 4 0 0 1-4 4h-3"
+        stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+      />
+      {/* Mic dot */}
+      <circle cx="14" cy="24" r="1" fill={color}/>
+    </svg>
+  );
+}
+
+// ── Full-Screen Support Overlay ───────────────────────────────────────
+const SUPPORT_CSS = `
+  @keyframes sup-slideIn {
+    from { opacity: 0; transform: translateY(100%); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes sup-slideOut {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(100%); }
+  }
+  @keyframes sup-fadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .sup-overlay {
+    position: fixed; inset: 0; z-index: 1300;
+    background: #F8FAFC;
+    display: flex; flex-direction: column;
+    font-family: 'Barlow', system-ui, sans-serif;
+    overflow: hidden;
+  }
+  .sup-overlay.entering { animation: sup-slideIn .38s cubic-bezier(.22,1,.36,1) forwards; }
+  .sup-overlay.leaving  { animation: sup-slideOut .28s cubic-bezier(.4,0,.6,1) forwards; }
+
+  .sup-header {
+    background: #fff;
+    border-bottom: 1px solid #E5E7EB;
+    padding: 0 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+    /* Safe area top */
+    padding-top: max(20px, env(safe-area-inset-top));
+    padding-bottom: 16px;
+  }
+  .sup-close-btn {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: #F3F4F6; border: none;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: background .15s, transform .12s;
+    flex-shrink: 0;
+  }
+  .sup-close-btn:hover  { background: #E5E7EB; }
+  .sup-close-btn:active { transform: scale(.93); }
+
+  .sup-body {
+    flex: 1; overflow-y: auto;
+    padding: 24px 20px 32px;
+    display: flex; flex-direction: column; gap: 24px;
+    overscroll-behavior: contain;
+  }
+
+  .sup-hero {
+    display: flex; flex-direction: column; align-items: center;
+    text-align: center; gap: 12px;
+    animation: sup-fadeIn .4s ease .05s both;
+  }
+  .sup-hero-icon {
+    width: 72px; height: 72px; border-radius: 50%;
+    background: linear-gradient(135deg, #EFF6FF, #DBEAFE);
+    border: 2px solid #BFDBFE;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 0 8px rgba(59,130,246,.06);
+  }
+  .sup-hero-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 26px; font-weight: 900; color: #111827; letter-spacing: -.3px;
+  }
+  .sup-hero-sub {
+    font-size: 14px; color: #6B7280; font-weight: 500; line-height: 1.55; max-width: 300px;
+  }
+
+  /* Status chip */
+  .sup-status-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #F0FDF4; border: 1px solid #BBF7D0;
+    border-radius: 99px; padding: 5px 12px;
+    font-size: 12px; font-weight: 700; color: #16A34A; letter-spacing: .04em;
+  }
+  .sup-status-dot {
+    width: 7px; height: 7px; border-radius: 50%; background: #22C55E;
+    box-shadow: 0 0 0 3px rgba(34,197,94,.2);
+  }
+
+  /* Section */
+  .sup-section { animation: sup-fadeIn .4s ease both; }
+  .sup-section-title {
+    font-size: 10px; font-weight: 800; letter-spacing: .12em;
+    text-transform: uppercase; color: #9CA3AF;
+    margin-bottom: 10px; padding-left: 2px;
+  }
+  .sup-cards { display: flex; flex-direction: column; gap: 10px; }
+
+  /* Contact card */
+  .sup-card {
+    background: #fff; border: 1px solid #E5E7EB;
+    border-radius: 16px; padding: 16px;
+    display: flex; align-items: center; gap: 14px;
+    cursor: pointer; text-decoration: none; color: inherit;
+    transition: border-color .15s, box-shadow .15s, transform .12s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .sup-card:hover  { border-color: #D1D5DB; box-shadow: 0 4px 16px rgba(0,0,0,.06); }
+  .sup-card:active { transform: scale(.985); }
+
+  .sup-card-icon {
+    width: 44px; height: 44px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .sup-card-body { flex: 1; min-width: 0; }
+  .sup-card-label {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 16px; font-weight: 800; color: #111827;
+    letter-spacing: -.1px; margin-bottom: 2px;
+  }
+  .sup-card-sub { font-size: 12.5px; color: #6B7280; font-weight: 500; }
+  .sup-card-badge {
+    font-size: 10px; font-weight: 700; letter-spacing: .04em;
+    background: #FEF3C7; color: #D97706; border: 1px solid #FDE68A;
+    border-radius: 6px; padding: 2px 7px; flex-shrink: 0;
+  }
+
+  /* FAQ items */
+  .sup-faq-item {
+    background: #fff; border: 1px solid #E5E7EB;
+    border-radius: 14px; padding: 14px 16px;
+    cursor: pointer; transition: border-color .15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .sup-faq-item:hover { border-color: #D1D5DB; }
+  .sup-faq-q {
+    font-size: 13.5px; font-weight: 700; color: #111827;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  }
+  .sup-faq-a {
+    font-size: 13px; color: #6B7280; font-weight: 500;
+    line-height: 1.55; margin-top: 8px;
+    border-top: 1px solid #F3F4F6; padding-top: 8px;
+  }
+
+  /* Footer note */
+  .sup-footer-note {
+    text-align: center; font-size: 12px; color: #9CA3AF; font-weight: 500;
+    line-height: 1.6; animation: sup-fadeIn .4s ease .3s both;
+  }
+`;
+
+const FAQ_ITEMS = [
+  {
+    q: "How do I update my vehicle information?",
+    a: "Go to Profile → Vehicle Details. Changes may take up to 24 hours to reflect on the rider side.",
+  },
+  {
+    q: "When do I get paid?",
+    a: "Payouts are processed every Monday for the previous week's earnings. Funds typically arrive within 1–2 business days.",
+  },
+  {
+    q: "What happens if a rider doesn't show up?",
+    a: "After 5 minutes at the pickup location, you can mark the rider as a no-show and you'll still receive a wait-time fee.",
+  },
+  {
+    q: "How is my rating calculated?",
+    a: "Your rating is the average of your last 100 rider ratings. Ratings below 4.5 may affect your ability to receive premium rides.",
+  },
+  {
+    q: "How do I dispute a fare or report an issue?",
+    a: "Use the 'Chat with us' option below or email support@uatob.com. Include the ride ID for faster resolution.",
+  },
+];
+
+function SupportOverlay({ onClose, driver }) {
+  const [leaving,      setLeaving]      = useState(false);
+  const [expandedFaq,  setExpandedFaq]  = useState(null);
+
+  const handleClose = () => {
+    setLeaving(true);
+    setTimeout(onClose, 260);
+  };
+
+  // Close on back gesture (popstate)
+  useEffect(() => {
+    window.history.pushState({ support: true }, "");
+    const handler = () => handleClose();
+    window.addEventListener("popstate", handler);
+    return () => window.removeEventListener("popstate", handler);
+  }, []);
+
+  return (
+    <>
+      <style>{SUPPORT_CSS}</style>
+      <div className={`sup-overlay ${leaving ? "leaving" : "entering"}`}>
+
+        {/* ── Header ── */}
+        <div className="sup-header">
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div className="sup-hero-icon" style={{ width: 38, height: 38, borderRadius: 10 }}>
+              <SupportIcon size={20} color="#2563EB" />
+            </div>
+            <div>
+              <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 20, fontWeight: 900, color: "#111827", letterSpacing: "-.2px", lineHeight: 1 }}>
+                Support
+              </div>
+              <div style={{ fontSize: 12, color: "#6B7280", fontWeight: 500 }}>
+                We're here to help
+              </div>
+            </div>
+          </div>
+          <button className="sup-close-btn" onClick={handleClose} aria-label="Close support">
+            <X size={18} color="#374151" strokeWidth={2.2} />
+          </button>
+        </div>
+
+        {/* ── Body ── */}
+        <div className="sup-body">
+
+          {/* Hero */}
+          <div className="sup-hero">
+            <div className="sup-hero-icon">
+              <SupportIcon size={32} color="#2563EB" />
+            </div>
+            <div className="sup-status-chip">
+              <span className="sup-status-dot" />
+              Support team online
+            </div>
+            <div className="sup-hero-title">How can we help?</div>
+            <div className="sup-hero-sub">
+              {driver?.firstName ? `Hi ${driver.firstName}! ` : ""}
+              Reach out anytime — our driver support team usually responds within a few minutes.
+            </div>
+          </div>
+
+          {/* Contact options */}
+          <div className="sup-section" style={{ animationDelay: ".08s" }}>
+            <div className="sup-section-title">Contact us</div>
+            <div className="sup-cards">
+
+              {/* Live chat */}
+              <a
+                href="sms:+14072550000"
+                className="sup-card"
+              >
+                <div className="sup-card-icon" style={{ background: "linear-gradient(135deg,#EFF6FF,#DBEAFE)", border: "1px solid #BFDBFE" }}>
+                  <MessageSquare size={20} color="#2563EB" strokeWidth={2} />
+                </div>
+                <div className="sup-card-body">
+                  <div className="sup-card-label">Chat with us</div>
+                  <div className="sup-card-sub">Fastest · usually &lt; 5 min reply</div>
+                </div>
+                <span className="sup-card-badge">LIVE</span>
+                <ChevronRight size={16} color="#9CA3AF" />
+              </a>
+
+              {/* Phone */}
+              <a
+                href="tel:+14072550000"
+                className="sup-card"
+              >
+                <div className="sup-card-icon" style={{ background: "linear-gradient(135deg,#F0FDF4,#DCFCE7)", border: "1px solid #BBF7D0" }}>
+                  <Phone size={20} color="#16A34A" strokeWidth={2} />
+                </div>
+                <div className="sup-card-body">
+                  <div className="sup-card-label">Call support</div>
+                  <div className="sup-card-sub">+1 (407) 255-0000</div>
+                </div>
+                <ChevronRight size={16} color="#9CA3AF" />
+              </a>
+
+              {/* Email */}
+              <a
+                href="mailto:support@uatob.com"
+                className="sup-card"
+              >
+                <div className="sup-card-icon" style={{ background: "linear-gradient(135deg,#FFF7ED,#FED7AA)", border: "1px solid #FDC97A" }}>
+                  <Mail size={20} color="#EA580C" strokeWidth={2} />
+                </div>
+                <div className="sup-card-body">
+                  <div className="sup-card-label">Email us</div>
+                  <div className="sup-card-sub">support@uatob.com</div>
+                </div>
+                <ChevronRight size={16} color="#9CA3AF" />
+              </a>
+
+            </div>
+          </div>
+
+          {/* Driver info chip — makes it easy to reference when emailing */}
+          {driver?.firstName && (
+            <div style={{
+              background: "#fff", border: "1px solid #E5E7EB",
+              borderRadius: 14, padding: "14px 16px",
+              display: "flex", alignItems: "center", gap: 12,
+              animation: "sup-fadeIn .4s ease .14s both",
+            }}>
+              <div style={{ width: 38, height: 38, borderRadius: "50%", background: "#F3F4F6", border: "1.5px solid #E5E7EB", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 900, fontSize: 15, color: "#374151" }}>
+                  {(driver.firstName?.[0] ?? "") + (driver.lastName?.[0] ?? "")}
+                </span>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, color: "#9CA3AF", fontWeight: 600, marginBottom: 2, letterSpacing: ".04em", textTransform: "uppercase" }}>
+                  Your account
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>
+                  {driver.firstName} {driver.lastName}
+                </div>
+                <div style={{ fontSize: 12, color: "#6B7280" }}>{driver.email ?? ""}</div>
+              </div>
+              <div style={{ textAlign: "right", flexShrink: 0 }}>
+                <div style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 2 }}>Rating</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <Star size={12} fill="#F59E0B" color="#F59E0B" />
+                  <span style={{ fontSize: 14, fontWeight: 800, color: "#111827", fontFamily: "'Barlow Condensed', sans-serif" }}>
+                    {driver.averageRating != null ? driver.averageRating.toFixed(2) : "—"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* FAQ */}
+          <div className="sup-section" style={{ animationDelay: ".16s" }}>
+            <div className="sup-section-title">Frequently asked questions</div>
+            <div className="sup-cards">
+              {FAQ_ITEMS.map((item, idx) => (
+                <div
+                  key={idx}
+                  className="sup-faq-item"
+                  onClick={() => setExpandedFaq(expandedFaq === idx ? null : idx)}
+                  style={{ animationDelay: `${.18 + idx * .04}s` }}
+                >
+                  <div className="sup-faq-q">
+                    <span>{item.q}</span>
+                    <ChevronRight
+                      size={15} color="#9CA3AF"
+                      style={{ transform: expandedFaq === idx ? "rotate(90deg)" : "rotate(0deg)", transition: "transform .2s", flexShrink: 0 }}
+                    />
+                  </div>
+                  {expandedFaq === idx && (
+                    <div className="sup-faq-a">{item.a}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="sup-footer-note">
+            UaTob Driver Support · Available 7 days a week<br />
+            6 AM – 11 PM ET · support@uatob.com
+          </div>
+
+        </div>
+      </div>
+    </>
+  );
 }
 
 // ── APP NOTIFICATION ──────────────────────────────────────────────────
 const NOTIF_STYLES = `
-  @keyframes notifSlideDown {
-    from { opacity: 0; transform: translateY(-20px) scale(0.96); }
-    to   { opacity: 1; transform: translateY(0)     scale(1);    }
-  }
-  @keyframes notifSlideUp {
-    from { opacity: 1; transform: translateY(0)     scale(1);    }
-    to   { opacity: 0; transform: translateY(-16px) scale(0.97); }
-  }
-  @keyframes notifProgress {
-    from { width: 100%; }
-    to   { width: 0%;   }
-  }
+  @keyframes notifSlideDown { from{opacity:0;transform:translateY(-20px) scale(.96)} to{opacity:1;transform:translateY(0) scale(1)} }
+  @keyframes notifSlideUp   { from{opacity:1;transform:translateY(0) scale(1)} to{opacity:0;transform:translateY(-16px) scale(.97)} }
+  @keyframes notifProgress  { from{width:100%} to{width:0%} }
 `;
 
 function getNotifTheme(title) {
   const t = (title || "").toLowerCase();
-  if (t.includes("accept") || t.includes("online") || t.includes("complete") || t.includes("trip"))
-    return { color: "#16A34A", bg: "rgba(22,163,74,.10)", border: "rgba(22,163,74,.30)", ring: "rgba(22,163,74,.06)", Icon: CheckCircle2 };
-  if (t.includes("offline") || t.includes("declin") || t.includes("error") || t.includes("fail") || t.includes("expired"))
-    return { color: "#DC2626", bg: "rgba(220,38,38,.08)", border: "rgba(220,38,38,.25)", ring: "rgba(220,38,38,.05)", Icon: AlertCircle };
-  return { color: "#2563EB", bg: "rgba(37,99,235,.08)", border: "rgba(37,99,235,.25)", ring: "rgba(37,99,235,.05)", Icon: Info };
+  if (t.includes("accept")||t.includes("online")||t.includes("complete")||t.includes("trip"))
+    return { color:"#16A34A",bg:"rgba(22,163,74,.10)",border:"rgba(22,163,74,.30)",ring:"rgba(22,163,74,.06)",Icon:CheckCircle2 };
+  if (t.includes("offline")||t.includes("declin")||t.includes("error")||t.includes("fail")||t.includes("expired"))
+    return { color:"#DC2626",bg:"rgba(220,38,38,.08)",border:"rgba(220,38,38,.25)",ring:"rgba(220,38,38,.05)",Icon:AlertCircle };
+  return { color:"#2563EB",bg:"rgba(37,99,235,.08)",border:"rgba(37,99,235,.25)",ring:"rgba(37,99,235,.05)",Icon:Info };
 }
 
 function AppNotification({ notificationOverride }) {
@@ -225,8 +540,7 @@ function AppNotification({ notificationOverride }) {
 
   useEffect(() => {
     if (!notif) { setVisible(false); setLeaving(false); return; }
-    setLeaving(false);
-    setVisible(true);
+    setLeaving(false); setVisible(true);
     clearTimeout(hideTimer.current);
     hideTimer.current = setTimeout(() => {
       setLeaving(true);
@@ -242,20 +556,16 @@ function AppNotification({ notificationOverride }) {
   return (
     <>
       <style>{NOTIF_STYLES}</style>
-      <div style={{ position: "fixed", top: "16px", left: "50%", transform: "translateX(-50%)", zIndex: 1200, width: "calc(100% - 32px)", maxWidth: "400px", animation: leaving ? "notifSlideUp .28s cubic-bezier(.4,0,.6,1) forwards" : "notifSlideDown .32s cubic-bezier(.34,1.56,.64,1) forwards" }}>
-        <div style={{ background: "#fff", borderRadius: "20px", padding: "14px 16px 14px 14px", boxShadow: "0 8px 32px rgba(0,0,0,.13), 0 2px 8px rgba(0,0,0,.07)", border: `1.5px solid ${theme.border}`, display: "flex", alignItems: "center", gap: "12px", overflow: "hidden", position: "relative" }}>
-          <div style={{ flexShrink: 0, width: "42px", height: "42px", borderRadius: "50%", background: theme.bg, border: `1.5px solid ${theme.border}`, boxShadow: `0 0 0 6px ${theme.ring}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",zIndex:1200,width:"calc(100% - 32px)",maxWidth:400,animation:leaving?"notifSlideUp .28s cubic-bezier(.4,0,.6,1) forwards":"notifSlideDown .32s cubic-bezier(.34,1.56,.64,1) forwards" }}>
+        <div style={{ background:"#fff",borderRadius:20,padding:"14px 16px 14px 14px",boxShadow:"0 8px 32px rgba(0,0,0,.13),0 2px 8px rgba(0,0,0,.07)",border:`1.5px solid ${theme.border}`,display:"flex",alignItems:"center",gap:12,overflow:"hidden",position:"relative" }}>
+          <div style={{ flexShrink:0,width:42,height:42,borderRadius:"50%",background:theme.bg,border:`1.5px solid ${theme.border}`,boxShadow:`0 0 0 6px ${theme.ring}`,display:"flex",alignItems:"center",justifyContent:"center" }}>
             <Icon size={18} color={theme.color} strokeWidth={2.2} />
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "15px", fontWeight: "900", color: "#111827", letterSpacing: "-0.2px", lineHeight: 1.2, marginBottom: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {notif.title}
-            </div>
-            <div style={{ fontSize: "13px", color: "#6B7280", fontWeight: "500", fontFamily: "'Barlow', sans-serif", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {notif.msg}
-            </div>
+          <div style={{ flex:1,minWidth:0 }}>
+            <div style={{ fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,color:"#111827",letterSpacing:"-.2px",lineHeight:1.2,marginBottom:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{notif.title}</div>
+            <div style={{ fontSize:13,color:"#6B7280",fontWeight:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{notif.msg}</div>
           </div>
-          <div style={{ position: "absolute", bottom: 0, left: 0, height: "3px", borderRadius: "0 0 20px 20px", background: theme.color, opacity: 0.35, animation: "notifProgress 3s linear forwards" }} />
+          <div style={{ position:"absolute",bottom:0,left:0,height:3,borderRadius:"0 0 20px 20px",background:theme.color,opacity:.35,animation:"notifProgress 3s linear forwards" }} />
         </div>
       </div>
     </>
@@ -265,49 +575,35 @@ function AppNotification({ notificationOverride }) {
 // ── NOTIFICATION PERMISSION POPUP ─────────────────────────────────────
 function NotificationPopup({ onEnable, onSkip, loading }) {
   return (
-    <div onClick={e => { if (e.target === e.currentTarget) onSkip(); }} style={{ position: "fixed", inset: 0, zIndex: 1050, background: "rgba(0,0,0,.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px", animation: "locFadeIn .2s ease" }}>
-      <style>{`
-        @keyframes locFadeIn  { from { opacity:0 } to { opacity:1 } }
-        @keyframes locSlideUp { from { opacity:0; transform:translateY(18px) } to { opacity:1; transform:translateY(0) } }
-        @keyframes locSpin    { from { transform:rotate(0deg) } to { transform:rotate(360deg) } }
-        .notif-enable-btn:active { transform: scale(0.97); }
-      `}</style>
-      <div style={{ background: "#fff", borderRadius: "24px", padding: "28px 24px 24px", width: "100%", maxWidth: "360px", boxShadow: "0 24px 60px rgba(0,0,0,.18)", animation: "locSlideUp .28s cubic-bezier(.34,1.56,.64,1)" }}>
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: "20px" }}>
-          <div style={{ width: "68px", height: "68px", borderRadius: "50%", background: "rgba(37,99,235,.09)", border: "2px solid rgba(37,99,235,.25)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 0 8px rgba(37,99,235,.05)" }}>
-            {loading
-              ? <Loader2 size={28} color="#2563EB" style={{ animation: "locSpin 1s linear infinite" }} />
-              : <Bell size={28} color="#2563EB" />
-            }
+    <div onClick={e=>{ if(e.target===e.currentTarget) onSkip(); }} style={{ position:"fixed",inset:0,zIndex:1050,background:"rgba(0,0,0,.45)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",padding:24 }}>
+      <style>{`@keyframes locFadeIn{from{opacity:0}to{opacity:1}} @keyframes locSlideUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}} @keyframes locSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+      <div style={{ background:"#fff",borderRadius:24,padding:"28px 24px 24px",width:"100%",maxWidth:360,boxShadow:"0 24px 60px rgba(0,0,0,.18)",animation:"locSlideUp .28s cubic-bezier(.34,1.56,.64,1)" }}>
+        <div style={{ display:"flex",justifyContent:"center",marginBottom:20 }}>
+          <div style={{ width:68,height:68,borderRadius:"50%",background:"rgba(37,99,235,.09)",border:"2px solid rgba(37,99,235,.25)",display:"flex",alignItems:"center",justifyContent:"center" }}>
+            {loading ? <Loader2 size={28} color="#2563EB" style={{ animation:"locSpin 1s linear infinite" }}/> : <SupportIcon size={28} color="#2563EB"/>}
           </div>
         </div>
-        <div style={{ textAlign: "center", marginBottom: "8px" }}>
-          <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "22px", fontWeight: "900", color: "#111827", letterSpacing: "-0.3px", marginBottom: "6px" }}>Stay in the loop</div>
-          <div style={{ fontSize: "13.5px", color: "#6B7280", fontWeight: "500", lineHeight: "1.6" }}>
-            Enable push notifications so you never miss a ride request — even when the app is in the background.
-          </div>
+        <div style={{ textAlign:"center",marginBottom:8 }}>
+          <div style={{ fontFamily:"'Barlow Condensed',sans-serif",fontSize:22,fontWeight:900,color:"#111827",marginBottom:6 }}>Stay in the loop</div>
+          <div style={{ fontSize:13.5,color:"#6B7280",fontWeight:500,lineHeight:1.6 }}>Enable push notifications so you never miss a ride request.</div>
         </div>
         {!loading && (
-          <div style={{ margin: "16px 0 22px", display: "flex", flexDirection: "column", gap: "10px" }}>
-            {[
-              { icon: "🔔", text: "Instant ride request alerts" },
-              { icon: "📍", text: "Trip status updates" },
-              { icon: "💰", text: "Earning confirmations" },
-            ].map(({ icon, text }) => (
-              <div key={text} style={{ display: "flex", alignItems: "center", gap: "10px", background: "rgba(37,99,235,.04)", borderRadius: "10px", padding: "9px 12px", border: "1px solid rgba(37,99,235,.10)" }}>
-                <span style={{ fontSize: "16px", lineHeight: 1 }}>{icon}</span>
-                <span style={{ fontSize: "13px", fontWeight: "600", color: "#374151", fontFamily: "'Barlow', sans-serif" }}>{text}</span>
-              </div>
-            ))}
+          <div style={{ margin:"16px 0 22px",display:"flex",flexDirection:"column",gap:10 }}>
+            {[{icon:"🔔",text:"Instant ride request alerts"},{icon:"📍",text:"Trip status updates"},{icon:"💰",text:"Earning confirmations"}]
+              .map(({icon,text}) => (
+                <div key={text} style={{ display:"flex",alignItems:"center",gap:10,background:"rgba(37,99,235,.04)",borderRadius:10,padding:"9px 12px",border:"1px solid rgba(37,99,235,.10)" }}>
+                  <span style={{ fontSize:16 }}>{icon}</span>
+                  <span style={{ fontSize:13,fontWeight:600,color:"#374151" }}>{text}</span>
+                </div>
+              ))}
           </div>
         )}
         {!loading && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            <button className="notif-enable-btn" onClick={onEnable} style={{ width: "100%", padding: "15px", borderRadius: "14px", border: "none", background: "linear-gradient(135deg,#3B82F6,#2563EB 55%,#1D4ED8)", color: "#fff", fontSize: "15px", fontWeight: "800", fontFamily: "'Barlow', sans-serif", cursor: "pointer", boxShadow: "0 4px 14px rgba(37,99,235,.35)", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", transition: "transform .1s" }}>
-              <Bell size={16} />
-              Enable notifications
+          <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+            <button onClick={onEnable} style={{ width:"100%",padding:15,borderRadius:14,border:"none",background:"linear-gradient(135deg,#3B82F6,#2563EB 55%,#1D4ED8)",color:"#fff",fontSize:15,fontWeight:800,fontFamily:"'Barlow',sans-serif",cursor:"pointer",boxShadow:"0 4px 14px rgba(37,99,235,.35)",display:"flex",alignItems:"center",justifyContent:"center",gap:8 }}>
+              <SupportIcon size={16} color="#fff"/> Enable notifications
             </button>
-            <button onClick={onSkip} style={{ width: "100%", padding: "14px", borderRadius: "14px", border: "1.5px solid #E5E7EB", background: "#fff", color: "#6B7280", fontSize: "14px", fontWeight: "700", fontFamily: "'Barlow', sans-serif", cursor: "pointer" }}>
+            <button onClick={onSkip} style={{ width:"100%",padding:14,borderRadius:14,border:"1.5px solid #E5E7EB",background:"#fff",color:"#6B7280",fontSize:14,fontWeight:700,cursor:"pointer" }}>
               Not now
             </button>
           </div>
@@ -320,44 +616,35 @@ function NotificationPopup({ onEnable, onSkip, loading }) {
 // ── REJECTED BANNER ───────────────────────────────────────────────────
 function RejectedBanner() {
   return (
-    <div style={{ margin: "16px 20px", padding: "16px", borderRadius: "16px", background: "rgba(220,38,38,.06)", border: "1.5px solid rgba(220,38,38,.20)", display: "flex", alignItems: "flex-start", gap: "12px" }}>
-      <div style={{ flexShrink: 0, width: "36px", height: "36px", borderRadius: "50%", background: "rgba(220,38,38,.10)", border: "1.5px solid rgba(220,38,38,.25)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <AlertCircle size={18} color="#DC2626" />
+    <div style={{ margin:"16px 20px",padding:16,borderRadius:16,background:"rgba(220,38,38,.06)",border:"1.5px solid rgba(220,38,38,.20)",display:"flex",alignItems:"flex-start",gap:12 }}>
+      <div style={{ flexShrink:0,width:36,height:36,borderRadius:"50%",background:"rgba(220,38,38,.10)",border:"1.5px solid rgba(220,38,38,.25)",display:"flex",alignItems:"center",justifyContent:"center" }}>
+        <AlertCircle size={18} color="#DC2626"/>
       </div>
       <div>
-        <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "16px", fontWeight: "900", color: "#DC2626", letterSpacing: "-0.2px", marginBottom: "4px" }}>Application not approved</div>
-        <div style={{ fontSize: "13px", color: "#6B7280", fontWeight: "500", lineHeight: "1.6" }}>
-          Your driver application was not approved. Please review your profile and resubmit your documents, or contact support for more information.
-        </div>
-        <a href="mailto:support@uatob.com" style={{ display: "inline-block", marginTop: "10px", fontSize: "13px", fontWeight: "700", color: "#DC2626", fontFamily: "'Barlow', sans-serif", textDecoration: "none" }}>
-          Contact support →
-        </a>
+        <div style={{ fontFamily:"'Barlow Condensed',sans-serif",fontSize:16,fontWeight:900,color:"#DC2626",marginBottom:4 }}>Application not approved</div>
+        <div style={{ fontSize:13,color:"#6B7280",fontWeight:500,lineHeight:1.6 }}>Your driver application was not approved. Please review your profile and resubmit your documents, or contact support.</div>
+        <a href="mailto:support@uatob.com" style={{ display:"inline-block",marginTop:10,fontSize:13,fontWeight:700,color:"#DC2626",textDecoration:"none" }}>Contact support →</a>
       </div>
     </div>
   );
 }
 
-// ── ACCOUNT SUSPENDED MODAL ───────────────────────────────────────────
+// ── SUSPENDED MODAL ───────────────────────────────────────────────────
 function SuspendedModal() {
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 1100, background: "rgba(0,0,0,.5)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}>
-      <style>{`
-        @keyframes locFadeIn  { from { opacity:0 } to { opacity:1 } }
-        @keyframes locSlideUp { from { opacity:0; transform:translateY(18px) } to { opacity:1; transform:translateY(0) } }
-      `}</style>
-      <div style={{ background: "#fff", borderRadius: "24px", padding: "32px 24px 28px", width: "100%", maxWidth: "380px", boxShadow: "0 24px 60px rgba(0,0,0,.2)", animation: "locSlideUp .28s cubic-bezier(.34,1.56,.64,1)", textAlign: "center" }}>
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: "20px" }}>
-          <div style={{ width: "72px", height: "72px", borderRadius: "50%", background: "rgba(220,38,38,.08)", border: "2px solid rgba(220,38,38,.25)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 0 8px rgba(220,38,38,.05)" }}>
-            <AlertCircle size={32} color="#DC2626" />
+    <div style={{ position:"fixed",inset:0,zIndex:1100,background:"rgba(0,0,0,.5)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",padding:24 }}>
+      <style>{`@keyframes locSlideUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      <div style={{ background:"#fff",borderRadius:24,padding:"32px 24px 28px",width:"100%",maxWidth:380,boxShadow:"0 24px 60px rgba(0,0,0,.2)",animation:"locSlideUp .28s cubic-bezier(.34,1.56,.64,1)",textAlign:"center" }}>
+        <div style={{ display:"flex",justifyContent:"center",marginBottom:20 }}>
+          <div style={{ width:72,height:72,borderRadius:"50%",background:"rgba(220,38,38,.08)",border:"2px solid rgba(220,38,38,.25)",display:"flex",alignItems:"center",justifyContent:"center" }}>
+            <AlertCircle size={32} color="#DC2626"/>
           </div>
         </div>
-        <div style={{ marginBottom: "12px" }}>
-          <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "26px", fontWeight: "900", color: "#111827", letterSpacing: "-0.3px", marginBottom: "8px" }}>Account Suspended</div>
-          <div style={{ fontSize: "14px", color: "#6B7280", fontWeight: "500", lineHeight: "1.6" }}>Your account has been suspended. For more information, please contact support.</div>
-        </div>
-        <div style={{ marginTop: "24px" }}>
-          <a href="mailto:support@uatob.com" style={{ display: "inline-block", width: "100%", padding: "14px", borderRadius: "12px", border: "none", background: "linear-gradient(135deg,#DC2626,#991B1B)", color: "#fff", fontSize: "15px", fontWeight: "800", fontFamily: "'Barlow', sans-serif", cursor: "pointer", boxShadow: "0 4px 14px rgba(220,38,38,.3)", textDecoration: "none" }}>Contact Support</a>
-        </div>
+        <div style={{ fontFamily:"'Barlow Condensed',sans-serif",fontSize:26,fontWeight:900,color:"#111827",marginBottom:8 }}>Account Suspended</div>
+        <div style={{ fontSize:14,color:"#6B7280",fontWeight:500,lineHeight:1.6 }}>Your account has been suspended. Contact support for more information.</div>
+        <a href="mailto:support@uatob.com" style={{ display:"inline-block",marginTop:24,width:"100%",padding:14,borderRadius:12,background:"linear-gradient(135deg,#DC2626,#991B1B)",color:"#fff",fontSize:15,fontWeight:800,textDecoration:"none",boxShadow:"0 4px 14px rgba(220,38,38,.3)" }}>
+          Contact Support
+        </a>
       </div>
     </div>
   );
@@ -366,33 +653,28 @@ function SuspendedModal() {
 // ── LOCATION POPUP ────────────────────────────────────────────────────
 function LocationPopup({ onAllow, onDeny, loading, error }) {
   return (
-    <div onClick={e => { if (e.target === e.currentTarget) onDeny(); }} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px", animation: "locFadeIn .2s ease" }}>
-      <style>{`
-        @keyframes locFadeIn  { from { opacity:0 } to { opacity:1 } }
-        @keyframes locSlideUp { from { opacity:0; transform:translateY(18px) } to { opacity:1; transform:translateY(0) } }
-        @keyframes locSpin    { from { transform:rotate(0deg) } to { transform:rotate(360deg) } }
-      `}</style>
-      <div style={{ background: "#fff", borderRadius: "24px", padding: "28px 24px 24px", width: "100%", maxWidth: "360px", boxShadow: "0 24px 60px rgba(0,0,0,.18)", animation: "locSlideUp .28s cubic-bezier(.34,1.56,.64,1)" }}>
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: "20px" }}>
-          <div style={{ width: "68px", height: "68px", borderRadius: "50%", background: error ? "rgba(220,38,38,.08)" : "rgba(22,163,74,.1)", border: `2px solid ${error ? "rgba(220,38,38,.25)" : "rgba(22,163,74,.3)"}`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: error ? "0 0 0 8px rgba(220,38,38,.05)" : "0 0 0 8px rgba(22,163,74,.06)" }}>
-            {loading ? <Loader2 size={28} color="#16A34A" style={{ animation: "locSpin 1s linear infinite" }} /> : error ? <AlertCircle size={28} color="#DC2626" /> : <LocateFixed size={28} color="#16A34A" />}
+    <div onClick={e=>{ if(e.target===e.currentTarget) onDeny(); }} style={{ position:"fixed",inset:0,zIndex:1000,background:"rgba(0,0,0,.45)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",padding:24 }}>
+      <style>{`@keyframes locFadeIn{from{opacity:0}to{opacity:1}} @keyframes locSlideUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}} @keyframes locSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+      <div style={{ background:"#fff",borderRadius:24,padding:"28px 24px 24px",width:"100%",maxWidth:360,boxShadow:"0 24px 60px rgba(0,0,0,.18)",animation:"locSlideUp .28s cubic-bezier(.34,1.56,.64,1)" }}>
+        <div style={{ display:"flex",justifyContent:"center",marginBottom:20 }}>
+          <div style={{ width:68,height:68,borderRadius:"50%",background:error?"rgba(220,38,38,.08)":"rgba(22,163,74,.1)",border:`2px solid ${error?"rgba(220,38,38,.25)":"rgba(22,163,74,.3)"}`,display:"flex",alignItems:"center",justifyContent:"center" }}>
+            {loading ? <Loader2 size={28} color="#16A34A" style={{ animation:"locSpin 1s linear infinite" }}/> : error ? <AlertCircle size={28} color="#DC2626"/> : <LocateFixed size={28} color="#16A34A"/>}
           </div>
         </div>
-        <div style={{ textAlign: "center", marginBottom: "8px" }}>
-          <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "22px", fontWeight: "900", color: "#111827", letterSpacing: "-0.3px", marginBottom: "6px" }}>
-            {loading ? "Getting your location…" : error ? "Location required" : "UaTob needs your location"}
+        <div style={{ textAlign:"center",marginBottom:8 }}>
+          <div style={{ fontFamily:"'Barlow Condensed',sans-serif",fontSize:22,fontWeight:900,color:"#111827",marginBottom:6 }}>
+            {loading?"Getting your location…":error?"Location required":"UaTob needs your location"}
           </div>
-          <div style={{ fontSize: "13.5px", color: "#6B7280", fontWeight: "500", lineHeight: "1.6" }}>
-            {loading ? "Please allow location access in your browser." : error ? error : "To go online and receive ride requests, we need your current location."}
+          <div style={{ fontSize:13.5,color:"#6B7280",fontWeight:500,lineHeight:1.6 }}>
+            {loading?"Please allow location access in your browser.":error||"To go online and receive ride requests, we need your current location."}
           </div>
         </div>
         {!loading && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "22px" }}>
-            <button onClick={onAllow} style={{ width: "100%", padding: "15px", borderRadius: "14px", border: "none", background: error ? "#DC2626" : "linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D)", color: "#fff", fontSize: "15px", fontWeight: "800", fontFamily: "'Barlow', sans-serif", cursor: "pointer", boxShadow: error ? "0 4px 14px rgba(220,38,38,.3)" : "0 4px 14px rgba(22,163,74,.35)", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
-              <LocateFixed size={16} />
-              {error ? "Try again" : "Allow location"}
+          <div style={{ display:"flex",flexDirection:"column",gap:10,marginTop:22 }}>
+            <button onClick={onAllow} style={{ width:"100%",padding:15,borderRadius:14,border:"none",background:error?"#DC2626":"linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D)",color:"#fff",fontSize:15,fontWeight:800,cursor:"pointer",boxShadow:error?"0 4px 14px rgba(220,38,38,.3)":"0 4px 14px rgba(22,163,74,.35)",display:"flex",alignItems:"center",justifyContent:"center",gap:8 }}>
+              <LocateFixed size={16}/> {error?"Try again":"Allow location"}
             </button>
-            <button onClick={onDeny} style={{ width: "100%", padding: "14px", borderRadius: "14px", border: "1.5px solid #E5E7EB", background: "#fff", color: "#6B7280", fontSize: "14px", fontWeight: "700", fontFamily: "'Barlow', sans-serif", cursor: "pointer" }}>Cancel</button>
+            <button onClick={onDeny} style={{ width:"100%",padding:14,borderRadius:14,border:"1.5px solid #E5E7EB",background:"#fff",color:"#6B7280",fontSize:14,fontWeight:700,cursor:"pointer" }}>Cancel</button>
           </div>
         )}
       </div>
@@ -412,7 +694,6 @@ export default function UaTobDriverApp({ uid }) {
 
   const isRejected   = driver?.status === "rejected";
   const driverOnTrip = driver?.trip === true;
-
   const sourceLoading = driverOnTrip ? reqLoading  : ridesLoading;
   const sourceRides   = driverOnTrip ? requests    : rides;
 
@@ -435,26 +716,22 @@ export default function UaTobDriverApp({ uid }) {
   const [notifLoading,      setNotifLoading]      = useState(false);
   const [seenReviewIds,     setSeenReviewIds]     = useState(() => loadSeenReviews());
   const [pendingReview,     setPendingReview]     = useState(null);
+  // ── NEW: Support overlay ──────────────────────────────────────────
+  const [showSupport,       setShowSupport]       = useState(false);
 
-  // ── Refs ──────────────────────────────────────────────────────────
   const timerRef          = useRef(null);
   const prevRequestId     = useRef(null);
   const locationPingRef   = useRef(null);
   const onlineInitialized = useRef(false);
 
-  // ── Force profile tab when rejected ──────────────────────────────
-  useEffect(() => {
-    if (isRejected) setActiveTab("profile");
-  }, [isRejected]);
+  useEffect(() => { if (isRejected) setActiveTab("profile"); }, [isRejected]);
 
-  // ── Sync online state from Firestore on first load ────────────────
   useEffect(() => {
     if (!driver || onlineInitialized.current) return;
     onlineInitialized.current = true;
     setOnline(driver.status === "online");
   }, [driver]);
 
-  // ── Foreground push handler ───────────────────────────────────────
   useEffect(() => {
     if (!uid) return;
     let unsub = () => {};
@@ -467,34 +744,18 @@ export default function UaTobDriverApp({ uid }) {
         if ("serviceWorker" in navigator) {
           try {
             const reg = await navigator.serviceWorker.ready;
-            reg.showNotification(title, {
-              body,
-              icon:     "/icon.png",
-              tag:      payload.data?.rideId ?? "uatob-driver",
-              renotify: true,
-              data:     payload.data || {},
-            });
-          } catch (swErr) {
-            console.warn("[UaTob] SW notification failed:", swErr.message);
-          }
+            reg.showNotification(title, { body, icon:"/icon.png", tag:payload.data?.rideId??"uatob-driver", renotify:true, data:payload.data||{} });
+          } catch(e) {}
         }
       });
-    } catch (err) {
-      console.warn("[UaTob] onMessage setup failed:", err.message);
-    }
+    } catch(e) {}
     return unsub;
   }, [uid]);
 
-  // ── Derived: active trip request ──────────────────────────────────
   const tripRequest = online && !isRejected && !sourceLoading
-    ? (sourceRides.find(r =>
-        r.status === "searching_driver" &&
-        !dismissedRequests.has(r.id) &&
-        r.id !== acceptedRequestId
-      ) ?? null)
+    ? (sourceRides.find(r => r.status === "searching_driver" && !dismissedRequests.has(r.id) && r.id !== acceptedRequestId) ?? null)
     : null;
 
-  // ── Chime on new request ──────────────────────────────────────────
   useEffect(() => {
     const newId = tripRequest?.id ?? null;
     if (newId && newId !== prevRequestId.current) playRequestChime();
@@ -503,20 +764,15 @@ export default function UaTobDriverApp({ uid }) {
 
   useEffect(() => { setMounted(true); }, []);
 
-  // ── Sync active trip from Firestore ──────────────────────────────
   useEffect(() => {
     const active = activeRides.find(r =>
-      r.driverUid === uid &&
-      ["driver_assigned", "arrived", "in_progress"].includes(r.status)
+      r.driverUid === uid && ["driver_assigned","arrived","in_progress"].includes(r.status)
     );
     setActiveTrip(active || null);
   }, [activeRides, uid]);
 
-  useEffect(() => {
-    if (activeTrip?.id) setAcceptedRequestId(null);
-  }, [activeTrip?.id]);
+  useEffect(() => { if (activeTrip?.id) setAcceptedRequestId(null); }, [activeTrip?.id]);
 
-  // ── Auto-popup unseen rider reviews ──────────────────────────────
   useEffect(() => {
     if (!reviews.length || pendingReview || activeTrip || tripRequest) return;
     const unseen = reviews.find(r => !seenReviewIds.has(r.id));
@@ -532,11 +788,8 @@ export default function UaTobDriverApp({ uid }) {
     setPendingReview(null);
   };
 
-  useEffect(() => {
-    setTripBtnLabel(TRIP_BUTTON_LABELS[activeTrip?.status] ?? "");
-  }, [activeTrip?.status]);
+  useEffect(() => { setTripBtnLabel(TRIP_BUTTON_LABELS[activeTrip?.status] ?? ""); }, [activeTrip?.status]);
 
-  // ── Request timer ─────────────────────────────────────────────────
   useEffect(() => {
     if (!tripRequest) { clearInterval(timerRef.current); setRequestTimer(15); return; }
     setRequestTimer(15);
@@ -545,7 +798,7 @@ export default function UaTobDriverApp({ uid }) {
         if (t <= 1) {
           clearInterval(timerRef.current);
           setDismissedRequests(prev => { const next = new Set(prev); if (tripRequest?.id) next.add(tripRequest.id); return next; });
-          showNotif("Request expired", "Looking for next...");
+          showNotif("Request expired","Looking for next...");
           return 15;
         }
         return t - 1;
@@ -554,205 +807,167 @@ export default function UaTobDriverApp({ uid }) {
     return () => clearInterval(timerRef.current);
   }, [tripRequest?.id]);
 
-  // ── 60-second location ping ───────────────────────────────────────
   useEffect(() => {
     clearInterval(locationPingRef.current);
     if (!online || isRejected) return;
     locationPingRef.current = setInterval(async () => {
       try {
-        const position = await new Promise((resolve, reject) =>
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: true, timeout: 8000, maximumAge: 30000,
-          })
-        );
-        const { latitude: lat, longitude: lng } = position.coords;
-        await callDriverStatus({ uid, status: "location_ping", lat, lng });
-      } catch (err) {
-        console.warn("📍 Location ping failed:", err?.message ?? err);
-      }
+        const position = await new Promise((res,rej) => navigator.geolocation.getCurrentPosition(res,rej,{ enableHighAccuracy:true,timeout:8000,maximumAge:30000 }));
+        const { latitude:lat, longitude:lng } = position.coords;
+        await callDriverStatus({ uid, status:"location_ping", lat, lng });
+      } catch(e) {}
     }, 60_000);
     return () => clearInterval(locationPingRef.current);
   }, [online, uid, isRejected]);
 
-  // ── Helpers ───────────────────────────────────────────────────────
   const showNotif = (title, msg) => {
     setNotification({ title, msg });
     setTimeout(() => setNotification(null), 3200);
   };
 
-  const callDriverStatusFn = useCallback(async (status, lat = null, lng = null) => {
+  const callDriverStatusFn = useCallback(async (status, lat=null, lng=null) => {
     const payload = { uid, status };
-    if (lat !== null && lng !== null) { payload.lat = lat; payload.lng = lng; }
+    if (lat!==null && lng!==null) { payload.lat=lat; payload.lng=lng; }
     const { data } = await callDriverStatus(payload);
     if (data?.error) throw new Error(data.error);
     return data;
   }, [uid]);
 
-  // ── Go online ─────────────────────────────────────────────────────
   const requestLocationAndGoOnline = useCallback(async () => {
-    setLocationError("");
-    setLocationLoading(true);
+    setLocationError(""); setLocationLoading(true);
     try {
-      const position = await new Promise((resolve, reject) =>
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true, timeout: 10000, maximumAge: 0,
-        })
-      );
-      const { latitude: lat, longitude: lng } = position.coords;
+      const position = await new Promise((res,rej) => navigator.geolocation.getCurrentPosition(res,rej,{ enableHighAccuracy:true,timeout:10000,maximumAge:0 }));
+      const { latitude:lat, longitude:lng } = position.coords;
       await callDriverStatusFn("online", lat, lng);
-      setOnline(true);
-      setShowLocationPopup(false);
-      setLocationError("");
-      showNotif("Online", "Ready for rides");
-      if ("Notification" in window && window.Notification.permission === "default") {
-        setShowNotifPopup(true);
-      } else if ("Notification" in window && window.Notification.permission === "granted") {
-        registerFcmToken(uid);
-      }
-    } catch (err) {
-      if      (err.code === 1) setLocationError("Location access was denied. Allow location in your browser settings.");
-      else if (err.code === 2) setLocationError("Could not detect your location. Check your device settings.");
-      else if (err.code === 3) setLocationError("Location request timed out. Please try again.");
-      else                     setLocationError(err.message || "Could not get your location. Please try again.");
-    } finally {
-      setLocationLoading(false);
-    }
+      setOnline(true); setShowLocationPopup(false); setLocationError("");
+      showNotif("Online","Ready for rides");
+      if ("Notification" in window && window.Notification.permission === "default") setShowNotifPopup(true);
+      else if ("Notification" in window && window.Notification.permission === "granted") registerFcmToken(uid);
+    } catch(err) {
+      if      (err.code===1) setLocationError("Location access was denied. Allow location in your browser settings.");
+      else if (err.code===2) setLocationError("Could not detect your location. Check your device settings.");
+      else if (err.code===3) setLocationError("Location request timed out. Please try again.");
+      else                   setLocationError(err.message || "Could not get your location.");
+    } finally { setLocationLoading(false); }
   }, [callDriverStatusFn, uid]);
 
   const handleEnableNotifications = useCallback(async () => {
     setNotifLoading(true);
     await registerFcmToken(uid);
-    setNotifLoading(false);
-    setShowNotifPopup(false);
+    setNotifLoading(false); setShowNotifPopup(false);
   }, [uid]);
 
   const handleSkipNotifications = useCallback(() => setShowNotifPopup(false), []);
 
-  // ── Online / offline toggle ───────────────────────────────────────
   const handleToggleOnline = useCallback(async () => {
     if (isRejected) return;
     if (online) {
-      try { await callDriverStatusFn("offline"); }
-      catch (err) { console.error("Failed to go offline:", err); }
-      setOnline(false);
-      setActiveTrip(null);
-      setDismissedRequests(new Set());
-      setAcceptedRequestId(null);
-      showNotif("Offline", "See you next time");
+      try { await callDriverStatusFn("offline"); } catch(e) {}
+      setOnline(false); setActiveTrip(null); setDismissedRequests(new Set()); setAcceptedRequestId(null);
+      showNotif("Offline","See you next time");
     } else {
-      setLocationError("");
-      setShowLocationPopup(true);
+      setLocationError(""); setShowLocationPopup(true);
     }
   }, [online, callDriverStatusFn, isRejected]);
 
   const handleLocationDeny = useCallback(() => {
     if (locationLoading) return;
-    setShowLocationPopup(false);
-    setLocationError("");
-    setLocationLoading(false);
+    setShowLocationPopup(false); setLocationError(""); setLocationLoading(false);
   }, [locationLoading]);
 
-  // ── Accept ────────────────────────────────────────────────────────
   const handleAcceptTrip = async () => {
     if (!tripRequest || actionPending) return;
     setActionPending(true);
     try {
-      const { data } = await callAcceptRide({ rideId: tripRequest.id, uid });
+      const { data } = await callAcceptRide({ rideId:tripRequest.id, uid });
       if (data?.error) throw new Error(data.error);
-      playAcceptSound();
-      clearInterval(timerRef.current);
+      playAcceptSound(); clearInterval(timerRef.current);
       setAcceptedRequestId(tripRequest.id);
-      setDismissedRequests(prev => { const next = new Set(prev); next.add(tripRequest.id); return next; });
-      showNotif("Accepted", "Drive to pickup");
-    } catch (err) {
-      console.error("handleAcceptTrip failed:", err);
-      showNotif("Error", "Accept failed");
-    } finally {
-      setActionPending(false);
-    }
+      setDismissedRequests(prev => { const next=new Set(prev); next.add(tripRequest.id); return next; });
+      showNotif("Accepted","Drive to pickup");
+    } catch(e) { showNotif("Error","Accept failed"); }
+    finally { setActionPending(false); }
   };
 
-  // ── Decline ───────────────────────────────────────────────────────
   const handleDeclineTrip = async () => {
     if (!tripRequest || actionPending) return;
     setActionPending(true);
     try {
-      const { data } = await callDeclineRide({ rideId: tripRequest.id, uid });
+      const { data } = await callDeclineRide({ rideId:tripRequest.id, uid });
       if (data?.error) throw new Error(data.error);
-      playDeclineSound();
-      clearInterval(timerRef.current);
-      setDismissedRequests(prev => { const next = new Set(prev); next.add(tripRequest.id); return next; });
-      showNotif("Declined", "Searching for next ride");
-    } catch (err) {
-      console.error("handleDeclineTrip failed:", err);
-      showNotif("Error", "Decline failed");
-    } finally {
-      setActionPending(false);
-    }
+      playDeclineSound(); clearInterval(timerRef.current);
+      setDismissedRequests(prev => { const next=new Set(prev); next.add(tripRequest.id); return next; });
+      showNotif("Declined","Searching for next ride");
+    } catch(e) { showNotif("Error","Decline failed"); }
+    finally { setActionPending(false); }
   };
 
-  // ── Advance trip ──────────────────────────────────────────────────
   const handleAdvanceTrip = async () => {
     if (!activeTrip || advancePending) return;
-    const actionMap = { driver_assigned: "arrive", arrived: "start", in_progress: "complete" };
+    const actionMap = { driver_assigned:"arrive", arrived:"start", in_progress:"complete" };
     const action = actionMap[activeTrip.status];
     if (!action) return;
     setAdvancePending(true);
     try {
-      const { data } = await callUpdateTrip({ rideId: activeTrip.id, driverUid: uid, action });
+      const { data } = await callUpdateTrip({ rideId:activeTrip.id, driverUid:uid, action });
       if (data?.error) throw new Error(data.error);
-      if (action === "complete") {
-        await refetch();
-        showNotif("Trip complete", `+$${activeTrip.fareTotal || 0}`);
-      } else {
-        showNotif("Updating trip…", "Please wait");
-      }
-    } catch (err) {
-      console.error("handleAdvanceTrip failed:", err);
-      showNotif("Error", "Update failed");
-    } finally {
-      setAdvancePending(false);
-    }
+      if (action === "complete") { await refetch(); showNotif("Trip complete",`+$${activeTrip.fareTotal||0}`); }
+      else showNotif("Updating trip…","Please wait");
+    } catch(e) { showNotif("Error","Update failed"); }
+    finally { setAdvancePending(false); }
   };
 
-  // ── Derived state ─────────────────────────────────────────────────
   const tripStage      = activeTrip?.status;
-  const tripStageColor = { driver_assigned: C.blue, arrived: C.onlineGreen, in_progress: C.green }[tripStage] || C.green;
+  const tripStageColor = { driver_assigned:C.blue, arrived:C.onlineGreen, in_progress:C.green }[tripStage] || C.green;
+
+  // ── Support icon button ───────────────────────────────────────────
+  const SupportBtn = () => (
+    <button
+      onClick={() => setShowSupport(true)}
+      style={{
+        width: 36, height: 36, borderRadius: 10,
+        background: C.surface,
+        border: `1.5px solid ${C.border}`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        cursor: "pointer", transition: "background .15s, border-color .15s, transform .12s",
+        flexShrink: 0,
+      }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = "#93C5FD"; e.currentTarget.style.background = "#EFF6FF"; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = C.border;  e.currentTarget.style.background = C.surface;  }}
+      onMouseDown={e  => { e.currentTarget.style.transform = "scale(.92)"; }}
+      onMouseUp={e    => { e.currentTarget.style.transform = "scale(1)"; }}
+      aria-label="Open support"
+    >
+      <SupportIcon size={18} color="#2563EB" />
+    </button>
+  );
 
   // ── Render ────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, fontFamily: '"Barlow", system-ui, sans-serif', color: C.text, position: "relative" }}>
+    <div style={{ minHeight:"100vh", background:C.bg, fontFamily:'"Barlow",system-ui,sans-serif', color:C.text, position:"relative" }}>
       <style>{CSS}</style>
+
+      {/* Support full-screen overlay */}
+      {showSupport && (
+        <SupportOverlay onClose={() => setShowSupport(false)} driver={driver} />
+      )}
 
       {driver?.status === "suspended" && <SuspendedModal />}
 
       {showLocationPopup && !isRejected && (
-        <LocationPopup
-          loading={locationLoading}
-          error={locationError}
-          onAllow={requestLocationAndGoOnline}
-          onDeny={handleLocationDeny}
-        />
+        <LocationPopup loading={locationLoading} error={locationError} onAllow={requestLocationAndGoOnline} onDeny={handleLocationDeny} />
       )}
 
       {showNotifPopup && (
-        <NotificationPopup
-          loading={notifLoading}
-          onEnable={handleEnableNotifications}
-          onSkip={handleSkipNotifications}
-        />
+        <NotificationPopup loading={notifLoading} onEnable={handleEnableNotifications} onSkip={handleSkipNotifications} />
       )}
 
       <AppNotification notificationOverride={notification} />
 
       {!isRejected && (
         <TripRequestModal
-          tripRequest={tripRequest}
-          driver={driver}
-          requestTimer={requestTimer}
-          onAccept={handleAcceptTrip}
-          onDecline={handleDeclineTrip}
-          actionPending={actionPending}
+          tripRequest={tripRequest} driver={driver} requestTimer={requestTimer}
+          onAccept={handleAcceptTrip} onDecline={handleDeclineTrip} actionPending={actionPending}
         />
       )}
 
@@ -760,25 +975,31 @@ export default function UaTobDriverApp({ uid }) {
         <DriverReviewModal review={pendingReview} onClose={handleDismissReview} />
       )}
 
-      <div style={{ maxWidth: 680, margin: "0 auto", paddingBottom: 90 }}>
-        <div style={{ padding: "20px 20px 0", display: "flex", justifyContent: "space-between", alignItems: "center", animation: mounted ? "slideUp .5s ease-out forwards" : "none", opacity: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ maxWidth:680, margin:"0 auto", paddingBottom:90 }}>
+
+        {/* ── Header ── */}
+        <div style={{ padding:"20px 20px 0", display:"flex", justifyContent:"space-between", alignItems:"center", animation:mounted?"slideUp .5s ease-out forwards":"none", opacity:0 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
             <UaTobIcon size={40} online={online} />
             <div>
               <div className="condensed lbl">Driver Console</div>
-              <div style={{ fontSize: 20, fontWeight: 800 }}>{driver?.firstName ?? ""}</div>
+              <div style={{ fontSize:20, fontWeight:800 }}>{driver?.firstName ?? ""}</div>
             </div>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 5, background: C.surface, borderRadius: 100, padding: "6px 12px" }}>
+
+          {/* Right side: rating + support button */}
+          <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:5, background:C.surface, borderRadius:100, padding:"6px 12px", border:`1px solid ${C.border}` }}>
               <Star size={11} fill="#F59E0B" color="#F59E0B" />
-              <span>{driver?.averageRating != null ? driver.averageRating.toFixed(2) : "—"}</span>
+              <span style={{ fontSize:13, fontWeight:700, color:C.text }}>
+                {driver?.averageRating != null ? driver.averageRating.toFixed(2) : "—"}
+              </span>
             </div>
-            <button><Bell size={15} /></button>
+            {/* Support icon button — replaces the old Bell */}
+            <SupportBtn />
           </div>
         </div>
 
-        {/* Rejected banner shown above profile tab */}
         {isRejected && <RejectedBanner />}
 
         {activeTab === "home"     && !isRejected && <HomeTab driver={driver} online={online} rides={rides} activeTrip={activeTrip} tripStage={tripStage} tripStageColor={tripStageColor} tripBtnLabel={tripBtnLabel} earnings={earnings} onToggleOnline={handleToggleOnline} onAdvanceTrip={handleAdvanceTrip} advancePending={advancePending} />}
@@ -787,13 +1008,7 @@ export default function UaTobDriverApp({ uid }) {
         {activeTab === "profile"  &&                <ProfileTab  driver={driver} online={online} />}
       </div>
 
-      <BottomTabBar
-        activeTab={activeTab}
-        setActiveTab={isRejected ? () => {} : setActiveTab}
-        online={online}
-        activeTrip={activeTrip}
-        isRejected={isRejected}
-      />
+      <BottomTabBar activeTab={activeTab} setActiveTab={isRejected ? ()=>{} : setActiveTab} online={online} activeTrip={activeTrip} isRejected={isRejected} />
     </div>
   );
 }
