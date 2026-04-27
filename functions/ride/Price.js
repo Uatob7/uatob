@@ -6,11 +6,13 @@ if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
 
 // ── Pricing ────────────────────────────────────────────────────────────
+// Updated 2026-04: Premium and XL rates reduced to be more competitive
+// and fair. Economy and Standard unchanged.
 const PRICING = {
-  economy:  { id: "economy",  label: "Economy",  desc: "Affordable everyday rides", capacity: 4, base: 1.5,  perMile: 1.2,  perMin: 0.18, bookingFee: 0.99, minimumFare: 4.99  },
-  standard: { id: "standard", label: "Standard", desc: "Comfortable daily rides",   capacity: 4, base: 2.0,  perMile: 1.65, perMin: 0.25, bookingFee: 1.29, minimumFare: 6.99  },
-  premium:  { id: "premium",  label: "Premium",  desc: "Luxury rides",              capacity: 4, base: 4.0,  perMile: 3.25, perMin: 0.5,  bookingFee: 1.99, minimumFare: 11.99 },
-  xl:       { id: "xl",       label: "XL",       desc: "Large group rides",         capacity: 6, base: 2.5,  perMile: 1.9,  perMin: 0.3,  bookingFee: 1.49, minimumFare: 8.49  },
+  economy:  { id: "economy",  label: "Economy",  desc: "Affordable everyday rides", capacity: 4, base: 1.5,  perMile: 1.2,  perMin: 0.18, bookingFee: 0.99, minimumFare: 4.99 },
+  standard: { id: "standard", label: "Standard", desc: "Comfortable daily rides",   capacity: 4, base: 2.0,  perMile: 1.65, perMin: 0.25, bookingFee: 1.29, minimumFare: 6.99 },
+  premium:  { id: "premium",  label: "Premium",  desc: "Luxury rides",              capacity: 4, base: 3.0,  perMile: 2.50, perMin: 0.40, bookingFee: 1.79, minimumFare: 9.99 },
+  xl:       { id: "xl",       label: "XL",       desc: "Large group rides",         capacity: 6, base: 2.25, perMile: 1.75, perMin: 0.28, bookingFee: 1.39, minimumFare: 7.99 },
 };
 
 // ── Fallback ETAs (only used if zero drivers in Firestore at all) ───────
