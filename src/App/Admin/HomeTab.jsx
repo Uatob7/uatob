@@ -4,7 +4,8 @@ import {
   RefreshCw, Filter, Search, X, ChevronDown, TrendingUp, TrendingDown,
   MapPin, Clock, Mail, Users, ArrowUpRight, Zap,
   Navigation, CircleDot, CheckCircle2, XCircle, AlertCircle,
-  Radio, Gauge, Layers, Sparkles, BarChart3,
+  Radio, Gauge, Layers, Sparkles, BarChart3, AlertTriangle,
+  Flame, Bell, Eye, ChevronRight, ArrowDown,
 } from "lucide-react";
 
 /* ─── Design Tokens ─────────────────────────────────────────────── */
@@ -64,14 +65,17 @@ const CSS = `
 }
 
 /* ── Animations ───────────────────────────────── */
-@keyframes fadeUp     { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:translateY(0) } }
-@keyframes spin       { to { transform: rotate(360deg) } }
-@keyframes pulseDot   { 0%,100% { opacity:1; transform:scale(1) } 50% { opacity:.4; transform:scale(.6) } }
-@keyframes pulseRing  { 0%   { transform:scale(.85); opacity:.6 } 70% { transform:scale(1.5); opacity:0 } 100% { transform:scale(.85); opacity:0 } }
-@keyframes shimmer    { 0% { background-position:-200% 0 } 100% { background-position:200% 0 } }
+@keyframes htFadeUp     { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:translateY(0) } }
+@keyframes htSpin       { to { transform: rotate(360deg) } }
+@keyframes htPulseDot   { 0%,100% { opacity:1; transform:scale(1) } 50% { opacity:.4; transform:scale(.6) } }
+@keyframes htPulseRing  { 0%   { transform:scale(.85); opacity:.6 } 70% { transform:scale(1.5); opacity:0 } 100% { transform:scale(.85); opacity:0 } }
+@keyframes htShimmer    { 0% { background-position:-200% 0 } 100% { background-position:200% 0 } }
+@keyframes htHeartbeat  { 0%,100% { box-shadow: 0 0 0 0 rgba(22,163,74,.4); } 50% { box-shadow: 0 0 0 6px rgba(22,163,74,0); } }
+@keyframes htUrgentGlow { 0%,100% { box-shadow: 0 0 0 0 rgba(220,38,38,.4); } 50% { box-shadow: 0 0 0 8px rgba(220,38,38,0); } }
+@keyframes htScanLine   { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
 
-.fade-up { animation: fadeUp .4s cubic-bezier(.22,1,.36,1) both; }
-.spin    { animation: spin 1.1s linear infinite; }
+.fade-up { animation: htFadeUp .4s cubic-bezier(.22,1,.36,1) both; }
+.spin    { animation: htSpin 1.1s linear infinite; }
 
 /* ── Card ─────────────────────────────────────── */
 .card {
@@ -95,7 +99,7 @@ const CSS = `
   content: '';
   position: absolute; inset: -3px; border-radius: 50%;
   border: 1.5px solid currentColor;
-  animation: pulseRing 2s ease-out infinite;
+  animation: htPulseRing 2s ease-out infinite;
   opacity: 0;
 }
 
@@ -149,6 +153,23 @@ const CSS = `
 .action-btn:hover { border-color: var(--border-strong); background: var(--bg-soft); }
 .action-btn.active { background: var(--ink); color: #fff; border-color: var(--ink); }
 
+/* ── Tab btn ──────────────────────────────── */
+.tab-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: 100px;
+  border: none;
+  background: transparent;
+  font-family: var(--font);
+  font-size: 12px; font-weight: 700; color: var(--ink-3);
+  cursor: pointer; transition: all .15s;
+  white-space: nowrap;
+}
+.tab-btn:hover { color: var(--ink); background: var(--bg-soft); }
+.tab-btn.active {
+  background: var(--ink); color: #fff;
+  box-shadow: 0 4px 12px rgba(0,0,0,.18);
+}
+
 /* ── Chart bar ─────────────────────────────────── */
 .chart-bar {
   border-radius: 6px 6px 3px 3px;
@@ -187,12 +208,12 @@ function initials(name = "") {
 
 /* ─── Status Configs ─────────────────────────────────────────────── */
 const STATUS = {
-  searching_driver: { label: "Searching",   accent: "#D97706", bg: "#FFFBEB", border: "#FDE68A" },
-  driver_assigned:  { label: "Assigned",    accent: "#2563EB", bg: "#EFF6FF", border: "#BFDBFE" },
-  arrived:          { label: "Arrived",     accent: "#16A34A", bg: "#F0FDF4", border: "#BBF7D0" },
-  in_progress:      { label: "In Progress", accent: "#16A34A", bg: "#F0FDF4", border: "#BBF7D0" },
-  completed:        { label: "Completed",   accent: "#52525B", bg: "#F4F4F5", border: "#E4E4E7" },
-  cancelled:        { label: "Cancelled",   accent: "#DC2626", bg: "#FEF2F2", border: "#FECACA" },
+  searching_driver: { label: "Searching",   accent: "#D97706", bg: "#FFFBEB", border: "#FDE68A", priority: 1 },
+  driver_assigned:  { label: "Assigned",    accent: "#2563EB", bg: "#EFF6FF", border: "#BFDBFE", priority: 2 },
+  arrived:          { label: "Arrived",     accent: "#16A34A", bg: "#F0FDF4", border: "#BBF7D0", priority: 3 },
+  in_progress:      { label: "In Progress", accent: "#16A34A", bg: "#F0FDF4", border: "#BBF7D0", priority: 4 },
+  completed:        { label: "Completed",   accent: "#52525B", bg: "#F4F4F5", border: "#E4E4E7", priority: 5 },
+  cancelled:        { label: "Cancelled",   accent: "#DC2626", bg: "#FEF2F2", border: "#FECACA", priority: 6 },
 };
 const PAY_STATUS = {
   succeeded: { bg: "#F0FDF4", color: "#16A34A", label: "Paid"    },
@@ -206,6 +227,48 @@ const PAYOUT = {
   failed:     { bg: "#FEF2F2", color: "#DC2626", label: "Failed"     },
 };
 const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+/* ─── Urgency calculator ─────────────────────────────────────────── */
+function getRideUrgency(ride) {
+  const now = Date.now();
+
+  if (ride.status === "searching_driver") {
+    const created = tsToMs(ride.createdAt);
+    const ageSec = (now - created) / 1000;
+    const expires = tsToMs(ride.expiresAt);
+    const remaining = expires ? (expires - now) / 1000 : Infinity;
+    if (remaining < 60 || ageSec > 1500) return { level: "critical", reason: "Expiring soon" };
+    if (remaining < 300 || ageSec > 600) return { level: "high",     reason: "Searching long" };
+    return { level: "medium", reason: "Searching" };
+  }
+
+  if (ride.status === "driver_assigned" && ride.acceptedAt) {
+    const accepted = tsToMs(ride.acceptedAt);
+    const elapsed = (now - accepted) / 1000;
+    const eta = (ride.driverInfo?.etaMin ?? 0) * 60;
+    if (eta > 0 && elapsed > eta * 1.5) return { level: "high",   reason: "Driver overdue" };
+    if (eta > 0 && elapsed > eta)        return { level: "medium", reason: "ETA elapsed" };
+  }
+
+  if (ride.status === "in_progress" && ride.startedAt) {
+    const started = tsToMs(ride.startedAt);
+    const elapsed = (now - started) / 1000;
+    const total = (ride.tripDurationMin ?? 0) * 60;
+    if (total > 0 && elapsed > total * 1.5) return { level: "high", reason: "Trip overdue" };
+  }
+
+  if (ride.paymentStatus === "failed") return { level: "critical", reason: "Payment failed" };
+  if (ride.payoutStatus === "failed")  return { level: "high",     reason: "Payout failed" };
+
+  return { level: "normal" };
+}
+
+const URGENCY = {
+  critical: { color: "#DC2626", bg: "#FEF2F2", border: "#FECACA", Icon: AlertTriangle, label: "Critical" },
+  high:     { color: "#EA580C", bg: "#FFF7ED", border: "#FED7AA", Icon: Flame,         label: "Needs attention" },
+  medium:   { color: "#D97706", bg: "#FFFBEB", border: "#FDE68A", Icon: Bell,          label: "Watching" },
+  normal:   { color: "#52525B", bg: "#FAFAFA", border: "#E4E4E7", Icon: null,          label: "Normal" },
+};
 
 /* ─── Progress Bar Engine ────────────────────────────────────────── */
 function ProgressBar({ pct = 0, color = "#16A34A", label, height = 3 }) {
@@ -288,6 +351,73 @@ function TripBar({ startedAt, tripDurationMin }) {
   return <ProgressBar pct={pct} color={c} label={total > 0 ? (elapsed > total ? `+${fmtMMSS(elapsed - total)}` : `${fmtMMSS(rem)} left`) : `${fmtMMSS(elapsed)}`} />;
 }
 
+/* ─── Heartbeat (top-right of ops bar) ───────────────────────────── */
+function Heartbeat({ online }) {
+  return (
+    <div style={{
+      display: "inline-flex", alignItems: "center", gap: 6,
+    }}>
+      <div style={{
+        width: 8, height: 8, borderRadius: "50%",
+        background: online ? "#16A34A" : "#A1A1AA",
+        animation: online ? "htHeartbeat 1.8s ease-in-out infinite" : "none",
+        boxShadow: online ? "0 0 6px rgba(22,163,74,.6)" : "none",
+      }}/>
+      <span style={{
+        fontSize: 9.5, fontWeight: 800, color: online ? "#16A34A" : "#A1A1AA",
+        letterSpacing: ".1em", textTransform: "uppercase",
+      }}>
+        {online ? "Live" : "Idle"}
+      </span>
+    </div>
+  );
+}
+
+/* ─── Mini sparkline ─────────────────────────────────────────────── */
+function Sparkline({ values = [], color = "#16A34A", width = 56, height = 18 }) {
+  const max = Math.max(...values, 1);
+  const points = values.map((v, i) => {
+    const x = (i / Math.max(values.length - 1, 1)) * width;
+    const y = height - (v / max) * height;
+    return `${x},${y}`;
+  }).join(" ");
+
+  return (
+    <svg width={width} height={height} style={{ overflow: "visible" }}>
+      <defs>
+        <linearGradient id={`spk-${color.replace("#", "")}`} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.25"/>
+          <stop offset="100%" stopColor={color} stopOpacity="0"/>
+        </linearGradient>
+      </defs>
+      {values.length > 0 && (
+        <>
+          <polyline
+            points={`0,${height} ${points} ${width},${height}`}
+            fill={`url(#spk-${color.replace("#", "")})`}
+          />
+          <polyline
+            points={points}
+            fill="none"
+            stroke={color}
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          {values.length > 0 && (
+            <circle
+              cx={width}
+              cy={height - (values[values.length - 1] / max) * height}
+              r="2.5"
+              fill={color}
+            />
+          )}
+        </>
+      )}
+    </svg>
+  );
+}
+
 /* ─── Weekly Summary ─────────────────────────────────────────────── */
 function WeekChart({ allRides = [] }) {
   const now    = new Date();
@@ -320,6 +450,11 @@ function WeekChart({ allRides = [] }) {
   const totalPayout   = buckets.reduce((s, b) => s + b.payout, 0);
   const maxFare       = Math.max(...buckets.map(b => b.fare), 1);
 
+  // Calculate week-over-week comparison
+  const todayIdx = buckets.findIndex(b => b.isToday);
+  const completedDays = buckets.slice(0, todayIdx + 1).filter(b => !b.isFuture);
+  const avgPerDay = completedDays.length > 0 ? totalFare / completedDays.length : 0;
+
   const [hov, setHov] = useState(null);
   const h = hov !== null ? buckets[hov] : null;
 
@@ -343,7 +478,15 @@ function WeekChart({ allRides = [] }) {
           <div style={{ fontSize: 28, fontWeight: 800, color: "var(--ink)", letterSpacing: "-.03em", lineHeight: 1, fontFeatureSettings: "'tnum'" }}>
             ${totalFare.toFixed(2)}
           </div>
-          <div style={{ fontSize: 10.5, color: "var(--ink-4)", fontWeight: 500, marginTop: 4, letterSpacing: ".02em" }}>TOTAL FARE</div>
+          <div style={{ fontSize: 10.5, color: "var(--ink-4)", fontWeight: 500, marginTop: 4, letterSpacing: ".02em", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
+            <span>TOTAL FARE</span>
+            {avgPerDay > 0 && (
+              <>
+                <span style={{ color: "var(--border-strong)" }}>·</span>
+                <span style={{ color: "var(--ink-3)", fontWeight: 600 }}>${avgPerDay.toFixed(0)}/day avg</span>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -489,13 +632,16 @@ function SearchBanner({ driverInfo, candidates = [], emailed = {} }) {
 }
 
 /* ─── Ride Card ──────────────────────────────────────────────────── */
-function RideCard({ ride, index }) {
+function RideCard({ ride, index, urgency }) {
   const riderLabel  = ride.riderName  ?? `Rider ···${ride.uid?.slice(-4) ?? "?"}`;
   const driverLabel = ride.driverName ?? (ride.driverUid ? `Driver ···${ride.driverUid.slice(-4)}` : null);
 
   const s  = STATUS[ride.status]            ?? { label: ride.status ?? "Unknown", accent: "#71717A", bg: "#F4F4F5", border: "#E4E4E7" };
   const pm = PAY_STATUS[ride.paymentStatus] ?? { bg: "#F4F4F5", color: "#71717A", label: ride.paymentStatus ?? "—" };
   const po = PAYOUT[ride.payoutStatus]      ?? { bg: "#F4F4F5", color: "#71717A", label: ride.payoutStatus ?? "—" };
+
+  const u = URGENCY[urgency.level] ?? URGENCY.normal;
+  const isUrgent = urgency.level === "critical" || urgency.level === "high";
 
   function StatusBar() {
     switch (ride.status) {
@@ -510,7 +656,45 @@ function RideCard({ ride, index }) {
   }
 
   return (
-    <div className="card card-hover fade-up" style={{ animationDelay: `${200 + index * 50}ms`, padding: 0, overflow: "hidden" }}>
+    <div className="card card-hover fade-up" style={{
+      animationDelay: `${200 + index * 50}ms`,
+      padding: 0,
+      overflow: "hidden",
+      borderColor: isUrgent ? u.border : "var(--border)",
+      boxShadow: urgency.level === "critical"
+        ? "0 0 0 2px rgba(220,38,38,.12), 0 4px 16px rgba(220,38,38,.08)"
+        : urgency.level === "high"
+          ? "0 4px 14px rgba(234,88,12,.10)"
+          : undefined,
+      animation: urgency.level === "critical"
+        ? "htUrgentGlow 2s ease-in-out infinite, htFadeUp .4s cubic-bezier(.22,1,.36,1) both"
+        : undefined,
+    }}>
+
+      {/* ── Urgency banner ── */}
+      {isUrgent && urgency.reason && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 7,
+          padding: "6px 14px",
+          background: u.bg,
+          borderBottom: `1px solid ${u.border}`,
+          fontSize: 10.5, fontWeight: 800, color: u.color,
+          letterSpacing: ".04em", textTransform: "uppercase",
+          position: "relative", overflow: "hidden",
+        }}>
+          {urgency.level === "critical" && (
+            <div style={{
+              position: "absolute", inset: 0,
+              background: `linear-gradient(90deg, transparent, ${u.color}15, transparent)`,
+              animation: "htScanLine 2.5s linear infinite",
+              pointerEvents: "none",
+            }}/>
+          )}
+          {u.Icon && <u.Icon size={11} strokeWidth={2.6}/>}
+          <span style={{ position: "relative" }}>{urgency.reason}</span>
+        </div>
+      )}
+
       <div style={{ padding: "14px 16px 14px" }}>
 
         {/* ── Top row ── */}
@@ -637,6 +821,7 @@ export function HomeTab({
   const [refreshing,  setRefreshing]  = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [filters,     setFilters]     = useState(DEFAULT_FILTERS);
+  const [activeView,  setActiveView]  = useState("attention"); // attention | all | active | completed
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -646,24 +831,94 @@ export function HomeTab({
   const onClear     = () => setFilters(DEFAULT_FILTERS);
   const activeCount = Object.values(filters).filter(Boolean).length;
 
-  const filtered = useMemo(() => liveRides.filter(ride => {
-    if (filters.search) {
-      const q = filters.search.toLowerCase();
-      const s = [ride.pickup, ride.dropoff, ride.pickupCity, ride.dropoffCity, ride.pickupZip, ride.dropoffZip].map(v => (v ?? "").toLowerCase()).join(" ");
-      if (!s.includes(q)) return false;
-    }
-    if (filters.status        && ride.status        !== filters.status)        return false;
-    if (filters.paymentMethod && ride.paymentMethod !== filters.paymentMethod) return false;
-    if (filters.paymentStatus && ride.paymentStatus !== filters.paymentStatus) return false;
-    if (filters.payoutStatus  && ride.payoutStatus  !== filters.payoutStatus)  return false;
-    return true;
-  }), [liveRides, filters]);
+  // Compute urgency for all live rides
+  const ridesWithUrgency = useMemo(() =>
+    liveRides.map(r => ({ ride: r, urgency: getRideUrgency(r) })),
+    [liveRides]
+  );
 
+  const urgentCount = useMemo(() =>
+    ridesWithUrgency.filter(r => r.urgency.level === "critical" || r.urgency.level === "high").length,
+    [ridesWithUrgency]
+  );
+
+  const filtered = useMemo(() => {
+    let result = ridesWithUrgency;
+
+    // View tab filter
+    if (activeView === "attention") {
+      result = result.filter(r => r.urgency.level === "critical" || r.urgency.level === "high" || r.urgency.level === "medium");
+    } else if (activeView === "active") {
+      result = result.filter(r => ["searching_driver", "driver_assigned", "arrived", "in_progress"].includes(r.ride.status));
+    } else if (activeView === "completed") {
+      result = result.filter(r => r.ride.status === "completed");
+    }
+
+    // Search & explicit filters
+    return result.filter(({ ride }) => {
+      if (filters.search) {
+        const q = filters.search.toLowerCase();
+        const s = [ride.pickup, ride.dropoff, ride.pickupCity, ride.dropoffCity, ride.pickupZip, ride.dropoffZip].map(v => (v ?? "").toLowerCase()).join(" ");
+        if (!s.includes(q)) return false;
+      }
+      if (filters.status        && ride.status        !== filters.status)        return false;
+      if (filters.paymentMethod && ride.paymentMethod !== filters.paymentMethod) return false;
+      if (filters.paymentStatus && ride.paymentStatus !== filters.paymentStatus) return false;
+      if (filters.payoutStatus  && ride.payoutStatus  !== filters.payoutStatus)  return false;
+      return true;
+    }).sort((a, b) => {
+      // Sort by urgency first, then by status priority
+      const urgencyOrder = { critical: 0, high: 1, medium: 2, normal: 3 };
+      const ua = urgencyOrder[a.urgency.level] ?? 3;
+      const ub = urgencyOrder[b.urgency.level] ?? 3;
+      if (ua !== ub) return ua - ub;
+      const sa = STATUS[a.ride.status]?.priority ?? 99;
+      const sb = STATUS[b.ride.status]?.priority ?? 99;
+      if (sa !== sb) return sa - sb;
+      return tsToMs(b.ride.createdAt) - tsToMs(a.ride.createdAt);
+    });
+  }, [ridesWithUrgency, filters, activeView]);
+
+  // Compute revenue trend (last 7 days)
+  const revenueTrend = useMemo(() => {
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - (6 - i));
+      return { dateStr: d.toDateString(), total: 0 };
+    });
+    allRides.filter(r => r.status === "completed").forEach(r => {
+      const ms = tsToMs(r.completedAt ?? r.updatedAt ?? r.createdAt);
+      if (!ms) return;
+      const d = new Date(ms); d.setHours(0,0,0,0);
+      const idx = days.findIndex(b => b.dateStr === d.toDateString());
+      if (idx >= 0) days[idx].total += Number(r.fareTotal ?? 0);
+    });
+    return days.map(d => d.total);
+  }, [allRides]);
+
+  // Stat cards data
   const statRows = [
-    { label: "Total Rides",    val: totalRides ?? liveRides.length,                       accent: "#2563EB", Icon: Activity,  delay: 0   },
-    { label: "Active Drivers", val: activeDrivers.length,                                 accent: "#16A34A", Icon: Car,       delay: 50  },
-    { label: "Revenue Today",  val: revenue != null ? `$${revenue.toFixed(2)}` : "—",     accent: "#D97706", Icon: DollarSign,delay: 100 },
-    { label: "Pending Apps",   val: allApprovals.length,                                  accent: "#DC2626", Icon: Shield,    delay: 150 },
+    {
+      label: "Total Rides", val: totalRides ?? liveRides.length,
+      accent: "#2563EB", Icon: Activity, delay: 0,
+      sub: `${activeRides.length} active`,
+    },
+    {
+      label: "Active Drivers", val: activeDrivers.length,
+      accent: "#16A34A", Icon: Car, delay: 50,
+      sub: `${uatobdrivers.length} total`,
+    },
+    {
+      label: "Revenue Today", val: revenue != null ? `$${revenue.toFixed(2)}` : "—",
+      accent: "#D97706", Icon: DollarSign, delay: 100,
+      sparkline: revenueTrend,
+    },
+    {
+      label: "Pending Apps", val: allApprovals.length,
+      accent: "#DC2626", Icon: Shield, delay: 150,
+      sub: allApprovals.length > 0 ? "Needs review" : "All clear",
+    },
   ];
 
   return (
@@ -671,28 +926,65 @@ export function HomeTab({
       <style>{CSS}</style>
       <div className="ht" style={{ padding: "0 14px 32px" }}>
 
-        {/* ── Top KPI strip ── */}
-        <div className="card fade-up" style={{ padding: "12px 14px", marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-            <div style={{ display: "flex", gap: 0, overflowX: "auto", flex: 1 }}>
-              {[
-                { val: totalAccounts,         sub: "Accounts",  dot: "#16A34A" },
-                { val: uatobdrivers.length,   sub: "Drivers",   dot: "#2563EB" },
-                { val: activeRides.length,    sub: "Active",    dot: "#16A34A" },
-                { val: searchingRides.length, sub: "Searching", dot: "#D97706" },
-              ].map(({ val, sub, dot }, i) => (
-                <div key={sub} style={{
-                  display: "flex", alignItems: "center", gap: 8,
-                  padding: "4px 14px",
-                  borderRight: i < 3 ? "1px solid var(--border)" : "none",
-                  flexShrink: 0,
-                }}>
-                  <div className="live-dot" style={{ background: dot, color: dot }} />
-                  <span style={{ fontSize: 17, fontWeight: 800, color: "var(--ink)", letterSpacing: "-.02em", fontFeatureSettings: "'tnum'" }}>{val}</span>
-                  <span style={{ fontSize: 11, color: "var(--ink-4)", fontWeight: 500 }}>{sub}</span>
+        {/* ── Ops command bar (replaces top KPI strip) ── */}
+        <div className="card fade-up" style={{
+          padding: "14px 18px", marginBottom: 12,
+          background: "linear-gradient(135deg, #FFFFFF, #FAFAFA)",
+          position: "relative", overflow: "hidden",
+        }}>
+          <div style={{
+            position: "absolute", top: 0, right: 0, bottom: 0, width: 200,
+            background: "radial-gradient(circle at right, rgba(22,163,74,0.05), transparent 70%)",
+            pointerEvents: "none",
+          }}/>
+
+          <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 16, flex: 1, minWidth: 0 }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                  <Heartbeat online/>
+                  <span style={{
+                    fontSize: 16, fontWeight: 800, color: "var(--ink)",
+                    letterSpacing: "-.02em",
+                  }}>
+                    Operations
+                  </span>
                 </div>
-              ))}
+                <div style={{ fontSize: 11, color: "var(--ink-4)", fontWeight: 500 }}>
+                  {urgentCount > 0
+                    ? <><span style={{ color: "var(--red)", fontWeight: 700 }}>{urgentCount} need attention</span> · {liveRides.length} live</>
+                    : <>{liveRides.length} rides live · all systems normal</>
+                  }
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: 0, overflowX: "auto", flexShrink: 0 }}>
+                {[
+                  { val: totalAccounts,         sub: "Accounts",  dot: "#52525B" },
+                  { val: uatobdrivers.length,   sub: "Drivers",   dot: "#2563EB" },
+                  { val: activeRides.length,    sub: "Active",    dot: "#16A34A" },
+                  { val: searchingRides.length, sub: "Searching", dot: "#D97706" },
+                ].map(({ val, sub, dot }, i) => (
+                  <div key={sub} style={{
+                    display: "flex", alignItems: "center", gap: 7,
+                    padding: "0 13px",
+                    borderLeft: i > 0 ? "1px solid var(--border)" : "none",
+                    flexShrink: 0,
+                  }}>
+                    <div style={{
+                      width: 5, height: 5, borderRadius: "50%", background: dot,
+                      boxShadow: `0 0 4px ${dot}`,
+                    }} />
+                    <span style={{
+                      fontSize: 16, fontWeight: 800, color: "var(--ink)",
+                      letterSpacing: "-.02em", fontFeatureSettings: "'tnum'",
+                    }}>{val}</span>
+                    <span style={{ fontSize: 10.5, color: "var(--ink-4)", fontWeight: 600, letterSpacing: ".02em", textTransform: "uppercase" }}>{sub}</span>
+                  </div>
+                ))}
+              </div>
             </div>
+
             <button onClick={handleRefresh} style={{
               width: 34, height: 34, borderRadius: 9,
               border: "1px solid var(--border-mid)", background: "var(--bg-card)",
@@ -710,17 +1002,25 @@ export function HomeTab({
 
         {/* ── Stat cards ── */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
-          {statRows.map(({ label, val, accent, Icon, delay }) => (
+          {statRows.map(({ label, val, accent, Icon, delay, sub, sparkline }) => (
             <div key={label} className="card card-hover fade-up" style={{ padding: "16px", animationDelay: `${delay}ms`, position: "relative", overflow: "hidden" }}>
               <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: accent, opacity: .8 }} />
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
                 <div style={{ width: 32, height: 32, borderRadius: 10, background: `${accent}12`, border: `1px solid ${accent}25`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Icon size={14} color={accent} strokeWidth={2.2} />
                 </div>
-                <ArrowUpRight size={11} color="var(--ink-5)" />
+                {sparkline && <Sparkline values={sparkline} color={accent}/>}
               </div>
               <div style={{ fontSize: 24, color: "var(--ink)", fontWeight: 800, letterSpacing: "-.03em", lineHeight: 1, fontFeatureSettings: "'tnum'", marginBottom: 5 }}>{val}</div>
-              <div style={{ fontSize: 11, color: "var(--ink-4)", fontWeight: 500 }}>{label}</div>
+              <div style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                fontSize: 11, color: "var(--ink-4)", fontWeight: 500,
+              }}>
+                <span>{label}</span>
+                {sub && (
+                  <span style={{ fontWeight: 600, color: "var(--ink-3)" }}>{sub}</span>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -728,46 +1028,101 @@ export function HomeTab({
         {/* ── Weekly chart ── */}
         <WeekChart allRides={allRides.length > 0 ? allRides : liveRides} />
 
-        {/* ── Rides header ── */}
-        <div className="fade-up" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, animationDelay: "180ms" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", letterSpacing: "-.02em" }}>Live Rides</div>
-              {liveRides.length > 0 && (
-                <div style={{ fontSize: 11, color: "var(--ink-4)", fontWeight: 500, marginTop: 1 }}>
-                  Showing {filtered.length} of {liveRides.length}
-                </div>
-              )}
+        {/* ── View tabs ── */}
+        <div className="fade-up" style={{ animationDelay: "180ms", marginBottom: 12 }}>
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            marginBottom: 12, flexWrap: "wrap", gap: 10,
+          }}>
+            <div style={{
+              display: "flex", gap: 4,
+              background: "var(--bg-soft)",
+              border: "1px solid var(--border)",
+              borderRadius: 100, padding: 4,
+              overflow: "auto",
+            }}>
+              {[
+                { id: "attention", label: "Needs Attention", icon: AlertCircle, count: urgentCount },
+                { id: "active",    label: "Active",          icon: Activity,    count: ridesWithUrgency.filter(r => ["searching_driver","driver_assigned","arrived","in_progress"].includes(r.ride.status)).length },
+                { id: "all",       label: "All",             icon: Layers,      count: liveRides.length },
+                { id: "completed", label: "Completed",       icon: CheckCircle2, count: ridesWithUrgency.filter(r => r.ride.status === "completed").length },
+              ].map(t => {
+                const Icon = t.icon;
+                const isActive = activeView === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setActiveView(t.id)}
+                    className={`tab-btn ${isActive ? "active" : ""}`}
+                  >
+                    <Icon size={11} strokeWidth={2.4}/>
+                    {t.label}
+                    {t.count > 0 && (
+                      <span style={{
+                        background: isActive ? "rgba(255,255,255,0.25)" : t.id === "attention" ? "var(--red)" : "var(--bg-card)",
+                        color: isActive ? "#fff" : t.id === "attention" ? "#fff" : "var(--ink-3)",
+                        borderRadius: 100, padding: "1px 6px",
+                        fontSize: 9.5, fontWeight: 800,
+                        fontVariantNumeric: "tabular-nums",
+                        marginLeft: 2,
+                      }}>
+                        {t.count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
-            <div className="live-dot" style={{ background: "#16A34A", color: "#16A34A", width: 7, height: 7 }} />
-          </div>
-          <button onClick={() => setShowFilters(p => !p)} className={`action-btn ${showFilters || activeCount > 0 ? "active" : ""}`}>
-            <Filter size={11} />
-            Filter
-            {activeCount > 0 && (
-              <span style={{ width: 17, height: 17, borderRadius: "50%", background: showFilters || activeCount > 0 ? "#fff" : "var(--ink)", color: showFilters || activeCount > 0 ? "var(--ink)" : "#fff", fontSize: 9.5, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                {activeCount}
-              </span>
-            )}
-          </button>
-        </div>
 
-        {showFilters && <FilterPanel filters={filters} onChange={onChange} onClear={onClear} count={filtered.length} />}
+            <button onClick={() => setShowFilters(p => !p)} className={`action-btn ${showFilters || activeCount > 0 ? "active" : ""}`}>
+              <Filter size={11} />
+              Filter
+              {activeCount > 0 && (
+                <span style={{ width: 17, height: 17, borderRadius: "50%", background: showFilters || activeCount > 0 ? "#fff" : "var(--ink)", color: showFilters || activeCount > 0 ? "var(--ink)" : "#fff", fontSize: 9.5, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {activeCount}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {showFilters && <FilterPanel filters={filters} onChange={onChange} onClear={onClear} count={filtered.length} />}
+        </div>
 
         {/* ── Ride list ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {filtered.length === 0 && (
+          {filtered.length === 0 ? (
             <div className="card" style={{ textAlign: "center", padding: "48px 20px" }}>
-              <div style={{ width: 44, height: 44, borderRadius: 12, background: "var(--bg-soft)", margin: "0 auto 12px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Sparkles size={20} color="var(--ink-5)" />
+              <div style={{
+                width: 48, height: 48, borderRadius: 14,
+                background: activeView === "attention" ? "linear-gradient(135deg, #DCFCE7, #F0FDF4)" : "var(--bg-soft)",
+                margin: "0 auto 14px",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                border: activeView === "attention" ? "1px solid rgba(22,163,74,.25)" : "none",
+              }}>
+                {activeView === "attention"
+                  ? <CheckCircle2 size={22} color="var(--green)" strokeWidth={2}/>
+                  : <Sparkles size={22} color="var(--ink-5)"/>
+                }
               </div>
-              <div style={{ fontSize: 14, color: "var(--ink)", fontWeight: 700, marginBottom: 4 }}>No rides found</div>
+              <div style={{ fontSize: 14, color: "var(--ink)", fontWeight: 700, marginBottom: 4 }}>
+                {activeView === "attention"
+                  ? "All clear"
+                  : "No rides found"}
+              </div>
               <div style={{ fontSize: 12, color: "var(--ink-4)", fontWeight: 500 }}>
-                {activeCount > 0 ? "Try clearing some filters" : "Waiting for new rides…"}
+                {activeView === "attention"
+                  ? "No rides need your attention right now."
+                  : activeCount > 0
+                    ? "Try clearing some filters"
+                    : "Waiting for new rides…"}
               </div>
             </div>
+          ) : (
+            filtered.map(({ ride, urgency }, i) => (
+              <RideCard key={ride.id} ride={ride} urgency={urgency} index={i} />
+            ))
           )}
-          {filtered.map((ride, i) => <RideCard key={ride.id} ride={ride} index={i} />)}
         </div>
       </div>
     </>
