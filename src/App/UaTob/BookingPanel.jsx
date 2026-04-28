@@ -800,7 +800,7 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
           </div>
 
           <button className="bp-book-btn" onClick={handleBookNow}>
-            Request Ride· ${selectedQuote.total}
+            Request Ride · ${selectedQuote.total}
             <ChevronRight size={16}/>
           </button>
         </div>
