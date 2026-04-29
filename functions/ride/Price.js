@@ -35,7 +35,7 @@ const TIER_BUFFER = {
 const FRESH_MS = 10 * 60 * 1000;       // 10 min  → live location, accurate ETA
 const STALE_MS = 24 * 60 * 60 * 1000; // 24 hrs  → last known location, add penalty
 const STALE_PENALTY_MIN = 10;          // extra minutes added when location is stale
-const AVG_SPEED_MPH     = 20;          // assumed city driving speed
+const AVG_SPEED_MPH     = 40;          // assumed city driving speed
 
 // ── Helpers ────────────────────────────────────────────────────────────
 const round2 = (n) => Number(Number(n).toFixed(2));
