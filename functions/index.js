@@ -50,6 +50,7 @@ const { saveDriverFcmToken } = require("./drivers/saveDriverFcmToken");
 const { sendPushNotification } = require("./drivers/sendPushNotification");
 const { pushCandidateDrivers } = require("./drivers/notification/pushCandidateDrivers");
 const { reassignRide } = require("./drivers/reassignRide");
+const { onPaymentSucceeded } = require("./drivers/email/onPaymentSucceeded");
 
 
 
@@ -113,6 +114,7 @@ exports.processWithdrawal = processWithdrawal;
 exports.onReviewCreated = onReviewCreated;
 exports.onDriverStatusChanged = onDriverStatusChanged;
 exports.checkDriverStripeCapability = checkDriverStripeCapability;
+exports.onPaymentSucceeded = onPaymentSucceeded;
 
 exports.onAccountCreatedNotifyAdmin = onAccountCreatedNotifyAdmin;
 exports.onDriverCreatedNotifyAdmin = onDriverCreatedNotifyAdmin;

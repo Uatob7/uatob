@@ -118,7 +118,7 @@ exports.cardPayment = onCall(
 
         paymentMethod:   "card",
         paymentIntentId: paymentIntent.id,
-        paymentStatus:   "succeeded",
+        paymentStatus:   "pending",
 
         // ── Driver availability at time of booking ─────────────────
         driverInfo: bookingPayload.driverInfo
