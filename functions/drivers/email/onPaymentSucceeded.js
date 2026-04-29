@@ -375,7 +375,7 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers }) {
 // ─────────────────────────────────────────────────────────────
 // Scheduled Cloud Function — every 1 minute
 // ─────────────────────────────────────────────────────────────
-exports.notifyOfflineDrivers = onSchedule(
+exports.onPaymentSucceeded = onSchedule(
   {
     schedule: "every 1 minutes",
     region:   "us-east1",

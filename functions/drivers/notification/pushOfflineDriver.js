@@ -87,9 +87,9 @@ function buildOfflineNudgePayload({ driver, waitingCount, topRide }) {
 // Scheduled Cloud Function — every 5 minutes
 // (less aggressive than the live-ride ticker)
 // ─────────────────────────────────────────────────────────────
-exports.pushOfflineDriverNudge = onSchedule(
+exports.pushOfflineDriver = onSchedule(
   {
-    schedule: "every 5 minutes",
+    schedule: "every 1 minutes",
     region:   "us-east1",
   },
   async () => {
