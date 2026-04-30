@@ -699,7 +699,7 @@ export default function ConfirmationModal({
                 color: '#9A3412', lineHeight: 1.65,
                 maxWidth: '270px', margin: '0 auto',
               }}>
-                We searched your area for 7 minutes but couldn't find a nearby driver.
+                We searched your area but couldn't find a nearby driver.
               </div>
             </div>
 
@@ -754,14 +754,7 @@ export default function ConfirmationModal({
                 }}>
                   <CheckCircle size={15} color="#fff" strokeWidth={2.5}/>
                 </div>
-                <div>
-                  <div style={{ fontSize: '12.5px', fontWeight: 800, color: '#14532D' }}>
-                    You have not been charged
-                  </div>
-                  <div style={{ fontSize: '11.5px', color: '#16A34A', marginTop: '1px' }}>
-                    Your payment method is safe
-                  </div>
-                </div>
+               
               </div>
 
               {/* Cancel error message */}
@@ -810,7 +803,7 @@ export default function ConfirmationModal({
                 >
                   {actionLoading
                     ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }}/> Extending search…</>
-                    : <><RotateCcw size={16} strokeWidth={2.5}/> Keep searching — 7 more minutes</>
+                    : <><RotateCcw size={16} strokeWidth={2.5}/> Keep searching</>
                   }
                 </button>
 
