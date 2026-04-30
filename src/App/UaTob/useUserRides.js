@@ -16,6 +16,7 @@ const ACTIVE_STATUSES = [
   'pending_payment',
   'searching_driver',
   'driver_assigned',
+  'timeout',
 ];
 
 export function useUserRides(uid) {
