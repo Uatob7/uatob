@@ -225,6 +225,7 @@ export default function ConfirmationModal({
     );
   }, [rideId]);
 
+  // ── FIXED: allow transitioning back out of timeout after extend ──
   useEffect(() => {
     if (!currentRide) return;
     const s = currentRide.status;
@@ -234,7 +235,12 @@ export default function ConfirmationModal({
         break;
       case 'searching_driver':
       case 'searching':
-        if (!didTimeoutRef.current && status !== 'timeout') {
+        if (status === 'timeout') {
+          // coming back from timeout after extend — force reset
+          didTimeoutRef.current = false;
+          setStatus('searching');
+          setDriver(null);
+        } else if (!didTimeoutRef.current) {
           setStatus('searching');
           setDriver(null);
         }
@@ -348,14 +354,16 @@ export default function ConfirmationModal({
     closeTimeoutRef.current = setTimeout(() => onClose?.(), 260);
   };
 
+  // ── FIXED: reset didTimeoutRef before the call so snapshot fires correctly ──
   const handleWaitMore = async () => {
     if (!rideId || !riderUid) return;
     setActionLoading(true);
+    didTimeoutRef.current = false; // reset before call
     try {
       await callableExtendRideSearch({ rideId, uid: riderUid });
-      didTimeoutRef.current = false;
     } catch (err) {
       console.error('Extend error:', err);
+      didTimeoutRef.current = true; // re-set if call failed
     } finally {
       setActionLoading(false);
     }
@@ -368,8 +376,6 @@ export default function ConfirmationModal({
     setCancelError('');
     try {
       await callableCancelRide({ rideId, uid: riderUid });
-      // Let the onSnapshot update status to 'cancelled' naturally,
-      // but also call onCancel so the parent can clean up if needed.
       onCancel?.({ rideId, uid: riderUid });
       setVisible(false);
       closeTimeoutRef.current = setTimeout(() => onClose?.(), 260);
@@ -739,8 +745,6 @@ export default function ConfirmationModal({
                 </div>
               </div>
 
-             
-         
               {/* Option label */}
               <div style={{
                 fontSize: '10px', fontWeight: 800, letterSpacing: '1.1px',
