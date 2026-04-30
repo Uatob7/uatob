@@ -11,6 +11,7 @@ const db = getFirestore(firebase_app);
 const functions = getFunctions(firebase_app, "us-east1");
 const callableExtendRideSearch = httpsCallable(functions, "extendRideSearch");
 const callableSaveRiderToken = httpsCallable(functions, "saveRiderFcmToken");
+const callableCancelRide = httpsCallable(functions, "cancelRide");
 
 const VAPID_KEY = "BJ_sRHZonSGCKk2mB2i9ofTRS8ouFVMV-I15FX4sqdUXHyVb1lo6H-N4GMPrlcIIshRlykQicaxkxxFxcYcI4JQ";
 const SEARCH_LIMIT_SEC = 7 * 60;
@@ -163,6 +164,7 @@ export default function ConfirmationModal({
   onClose,
   onPaymentCancelled,
   onRetry,
+  onCancel,
   rides,
 }) {
   const [status, setStatus] = useState('checking_payment');
@@ -171,6 +173,8 @@ export default function ConfirmationModal({
   const [visible, setVisible] = useState(false);
   const [liveRide, setLiveRide] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [cancelError, setCancelError] = useState('');
   const [showNotifPopup, setShowNotifPopup] = useState(false);
   const [notifLoading, setNotifLoading] = useState(false);
   const [notifError, setNotifError] = useState("");
@@ -356,6 +360,27 @@ export default function ConfirmationModal({
       setActionLoading(false);
     }
   };
+
+  // ── Cancel this ride ───────────────────────────────────────────────────
+  const handleCancelRide = async () => {
+    if (!rideId || !riderUid) return;
+    setCancelLoading(true);
+    setCancelError('');
+    try {
+      await callableCancelRide({ rideId, uid: riderUid });
+      // Let the onSnapshot update status to 'cancelled' naturally,
+      // but also call onCancel so the parent can clean up if needed.
+      onCancel?.({ rideId, uid: riderUid });
+      setVisible(false);
+      closeTimeoutRef.current = setTimeout(() => onClose?.(), 260);
+    } catch (err) {
+      console.error('[ConfirmationModal] cancelRide error:', err);
+      setCancelError(err?.message || 'Could not cancel. Please try again.');
+    } finally {
+      setCancelLoading(false);
+    }
+  };
+  // ──────────────────────────────────────────────────────────────────────
 
   const handleEnableNotifications = async () => {
     if (!rideId || !riderUid) { setNotifError("Ride info missing"); return; }
@@ -575,8 +600,8 @@ export default function ConfirmationModal({
               }
               .timeout-retry-btn:hover  { filter: brightness(1.07); transform: translateY(-1px); box-shadow: 0 8px 24px rgba(22,163,74,.36) !important; }
               .timeout-retry-btn:active { filter: brightness(.96);  transform: translateY(0); }
-              .timeout-cancel-btn:hover  { background: #F9FAFB !important; border-color: #D1D5DB !important; }
-              .timeout-cancel-btn:active { background: #F3F4F6 !important; }
+              .timeout-cancel-btn:hover  { background: #FEF2F2 !important; border-color: #FECACA !important; color: #DC2626 !important; }
+              .timeout-cancel-btn:active { background: #FEE2E2 !important; }
             `}</style>
 
             {/* ── Illustrated header ── */}
@@ -587,14 +612,11 @@ export default function ConfirmationModal({
               position: 'relative',
               overflow: 'hidden',
             }}>
-              {/* Subtle dot-grid texture */}
               <div style={{
                 position: 'absolute', inset: 0, opacity: .55,
                 backgroundImage: 'radial-gradient(circle, #FCA5A5 1px, transparent 1px)',
                 backgroundSize: '18px 18px',
               }}/>
-
-              {/* Warm radial glow */}
               <div style={{
                 position: 'absolute', top: '50%', left: '50%',
                 transform: 'translate(-50%, -60%)',
@@ -602,8 +624,6 @@ export default function ConfirmationModal({
                 background: 'radial-gradient(circle, rgba(251,146,60,.15) 0%, transparent 70%)',
                 pointerEvents: 'none',
               }}/>
-
-              {/* Floating ghost-car dots suggesting departed drivers */}
               {[
                 { top: '20px',  left: '20px',  delay: '0s',    size: 6  },
                 { top: '28px',  right: '32px', delay: '.4s',   size: 5  },
@@ -620,24 +640,20 @@ export default function ConfirmationModal({
                 }}/>
               ))}
 
-              {/* Icon stack */}
               <div style={{
                 position: 'relative', zIndex: 1,
                 width: '104px', height: '104px',
                 margin: '0 auto 20px',
               }}>
-                {/* Outer dashed orbit */}
                 <div style={{
                   position: 'absolute', inset: 0, borderRadius: '50%',
                   border: '1.5px dashed rgba(239,68,68,.22)',
                 }}/>
-                {/* Middle ring */}
                 <div style={{
                   position: 'absolute', inset: '12px', borderRadius: '50%',
                   border: '1px solid rgba(239,68,68,.14)',
                   background: 'rgba(254,242,242,.6)',
                 }}/>
-                {/* Core icon circle */}
                 <div style={{
                   position: 'absolute', inset: '24px', borderRadius: '50%',
                   background: 'linear-gradient(145deg, #F87171, #DC2626)',
@@ -647,8 +663,6 @@ export default function ConfirmationModal({
                 }}>
                   <Clock size={20} color="#fff" strokeWidth={2.5}/>
                 </div>
-
-                {/* 3 ghost car chips orbiting the ring */}
                 {[0, 1, 2].map(i => {
                   const angle = (i * 120 - 90) * (Math.PI / 180);
                   const r = 42;
@@ -671,28 +685,19 @@ export default function ConfirmationModal({
                 })}
               </div>
 
-              {/* Heading */}
               <div style={{
                 position: 'relative', zIndex: 1,
-                fontSize: '22px',
-                fontWeight: 900,
-                color: '#1C0A00',
-                letterSpacing: '-0.4px',
-                lineHeight: 1.2,
-                marginBottom: '7px',
+                fontSize: '22px', fontWeight: 900,
+                color: '#1C0A00', letterSpacing: '-0.4px',
+                lineHeight: 1.2, marginBottom: '7px',
               }}>
                 No drivers available
               </div>
-
-              {/* Subheading */}
               <div style={{
                 position: 'relative', zIndex: 1,
-                fontSize: '13px',
-                fontWeight: 500,
-                color: '#9A3412',
-                lineHeight: 1.65,
-                maxWidth: '270px',
-                margin: '0 auto',
+                fontSize: '13px', fontWeight: 500,
+                color: '#9A3412', lineHeight: 1.65,
+                maxWidth: '270px', margin: '0 auto',
               }}>
                 We searched your area for 7 minutes but couldn't find a nearby driver.
               </div>
@@ -703,10 +708,8 @@ export default function ConfirmationModal({
 
               {/* Route recap pill */}
               <div style={{
-                background: '#FAFAFA',
-                border: '1px solid #E5E7EB',
-                borderRadius: '16px',
-                padding: '13px 15px',
+                background: '#FAFAFA', border: '1px solid #E5E7EB',
+                borderRadius: '16px', padding: '13px 15px',
                 marginBottom: '14px',
                 animation: 'slideUpIn .3s ease both',
               }}>
@@ -725,15 +728,11 @@ export default function ConfirmationModal({
                     </div>
                   </div>
                   <div style={{
-                    flexShrink: 0,
-                    background: '#F0FDF4',
+                    flexShrink: 0, background: '#F0FDF4',
                     border: `1px solid ${T.accentBorder}`,
-                    borderRadius: '8px',
-                    padding: '4px 9px',
+                    borderRadius: '8px', padding: '4px 9px',
                     fontFamily: '"JetBrains Mono", monospace',
-                    fontSize: '13px',
-                    fontWeight: 700,
-                    color: T.accent,
+                    fontSize: '13px', fontWeight: 700, color: T.accent,
                   }}>
                     ${total}
                   </div>
@@ -743,10 +742,8 @@ export default function ConfirmationModal({
               {/* "Not charged" trust badge */}
               <div style={{
                 display: 'flex', alignItems: 'center', gap: '10px',
-                background: '#F0FDF4',
-                border: '1.5px solid #BBF7D0',
-                borderRadius: '14px',
-                padding: '11px 14px',
+                background: '#F0FDF4', border: '1.5px solid #BBF7D0',
+                borderRadius: '14px', padding: '11px 14px',
                 marginBottom: '18px',
                 animation: 'slideUpIn .35s ease .05s both',
               }}>
@@ -767,6 +764,20 @@ export default function ConfirmationModal({
                 </div>
               </div>
 
+              {/* Cancel error message */}
+              {cancelError && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  background: '#FEF2F2', border: '1px solid #FECACA',
+                  borderRadius: '12px', padding: '10px 13px',
+                  marginBottom: '12px',
+                  animation: 'slideUpIn .25s ease both',
+                }}>
+                  <AlertCircle size={15} color="#EF4444" strokeWidth={2.5}/>
+                  <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#B91C1C' }}>{cancelError}</span>
+                </div>
+              )}
+
               {/* Option label */}
               <div style={{
                 fontSize: '10px', fontWeight: 800, letterSpacing: '1.1px',
@@ -782,19 +793,19 @@ export default function ConfirmationModal({
                 <button
                   className="timeout-retry-btn"
                   onClick={handleWaitMore}
-                  disabled={actionLoading}
+                  disabled={actionLoading || cancelLoading}
                   style={{
                     width: '100%', padding: '15px 0',
                     borderRadius: '16px', border: 'none',
-                    background: actionLoading
+                    background: (actionLoading || cancelLoading)
                       ? '#D1FAE5'
                       : 'linear-gradient(135deg, #22C55E, #15803D)',
                     color: '#fff',
                     fontSize: '15px', fontWeight: 800,
-                    cursor: actionLoading ? 'not-allowed' : 'pointer',
+                    cursor: (actionLoading || cancelLoading) ? 'not-allowed' : 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                     transition: 'filter .15s, transform .15s, box-shadow .15s',
-                    boxShadow: actionLoading ? 'none' : '0 4px 18px rgba(22,163,74,.28)',
+                    boxShadow: (actionLoading || cancelLoading) ? 'none' : '0 4px 18px rgba(22,163,74,.28)',
                   }}
                 >
                   {actionLoading
@@ -805,8 +816,8 @@ export default function ConfirmationModal({
 
                 <button
                   className="timeout-cancel-btn"
-                  onClick={handleClose}
-                  disabled={actionLoading}
+                  onClick={handleCancelRide}
+                  disabled={actionLoading || cancelLoading}
                   style={{
                     width: '100%', padding: '14px 0',
                     borderRadius: '16px',
@@ -814,12 +825,16 @@ export default function ConfirmationModal({
                     background: '#fff',
                     color: '#6B7280',
                     fontSize: '14px', fontWeight: 700,
-                    cursor: actionLoading ? 'not-allowed' : 'pointer',
-                    opacity: actionLoading ? 0.5 : 1,
-                    transition: 'background .12s, border-color .12s',
+                    cursor: (actionLoading || cancelLoading) ? 'not-allowed' : 'pointer',
+                    opacity: (actionLoading || cancelLoading) ? 0.5 : 1,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
+                    transition: 'background .12s, border-color .12s, color .12s',
                   }}
                 >
-                  Cancel this ride
+                  {cancelLoading
+                    ? <><Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }}/> Cancelling…</>
+                    : 'Cancel this ride'
+                  }
                 </button>
               </div>
             </div>
