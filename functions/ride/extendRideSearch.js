@@ -32,12 +32,13 @@ exports.extendRideSearch = onCall(
     }
 
     await rideRef.update({
-      status:         "searching_driver",
-      createdAt:      new Date(),
-      timedOutAt:     null,
-      searchExtended: admin.firestore.FieldValue.increment(1),
-      updatedAt:      admin.firestore.FieldValue.serverTimestamp(),
-    });
+     status:         "searching_driver",
+     createdAt:      new Date(),
+     timedOutAt:     null,
+     searchExtended: admin.firestore.FieldValue.increment(1),
+     updatedAt:      admin.firestore.FieldValue.serverTimestamp(),
+     expiresAt:      new Date(ride.expiresAt.toDate().getTime() + 7 * 60 * 1000),
+     });
 
     console.log(`[extendRideSearch] ✅ Ride ${rideId} extended by 7 minutes.`);
     return { success: true };
