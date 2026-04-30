@@ -739,32 +739,8 @@ export default function ConfirmationModal({
                 </div>
               </div>
 
-              {/* "Not charged" trust badge */}
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: '10px',
-                background: '#F0FDF4', border: '1.5px solid #BBF7D0',
-                borderRadius: '14px', padding: '11px 14px',
-                marginBottom: '18px',
-                animation: 'slideUpIn .35s ease .05s both',
-              }}>
-                
-               
-              </div>
-
-              {/* Cancel error message */}
-              {cancelError && (
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: '8px',
-                  background: '#FEF2F2', border: '1px solid #FECACA',
-                  borderRadius: '12px', padding: '10px 13px',
-                  marginBottom: '12px',
-                  animation: 'slideUpIn .25s ease both',
-                }}>
-                  <AlertCircle size={15} color="#EF4444" strokeWidth={2.5}/>
-                  <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#B91C1C' }}>{cancelError}</span>
-                </div>
-              )}
-
+             
+         
               {/* Option label */}
               <div style={{
                 fontSize: '10px', fontWeight: 800, letterSpacing: '1.1px',
