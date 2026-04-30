@@ -1,8 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Car, Wallet, Award, MessageSquare, Trophy, Star,
   Flame, Sparkles, Lock, ChevronRight, Target, CheckCircle2,
-  Zap, Crown,
+  Zap, Crown, ChevronUp,
 } from 'lucide-react';
 import { C } from '@/App/Drivers/constants.js';
 
@@ -15,6 +15,8 @@ import { C } from '@/App/Drivers/constants.js';
  */
 export default function Achievements({ driver, onSeeAll }) {
   if (!driver) return null;
+
+  const [showAll, setShowAll] = useState(false);
 
   const totalTrips    = driver.totalRides   || 0;
   const reviewsCount  = driver.totalReviews || 0;
@@ -134,6 +136,13 @@ export default function Achievements({ driver, onSeeAll }) {
     });
   }, [BADGES]);
 
+  const visibleBadges = showAll ? sortedBadges : sortedBadges.slice(0, 4);
+
+  const handleSeeAll = () => {
+    setShowAll(prev => !prev);
+    if (!showAll && onSeeAll) onSeeAll();
+  };
+
   return (
     <div style={{
       background: C.surface,
@@ -196,17 +205,16 @@ export default function Achievements({ driver, onSeeAll }) {
         </div>
 
         <div
-          onClick={onSeeAll}
+          onClick={handleSeeAll}
           style={{
             display: "inline-flex", alignItems: "center", gap: 4,
             background: C.surfaceAlt,
             border: `1px solid ${C.border}`,
             borderRadius: 100, padding: "5px 11px",
-            cursor: onSeeAll ? "pointer" : "default",
+            cursor: "pointer",
             transition: "all .15s",
           }}
           onMouseEnter={e => {
-            if (!onSeeAll) return;
             e.currentTarget.style.background = C.text;
             e.currentTarget.style.color = "#fff";
             e.currentTarget.style.borderColor = C.text;
@@ -218,9 +226,12 @@ export default function Achievements({ driver, onSeeAll }) {
           }}
         >
           <span style={{ fontSize: 11, fontWeight: 800, color: "inherit" }}>
-            See all
+            {showAll ? "Show less" : "See all"}
           </span>
-          <ChevronRight size={11} strokeWidth={2.4}/>
+          {showAll
+            ? <ChevronUp size={11} strokeWidth={2.4}/>
+            : <ChevronRight size={11} strokeWidth={2.4}/>
+          }
         </div>
       </div>
 
@@ -330,7 +341,7 @@ export default function Achievements({ driver, onSeeAll }) {
         gridTemplateColumns: "repeat(4, 1fr)",
         gap: 8,
       }}>
-        {sortedBadges.slice(0, 8).map((b, i) => (
+        {visibleBadges.map((b, i) => (
           <BadgeCard key={b.id} badge={b} index={i}/>
         ))}
       </div>
