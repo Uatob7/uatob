@@ -31,16 +31,19 @@ exports.extendRideSearch = onCall(
       return { success: true, message: "Ride already resolved." };
     }
 
-    await rideRef.update({
-     status:         "searching_driver",
-     createdAt:      new Date(),
-     timedOutAt:     null,
-     searchExtended: admin.firestore.FieldValue.increment(1),
-     updatedAt:      admin.firestore.FieldValue.serverTimestamp(),
-     expiresAt:      new Date(ride.expiresAt.toDate().getTime() + 7 * 60 * 1000),
-     });
+    const now           = new Date();
+    const newExpiresAt  = new Date(now.getTime() + 7 * 60 * 1000);
 
-    console.log(`[extendRideSearch] ✅ Ride ${rideId} extended by 7 minutes.`);
+    await rideRef.update({
+      status:         "searching_driver",
+      createdAt:      now,
+      timedOutAt:     null,
+      searchExtended: admin.firestore.FieldValue.increment(1),
+      updatedAt:      admin.firestore.FieldValue.serverTimestamp(),
+      expiresAt:      newExpiresAt,
+    });
+
+    console.log(`[extendRideSearch] ✅ Ride ${rideId} extended — expiresAt: ${newExpiresAt.toISOString()}`);
     return { success: true };
   }
 );
