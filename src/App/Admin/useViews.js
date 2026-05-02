@@ -1,3 +1,4 @@
+// src/App/Admin/useViews.js
 import { useEffect, useState } from "react";
 import {
   collection,
@@ -5,12 +6,15 @@ import {
   orderBy,
   limit,
   onSnapshot,
+  where,
+  Timestamp,
 } from "firebase/firestore";
 
 import { firebase_app } from "@/firebase/config";
 import { getFirestore } from "firebase/firestore";
 
 const db = getFirestore(firebase_app);
+
 
 export function useViews(pageSize = 100) {
   const [state, setState] = useState({
@@ -20,52 +24,45 @@ export function useViews(pageSize = 100) {
   });
 
   useEffect(() => {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
     const q = query(
       collection(db, "Admin", "views", "events"),
+      where("createdAt", ">=", Timestamp.fromDate(startOfDay)),
+      where("createdAt", "<=", Timestamp.fromDate(endOfDay)),
       orderBy("createdAt", "desc"),
       limit(pageSize)
     );
 
     const unsub = onSnapshot(
       q,
-      (snapshot) => {
-        const views = snapshot.docs.map((doc) => {
+      (snap) => {
+        const views = snap.docs.map((doc) => {
           const data = doc.data();
-
           return {
             id: doc.id,
-            path: data.path || null,
-            uid: data.uid || null,
-            sessionId: data.sessionId || null,
-            title: data.title || null,
-            referrer: data.referrer || null,
-            userAgent: data.userAgent || null,
-            timestamp: data.timestamp || null,
-            createdAt: data.createdAt || null,
-
+            path: data.path ?? null,
+            uid: data.uid ?? null,
+            sessionId: data.sessionId ?? null,
+            title: data.title ?? null,
+            referrer: data.referrer ?? null,
+            userAgent: data.userAgent ?? null,
+            timestamp: data.timestamp ?? null,
+            createdAt: data.createdAt ?? null,
             screen: data.screen
-              ? {
-                  width: data.screen.w || null,
-                  height: data.screen.h || null,
-                }
+              ? { width: data.screen.w ?? null, height: data.screen.h ?? null }
               : null,
           };
         });
-
-        setState({
-          views,
-          loading: false,
-          error: null,
-        });
+        setState({ views, loading: false, error: null });
       },
       (err) => {
         console.error("useViews error:", err);
-
-        setState({
-          views: [],
-          loading: false,
-          error: err.message,
-        });
+        setState({ views: [], loading: false, error: err.message });
       }
     );
 
