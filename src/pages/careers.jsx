@@ -443,10 +443,10 @@ function ApplyModal({ role, dept, onClose, user }) {
   const knownEmail = user?.email        || "";
 
   const [form, setForm] = useState({
-    name:     knownName,
-    email:    knownEmail,
-    linkedin: "",
-    message:  "",
+    name:    knownName,
+    email:   knownEmail,
+    phone:   "",
+    message: "",
   });
   const [sent, setSent] = useState(false);
 
@@ -627,9 +627,9 @@ function ApplyModal({ role, dept, onClose, user }) {
               </>
             )}
 
-            {/* LinkedIn — always shown */}
+            {/* Phone — always shown */}
             {[
-              { key: "linkedin", label: "LinkedIn / Portfolio (optional)", placeholder: "linkedin.com/in/…", type: "text" },
+              { key: "phone", label: "Phone Number", placeholder: "+1 (407) 000-0000", type: "tel" },
             ].map(f => (
               <div key={f.key} style={{ marginBottom: 14 }}>
                 <div style={{
