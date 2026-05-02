@@ -9,7 +9,7 @@ import { Toast } from '@/App/Admin/UI';
 import { TopBar } from '@/App/Admin/Topbar';
 import { Drawer } from '@/App/Admin/Drawer';
 import { TabBar } from '@/App/Admin/TabBar';
-
+import { useViews } from "@/App/Admin/useViews";
 import { HomeTab }       from '@/App/Admin/HomeTab';
 import { DriversTab }    from '@/App/Admin/Driverstab';
 import { ApprovalsTab }  from '@/App/Admin/Approvalstab';
@@ -187,6 +187,9 @@ export default function UaTobAdminDashboard() {
   const [showNotifPopup, setShowNotifPopup] = useState(false);
   const [notifLoading,   setNotifLoading]   = useState(false);
   const [notifError,     setNotifError]     = useState("");
+  const { views } = useViews();
+
+  console.log("Admin views:", views);
 
   const useriders = useRiders();
   const toastRef  = useRef(null);
