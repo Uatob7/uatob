@@ -513,7 +513,7 @@ function RideCard({ ride, index }) {
   const driverLabel = ride.driverName ?? (ride.driverUid ? `Driver ···${ride.driverUid.slice(-4)}` : null);
   const status      = ride.status ?? "unknown";
 
-  const s  = STATUS[status]               ?? { label: status,         accent: "#71717A", bg: "#F4F4F5", border: "#E4E4E7" };
+  const s  = STATUS[status]                 ?? { label: status, accent: "#71717A", bg: "#F4F4F5", border: "#E4E4E7" };
   const pm = PAY_STATUS[ride.paymentStatus] ?? { bg: "#F4F4F5", color: "#71717A", label: ride.paymentStatus ?? "—" };
   const po = PAYOUT[ride.payoutStatus]      ?? { bg: "#F4F4F5", color: "#71717A", label: ride.payoutStatus  ?? "—" };
 
@@ -522,276 +522,168 @@ function RideCard({ ride, index }) {
   const isCancelled = status === "cancelled";
   const isSearching = status === "searching_driver";
 
-  const hasMap = !!(ride.pickupLat || ride.dropoffLat || ride.polyline);
-
-  /* ── ETA chip ── */
   const etaChip = useMemo(() => {
-    if (isActive && ride.driverInfo?.etaMin != null)
-      return `${ride.driverInfo.etaMin}m to pickup`;
-    if (status === "in_progress" && ride.dropoffEtaMin != null)
-      return `${ride.dropoffEtaMin}m to dropoff`;
+    if (isActive && ride.driverInfo?.etaMin != null) return `${ride.driverInfo.etaMin}m to pickup`;
+    if (status === "in_progress" && ride.dropoffEtaMin != null) return `${ride.dropoffEtaMin}m to dropoff`;
     return null;
   }, [status, ride.driverInfo?.etaMin, ride.dropoffEtaMin, isActive]);
 
   const accentLine = isCancelled ? "#DC2626" : isCompleted ? "#E4E4E7" : isSearching ? "#D97706" : "#16A34A";
 
   return (
-    <div
-      className="card card-hover fade-up"
-      style={{
-        animationDelay: `${200 + index * 50}ms`,
-        padding: 0,
-        overflow: "hidden",
-      }}
-    >
+    <div className="card card-hover fade-up" style={{ animationDelay: `${200 + index * 50}ms`, padding: 0, overflow: "hidden" }}>
+
       {/* ── Top accent stripe ── */}
       <div style={{ height: 2.5, background: accentLine, opacity: isCancelled ? 0.6 : 1 }} />
 
-      {/* ── Body ── */}
-      <div style={{ display: "flex", minHeight: 0 }}>
-
-        {/* ──────── LEFT COLUMN ──────── */}
-        <div style={{ flex: 1, minWidth: 0, padding: "14px 16px 14px 16px", display: "flex", flexDirection: "column", gap: 11 }}>
-
-          {/* Header row: avatar + name + status + fare */}
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-              {/* Avatar */}
-              <div style={{
-                width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                background: isCompleted
-                  ? "linear-gradient(135deg,#3F3F46,#27272A)"
-                  : isCancelled
-                  ? "linear-gradient(135deg,#DC2626,#991B1B)"
-                  : "linear-gradient(135deg,#18181B,#09090B)",
-                border: "1px solid rgba(0,0,0,.1)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 12, fontWeight: 700, color: "#fff",
-                boxShadow: "0 2px 8px rgba(0,0,0,.08)",
-                letterSpacing: ".02em",
-              }}>
-                {initials(riderLabel)}
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{
-                  fontSize: 13, fontWeight: 700, color: "var(--ink)",
-                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                  letterSpacing: "-.01em", marginBottom: 2,
-                }}>
-                  {riderLabel}
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  {driverLabel
-                    ? <><Car size={9} color="var(--ink-5)" /><span style={{ fontSize: 10.5, color: "var(--ink-4)", fontWeight: 500 }}>{driverLabel}</span></>
-                    : <span style={{ fontSize: 10.5, color: "#D97706", fontWeight: 600, fontStyle: "italic" }}>No driver</span>
-                  }
-                </div>
-              </div>
-            </div>
-
-            {/* Status + fare */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5, flexShrink: 0 }}>
-              <div className="pill" style={{ background: s.bg, color: s.accent, border: `1px solid ${s.border}` }}>
-                <span style={{ width: 5, height: 5, borderRadius: "50%", background: s.accent, boxShadow: `0 0 5px ${s.accent}88` }} />
-                {s.label}
-              </div>
-              <div style={{
-                fontSize: 20, color: "var(--ink)", fontWeight: 800,
-                letterSpacing: "-.03em", lineHeight: 1,
-                fontFeatureSettings: "'tnum'",
-                opacity: isCancelled ? 0.4 : 1,
-              }}>
-                {ride.fareTotal != null ? `$${ride.fareTotal.toFixed(2)}` : "—"}
-              </div>
-            </div>
-          </div>
-
-          {/* ── Route strip ── */}
+      {/* ── Header ── */}
+      <div style={{ padding: "14px 16px 12px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
           <div style={{
-            background: "var(--bg-subtle)",
-            border: "1px solid var(--border)",
-            borderRadius: 10,
-            padding: "10px 12px",
-            position: "relative",
+            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+            background: isCancelled ? "linear-gradient(135deg,#DC2626,#991B1B)"
+              : isCompleted ? "linear-gradient(135deg,#3F3F46,#27272A)"
+              : "linear-gradient(135deg,#18181B,#09090B)",
+            border: "1px solid rgba(0,0,0,.1)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 12, fontWeight: 700, color: "#fff",
+            boxShadow: "0 2px 8px rgba(0,0,0,.08)", letterSpacing: ".02em",
           }}>
-            {/* Connector line */}
-            <div style={{ position: "absolute", left: 19, top: 18, bottom: 18, width: 1.5, background: "linear-gradient(180deg,#16A34A 0%,rgba(0,0,0,.1) 100%)" }} />
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-              {[
-                { dot: "#22C55E", lbl: "Pickup",  addr: shortAddr(ride.pickup),  city: ride.pickupCity  },
-                { dot: "#111827", lbl: "Dropoff", addr: shortAddr(ride.dropoff), city: ride.dropoffCity },
-              ].map(({ dot, lbl, addr, city }) => (
-                <div key={lbl} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{
-                    width: 8, height: 8, borderRadius: "50%",
-                    background: dot, flexShrink: 0,
-                    border: "2px solid var(--bg-card)", zIndex: 1,
-                    boxShadow: `0 0 0 1.5px ${dot}`,
-                  }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 9, color: "var(--ink-5)", letterSpacing: ".05em", textTransform: "uppercase", fontWeight: 600, marginBottom: 1 }}>{lbl}</div>
-                    <div style={{ fontSize: 11.5, fontWeight: 600, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {addr || "—"}
-                      {city && <span style={{ color: "var(--ink-5)", fontWeight: 400 }}> · {city}</span>}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {initials(riderLabel)}
           </div>
-
-          {/* ── Bottom meta row ── */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-            {/* Left chips */}
-            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-              {ride.rideLabel && (
-                <span className="pill" style={{ background: "var(--bg-soft)", color: "var(--ink-3)", border: "1px solid var(--border)", textTransform: "capitalize" }}>
-                  {ride.rideLabel}
-                </span>
-              )}
-              {ride.tripDistanceMiles != null && (
-                <span className="pill" style={{ background: "var(--bg-soft)", color: "var(--ink-3)", border: "1px solid var(--border)" }}>
-                  {ride.tripDistanceMiles} mi
-                </span>
-              )}
-              {ride.tripDurationMin != null && (
-                <span className="pill" style={{ background: "var(--bg-soft)", color: "var(--ink-3)", border: "1px solid var(--border)" }}>
-                  ~{ride.tripDurationMin}m
-                </span>
-              )}
-              {etaChip && (
-                <span className="pill" style={{ background: "var(--green-bg)", color: "var(--green)", border: "1px solid rgba(22,163,74,.15)" }}>
-                  <Clock size={8} /> {etaChip}
-                </span>
-              )}
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", letterSpacing: "-.01em", marginBottom: 2 }}>
+              {riderLabel}
             </div>
-            {/* Time ago */}
-            <span style={{ fontSize: 10.5, color: "var(--ink-5)", fontWeight: 500, whiteSpace: "nowrap" }}>
-              {timeAgo(ride.createdAt)} ago
-            </span>
-          </div>
-
-          {/* ── Searching pill row (if searching) ── */}
-          {isSearching && (
-            <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-              <span className="pill" style={{ background: "#FEF3C7", color: "#92400E" }}>
-                <Users size={8} /> {(ride.candidateDriverUids ?? []).length} candidates
-              </span>
-              <span className="pill" style={{ background: Object.keys(ride.emailSentToDrivers ?? {}).length > 0 ? "#DCFCE7" : "var(--bg-soft)", color: Object.keys(ride.emailSentToDrivers ?? {}).length > 0 ? "#166534" : "var(--ink-4)" }}>
-                <Mail size={8} /> {Object.keys(ride.emailSentToDrivers ?? {}).length} emailed
-              </span>
-            </div>
-          )}
-
-          {/* ── Footer: payment info ── */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 10, borderTop: "1px solid var(--border)", flexWrap: "wrap", gap: 6 }}>
-            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-              <span className="pill" style={{
-                background: ride.paymentMethod === "cashapp" ? "#F0FDF4" : "#EFF6FF",
-                color:      ride.paymentMethod === "cashapp" ? "#16A34A" : "#2563EB",
-              }}>
-                {ride.paymentMethod === "cashapp" ? "Cash App" : ride.paymentMethod === "card" ? "Card" : (ride.paymentMethod ?? "—")}
-              </span>
-              <span className="pill" style={{ background: pm.bg, color: pm.color }}>{pm.label}</span>
-              <span className="pill" style={{ background: po.bg, color: po.color }}>{po.label}</span>
-            </div>
-            <div style={{ fontSize: 11, color: "var(--ink-4)", fontWeight: 500, fontFeatureSettings: "'tnum'" }}>
-              <span style={{ color: "var(--green)", fontWeight: 700 }}>${ride.driverPayout?.toFixed(2) ?? "—"}</span>
-              <span> drv · </span>
-              <span style={{ color: "var(--blue)", fontWeight: 700 }}>${ride.platformFee?.toFixed(2) ?? "—"}</span>
-              <span> fee</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              {driverLabel
+                ? <><Car size={9} color="var(--ink-5)" /><span style={{ fontSize: 10.5, color: "var(--ink-4)", fontWeight: 500 }}>{driverLabel}</span></>
+                : <span style={{ fontSize: 10.5, color: "#D97706", fontWeight: 600, fontStyle: "italic" }}>No driver</span>
+              }
             </div>
           </div>
         </div>
-
-        {/* ──────── RIGHT COLUMN: MAP ──────── */}
-        {hasMap && (
-          <div style={{
-            width: 148,
-            flexShrink: 0,
-            position: "relative",
-            borderLeft: "1px solid var(--border)",
-            overflow: "hidden",
-          }}>
-            <CardMap ride={ride} status={status} />
-
-            {/* Gradient fade on left edge so it blends with the card */}
-            <div style={{
-              position: "absolute",
-              top: 0, left: 0, bottom: 0,
-              width: 18,
-              background: "linear-gradient(to right, rgba(255,255,255,1), rgba(255,255,255,0))",
-              pointerEvents: "none",
-              zIndex: 10,
-            }} />
-
-            {/* Status overlay badge */}
-            {isActive && (
-              <div style={{
-                position: "absolute",
-                top: 8, right: 8, zIndex: 20,
-                display: "flex", alignItems: "center", gap: 4,
-                background: "rgba(9,9,11,0.80)", backdropFilter: "blur(8px)",
-                border: "1px solid rgba(255,255,255,.1)",
-                borderRadius: 20, padding: "3px 8px",
-              }}>
-                <div className="live-dot" style={{ background: "#22C55E", color: "#22C55E", width: 5, height: 5 }} />
-                <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,.85)", letterSpacing: ".06em", textTransform: "uppercase" }}>Live</span>
-              </div>
-            )}
-
-            {/* Completed stamp */}
-            {isCompleted && (
-              <div style={{
-                position: "absolute",
-                top: 8, right: 8, zIndex: 20,
-                background: "rgba(255,255,255,0.88)", backdropFilter: "blur(8px)",
-                border: "1px solid rgba(0,0,0,.08)",
-                borderRadius: 20, padding: "3px 8px",
-              }}>
-                <span style={{ fontSize: 9, fontWeight: 700, color: "#52525B", letterSpacing: ".06em", textTransform: "uppercase" }}>Done</span>
-              </div>
-            )}
-
-            {/* Cancelled stamp */}
-            {isCancelled && (
-              <div style={{
-                position: "absolute",
-                top: 8, right: 8, zIndex: 20,
-                background: "rgba(254,242,242,0.92)", backdropFilter: "blur(8px)",
-                border: "1px solid rgba(220,38,38,.2)",
-                borderRadius: 20, padding: "3px 8px",
-              }}>
-                <span style={{ fontSize: 9, fontWeight: 700, color: "#DC2626", letterSpacing: ".06em", textTransform: "uppercase" }}>Cancelled</span>
-              </div>
-            )}
-
-            {/* Distance chip at bottom */}
-            {ride.tripDistanceMiles != null && (
-              <div style={{
-                position: "absolute",
-                bottom: 8, left: "50%", transform: "translateX(-50%)",
-                zIndex: 20,
-                background: "rgba(9,9,11,0.75)", backdropFilter: "blur(8px)",
-                border: "1px solid rgba(255,255,255,.1)",
-                borderRadius: 20, padding: "3px 9px",
-                whiteSpace: "nowrap",
-              }}>
-                <span style={{
-                  fontSize: 9.5, fontWeight: 600,
-                  fontFamily: "var(--mono)",
-                  color: "rgba(255,255,255,.85)",
-                }}>
-                  {ride.tripDistanceMiles} mi
-                </span>
-              </div>
-            )}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5, flexShrink: 0 }}>
+          <div className="pill" style={{ background: s.bg, color: s.accent, border: `1px solid ${s.border}` }}>
+            <span style={{ width: 5, height: 5, borderRadius: "50%", background: s.accent, boxShadow: `0 0 5px ${s.accent}88` }} />
+            {s.label}
           </div>
+          <div style={{ fontSize: 20, color: "var(--ink)", fontWeight: 800, letterSpacing: "-.03em", lineHeight: 1, fontFeatureSettings: "'tnum'", opacity: isCancelled ? 0.4 : 1 }}>
+            {ride.fareTotal != null ? `$${ride.fareTotal.toFixed(2)}` : "—"}
+          </div>
+        </div>
+      </div>
+
+      {/* ── MAP (replaces the route strip) ── */}
+      <div style={{ position: "relative", height: 148, margin: "0 16px", borderRadius: 12, overflow: "hidden", border: "1px solid var(--border)" }}>
+        <CardMap ride={ride} status={status} />
+
+        {/* Pickup label — top-left overlay */}
+        <div style={{
+          position: "absolute", top: 8, left: 8, zIndex: 20,
+          background: "rgba(255,255,255,0.92)", backdropFilter: "blur(8px)",
+          border: "1px solid rgba(0,0,0,.07)",
+          borderRadius: 8, padding: "4px 9px",
+          display: "flex", alignItems: "center", gap: 5,
+          maxWidth: "55%",
+        }}>
+          <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#22C55E", flexShrink: 0, boxShadow: "0 0 6px rgba(34,197,94,.7)" }} />
+          <span style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {shortAddr(ride.pickup) || "Pickup"}
+          </span>
+        </div>
+
+        {/* Dropoff label — bottom-right overlay */}
+        <div style={{
+          position: "absolute", bottom: 8, right: 8, zIndex: 20,
+          background: "rgba(9,9,11,0.82)", backdropFilter: "blur(8px)",
+          border: "1px solid rgba(255,255,255,.1)",
+          borderRadius: 8, padding: "4px 9px",
+          display: "flex", alignItems: "center", gap: 5,
+          maxWidth: "55%",
+        }}>
+          <div style={{ width: 6, height: 6, borderRadius: "50%", background: isCancelled ? "#DC2626" : "#fff", flexShrink: 0 }} />
+          <span style={{ fontSize: 10.5, fontWeight: 600, color: "rgba(255,255,255,.88)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {shortAddr(ride.dropoff) || "Dropoff"}
+          </span>
+        </div>
+
+        {/* Live badge — top-right */}
+        {isActive && (
+          <div style={{
+            position: "absolute", top: 8, right: 8, zIndex: 20,
+            display: "flex", alignItems: "center", gap: 4,
+            background: "rgba(9,9,11,0.80)", backdropFilter: "blur(8px)",
+            border: "1px solid rgba(255,255,255,.1)",
+            borderRadius: 20, padding: "3px 9px",
+          }}>
+            <div className="live-dot" style={{ background: "#22C55E", color: "#22C55E", width: 5, height: 5 }} />
+            <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,.85)", letterSpacing: ".06em", textTransform: "uppercase" }}>Live</span>
+          </div>
+        )}
+
+        {/* Cancelled overlay tint */}
+        {isCancelled && (
+          <div style={{ position: "absolute", inset: 0, background: "rgba(220,38,38,.08)", zIndex: 10, pointerEvents: "none" }} />
         )}
       </div>
 
-      {/* ── Progress bar footer ── */}
+      {/* ── Footer ── */}
+      <div style={{ padding: "10px 16px 14px", display: "flex", flexDirection: "column", gap: 9 }}>
+
+        {/* Meta chips row */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            {ride.rideLabel && (
+              <span className="pill" style={{ background: "var(--bg-soft)", color: "var(--ink-3)", border: "1px solid var(--border)", textTransform: "capitalize" }}>{ride.rideLabel}</span>
+            )}
+            {ride.tripDistanceMiles != null && (
+              <span className="pill" style={{ background: "var(--bg-soft)", color: "var(--ink-3)", border: "1px solid var(--border)" }}>{ride.tripDistanceMiles} mi</span>
+            )}
+            {ride.tripDurationMin != null && (
+              <span className="pill" style={{ background: "var(--bg-soft)", color: "var(--ink-3)", border: "1px solid var(--border)" }}>~{ride.tripDurationMin}m</span>
+            )}
+            {etaChip && (
+              <span className="pill" style={{ background: "var(--green-bg)", color: "var(--green)", border: "1px solid rgba(22,163,74,.15)" }}>
+                <Clock size={8} /> {etaChip}
+              </span>
+            )}
+            {isSearching && (
+              <>
+                <span className="pill" style={{ background: "#FEF3C7", color: "#92400E" }}>
+                  <Users size={8} /> {(ride.candidateDriverUids ?? []).length}
+                </span>
+                <span className="pill" style={{ background: Object.keys(ride.emailSentToDrivers ?? {}).length > 0 ? "#DCFCE7" : "var(--bg-soft)", color: Object.keys(ride.emailSentToDrivers ?? {}).length > 0 ? "#166534" : "var(--ink-4)" }}>
+                  <Mail size={8} /> {Object.keys(ride.emailSentToDrivers ?? {}).length}
+                </span>
+              </>
+            )}
+          </div>
+          <span style={{ fontSize: 10.5, color: "var(--ink-5)", fontWeight: 500, whiteSpace: "nowrap" }}>{timeAgo(ride.createdAt)} ago</span>
+        </div>
+
+        {/* Payment row */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 9, borderTop: "1px solid var(--border)", flexWrap: "wrap", gap: 6 }}>
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            <span className="pill" style={{
+              background: ride.paymentMethod === "cashapp" ? "#F0FDF4" : "#EFF6FF",
+              color:      ride.paymentMethod === "cashapp" ? "#16A34A" : "#2563EB",
+            }}>
+              {ride.paymentMethod === "cashapp" ? "Cash App" : ride.paymentMethod === "card" ? "Card" : (ride.paymentMethod ?? "—")}
+            </span>
+            <span className="pill" style={{ background: pm.bg, color: pm.color }}>{pm.label}</span>
+            <span className="pill" style={{ background: po.bg, color: po.color }}>{po.label}</span>
+          </div>
+          <div style={{ fontSize: 11, color: "var(--ink-4)", fontWeight: 500, fontFeatureSettings: "'tnum'" }}>
+            <span style={{ color: "var(--green)", fontWeight: 700 }}>${ride.driverPayout?.toFixed(2) ?? "—"}</span>
+            <span> drv · </span>
+            <span style={{ color: "var(--blue)", fontWeight: 700 }}>${ride.platformFee?.toFixed(2) ?? "—"}</span>
+            <span> fee</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Progress bar ── */}
       <StatusBar ride={ride} />
     </div>
   );
