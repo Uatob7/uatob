@@ -1,4 +1,13 @@
 import React, { useState } from "react";
+import { Eye, EyeOff, X, Loader2 } from "lucide-react";
+import { useAuthContext } from "@/context/AuthContext";
+import signIn from "@/firebase/auth/signin";
+import signUp from "@/firebase/auth/signup";
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { firebase_app } from "@/firebase/config";
+
+const functions         = getFunctions(firebase_app, "us-east1");
+const callCreateAccount = httpsCallable(functions, "createAccount");
 
 // ── Design tokens (mirrors UaTobDriverSignup) ─────────────────────────
 const C = {
@@ -198,6 +207,235 @@ const PERKS_GLOBAL = [
   { icon: "🏥", label: "Health benefits",      desc: "Medical, dental, vision on eligible roles" },
 ];
 
+// ── Auth Gate Modal ───────────────────────────────────────────────────
+function AuthGateModal({ onClose, onAuthSuccess }) {
+  const [mode,     setMode]     = useState("login");
+  const [email,    setEmail]    = useState("");
+  const [password, setPassword] = useState("");
+  const [name,     setName]     = useState("");
+  const [showPw,   setShowPw]   = useState(false);
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState("");
+
+  const handleSubmit = async () => {
+    if (!email.trim() || !password.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const result = mode === "login"
+        ? await signIn(email, password)
+        : await signUp(email, password);
+
+      if (result.error) throw new Error(result.error.message || "Authentication failed");
+
+      if (mode === "signup") {
+        const user = result.result?.user ?? result.user;
+        if (!user?.uid) throw new Error("Sign-up succeeded but UID is missing.");
+        await callCreateAccount({ uid: user.uid, email: user.email, name });
+      }
+
+      onAuthSuccess();
+    } catch (err) {
+      setError(err.message || "Authentication failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const inputStyle = {
+    width: "100%", background: C.surfaceRaised,
+    border: `1.5px solid ${C.border}`,
+    borderRadius: 12, padding: "13px 14px",
+    color: C.text, fontFamily: "'Barlow',sans-serif",
+    fontSize: 14, fontWeight: 500, outline: "none",
+    boxSizing: "border-box",
+  };
+
+  return (
+    <div
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      style={{
+        position: "fixed", inset: 0, zIndex: 300,
+        background: "rgba(15,15,16,.55)",
+        backdropFilter: "blur(6px)",
+        display: "flex", alignItems: "flex-end", justifyContent: "center",
+        animation: "fadeIn .2s ease",
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: "100%", maxWidth: 480,
+          background: C.surface,
+          borderRadius: "24px 24px 0 0",
+          padding: "10px 24px 44px",
+          boxShadow: "0 -24px 64px rgba(0,0,0,.18)",
+          animation: "slideUp .35s cubic-bezier(.34,1.2,.64,1)",
+        }}
+      >
+        {/* Handle */}
+        <div style={{ width: 40, height: 4, background: C.border, borderRadius: 2, margin: "16px auto 24px" }} />
+
+        {/* Close */}
+        <button
+          onClick={onClose}
+          style={{
+            position: "absolute", top: 20, right: 20,
+            width: 32, height: 32, borderRadius: "50%",
+            background: C.surfaceBright, border: `1px solid ${C.border}`,
+            cursor: "pointer", display: "flex", alignItems: "center",
+            justifyContent: "center", color: C.textDim,
+          }}
+        >
+          <X size={14} />
+        </button>
+
+        {/* Headline */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{
+            fontFamily: "'Barlow Condensed',sans-serif",
+            fontSize: 26, fontWeight: 900, color: C.text, marginBottom: 4,
+          }}>
+            {mode === "login" ? "Sign in to apply" : "Create an account"}
+          </div>
+          <div style={{ fontSize: 13, color: C.textMid, fontWeight: 500 }}>
+            {mode === "login"
+              ? "Log in to your UaTob account to submit your application."
+              : "Join UaTob, then apply for the role."}
+          </div>
+        </div>
+
+        {/* Mode toggle */}
+        <div style={{
+          display: "flex", gap: 4,
+          background: C.surfaceBright, border: `1px solid ${C.border}`,
+          borderRadius: 12, padding: 4, marginBottom: 20,
+        }}>
+          {["login", "signup"].map(m => (
+            <button
+              key={m}
+              onClick={() => { setMode(m); setError(""); }}
+              style={{
+                flex: 1, padding: "9px 0",
+                border: "none", borderRadius: 9,
+                background: mode === m ? C.surface : "transparent",
+                boxShadow: mode === m ? "0 1px 4px rgba(0,0,0,.08)" : "none",
+                color: mode === m ? C.text : C.textDim,
+                fontWeight: 800, fontSize: 13,
+                fontFamily: "'Barlow Condensed',sans-serif",
+                letterSpacing: ".05em",
+                cursor: "pointer", transition: "all .18s",
+              }}
+            >
+              {m === "login" ? "Sign In" : "Sign Up"}
+            </button>
+          ))}
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div style={{
+            background: "rgba(220,38,38,.06)",
+            border: "1px solid rgba(220,38,38,.22)",
+            borderRadius: 10, padding: "10px 14px",
+            fontSize: 13, color: C.red, fontWeight: 600,
+            marginBottom: 14,
+          }}>
+            {error}
+          </div>
+        )}
+
+        {/* Fields */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {mode === "signup" && (
+            <input
+              type="text"
+              placeholder="Full name"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              style={inputStyle}
+            />
+          )}
+          <input
+            type="email"
+            placeholder="Email address"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            style={inputStyle}
+          />
+          <div style={{ position: "relative" }}>
+            <input
+              type={showPw ? "text" : "password"}
+              placeholder="Password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              style={{ ...inputStyle, paddingRight: 44 }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPw(p => !p)}
+              style={{
+                position: "absolute", right: 13, top: "50%",
+                transform: "translateY(-50%)",
+                background: "none", border: "none",
+                cursor: "pointer", color: C.textDim,
+                display: "flex", padding: 2,
+              }}
+            >
+              {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+            </button>
+          </div>
+        </div>
+
+        {/* Submit */}
+        <button
+          onClick={handleSubmit}
+          disabled={loading || !email.trim() || !password.trim()}
+          style={{
+            width: "100%", padding: "15px",
+            marginTop: 18,
+            background: "linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D)",
+            border: "none", borderRadius: 100,
+            color: "#fff", fontWeight: 800, fontSize: 15,
+            fontFamily: "'Barlow',sans-serif", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            opacity: (loading || !email.trim() || !password.trim()) ? 0.55 : 1,
+            boxShadow: "0 6px 20px rgba(22,163,74,.28)",
+          }}
+        >
+          {loading
+            ? <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />
+            : mode === "login" ? "Sign In & Continue →" : "Create Account & Continue →"
+          }
+        </button>
+
+        {/* Switch mode */}
+        <div style={{ textAlign: "center", marginTop: 14, fontSize: 13, color: C.textMid }}>
+          {mode === "login" ? "No account? " : "Already have one? "}
+          <button
+            onClick={() => { setMode(m => m === "login" ? "signup" : "login"); setError(""); }}
+            style={{
+              background: "none", border: "none", cursor: "pointer",
+              color: C.accent, fontWeight: 700, fontSize: 13,
+              fontFamily: "'Barlow',sans-serif", padding: 0,
+            }}
+          >
+            {mode === "login" ? "Sign up" : "Sign in"}
+          </button>
+        </div>
+
+        {/* Terms */}
+        <div style={{ textAlign: "center", marginTop: 10, fontSize: 11.5, color: C.textDim, lineHeight: 1.6 }}>
+          By continuing, you agree to our{" "}
+          <a href="/terms" style={{ color: C.accent, fontWeight: 600, textDecoration: "none" }}>Terms</a>
+          {" "}and{" "}
+          <a href="/privacy" style={{ color: C.accent, fontWeight: 600, textDecoration: "none" }}>Privacy Policy</a>.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Apply Modal ────────────────────────────────────────────────────────
 function ApplyModal({ role, dept, onClose }) {
   const [form, setForm] = useState({ name: "", email: "", linkedin: "", message: "" });
@@ -369,7 +607,7 @@ function ApplyModal({ role, dept, onClose }) {
 }
 
 // ── Role Card ─────────────────────────────────────────────────────────
-function RoleCard({ role, dept, onApply }) {
+function RoleCard({ role, dept, onApply, onApplyGated }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -534,7 +772,7 @@ function RoleCard({ role, dept, onApply }) {
           </div>
 
           <button
-            onClick={() => onApply(role, dept)}
+            onClick={() => onApplyGated(role, dept)}
             style={{
               width: "100%", padding: "14px",
               background: `linear-gradient(135deg, ${dept.color}EE, ${dept.color})`,
@@ -555,10 +793,35 @@ function RoleCard({ role, dept, onApply }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────
 export default function Careers() {
-  const [activeModal, setActiveModal] = useState(null); // { role, dept }
-  const [activeDept,  setActiveDept]  = useState("all");
+  const { uid } = useAuthContext();
+
+  const [activeModal,   setActiveModal]   = useState(null); // { role, dept }
+  const [activeDept,    setActiveDept]    = useState("all");
+  const [showAuthGate,  setShowAuthGate]  = useState(false);
+  const [pendingRole,   setPendingRole]   = useState(null); // { role, dept } — held until auth completes
 
   const totalRoles = DEPARTMENTS.reduce((a, d) => a + d.roles.length, 0);
+
+  // Called from every "Apply for This Role" button
+  const handleApplyGated = (role, dept) => {
+    if (uid) {
+      // Already logged in — open apply modal directly
+      setActiveModal({ role, dept });
+    } else {
+      // Not logged in — stash the role and show auth gate
+      setPendingRole({ role, dept });
+      setShowAuthGate(true);
+    }
+  };
+
+  // Called after successful login/signup inside AuthGateModal
+  const handleAuthSuccess = () => {
+    setShowAuthGate(false);
+    if (pendingRole) {
+      setActiveModal(pendingRole);
+      setPendingRole(null);
+    }
+  };
 
   return (
     <div style={{
@@ -576,7 +839,7 @@ export default function Careers() {
         @keyframes slideUp     { from { transform: translateY(40px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
         @keyframes expandDown  { from { opacity: 0; transform: translateY(-6px) } to { opacity: 1; transform: translateY(0) } }
         @keyframes revealUp    { from { opacity: 0; transform: translateY(16px) } to { opacity: 1; transform: translateY(0) } }
-        @keyframes pulse       { 0%,100% { opacity: 1 } 50% { opacity: .45 } }
+        @keyframes spin        { to { transform: rotate(360deg) } }
       `}} />
 
       <div style={{ maxWidth: 680, margin: "0 auto", padding: "0 18px 100px" }}>
@@ -787,7 +1050,7 @@ export default function Careers() {
                 key={i}
                 role={role}
                 dept={dept}
-                onApply={(r, d) => setActiveModal({ role: r, dept: d })}
+                onApplyGated={handleApplyGated}
               />
             ))}
           </div>
@@ -830,6 +1093,14 @@ export default function Careers() {
           </a>
         </div>
       </div>
+
+      {/* ── Auth Gate Modal ── */}
+      {showAuthGate && (
+        <AuthGateModal
+          onClose={() => { setShowAuthGate(false); setPendingRole(null); }}
+          onAuthSuccess={handleAuthSuccess}
+        />
+      )}
 
       {/* ── Apply Modal ── */}
       {activeModal && (
