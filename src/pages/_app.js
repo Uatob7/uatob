@@ -1,13 +1,15 @@
+// pages/_app.js
 import "@/styles/globals.css";
 import Head from "next/head";
 import { Elements } from "@stripe/react-stripe-js";
-import { Analytics } from "@vercel/analytics/next"
-import { SpeedInsights } from "@vercel/speed-insights/next"
 import { loadStripe } from "@stripe/stripe-js";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
+
 import { AuthContextProvider, useAuthContext } from "@/context/AuthContext";
+import { useTrackViews } from '@/App/UaTob/useTrackViews';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
-
 
 export default function App({ Component, pageProps }) {
   return (
@@ -29,5 +31,14 @@ export default function App({ Component, pageProps }) {
 function AppWithAuth({ Component, pageProps }) {
   const { uid } = useAuthContext();
 
-  return <Component {...pageProps} uid={uid} />;
+  // ✅ TRACK VIEWS HERE
+  useTrackViews();
+
+  return (
+    <>
+      <Component {...pageProps} uid={uid} />
+      <Analytics />
+      <SpeedInsights />
+    </>
+  );
 }
