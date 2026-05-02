@@ -42,7 +42,7 @@ export function TopBar({ title, onMenuOpen, views }) {
         }}>
           <Eye size={13} color={C.green} />
           <span style={{ fontSize: 11, fontWeight: 800, color: C.green }}>
-            {views?.length ?? 0} {views?.length === 1 ? "view" : "views"}
+            {views?.length ?? 0} {views?.length === 1 ? "" : ""}
           </span>
         </div>
         <div style={{ position: "relative" }}>
