@@ -343,7 +343,7 @@ export default function UaTobAdminDashboard() {
 
       <Drawer useriders={useriders} open={drawerOpen} onClose={() => setDrawerOpen(false)} onNavigate={setActiveTab} />
 
-      <TopBar title={TAB_TITLES[activeTab]} onMenuOpen={() => setDrawerOpen(true)} />
+      <TopBar title={TAB_TITLES[activeTab]} onMenuOpen={() => setDrawerOpen(true)} views={views} />
 
       <div style={{ paddingBottom: 80, paddingTop: 16, maxWidth: 640, margin: "0 auto" }}>
         {CurrentTab}

@@ -1,4 +1,3 @@
-// src/App/Admin/useViews.js
 import { useEffect, useState } from "react";
 import {
   collection,
@@ -13,10 +12,12 @@ import { getFirestore } from "firebase/firestore";
 
 const db = getFirestore(firebase_app);
 
-export function useViews() {
-  const [views, setViews] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+export function useViews(pageSize = 100) {
+  const [state, setState] = useState({
+    views: [],
+    loading: true,
+    error: null,
+  });
 
   useEffect(() => {
     const q = query(
@@ -28,23 +29,48 @@ export function useViews() {
     const unsub = onSnapshot(
       q,
       (snapshot) => {
-        const data = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+        const views = snapshot.docs.map((doc) => {
+          const data = doc.data();
 
-        setViews(data);
-        setLoading(false);
+          return {
+            id: doc.id,
+            path: data.path || null,
+            uid: data.uid || null,
+            sessionId: data.sessionId || null,
+            title: data.title || null,
+            referrer: data.referrer || null,
+            userAgent: data.userAgent || null,
+            timestamp: data.timestamp || null,
+            createdAt: data.createdAt || null,
+
+            screen: data.screen
+              ? {
+                  width: data.screen.w || null,
+                  height: data.screen.h || null,
+                }
+              : null,
+          };
+        });
+
+        setState({
+          views,
+          loading: false,
+          error: null,
+        });
       },
       (err) => {
         console.error("useViews error:", err);
-        setError(err.message);
-        setLoading(false);
+
+        setState({
+          views: [],
+          loading: false,
+          error: err.message,
+        });
       }
     );
 
     return () => unsub();
   }, [pageSize]);
 
-  return { views, loading, error };
+  return state;
 }

@@ -1,9 +1,9 @@
 // src/App/UaTob/Admin/components/TopBar.jsx
-import { Menu, Bell } from "lucide-react";
+import { Menu, Bell, Eye } from "lucide-react";
 import { C } from '@/App/Admin/Tokens';
 import { UaTobIcon } from '@/App/Admin/Brand';
 
-export function TopBar({ title, onMenuOpen }) {
+export function TopBar({ title, onMenuOpen, views }) {
   return (
     <div style={{
       position: "sticky", top: 0, zIndex: 50,
@@ -33,15 +33,17 @@ export function TopBar({ title, onMenuOpen }) {
         </div>
       </div>
 
-      {/* Right — LIVE pill + bell */}
+      {/* Right — views pill + bell */}
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <div style={{
           display: "flex", alignItems: "center", gap: 6,
           background: C.greenGlow, border: `1.5px solid ${C.green}28`,
           borderRadius: 100, padding: "5px 12px",
         }}>
-          <div className="live-dot" style={{ width: 6, height: 6 }} />
-          <span style={{ fontSize: 11, fontWeight: 800, color: C.green }}>LIVE</span>
+          <Eye size={13} color={C.green} />
+          <span style={{ fontSize: 11, fontWeight: 800, color: C.green }}>
+            {views?.length ?? 0} {views?.length === 1 ? "view" : "views"}
+          </span>
         </div>
         <div style={{ position: "relative" }}>
           <button style={{
