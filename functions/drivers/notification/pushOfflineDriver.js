@@ -14,7 +14,7 @@ const fmt = {
 };
 
 // ─────────────────────────────────────────────────────────────
-// Build FCM payload for offline driver nudge
+// Build FCM payload
 // ─────────────────────────────────────────────────────────────
 function buildOfflineNudgePayload({ driver, waitingCount, topRide }) {
   const hasTopRide = !!topRide;
@@ -72,7 +72,7 @@ function buildOfflineNudgePayload({ driver, waitingCount, topRide }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Scheduled Cloud Function — every 5 minutes
+// Scheduled Function
 // ─────────────────────────────────────────────────────────────
 exports.pushOfflineDriver = onSchedule(
   {
@@ -80,35 +80,15 @@ exports.pushOfflineDriver = onSchedule(
     region:   "us-east1",
   },
   async () => {
-    const runStartedAt = admin.firestore.Timestamp.now();
-
-    // Counters — written to Firestore at the end so the admin
-    // dashboard (or just the Firestore console) shows each run.
-    const stats = {
-      activeRides:       0,
-      offlineDrivers:    0,
-      noToken:           0,
-      inCooldown:        0,
-      attempted:         0,
-      sent:              0,
-      failed:            0,
-      cooldownStamped:   0,
-      cooldownStampFail: 0,
-      topRidePayout:     null,
-      exitReason:        null,   // set if we return early
-    };
-
-    // ── Only run when rides are actually waiting ──────────────
+    // ── Check for active rides ────────────────────────────────
     const ridesSnap = await db
       .collection("Rides")
       .where("paymentStatus", "==", "succeeded")
-      .where("status",        "==", "searching_driver")
+      .where("status", "==", "searching_driver")
       .get();
 
     if (ridesSnap.empty) {
-      stats.exitReason = "no_waiting_rides";
-      await writeRunLog(stats, runStartedAt);
-      console.log("[pushOfflineDriverNudge] No waiting rides — skipping");
+      console.log("[pushOfflineDriver] No waiting rides — skipping");
       return;
     }
 
@@ -122,19 +102,14 @@ exports.pushOfflineDriver = onSchedule(
         return expiresAtMs === null || expiresAtMs > now;
       });
 
-    stats.activeRides = activeRides.length;
-
     if (activeRides.length === 0) {
-      stats.exitReason = "all_rides_expired";
-      await writeRunLog(stats, runStartedAt);
-      console.log("[pushOfflineDriverNudge] All waiting rides are expired — skipping");
+      console.log("[pushOfflineDriver] All rides expired — skipping");
       return;
     }
 
     const topRide = activeRides.reduce((best, ride) =>
       (ride.driverPayout ?? 0) > (best.driverPayout ?? 0) ? ride : best
     );
-    stats.topRidePayout = topRide.driverPayout ?? 0;
 
     // ── Fetch offline drivers ─────────────────────────────────
     const driversSnap = await db
@@ -143,60 +118,39 @@ exports.pushOfflineDriver = onSchedule(
       .get();
 
     if (driversSnap.empty) {
-      stats.exitReason = "no_offline_drivers";
-      await writeRunLog(stats, runStartedAt);
-      console.log("[pushOfflineDriverNudge] No offline drivers found");
+      console.log("[pushOfflineDriver] No offline drivers");
       return;
     }
 
-    stats.offlineDrivers = driversSnap.size;
-
     const NUDGE_COOLDOWN_MS = 30 * 60 * 1000;
+    const nowMs = Date.now();
 
     const eligibleDrivers = [];
 
     for (const doc of driversSnap.docs) {
       const d = { uid: doc.id, ...doc.data() };
 
-      if (!d.fcmToken) {
-        stats.noToken++;
-        continue;
-      }
+      if (!d.fcmToken) continue;
 
       const lastNudgedMs = d.lastOfflineNudgeAt?.toMillis?.()
         ?? (d.lastOfflineNudgeAt ? new Date(d.lastOfflineNudgeAt).getTime() : 0);
 
-      if ((now - lastNudgedMs) < NUDGE_COOLDOWN_MS) {
-        stats.inCooldown++;
-        continue;
-      }
+      if ((nowMs - lastNudgedMs) < NUDGE_COOLDOWN_MS) continue;
 
       eligibleDrivers.push(d);
     }
 
     if (eligibleDrivers.length === 0) {
-      stats.exitReason = "all_in_cooldown";
-      await writeRunLog(stats, runStartedAt);
-      console.log(
-        `[pushOfflineDriverNudge] No eligible drivers` +
-        ` (${stats.noToken} no token, ${stats.inCooldown} in cooldown)`
-      );
+      console.log("[pushOfflineDriver] No eligible drivers (cooldown or no token)");
       return;
     }
 
-    stats.attempted = eligibleDrivers.length;
-
     console.log(
-      `[pushOfflineDriverNudge] Nudging ${eligibleDrivers.length} drivers` +
-      ` | ${activeRides.length} active ride(s)` +
-      ` | top payout ${fmt.currency(topRide.driverPayout)}`
+      `[pushOfflineDriver] Sending to ${eligibleDrivers.length} drivers | ${activeRides.length} rides`
     );
 
-    // ── Send pushes, then stamp cooldown on each success ──────
-    // Fix: run send + cooldown stamp together per driver so there
-    // is no race between pushPromises settling and batchUpdates
-    // being populated.
-    const perDriverResults = await Promise.allSettled(
+    // ── Send pushes + stamp cooldown ──────────────────────────
+    const results = await Promise.allSettled(
       eligibleDrivers.map(async (driver) => {
         const payload = buildOfflineNudgePayload({
           driver,
@@ -204,75 +158,33 @@ exports.pushOfflineDriver = onSchedule(
           topRide,
         });
 
-        // Send push
         await getMessaging().send(payload);
 
-        // Stamp cooldown only after confirmed send
-        try {
-          await db.collection("Drivers").doc(driver.uid).update({
-            lastOfflineNudgeAt: admin.firestore.FieldValue.serverTimestamp(),
-          });
-          stats.cooldownStamped++;
-        } catch (stampErr) {
-          stats.cooldownStampFail++;
-          console.error(
-            `[pushOfflineDriverNudge] Cooldown stamp failed for ${driver.uid}:`,
-            stampErr.message
-          );
-        }
+        // Stamp cooldown after success
+        await db.collection("Drivers").doc(driver.uid).update({
+          lastOfflineNudgeAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
       })
     );
 
-    // ── Tally send outcomes ───────────────────────────────────
-    const failures = [];
+    // ── Handle failures ───────────────────────────────────────
+    let success = 0;
+    let failed = 0;
 
-    for (let i = 0; i < perDriverResults.length; i++) {
-      const result = perDriverResults[i];
-      if (result.status === "fulfilled") {
-        stats.sent++;
+    results.forEach((r, i) => {
+      if (r.status === "fulfilled") {
+        success++;
       } else {
-        stats.failed++;
-        failures.push({
-          uid:   eligibleDrivers[i].uid,
-          error: result.reason?.message ?? String(result.reason),
-        });
+        failed++;
         console.error(
-          `[pushOfflineDriverNudge] Send failed for driver ${eligibleDrivers[i].uid}:`,
-          result.reason?.message
+          `[pushOfflineDriver] Failed for ${eligibleDrivers[i].uid}:`,
+          r.reason?.message
         );
       }
-    }
-
-    // ── Write run log ─────────────────────────────────────────
-    await writeRunLog(stats, runStartedAt, failures);
+    });
 
     console.log(
-      `[pushOfflineDriverNudge] Done` +
-      ` | sent ${stats.sent}` +
-      ` | failed ${stats.failed}` +
-      ` | cooldown stamped ${stats.cooldownStamped}` +
-      ` | stamp failures ${stats.cooldownStampFail}`
+      `[pushOfflineDriver] Done | sent: ${success} | failed: ${failed}`
     );
   }
 );
-
-// ─────────────────────────────────────────────────────────────
-// Write a run-log doc to Firestore
-// Collection: PushLogs / document: offlineNudge_<epoch>
-// Visible in admin dashboard or Firestore console
-// ─────────────────────────────────────────────────────────────
-async function writeRunLog(stats, runStartedAt, failures = []) {
-  try {
-    const docId = `offlineNudge_${runStartedAt.toMillis()}`;
-    await db.collection("PushLogs").doc(docId).set({
-      type:        "offlineDriverNudge",
-      runStartedAt,
-      completedAt: admin.firestore.FieldValue.serverTimestamp(),
-      ...stats,
-      failures,    // array of { uid, error } — empty on clean runs
-    });
-  } catch (err) {
-    // Never let logging crash the function
-    console.error("[pushOfflineDriverNudge] Failed to write run log:", err.message);
-  }
-}
