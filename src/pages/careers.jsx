@@ -437,14 +437,27 @@ function AuthGateModal({ onClose, onAuthSuccess }) {
 }
 
 // ── Apply Modal ────────────────────────────────────────────────────────
-function ApplyModal({ role, dept, onClose }) {
-  const [form, setForm] = useState({ name: "", email: "", linkedin: "", message: "" });
+function ApplyModal({ role, dept, onClose, user }) {
+  // Pre-fill from Firebase auth user if available
+  const knownName  = user?.displayName || "";
+  const knownEmail = user?.email        || "";
+
+  const [form, setForm] = useState({
+    name:     knownName,
+    email:    knownEmail,
+    linkedin: "",
+    message:  "",
+  });
   const [sent, setSent] = useState(false);
 
   const handleSubmit = () => {
     if (!form.name.trim() || !form.email.trim()) return;
     setSent(true);
   };
+
+  // True when the field value is locked from auth — no edits needed
+  const lockedName  = Boolean(knownName);
+  const lockedEmail = Boolean(knownEmail);
 
   return (
     <div
@@ -530,10 +543,92 @@ function ApplyModal({ role, dept, onClose }) {
               </div>
             </div>
 
-            {/* Fields */}
+            {/* Identity — locked card if logged in, editable fields if not */}
+            {(lockedName || lockedEmail) ? (
+              <div style={{
+                background: C.accentGlow,
+                border: `1.5px solid ${C.accentBorder}`,
+                borderRadius: 14, padding: "13px 16px",
+                display: "flex", alignItems: "center", gap: 12,
+                marginBottom: 14,
+              }}>
+                {/* Avatar initial */}
+                <div style={{
+                  width: 40, height: 40, borderRadius: "50%", flexShrink: 0,
+                  background: "linear-gradient(135deg,#22C55E,#16A34A)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontFamily: "'Barlow Condensed',sans-serif",
+                  fontSize: 18, fontWeight: 900, color: "#fff",
+                  boxShadow: "0 4px 10px rgba(22,163,74,.3)",
+                }}>
+                  {knownName ? knownName.charAt(0).toUpperCase() : knownEmail.charAt(0).toUpperCase()}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  {knownName && (
+                    <div style={{
+                      fontFamily: "'Barlow Condensed',sans-serif",
+                      fontSize: 16, fontWeight: 900, color: C.text,
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    }}>
+                      {knownName}
+                    </div>
+                  )}
+                  {knownEmail && (
+                    <div style={{
+                      fontSize: 12.5, color: C.textMid, fontWeight: 500,
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                      marginTop: knownName ? 1 : 0,
+                    }}>
+                      {knownEmail}
+                    </div>
+                  )}
+                </div>
+                <div style={{
+                  fontSize: 10, fontWeight: 800, color: C.accentDim,
+                  fontFamily: "'Barlow Condensed',sans-serif",
+                  letterSpacing: ".1em", textTransform: "uppercase",
+                  background: C.surface, border: `1px solid ${C.accentBorder}`,
+                  borderRadius: 100, padding: "3px 9px", flexShrink: 0,
+                }}>
+                  Signed in ✓
+                </div>
+              </div>
+            ) : (
+              /* Not logged in — show editable name + email fields */
+              <>
+                {[
+                  { key: "name",  label: "Full Name",     placeholder: "Marcus Johnson",     type: "text"  },
+                  { key: "email", label: "Email Address", placeholder: "marcus@example.com", type: "email" },
+                ].map(f => (
+                  <div key={f.key} style={{ marginBottom: 14 }}>
+                    <div style={{
+                      fontSize: 10.5, fontWeight: 700, color: C.textMid,
+                      letterSpacing: "1.4px", textTransform: "uppercase",
+                      fontFamily: "'Barlow Condensed',sans-serif", marginBottom: 6,
+                    }}>
+                      {f.label}
+                    </div>
+                    <input
+                      type={f.type}
+                      placeholder={f.placeholder}
+                      value={form[f.key]}
+                      onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
+                      style={{
+                        width: "100%", background: C.surfaceRaised,
+                        border: `1.5px solid ${C.border}`,
+                        borderRadius: 12, padding: "12px 14px",
+                        color: C.text, fontFamily: "'Barlow',sans-serif",
+                        fontSize: 14, fontWeight: 500, outline: "none",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* LinkedIn — always shown */}
             {[
-              { key: "name",     label: "Full Name",       placeholder: "Marcus Johnson",         type: "text" },
-              { key: "email",    label: "Email Address",   placeholder: "marcus@example.com",     type: "email" },
               { key: "linkedin", label: "LinkedIn / Portfolio (optional)", placeholder: "linkedin.com/in/…", type: "text" },
             ].map(f => (
               <div key={f.key} style={{ marginBottom: 14 }}>
@@ -793,7 +888,7 @@ function RoleCard({ role, dept, onApply, onApplyGated }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────
 export default function Careers() {
-  const { uid } = useAuthContext();
+  const { uid, user } = useAuthContext();
 
   const [activeModal,   setActiveModal]   = useState(null); // { role, dept }
   const [activeDept,    setActiveDept]    = useState("all");
@@ -1108,6 +1203,7 @@ export default function Careers() {
           role={activeModal.role}
           dept={activeModal.dept}
           onClose={() => setActiveModal(null)}
+          user={user ?? null}
         />
       )}
     </div>
