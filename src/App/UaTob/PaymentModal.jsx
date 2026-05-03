@@ -775,7 +775,7 @@ function PaymentModalInner({
                           color: '#92400E',
                           marginTop: 1,
                         }}>
-                          End of trip
+                          Driver Arrival
                         </div>
                       </div>
                     </div>
