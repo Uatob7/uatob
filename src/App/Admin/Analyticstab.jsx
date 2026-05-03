@@ -1,5 +1,5 @@
 // src/App/UaTob/Admin/tabs/AnalyticsTab.jsx
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Clock, CheckCircle, XCircle, DollarSign, ArrowUpRight,
   Eye, Smartphone, Monitor, TrendingUp, Activity, Users, MapPin,
@@ -43,6 +43,30 @@ function docCompletion(d) {
   return { uploaded, total: required.length };
 }
 
+// ── Tooltip ──────────────────────────────────────────────
+function Tooltip({ visible, x, y, content }) {
+  if (!visible) return null;
+  return (
+    <div style={{
+      position: "fixed",
+      left: x + 14,
+      top: y - 90,
+      zIndex: 999,
+      background: C.surface ?? "#fff",
+      border: `1px solid ${C.border}`,
+      borderRadius: 10,
+      padding: "10px 14px",
+      fontSize: 12,
+      color: C.text,
+      pointerEvents: "none",
+      minWidth: 170,
+      boxShadow: "0 4px 16px rgba(0,0,0,.1)",
+    }}>
+      {content}
+    </div>
+  );
+}
+
 // ── Driver Signups Chart ─────────────────────────────────
 function DriverSignupsChart({ uatobdrivers = [] }) {
   const stats = useMemo(() => {
@@ -52,7 +76,6 @@ function DriverSignupsChart({ uatobdrivers = [] }) {
     const todayDayIdx = dayIndexFromMonday(now);
     monday.setDate(now.getDate() - todayDayIdx);
 
-    // 7 day buckets
     const buckets = Array.from({ length: 7 }, (_, i) => {
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
@@ -67,7 +90,6 @@ function DriverSignupsChart({ uatobdrivers = [] }) {
       };
     });
 
-    // Status & lifecycle counts (across ALL drivers, not just this week)
     let total           = uatobdrivers.length;
     let online          = 0;
     let offline         = 0;
@@ -80,7 +102,6 @@ function DriverSignupsChart({ uatobdrivers = [] }) {
     let stripeConnected = 0;
 
     uatobdrivers.forEach(d => {
-      // Bucket by signup day this week
       const ms = tsToMs(d.createdAt);
       if (ms) {
         const day = new Date(ms);
@@ -96,7 +117,6 @@ function DriverSignupsChart({ uatobdrivers = [] }) {
         }
       }
 
-      // Status totals
       switch (d.status) {
         case "online":      online++; break;
         case "offline":     offline++; break;
@@ -117,34 +137,20 @@ function DriverSignupsChart({ uatobdrivers = [] }) {
     const weekSignups = buckets.reduce((s, b) => s + b.signups, 0);
     const maxVal = Math.max(...buckets.map(b => b.signups), 1);
 
-    const active   = online + offline;
+    const active      = online + offline;
     const approvedAll = approved + active;
-    const inFunnel = inProgress + pending;
+    const inFunnel    = inProgress + pending;
     const conversionPct = total > 0 ? Math.round((approvedAll / total) * 100) : 0;
 
     return {
-      buckets,
-      weekSignups,
-      maxVal,
-      total,
-      online,
-      offline,
-      approved,
-      pending,
-      inProgress,
-      rejected,
-      suspended,
-      active,
-      approvedAll,
-      inFunnel,
-      conversionPct,
-      docsComplete,
-      stripeConnected,
+      buckets, weekSignups, maxVal, total, online, offline, approved,
+      pending, inProgress, rejected, suspended, active, approvedAll,
+      inFunnel, conversionPct, docsComplete, stripeConnected,
     };
   }, [uatobdrivers]);
 
-  const todaysSignups = stats.buckets.find(b => b.isToday)?.signups ?? 0;
-  const yesterdayIdx  = stats.buckets.findIndex(b => b.isToday) - 1;
+  const todaysSignups     = stats.buckets.find(b => b.isToday)?.signups ?? 0;
+  const yesterdayIdx      = stats.buckets.findIndex(b => b.isToday) - 1;
   const yesterdaysSignups = yesterdayIdx >= 0 ? stats.buckets[yesterdayIdx].signups : 0;
   const dayDelta = yesterdaysSignups > 0
     ? Math.round(((todaysSignups - yesterdaysSignups) / yesterdaysSignups) * 100)
@@ -214,13 +220,7 @@ function DriverSignupsChart({ uatobdrivers = [] }) {
             return (
               <div
                 key={DAYS[i]}
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 5,
-                }}
+                style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}
               >
                 {!b.isFuture && b.signups > 0 && (
                   <div className="mono" style={{
@@ -244,9 +244,7 @@ function DriverSignupsChart({ uatobdrivers = [] }) {
                   border: b.isFuture
                     ? `1px solid ${C.border}`
                     : `1px solid ${green}${b.isToday ? "bb" : "30"}`,
-                  boxShadow: b.isToday && !b.isFuture
-                    ? `0 4px 12px ${green}40`
-                    : "none",
+                  boxShadow: b.isToday && !b.isFuture ? `0 4px 12px ${green}40` : "none",
                   transition: "height .6s cubic-bezier(.34,1.2,.64,1)",
                   minHeight: 4,
                 }} />
@@ -264,22 +262,16 @@ function DriverSignupsChart({ uatobdrivers = [] }) {
         </div>
       </div>
 
-      {/* Footer stats row 1: Today / Conversion / Docs */}
+      {/* Footer stats */}
       <div style={{
         display: "flex",
         borderTop: `1px solid ${C.border}`,
         background: C.surfaceAlt ?? `${C.bg ?? "#FAFAFA"}`,
       }}>
-        {/* Today */}
-        <div style={{
-          flex: 1,
-          padding: "12px 14px",
-          borderRight: `1px solid ${C.border}`,
-        }}>
+        <div style={{ flex: 1, padding: "12px 14px", borderRight: `1px solid ${C.border}` }}>
           <div style={{
             fontSize: 9.5, color: C.textMuted, fontWeight: 700,
-            letterSpacing: ".4px", textTransform: "uppercase",
-            marginBottom: 4,
+            letterSpacing: ".4px", textTransform: "uppercase", marginBottom: 4,
           }}>
             Today
           </div>
@@ -298,8 +290,7 @@ function DriverSignupsChart({ uatobdrivers = [] }) {
                 fontFamily: "var(--mono)", letterSpacing: ".02em",
               }}>
                 <TrendingUp
-                  size={9}
-                  strokeWidth={2.6}
+                  size={9} strokeWidth={2.6}
                   style={{ transform: dayDelta < 0 ? "rotate(180deg)" : "none" }}
                 />
                 {dayDelta >= 0 ? "+" : ""}{dayDelta}%
@@ -308,16 +299,10 @@ function DriverSignupsChart({ uatobdrivers = [] }) {
           </div>
         </div>
 
-        {/* Conversion */}
-        <div style={{
-          flex: 1,
-          padding: "12px 14px",
-          borderRight: `1px solid ${C.border}`,
-        }}>
+        <div style={{ flex: 1, padding: "12px 14px", borderRight: `1px solid ${C.border}` }}>
           <div style={{
             fontSize: 9.5, color: C.textMuted, fontWeight: 700,
-            letterSpacing: ".4px", textTransform: "uppercase",
-            marginBottom: 4,
+            letterSpacing: ".4px", textTransform: "uppercase", marginBottom: 4,
           }}>
             Conversion
           </div>
@@ -327,23 +312,15 @@ function DriverSignupsChart({ uatobdrivers = [] }) {
           }}>
             {stats.conversionPct}%
           </span>
-          <div style={{
-            fontSize: 9, color: C.textDim, fontWeight: 600,
-            marginTop: 2,
-          }}>
+          <div style={{ fontSize: 9, color: C.textDim, fontWeight: 600, marginTop: 2 }}>
             {stats.approvedAll}/{stats.total} approved
           </div>
         </div>
 
-        {/* Docs ready */}
-        <div style={{
-          flex: 1,
-          padding: "12px 14px",
-        }}>
+        <div style={{ flex: 1, padding: "12px 14px" }}>
           <div style={{
             fontSize: 9.5, color: C.textMuted, fontWeight: 700,
-            letterSpacing: ".4px", textTransform: "uppercase",
-            marginBottom: 4,
+            letterSpacing: ".4px", textTransform: "uppercase", marginBottom: 4,
           }}>
             Docs Ready
           </div>
@@ -353,20 +330,14 @@ function DriverSignupsChart({ uatobdrivers = [] }) {
           }}>
             {stats.docsComplete}
           </span>
-          <div style={{
-            fontSize: 9, color: C.textDim, fontWeight: 600,
-            marginTop: 2,
-          }}>
+          <div style={{ fontSize: 9, color: C.textDim, fontWeight: 600, marginTop: 2 }}>
             All 5 uploaded
           </div>
         </div>
       </div>
 
-      {/* Status breakdown (like Top Pages) */}
-      <div style={{
-        padding: "14px 18px 16px",
-        borderTop: `1px solid ${C.border}`,
-      }}>
+      {/* Lifecycle Breakdown */}
+      <div style={{ padding: "14px 18px 16px", borderTop: `1px solid ${C.border}` }}>
         <div style={{
           fontSize: 9.5, color: C.textMuted, fontWeight: 800,
           letterSpacing: ".5px", textTransform: "uppercase",
@@ -402,15 +373,12 @@ function DriverSignupsChart({ uatobdrivers = [] }) {
                     overflow: "hidden",
                   }}
                 >
-                  {/* Background fill bar */}
                   <div style={{
-                    position: "absolute",
-                    top: 0, left: 0, bottom: 0,
+                    position: "absolute", top: 0, left: 0, bottom: 0,
                     width: `${pct}%`,
                     background: `linear-gradient(90deg,${row.color}18,${row.color}08)`,
                     transition: "width .6s cubic-bezier(.34,1.2,.64,1)",
                   }}/>
-
                   <div style={{
                     position: "relative",
                     display: "flex", alignItems: "center",
@@ -422,8 +390,7 @@ function DriverSignupsChart({ uatobdrivers = [] }) {
                     }}>
                       <span style={{
                         width: 6, height: 6, borderRadius: "50%",
-                        background: row.color,
-                        boxShadow: `0 0 6px ${row.color}88`,
+                        background: row.color, boxShadow: `0 0 6px ${row.color}88`,
                       }}/>
                       {row.label}
                     </span>
@@ -449,11 +416,9 @@ function DriverSignupsChart({ uatobdrivers = [] }) {
 
           {stats.total === 0 && (
             <div style={{
-              padding: "20px",
-              textAlign: "center",
+              padding: "20px", textAlign: "center",
               fontSize: 12, color: C.textMuted,
-              background: C.surfaceAlt ?? "#FAFAFA",
-              borderRadius: 8,
+              background: C.surfaceAlt ?? "#FAFAFA", borderRadius: 8,
             }}>
               No drivers yet
             </div>
@@ -517,11 +482,7 @@ function ViewsChart({ views = [] }) {
 
     const totalViews = buckets.reduce((s, b) => s + b.views, 0);
     const maxVal = Math.max(...buckets.map(b => b.views), 1);
-
-    const topPaths = [...pathCounts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 4);
-
+    const topPaths = [...pathCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
     const totalDevices = mobileCount + desktopCount;
     const mobilePct = totalDevices > 0 ? Math.round((mobileCount / totalDevices) * 100) : 0;
 
@@ -529,13 +490,12 @@ function ViewsChart({ views = [] }) {
       buckets, totalViews, maxVal,
       totalSessions: totalSessions.size,
       totalUsers: totalUsers.size,
-      mobileCount, desktopCount, mobilePct,
-      topPaths,
+      mobileCount, desktopCount, mobilePct, topPaths,
     };
   }, [views]);
 
-  const todaysViews = stats.buckets.find(b => b.isToday)?.views ?? 0;
-  const yesterdayIdx = stats.buckets.findIndex(b => b.isToday) - 1;
+  const todaysViews    = stats.buckets.find(b => b.isToday)?.views ?? 0;
+  const yesterdayIdx   = stats.buckets.findIndex(b => b.isToday) - 1;
   const yesterdaysViews = yesterdayIdx >= 0 ? stats.buckets[yesterdayIdx].views : 0;
   const dayDelta = yesterdaysViews > 0
     ? Math.round(((todaysViews - yesterdaysViews) / yesterdaysViews) * 100)
@@ -545,22 +505,14 @@ function ViewsChart({ views = [] }) {
     <div
       className="card fade-up"
       style={{
-        padding: 0,
-        marginBottom: 16,
-        animationDelay: "20ms",
-        opacity: 0,
-        boxShadow: "0 1px 8px rgba(0,0,0,.05)",
-        overflow: "hidden",
+        padding: 0, marginBottom: 16, animationDelay: "20ms", opacity: 0,
+        boxShadow: "0 1px 8px rgba(0,0,0,.05)", overflow: "hidden",
       }}
     >
       <div style={{
-        padding: "16px 18px 14px",
-        borderBottom: `1px solid ${C.border}`,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 12,
-        flexWrap: "wrap",
+        padding: "16px 18px 14px", borderBottom: `1px solid ${C.border}`,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        gap: 12, flexWrap: "wrap",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{
@@ -603,13 +555,7 @@ function ViewsChart({ views = [] }) {
             return (
               <div
                 key={DAYS[i]}
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 5,
-                }}
+                style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}
               >
                 {!b.isFuture && b.views > 0 && (
                   <div className="mono" style={{
@@ -622,8 +568,7 @@ function ViewsChart({ views = [] }) {
                 )}
                 {(b.isFuture || b.views === 0) && <div style={{ fontSize: 9, color: "transparent" }}>·</div>}
                 <div style={{
-                  width: "100%",
-                  borderRadius: "4px 4px 0 0",
+                  width: "100%", borderRadius: "4px 4px 0 0",
                   height: `${b.isFuture ? 4 : Math.max(pct, 4)}px`,
                   background: b.isFuture
                     ? C.borderLight ?? `${C.border}`
@@ -633,17 +578,13 @@ function ViewsChart({ views = [] }) {
                   border: b.isFuture
                     ? `1px solid ${C.border}`
                     : `1px solid ${purple}${b.isToday ? "bb" : "30"}`,
-                  boxShadow: b.isToday && !b.isFuture
-                    ? `0 4px 12px ${purple}40`
-                    : "none",
+                  boxShadow: b.isToday && !b.isFuture ? `0 4px 12px ${purple}40` : "none",
                   transition: "height .6s cubic-bezier(.34,1.2,.64,1)",
                   minHeight: 4,
                 }} />
                 <div style={{
-                  fontSize: 9,
-                  color: b.isToday ? purple : C.textDim,
-                  fontWeight: b.isToday ? 800 : 700,
-                  letterSpacing: ".5px",
+                  fontSize: 9, color: b.isToday ? purple : C.textDim,
+                  fontWeight: b.isToday ? 800 : 700, letterSpacing: ".5px",
                 }}>
                   {DAYS[i]}
                 </div>
@@ -654,19 +595,13 @@ function ViewsChart({ views = [] }) {
       </div>
 
       <div style={{
-        display: "flex",
-        borderTop: `1px solid ${C.border}`,
+        display: "flex", borderTop: `1px solid ${C.border}`,
         background: C.surfaceAlt ?? `${C.bg ?? "#FAFAFA"}`,
       }}>
-        <div style={{
-          flex: 1,
-          padding: "12px 14px",
-          borderRight: `1px solid ${C.border}`,
-        }}>
+        <div style={{ flex: 1, padding: "12px 14px", borderRight: `1px solid ${C.border}` }}>
           <div style={{
             fontSize: 9.5, color: C.textMuted, fontWeight: 700,
-            letterSpacing: ".4px", textTransform: "uppercase",
-            marginBottom: 4,
+            letterSpacing: ".4px", textTransform: "uppercase", marginBottom: 4,
           }}>
             Today
           </div>
@@ -685,8 +620,7 @@ function ViewsChart({ views = [] }) {
                 fontFamily: "var(--mono)", letterSpacing: ".02em",
               }}>
                 <TrendingUp
-                  size={9}
-                  strokeWidth={2.6}
+                  size={9} strokeWidth={2.6}
                   style={{ transform: dayDelta < 0 ? "rotate(180deg)" : "none" }}
                 />
                 {dayDelta >= 0 ? "+" : ""}{dayDelta}%
@@ -695,23 +629,17 @@ function ViewsChart({ views = [] }) {
           </div>
         </div>
 
-        <div style={{
-          flex: 1,
-          padding: "12px 14px",
-          borderRight: `1px solid ${C.border}`,
-        }}>
+        <div style={{ flex: 1, padding: "12px 14px", borderRight: `1px solid ${C.border}` }}>
           <div style={{
             fontSize: 9.5, color: C.textMuted, fontWeight: 700,
-            letterSpacing: ".4px", textTransform: "uppercase",
-            marginBottom: 4,
+            letterSpacing: ".4px", textTransform: "uppercase", marginBottom: 4,
           }}>
             Devices
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{
               display: "inline-flex", alignItems: "center", gap: 4,
-              fontSize: 11, fontWeight: 700, color: C.text,
-              fontFamily: "var(--mono)",
+              fontSize: 11, fontWeight: 700, color: C.text, fontFamily: "var(--mono)",
             }}>
               <Smartphone size={11} color={C.blue} strokeWidth={2.4}/>
               {stats.mobilePct}%
@@ -719,8 +647,7 @@ function ViewsChart({ views = [] }) {
             <span style={{ color: C.textDim, fontSize: 10 }}>·</span>
             <span style={{
               display: "inline-flex", alignItems: "center", gap: 4,
-              fontSize: 11, fontWeight: 700, color: C.textMuted,
-              fontFamily: "var(--mono)",
+              fontSize: 11, fontWeight: 700, color: C.textMuted, fontFamily: "var(--mono)",
             }}>
               <Monitor size={11} color={C.textDim} strokeWidth={2.4}/>
               {100 - stats.mobilePct}%
@@ -728,14 +655,10 @@ function ViewsChart({ views = [] }) {
           </div>
         </div>
 
-        <div style={{
-          flex: 1,
-          padding: "12px 14px",
-        }}>
+        <div style={{ flex: 1, padding: "12px 14px" }}>
           <div style={{
             fontSize: 9.5, color: C.textMuted, fontWeight: 700,
-            letterSpacing: ".4px", textTransform: "uppercase",
-            marginBottom: 4,
+            letterSpacing: ".4px", textTransform: "uppercase", marginBottom: 4,
           }}>
             Per session
           </div>
@@ -751,15 +674,11 @@ function ViewsChart({ views = [] }) {
       </div>
 
       {stats.topPaths.length > 0 && (
-        <div style={{
-          padding: "14px 18px 16px",
-          borderTop: `1px solid ${C.border}`,
-        }}>
+        <div style={{ padding: "14px 18px 16px", borderTop: `1px solid ${C.border}` }}>
           <div style={{
             fontSize: 9.5, color: C.textMuted, fontWeight: 800,
             letterSpacing: ".5px", textTransform: "uppercase",
-            marginBottom: 10,
-            display: "flex", alignItems: "center", gap: 5,
+            marginBottom: 10, display: "flex", alignItems: "center", gap: 5,
           }}>
             <MapPin size={10} strokeWidth={2.4}/>
             Top Pages
@@ -772,34 +691,25 @@ function ViewsChart({ views = [] }) {
                 <div
                   key={path}
                   style={{
-                    position: "relative",
-                    background: `${purple}06`,
-                    border: `1px solid ${purple}15`,
-                    borderRadius: 8,
-                    padding: "8px 12px",
-                    overflow: "hidden",
+                    position: "relative", background: `${purple}06`,
+                    border: `1px solid ${purple}15`, borderRadius: 8,
+                    padding: "8px 12px", overflow: "hidden",
                   }}
                 >
                   <div style={{
-                    position: "absolute",
-                    top: 0, left: 0, bottom: 0,
+                    position: "absolute", top: 0, left: 0, bottom: 0,
                     width: `${pct}%`,
                     background: `linear-gradient(90deg,${purple}18,${purple}08)`,
                     transition: "width .6s cubic-bezier(.34,1.2,.64,1)",
                   }}/>
-
                   <div style={{
-                    position: "relative",
-                    display: "flex", alignItems: "center",
+                    position: "relative", display: "flex", alignItems: "center",
                     justifyContent: "space-between", gap: 10,
                   }}>
                     <span style={{
                       fontSize: 12, fontWeight: 700, color: C.text,
-                      fontFamily: "var(--mono)",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      flex: 1,
+                      fontFamily: "var(--mono)", whiteSpace: "nowrap",
+                      overflow: "hidden", textOverflow: "ellipsis", flex: 1,
                     }}>
                       {shortPath(path)}
                     </span>
@@ -829,6 +739,404 @@ function ViewsChart({ views = [] }) {
   );
 }
 
+// ── Rides This Week (Stacked Fare Breakdown) ─────────────
+function RidesChart({ rides = [] }) {
+  const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, content: null });
+
+  const stats = useMemo(() => {
+    const now = new Date();
+    const monday = new Date(now);
+    monday.setHours(0, 0, 0, 0);
+    monday.setDate(now.getDate() - dayIndexFromMonday(now));
+
+    const buckets = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      return {
+        label: DAYS[i],
+        dateStr: d.toDateString(),
+        isToday: d.toDateString() === now.toDateString(),
+        isFuture: d > now,
+        rides: [],
+        fare: 0,
+        platform: 0,
+        driver: 0,
+      };
+    });
+
+    let totalFare = 0, totalPlatform = 0, totalDriver = 0;
+
+    rides.forEach(r => {
+      const ms = tsToMs(r.createdAt);
+      if (!ms) return;
+      const d = new Date(ms); d.setHours(0, 0, 0, 0);
+      const idx = buckets.findIndex(b => b.dateStr === d.toDateString());
+      if (idx >= 0) {
+        buckets[idx].rides.push(r);
+        buckets[idx].fare     += r.fareTotal    ?? 0;
+        buckets[idx].platform += r.platformFee  ?? 0;
+        buckets[idx].driver   += r.driverPayout ?? 0;
+      }
+      totalFare     += r.fareTotal    ?? 0;
+      totalPlatform += r.platformFee  ?? 0;
+      totalDriver   += r.driverPayout ?? 0;
+    });
+
+    const totalRides  = rides.length;
+    const maxFare     = Math.max(...buckets.map(b => b.fare), 1);
+    const platPct     = totalFare > 0 ? Math.round((totalPlatform / totalFare) * 100) : 25;
+    const driverPct   = totalFare > 0 ? Math.round((totalDriver   / totalFare) * 100) : 75;
+    const avgFare     = totalRides > 0 ? totalFare / totalRides : 0;
+
+    const todayBucket = buckets.find(b => b.isToday);
+    const todayRides  = todayBucket?.rides.length ?? 0;
+
+    return {
+      buckets, totalRides, totalFare, totalPlatform, totalDriver,
+      maxFare, platPct, driverPct, avgFare, todayRides,
+    };
+  }, [rides]);
+
+  // Recent rides sorted newest first
+  const recentRides = useMemo(() =>
+    [...rides]
+      .sort((a, b) => tsToMs(b.createdAt) - tsToMs(a.createdAt))
+      .slice(0, 5),
+    [rides]
+  );
+
+  const STATUS_COLORS = {
+    completed:        C.green  ?? "#22C55E",
+    searching_driver: C.amber  ?? "#D97706",
+    in_progress:      C.blue   ?? "#2563EB",
+    cancelled:        C.red    ?? "#DC2626",
+    expired:          C.textDim ?? "#9CA3AF",
+  };
+
+  const PLATFORM_COLOR = C.blue  ?? "#2563EB";
+  const DRIVER_COLOR   = C.green ?? "#22C55E";
+
+  return (
+    <div
+      className="card fade-up"
+      style={{
+        padding: 0, marginBottom: 16, animationDelay: "40ms", opacity: 0,
+        boxShadow: "0 1px 8px rgba(0,0,0,.05)", overflow: "hidden",
+      }}
+    >
+      {/* Header */}
+      <div style={{
+        padding: "16px 18px 14px", borderBottom: `1px solid ${C.border}`,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        gap: 12, flexWrap: "wrap",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 9,
+            background: `${C.amber}14`, border: `1.5px solid ${C.amber}28`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <Activity size={15} color={C.amber} strokeWidth={2.4}/>
+          </div>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>Rides This Week</div>
+            <div style={{ fontSize: 11, color: C.textMuted }}>
+              {stats.totalRides} ride{stats.totalRides !== 1 ? "s" : ""} · ${stats.totalFare.toFixed(2)} collected
+            </div>
+          </div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div className="mono" style={{
+            fontSize: 22, fontWeight: 700, color: C.text, lineHeight: 1,
+            fontVariantNumeric: "tabular-nums", letterSpacing: "-.5px",
+          }}>
+            {stats.totalRides.toLocaleString()}
+          </div>
+          <div style={{
+            fontSize: 10, color: C.textMuted, fontWeight: 700,
+            marginTop: 4, letterSpacing: ".3px", textTransform: "uppercase",
+          }}>
+            Total
+          </div>
+        </div>
+      </div>
+
+      {/* Summary cards */}
+      <div style={{
+        display: "flex", borderBottom: `1px solid ${C.border}`,
+        background: C.surfaceAlt ?? `${C.bg ?? "#FAFAFA"}`,
+      }}>
+        {/* Total revenue */}
+        <div style={{ flex: 1, padding: "12px 14px", borderRight: `1px solid ${C.border}` }}>
+          <div style={{
+            fontSize: 9.5, color: C.textMuted, fontWeight: 700,
+            letterSpacing: ".4px", textTransform: "uppercase", marginBottom: 4,
+          }}>
+            Revenue
+          </div>
+          <span className="mono" style={{
+            fontSize: 16, fontWeight: 700, color: C.text,
+            fontVariantNumeric: "tabular-nums", letterSpacing: "-.3px",
+          }}>
+            ${stats.totalFare.toFixed(2)}
+          </span>
+          <div style={{ fontSize: 9, color: C.textDim, fontWeight: 600, marginTop: 2 }}>
+            ${stats.avgFare.toFixed(2)} avg fare
+          </div>
+        </div>
+
+        {/* Platform keeps */}
+        <div style={{ flex: 1, padding: "12px 14px", borderRight: `1px solid ${C.border}` }}>
+          <div style={{
+            fontSize: 9.5, color: C.textMuted, fontWeight: 700,
+            letterSpacing: ".4px", textTransform: "uppercase", marginBottom: 4,
+          }}>
+            UaTob Keeps
+          </div>
+          <span className="mono" style={{
+            fontSize: 16, fontWeight: 700, color: PLATFORM_COLOR,
+            fontVariantNumeric: "tabular-nums", letterSpacing: "-.3px",
+          }}>
+            ${stats.totalPlatform.toFixed(2)}
+          </span>
+          <div style={{ fontSize: 9, color: C.textDim, fontWeight: 600, marginTop: 2 }}>
+            {stats.platPct}% of fares
+          </div>
+        </div>
+
+        {/* Drivers keep */}
+        <div style={{ flex: 1, padding: "12px 14px" }}>
+          <div style={{
+            fontSize: 9.5, color: C.textMuted, fontWeight: 700,
+            letterSpacing: ".4px", textTransform: "uppercase", marginBottom: 4,
+          }}>
+            Drivers Keep
+          </div>
+          <span className="mono" style={{
+            fontSize: 16, fontWeight: 700, color: DRIVER_COLOR,
+            fontVariantNumeric: "tabular-nums", letterSpacing: "-.3px",
+          }}>
+            ${stats.totalDriver.toFixed(2)}
+          </span>
+          <div style={{ fontSize: 9, color: C.textDim, fontWeight: 600, marginTop: 2 }}>
+            {stats.driverPct}% of fares
+          </div>
+        </div>
+      </div>
+
+      {/* Legend */}
+      <div style={{
+        padding: "10px 18px 0",
+        display: "flex", alignItems: "center", gap: 14,
+      }}>
+        {[
+          { color: DRIVER_COLOR,   label: `Driver payout (${stats.driverPct}%)` },
+          { color: PLATFORM_COLOR, label: `Platform fee (${stats.platPct}%)` },
+        ].map(item => (
+          <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <div style={{
+              width: 10, height: 10, borderRadius: 2,
+              background: item.color, flexShrink: 0,
+            }}/>
+            <span style={{ fontSize: 10, color: C.textMuted, fontWeight: 600 }}>
+              {item.label}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Stacked bar chart */}
+      <div style={{ padding: "14px 18px 6px" }}>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 110 }}>
+          {stats.buckets.map((b, i) => {
+            const totalH = b.isFuture
+              ? 0
+              : Math.max((b.fare / stats.maxFare) * 90, b.fare > 0 ? 8 : 0);
+
+            const driverH   = totalH > 0 ? (b.driver   / b.fare) * totalH : 0;
+            const platformH = totalH - driverH;
+
+            return (
+              <div
+                key={DAYS[i]}
+                style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}
+              >
+                {/* Value label above bar */}
+                {!b.isFuture && b.fare > 0 ? (
+                  <div className="mono" style={{
+                    fontSize: 9, fontWeight: 700,
+                    color: b.isToday ? C.amber : C.textDim,
+                    fontVariantNumeric: "tabular-nums",
+                  }}>
+                    ${b.fare.toFixed(0)}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 9, color: "transparent" }}>·</div>
+                )}
+
+                {/* Stacked bar */}
+                {b.isFuture || b.fare === 0 ? (
+                  <div style={{
+                    width: "100%", height: 4, borderRadius: "4px 4px 0 0",
+                    background: C.borderLight ?? C.border,
+                    border: `1px solid ${C.border}`,
+                  }}/>
+                ) : (
+                  <div
+                    style={{
+                      width: "100%",
+                      borderRadius: "4px 4px 0 0",
+                      overflow: "hidden",
+                      display: "flex",
+                      flexDirection: "column",
+                      height: `${totalH}px`,
+                      cursor: "pointer",
+                      outline: b.isToday ? `1.5px solid ${C.amber}` : "none",
+                      outlineOffset: 1,
+                    }}
+                    onMouseEnter={e => setTooltip({
+                      visible: true,
+                      x: e.clientX,
+                      y: e.clientY,
+                      content: (
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 6, color: C.text }}>
+                            {b.label} — {b.rides.length} ride{b.rides.length !== 1 ? "s" : ""}
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 3, fontSize: 11 }}>
+                            <span style={{ color: C.textMuted }}>Total fare</span>
+                            <span style={{ fontWeight: 700, color: C.text }}>${b.fare.toFixed(2)}</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 3, fontSize: 11 }}>
+                            <span style={{ color: PLATFORM_COLOR }}>Platform keeps</span>
+                            <span style={{ fontWeight: 700, color: PLATFORM_COLOR }}>${b.platform.toFixed(2)}</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 16, fontSize: 11 }}>
+                            <span style={{ color: DRIVER_COLOR }}>Drivers keep</span>
+                            <span style={{ fontWeight: 700, color: DRIVER_COLOR }}>${b.driver.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      ),
+                    })}
+                    onMouseMove={e => setTooltip(prev => ({ ...prev, x: e.clientX, y: e.clientY }))}
+                    onMouseLeave={() => setTooltip(prev => ({ ...prev, visible: false }))}
+                  >
+                    {/* Platform segment (top) */}
+                    <div style={{
+                      height: `${platformH}px`,
+                      background: PLATFORM_COLOR,
+                      opacity: b.isToday ? 1 : 0.55,
+                    }}/>
+                    {/* Driver segment (bottom) */}
+                    <div style={{
+                      height: `${driverH}px`,
+                      background: DRIVER_COLOR,
+                      opacity: b.isToday ? 1 : 0.55,
+                    }}/>
+                  </div>
+                )}
+
+                {/* Day label */}
+                <div style={{
+                  fontSize: 9,
+                  color: b.isToday ? C.amber : C.textDim,
+                  fontWeight: b.isToday ? 800 : 700,
+                  letterSpacing: ".5px",
+                }}>
+                  {DAYS[i]}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Recent rides list */}
+      {recentRides.length > 0 && (
+        <div style={{ padding: "12px 18px 16px", borderTop: `1px solid ${C.border}` }}>
+          <div style={{
+            fontSize: 9.5, color: C.textMuted, fontWeight: 800,
+            letterSpacing: ".5px", textTransform: "uppercase",
+            marginBottom: 8, display: "flex", alignItems: "center", gap: 5,
+          }}>
+            <MapPin size={10} strokeWidth={2.4}/>
+            Recent Rides
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+            {recentRides.map((r, i) => {
+              const sc = STATUS_COLORS[r.status] ?? C.textDim;
+              return (
+                <div
+                  key={r.id ?? i}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10,
+                    padding: "9px 0",
+                    borderBottom: i < recentRides.length - 1 ? `1px solid ${C.border}` : "none",
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontSize: 11, color: C.text, fontWeight: 700,
+                      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                    }}>
+                      {(r.pickup  ?? "").split(",")[0] ?? "—"} → {(r.dropoff ?? "").split(",")[0] ?? "—"}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+                      <span style={{ fontSize: 10, color: sc, fontWeight: 700, textTransform: "capitalize" }}>
+                        {(r.status ?? "").replace(/_/g, " ")}
+                      </span>
+                      <span style={{ fontSize: 10, color: C.textDim }}>
+                        · {r.tripDistanceMiles?.toFixed(1)} mi · {r.rideType}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    <div className="mono" style={{
+                      fontSize: 13, fontWeight: 700, color: C.text,
+                      fontVariantNumeric: "tabular-nums",
+                    }}>
+                      ${(r.fareTotal ?? 0).toFixed(2)}
+                    </div>
+                    <div style={{ display: "flex", gap: 5, justifyContent: "flex-end", marginTop: 2 }}>
+                      <span className="mono" style={{ fontSize: 9.5, color: DRIVER_COLOR, fontWeight: 700 }}>
+                        drv ${(r.driverPayout ?? 0).toFixed(2)}
+                      </span>
+                      <span style={{ fontSize: 9.5, color: C.textDim }}>·</span>
+                      <span className="mono" style={{ fontSize: 9.5, color: PLATFORM_COLOR, fontWeight: 700 }}>
+                        plat ${(r.platformFee ?? 0).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Tooltip */}
+      {tooltip.visible && (
+        <div style={{
+          position: "fixed",
+          left: tooltip.x + 14,
+          top: tooltip.y - 90,
+          zIndex: 999,
+          background: C.surface ?? "#fff",
+          border: `1px solid ${C.border}`,
+          borderRadius: 10,
+          padding: "10px 14px",
+          pointerEvents: "none",
+          minWidth: 170,
+          boxShadow: "0 4px 16px rgba(0,0,0,.1)",
+        }}>
+          {tooltip.content}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Component ───────────────────────────────────────
 export function AnalyticsTab({
   uatobdrivers     = [],
@@ -840,22 +1148,13 @@ export function AnalyticsTab({
   topDrivers       = [],
   totalRides       = 0,
   ridesPerDay      = [0, 0, 0, 0, 0, 0, 0],
-  rides,
+  rides            = [],
 }) {
   const formatDuration = (minutes) => {
     const m = Math.floor(minutes);
     const s = Math.round((minutes - m) * 60);
     return `${m}m ${s}s`;
   };
-
-  console.log(totalRides);
-  console.log(rides);
-
-  const maxVal   = Math.max(...ridesPerDay, 1);
-  const todayIdx = (() => {
-    const d = new Date().getDay();
-    return d === 0 ? 6 : d - 1;
-  })();
 
   const metrics = [
     { label: "Avg Trip Duration", value: formatDuration(avgTripDuration), icon: Clock,       color: C.blue  },
@@ -873,89 +1172,8 @@ export function AnalyticsTab({
       {/* ─── DRIVER SIGNUPS CHART ─── */}
       <DriverSignupsChart uatobdrivers={uatobdrivers}/>
 
-      {/* ─── RIDES THIS WEEK ─── */}
-      <div
-        className="card fade-up"
-        style={{ padding: "18px", marginBottom: 16, animationDelay: "40ms", opacity: 0, boxShadow: "0 1px 8px rgba(0,0,0,.05)" }}
-      >
-        <div style={{
-          marginBottom: 14,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 10,
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: 9,
-              background: `${C.amber}14`,
-              border: `1.5px solid ${C.amber}28`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <Activity size={15} color={C.amber} strokeWidth={2.4}/>
-            </div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>Rides This Week</div>
-              <div style={{ fontSize: 11, color: C.textMuted }}>{totalRides} total rides</div>
-            </div>
-          </div>
-
-          <div style={{ textAlign: "right" }}>
-            <div className="mono" style={{
-              fontSize: 22, fontWeight: 700, color: C.text, lineHeight: 1,
-              fontVariantNumeric: "tabular-nums", letterSpacing: "-.5px",
-            }}>
-              {totalRides.toLocaleString()}
-            </div>
-            <div style={{
-              fontSize: 10, color: C.textMuted, fontWeight: 700,
-              marginTop: 4, letterSpacing: ".3px", textTransform: "uppercase",
-            }}>
-              Total
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 100 }}>
-          {ridesPerDay.map((val, i) => (
-            <div
-              key={DAYS[i]}
-              style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}
-            >
-              {val > 0 && (
-                <div className="mono" style={{
-                  fontSize: 9, fontWeight: 700,
-                  color: i === todayIdx ? C.amber : C.textDim,
-                  fontVariantNumeric: "tabular-nums",
-                }}>
-                  {val}
-                </div>
-              )}
-              {val === 0 && <div style={{ fontSize: 9, color: "transparent" }}>·</div>}
-              <div style={{
-                width: "100%",
-                borderRadius: "4px 4px 0 0",
-                height: `${(val / maxVal) * 80}px`,
-                minHeight: 4,
-                background: i === todayIdx
-                  ? `linear-gradient(180deg,${C.amber},${C.amber}cc 50%,${C.amber}99)`
-                  : `${C.amber}22`,
-                border: `1px solid ${C.amber}${i === todayIdx ? "bb" : "30"}`,
-                boxShadow: i === todayIdx ? `0 4px 12px ${C.amber}40` : "none",
-                transition: "height .6s cubic-bezier(.34,1.2,.64,1)",
-              }}/>
-              <div style={{
-                fontSize: 9,
-                color: i === todayIdx ? C.amber : C.textDim,
-                fontWeight: i === todayIdx ? 800 : 700,
-                letterSpacing: ".5px",
-              }}>
-                {DAYS[i]}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* ─── RIDES THIS WEEK (stacked fare breakdown) ─── */}
+      <RidesChart rides={rides}/>
 
       {/* ─── KEY METRICS ─── */}
       <SectionHeader title="Key Metrics"/>
@@ -964,12 +1182,16 @@ export function AnalyticsTab({
           <div
             key={label}
             className="card fade-up"
-            style={{ padding: "14px", animationDelay: `${90 + i * 55}ms`, opacity: 0, boxShadow: "0 1px 5px rgba(0,0,0,.04)" }}
+            style={{
+              padding: "14px",
+              animationDelay: `${90 + i * 55}ms`,
+              opacity: 0,
+              boxShadow: "0 1px 5px rgba(0,0,0,.04)",
+            }}
           >
             <div style={{
               width: 32, height: 32, borderRadius: 9,
-              background: `${color}14`,
-              border: `1.5px solid ${color}28`,
+              background: `${color}14`, border: `1.5px solid ${color}28`,
               display: "flex", alignItems: "center", justifyContent: "center",
               marginBottom: 10,
             }}>
