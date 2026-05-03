@@ -191,7 +191,7 @@ export default function UaTobAdminDashboard() {
   const { views } = useViews();
   const { searches } = useSearches();
 
-  console.log("Admin views:", views);
+
 
   const useriders = useRiders();
   const toastRef  = useRef(null);

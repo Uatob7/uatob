@@ -3,13 +3,17 @@ import {
   Activity, DollarSign, Car, Shield, RefreshCw, Filter,
   Search, X, ChevronDown, BarChart3, Sparkles, ArrowUpRight,
   Clock, Mail, Users, Phone, MessageSquare, Send, MapPin,
-  CheckCircle2, AlertCircle, Zap, Navigation,
+  CheckCircle2, AlertCircle, Zap, Navigation, User, Radio,
+  TrendingUp, Loader2, Bell, AtSign, ShieldCheck, Eye,
+  Gauge, Crosshair, Timer, ChevronRight,
 } from "lucide-react";
+import { getFirestore, doc, getDoc } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { firebase_app } from "@/firebase/config";
 
 /* ─── Firebase ───────────────────────────────────────────────────── */
 const functions = getFunctions(firebase_app, "us-east1");
+const db        = getFirestore(firebase_app);
 
 /* ─── Design Tokens ─────────────────────────────────────────────── */
 const CSS = `
@@ -19,6 +23,7 @@ const CSS = `
   --bg:            #F0F1F3;
   --bg-card:       #FFFFFF;
   --bg-soft:       #F5F6F8;
+  --bg-deep:       #0A0A0F;
   --border:        rgba(0,0,0,.07);
   --border-mid:    rgba(0,0,0,.11);
   --border-strong: rgba(0,0,0,.18);
@@ -29,12 +34,14 @@ const CSS = `
   --ink-5:         #9898AA;
   --green:         #00C16A;
   --green-dim:     rgba(0,193,106,.12);
+  --green-glow:    rgba(0,193,106,.5);
   --blue:          #2F6FED;
   --blue-dim:      rgba(47,111,237,.10);
   --amber:         #F59500;
   --amber-dim:     rgba(245,149,0,.12);
   --red:           #E8383A;
   --red-dim:       rgba(232,56,58,.10);
+  --purple:        #7C3AED;
   --font:          'Sora', system-ui, sans-serif;
   --mono:          'DM Mono', monospace;
   --radius-card:   18px;
@@ -56,6 +63,8 @@ const CSS = `
 @keyframes slideUp   { from{opacity:0;transform:translateY(28px) scale(.96)} to{opacity:1;transform:translateY(0) scale(1)} }
 @keyframes backdropIn{ from{opacity:0} to{opacity:1} }
 @keyframes blink     { 0%,100%{opacity:1} 50%{opacity:.35} }
+@keyframes shimmer   { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+@keyframes dot-bounce{ 0%,80%,100%{transform:scale(.8);opacity:.5} 40%{transform:scale(1);opacity:1} }
 
 .fade-up { animation:fadeUp .4s cubic-bezier(.22,1,.36,1) both; }
 .spin    { animation:spin 1s linear infinite; }
@@ -137,13 +146,14 @@ const CSS = `
   font-size:11.5px; font-weight:700; cursor:pointer; transition:all .15s;
   border:none; letter-spacing:.02em;
 }
-.qa-btn:hover { filter:brightness(.94); transform:translateY(-1px); }
-.qa-btn:active { transform:scale(.97); }
+.qa-btn:hover:not(:disabled) { filter:brightness(.94); transform:translateY(-1px); }
+.qa-btn:active:not(:disabled) { transform:scale(.97); }
+.qa-btn:disabled { opacity:.55; cursor:not-allowed; }
 
-/* ── Message sheet ── */
+/* ── Modal ── */
 .msg-backdrop {
   position:fixed; inset:0; z-index:900;
-  background:rgba(0,0,0,.5); backdrop-filter:blur(8px);
+  background:rgba(0,0,0,.55); backdrop-filter:blur(10px);
   display:flex; align-items:flex-end; justify-content:center;
   padding:0 0 env(safe-area-inset-bottom);
   animation:backdropIn .18s ease both;
@@ -152,6 +162,7 @@ const CSS = `
   width:100%; max-width:480px; background:#fff;
   border-radius:24px 24px 0 0; border-top:1px solid var(--border);
   overflow:hidden; animation:slideUp .3s cubic-bezier(.22,1,.36,1) both;
+  max-height:88vh; display:flex; flex-direction:column;
 }
 .msg-chip {
   display:flex; align-items:center; padding:10px 14px;
@@ -161,6 +172,7 @@ const CSS = `
   text-align:left; font-family:var(--font);
 }
 .msg-chip:hover { background:var(--ink); color:#fff; border-color:var(--ink); }
+.msg-chip:disabled { opacity:.5; cursor:not-allowed; }
 
 /* ── Chart bars ── */
 .chart-bar { border-radius:6px 6px 2px 2px; transition:all .4s cubic-bezier(.22,1,.36,1); }
@@ -177,6 +189,35 @@ const CSS = `
 .timeline-dot {
   width:8px; height:8px; border-radius:50%; flex-shrink:0; border:2px solid transparent;
 }
+
+/* ── Sparkline shimmer ── */
+.shimmer {
+  background:linear-gradient(90deg,#f6f6fa 0%,#eaeaef 50%,#f6f6fa 100%);
+  background-size:200% 100%;
+  animation:shimmer 1.4s linear infinite;
+}
+
+/* ── KPI tile inner ── */
+.kpi-tile {
+  display:flex; align-items:center; gap:8px;
+  padding:0 14px; flex-shrink:0;
+}
+
+/* ── Hero stat ── */
+.hero-stat-icon {
+  width:33px; height:33px; border-radius:10px;
+  display:flex; align-items:center; justify-content:center;
+  position:relative;
+}
+
+/* ── Loading dots ── */
+.dots span {
+  display:inline-block; width:5px; height:5px; border-radius:50%;
+  background:currentColor; margin:0 1.5px;
+  animation:dot-bounce 1.4s infinite ease-in-out both;
+}
+.dots span:nth-child(1) { animation-delay:-.32s; }
+.dots span:nth-child(2) { animation-delay:-.16s; }
 `;
 
 /* ─── Helpers ────────────────────────────────────────────────────── */
@@ -203,6 +244,22 @@ function initials(name = "") {
   return name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() || "?";
 }
 function shortAddr(addr = "") { return addr.split(",")[0].trim() || addr; }
+function fmtMiles(n) {
+  if (n == null) return "—";
+  if (n < 0.1) return `${Math.round(n * 5280)}ft`;
+  return `${Number(n).toFixed(n < 1 ? 2 : 1)}mi`;
+}
+
+/** Calculate haversine distance (miles) between 2 lat/lng pairs */
+function haversineMi(lat1, lng1, lat2, lng2) {
+  if (lat1 == null || lng1 == null || lat2 == null || lng2 == null) return null;
+  const R = 3958.8;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
 
 /* ─── Polyline decoder ───────────────────────────────────────────── */
 function decodePolyline(encoded) {
@@ -349,6 +406,141 @@ function StatusBar({ ride }) {
   return <div style={{ height: 3, background: "var(--bg-soft)" }} />;
 }
 
+/* ─── Live Tracking Panel (NEW) ──────────────────────────────────── */
+function LiveTrackingPanel({ ride }) {
+  const isActive = ["driver_assigned", "driver_arriving", "arrived", "in_progress"].includes(ride.status);
+  if (!isActive) return null;
+
+  const driverDist     = ride.driverDistanceMiles;
+  const driverEta      = ride.driverEtaMin;
+  const dropoffDist    = ride.riderDropoffDistanceMiles;
+  const dropoffEta     = ride.riderDropoffEtaMin ?? ride.dropoffEtaMin;
+
+  // Distance between rider GPS and driver GPS (live separation)
+  const riderDriverGap = haversineMi(
+    ride.driverLat, ride.driverLng,
+    ride.riderLat,  ride.riderLng,
+  );
+
+  // Last GPS update freshness
+  const driverLocAge = useStaleSeconds(ride.driverLocationAt);
+  const riderLocAge  = useStaleSeconds(ride.riderLocationAt);
+
+  const showDriverDist = driverDist != null && (ride.status === "driver_assigned" || ride.status === "driver_arriving");
+  const showDropoffDist = dropoffDist != null && ride.status === "in_progress";
+
+  const items = [];
+
+  if (showDriverDist) {
+    items.push({
+      icon: <Car size={11} strokeWidth={2.5}/>,
+      label: "Driver → Pickup",
+      value: fmtMiles(driverDist),
+      sub:   driverEta != null ? `${driverEta}m ETA` : null,
+      color: "#2F6FED",
+    });
+  }
+
+  if (showDropoffDist) {
+    items.push({
+      icon: <Navigation size={11} strokeWidth={2.5}/>,
+      label: "To Dropoff",
+      value: fmtMiles(dropoffDist),
+      sub:   dropoffEta != null ? `${dropoffEta}m left` : null,
+      color: "#00C16A",
+    });
+  }
+
+  if (riderDriverGap != null && (ride.status === "driver_assigned" || ride.status === "driver_arriving" || ride.status === "arrived")) {
+    items.push({
+      icon: <Crosshair size={11} strokeWidth={2.5}/>,
+      label: "Driver ↔ Rider",
+      value: fmtMiles(riderDriverGap),
+      sub:   riderDriverGap < 0.05 ? "On scene" : "Live gap",
+      color: riderDriverGap < 0.05 ? "#00C16A" : "#7C3AED",
+    });
+  }
+
+  if (driverLocAge != null) {
+    const stale = driverLocAge > 60;
+    items.push({
+      icon: <Radio size={11} strokeWidth={2.5}/>,
+      label: "Driver GPS",
+      value: driverLocAge < 60 ? `${driverLocAge}s ago` : `${Math.round(driverLocAge/60)}m ago`,
+      sub:   stale ? "Stale" : "Fresh",
+      color: stale ? "#E8383A" : "#00C16A",
+    });
+  }
+
+  if (!items.length) return null;
+
+  return (
+    <div style={{
+      margin: "0 16px 0",
+      padding: "10px 12px",
+      background: "linear-gradient(135deg,rgba(47,111,237,.06),rgba(0,193,106,.04))",
+      border: "1px solid rgba(47,111,237,.18)",
+      borderRadius: 12,
+      display: "grid",
+      gridTemplateColumns: `repeat(${Math.min(items.length, 4)}, 1fr)`,
+      gap: 10,
+    }}>
+      {items.map((it, i) => (
+        <div key={i} style={{
+          display: "flex", flexDirection: "column", gap: 3,
+          minWidth: 0,
+          paddingRight: i < items.length - 1 ? 10 : 0,
+          borderRight: i < items.length - 1 ? "1px solid rgba(0,0,0,.07)" : "none",
+        }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 4,
+            color: it.color,
+            fontSize: 9.5, fontWeight: 700,
+            letterSpacing: ".04em", textTransform: "uppercase",
+            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+          }}>
+            {it.icon}
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{it.label}</span>
+          </div>
+          <div style={{
+            fontSize: 14,
+            fontWeight: 800,
+            color: "var(--ink)",
+            fontFamily: "var(--mono)",
+            letterSpacing: "-.02em",
+            whiteSpace: "nowrap",
+          }}>
+            {it.value}
+          </div>
+          {it.sub && (
+            <div style={{
+              fontSize: 9.5, color: "var(--ink-5)",
+              fontWeight: 600, whiteSpace: "nowrap",
+              overflow: "hidden", textOverflow: "ellipsis",
+            }}>
+              {it.sub}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Reactive seconds-since-timestamp counter */
+function useStaleSeconds(ts) {
+  const [age, setAge] = useState(null);
+  useEffect(() => {
+    const ms = tsToMs(ts);
+    if (!ms) { setAge(null); return; }
+    const update = () => setAge(Math.floor((Date.now() - ms) / 1000));
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [ts]);
+  return age;
+}
+
 /* ─── Ride timeline (completed rides) ───────────────────────────── */
 function RideTimeline({ ride }) {
   const steps = [
@@ -383,19 +575,20 @@ function RideTimeline({ ride }) {
   );
 }
 
-/* ─── Message Modal ──────────────────────────────────────────────── */
+/* ─── Message Modal (FCM + Email) ────────────────────────────────── */
 const CANNED = [
-  "Please head to the pickup location.",
-  "Rider is waiting — confirm your ETA.",
-  "Any issues with this ride?",
-  "Complete the trip as requested.",
-  "Call support if you need assistance.",
+  { icon: <Bell size={11}/>,         text: "Please head to the pickup location now." },
+  { icon: <Clock size={11}/>,        text: "Rider is waiting — confirm your ETA please." },
+  { icon: <AlertCircle size={11}/>,  text: "Any issues with this ride? Contact support." },
+  { icon: <CheckCircle2 size={11}/>, text: "Please complete the trip as requested." },
+  { icon: <Phone size={11}/>,        text: "Call support immediately — important." },
 ];
 
-function MessageModal({ ride, driverName, onClose }) {
-  const [text, setText] = useState("");
+function MessageModal({ ride, driverName, driverEmail, hasFcm, onClose }) {
+  const [text,    setText]    = useState("");
   const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [result,  setResult]  = useState(null); // { fcmSent, emailSent, errors }
+  const [error,   setError]   = useState("");
   const ta = useRef(null);
   useEffect(() => { ta.current?.focus(); }, []);
 
@@ -403,13 +596,26 @@ function MessageModal({ ride, driverName, onClose }) {
     const body = msg ?? text.trim();
     if (!body || sending) return;
     setSending(true);
+    setError("");
     try {
-      await httpsCallable(functions, "adminSendDriverMessage")({ rideId: ride.id, message: body });
-      setSent(true);
-      setTimeout(onClose, 900);
-    } catch (e) { console.error(e); }
-    finally { setSending(false); }
-  }, [text, sending, ride?.id, onClose]);
+      const { data } = await httpsCallable(functions, "adminSendDriverMessage")({
+        rideId:    ride.id,
+        driverUid: ride.driverUid,
+        message:   body,
+      });
+      setResult(data);
+      if (!data?.success) {
+        setError("Message failed to deliver via any channel.");
+      } else {
+        setTimeout(onClose, 2400);
+      }
+    } catch (e) {
+      console.error(e);
+      setError(e?.message || "Failed to send message");
+    } finally {
+      setSending(false);
+    }
+  }, [text, sending, ride?.id, ride?.driverUid, onClose]);
 
   const shortId = ride.id?.slice(-6).toUpperCase();
   const dname = driverName ?? (ride.driverUid ? `Driver ···${ride.driverUid.slice(-4)}` : "Driver");
@@ -418,62 +624,167 @@ function MessageModal({ ride, driverName, onClose }) {
     <div className="msg-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="msg-sheet">
         {/* drag handle */}
-        <div style={{ display: "flex", justifyContent: "center", paddingTop: 14, paddingBottom: 4 }}>
+        <div style={{ display: "flex", justifyContent: "center", paddingTop: 14, paddingBottom: 4, flexShrink: 0 }}>
           <div style={{ width: 40, height: 4, borderRadius: 2, background: "var(--border-strong)" }} />
         </div>
 
         {/* header */}
-        <div style={{ padding: "8px 20px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 12, background: "linear-gradient(135deg,#2F6FED,#1A4BCC)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 14px rgba(47,111,237,.35)" }}>
-              <MessageSquare size={16} color="#fff" strokeWidth={2.5} />
+        <div style={{ padding: "8px 20px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 11, minWidth: 0, flex: 1 }}>
+            <div style={{
+              width: 42, height: 42, borderRadius: 13,
+              background: "linear-gradient(135deg,#2F6FED,#1A4BCC)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 4px 14px rgba(47,111,237,.35)",
+              flexShrink: 0,
+            }}>
+              <MessageSquare size={17} color="#fff" strokeWidth={2.5} />
             </div>
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)", letterSpacing: "-.02em" }}>Message Driver</div>
-              <div style={{ fontSize: 11, color: "var(--ink-5)", fontWeight: 500, marginTop: 1 }}>{dname} · Ride #{shortId}</div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)", letterSpacing: "-.02em" }}>
+                Message Driver
+              </div>
+              <div style={{ fontSize: 11, color: "var(--ink-5)", fontWeight: 500, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {dname}{shortId ? ` · Ride #${shortId}` : ""}
+              </div>
             </div>
           </div>
-          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 9, border: "1px solid var(--border-mid)", background: "var(--bg-soft)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--ink-4)" }}>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 9, border: "1px solid var(--border-mid)", background: "var(--bg-soft)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--ink-4)", flexShrink: 0 }}>
             <X size={14} />
           </button>
         </div>
 
-        {/* quick sends */}
-        <div style={{ padding: "14px 20px 0" }}>
-          <div style={{ fontSize: 9.5, fontWeight: 700, color: "var(--ink-5)", letterSpacing: ".07em", textTransform: "uppercase", marginBottom: 8 }}>Quick sends</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {CANNED.map((c, i) => (
-              <button key={i} className="msg-chip" onClick={() => send(c)} disabled={sending || sent}
-                style={{ opacity: sending || sent ? 0.5 : 1 }}>
-                <Zap size={11} style={{ marginRight: 4, opacity: .6, flexShrink: 0 }} />
-                {c}
-              </button>
-            ))}
+        {/* delivery channels indicator */}
+        <div style={{
+          padding: "12px 20px",
+          background: "linear-gradient(135deg,#FAFBFD,#F5F6F8)",
+          borderBottom: "1px solid var(--border)",
+          display: "flex", alignItems: "center", gap: 10,
+          flexShrink: 0,
+        }}>
+          <div style={{
+            fontSize: 9.5, fontWeight: 700, color: "var(--ink-5)",
+            letterSpacing: ".07em", textTransform: "uppercase",
+            flexShrink: 0,
+          }}>
+            Delivers via
+          </div>
+          <div style={{ display: "flex", gap: 6, flex: 1 }}>
+            {/* FCM Push */}
+            <div style={{
+              flex: 1, padding: "6px 10px", borderRadius: 8,
+              background: hasFcm ? "var(--blue-dim)" : "var(--bg-soft)",
+              border: `1px solid ${hasFcm ? "#BAD0FF" : "var(--border)"}`,
+              display: "flex", alignItems: "center", gap: 6,
+              opacity: hasFcm ? 1 : 0.5,
+            }}>
+              <Bell size={11} color={hasFcm ? "var(--blue)" : "var(--ink-5)"} strokeWidth={2.4}/>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, color: hasFcm ? "var(--blue)" : "var(--ink-4)", letterSpacing: ".02em" }}>
+                  Push
+                </div>
+                <div style={{ fontSize: 9, color: "var(--ink-5)", fontWeight: 600, marginTop: 1 }}>
+                  {hasFcm ? "FCM ready" : "No token"}
+                </div>
+              </div>
+              {result?.fcmSent && <CheckCircle2 size={12} color="var(--green)" strokeWidth={2.5}/>}
+            </div>
+
+            {/* Email */}
+            <div style={{
+              flex: 1, padding: "6px 10px", borderRadius: 8,
+              background: driverEmail ? "var(--green-dim)" : "var(--bg-soft)",
+              border: `1px solid ${driverEmail ? "#99EDCA" : "var(--border)"}`,
+              display: "flex", alignItems: "center", gap: 6,
+              opacity: driverEmail ? 1 : 0.5,
+            }}>
+              <AtSign size={11} color={driverEmail ? "var(--green)" : "var(--ink-5)"} strokeWidth={2.4}/>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, color: driverEmail ? "var(--green)" : "var(--ink-4)", letterSpacing: ".02em" }}>
+                  Email
+                </div>
+                <div style={{ fontSize: 9, color: "var(--ink-5)", fontWeight: 600, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {driverEmail ?? "No email"}
+                </div>
+              </div>
+              {result?.emailSent && <CheckCircle2 size={12} color="var(--green)" strokeWidth={2.5}/>}
+            </div>
           </div>
         </div>
 
-        {/* custom */}
-        <div style={{ padding: "14px 20px 28px" }}>
-          <div style={{ fontSize: 9.5, fontWeight: 700, color: "var(--ink-5)", letterSpacing: ".07em", textTransform: "uppercase", marginBottom: 8 }}>Custom message</div>
-          <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-            <textarea ref={ta} value={text} onChange={e => setText(e.target.value)}
-              placeholder="Type a message to the driver…" rows={2}
-              style={{ flex: 1, resize: "none", border: "1px solid var(--border-mid)", borderRadius: 12, padding: "10px 13px", fontFamily: "var(--font)", fontSize: 13, color: "var(--ink)", background: "var(--bg-soft)", outline: "none", transition: "border-color .18s, box-shadow .18s" }}
-              onFocus={e => { e.target.style.borderColor = "var(--ink)"; e.target.style.boxShadow = "0 0 0 3px rgba(10,10,15,.05)"; }}
-              onBlur={e => { e.target.style.borderColor = "var(--border-mid)"; e.target.style.boxShadow = "none"; }}
-            />
-            <button onClick={() => send()} disabled={!text.trim() || sending || sent}
-              style={{
-                width: 44, height: 44, borderRadius: 12, border: "none",
-                background: sent ? "#00C16A" : text.trim() ? "var(--ink)" : "var(--bg-soft)",
-                color: text.trim() || sent ? "#fff" : "var(--ink-5)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: text.trim() && !sending && !sent ? "pointer" : "not-allowed",
-                transition: "all .18s", flexShrink: 0,
-                boxShadow: text.trim() && !sent ? "0 4px 14px rgba(10,10,15,.2)" : "none",
+        {/* scrollable body */}
+        <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
+          {/* quick sends */}
+          <div style={{ padding: "14px 20px 0" }}>
+            <div style={{ fontSize: 9.5, fontWeight: 700, color: "var(--ink-5)", letterSpacing: ".07em", textTransform: "uppercase", marginBottom: 8 }}>
+              Quick sends
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {CANNED.map((c, i) => (
+                <button key={i} className="msg-chip" onClick={() => send(c.text)} disabled={sending || !!result?.success}>
+                  <span style={{ marginRight: 7, opacity: .7, flexShrink: 0, color: "var(--ink-3)" }}>{c.icon}</span>
+                  {c.text}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* custom */}
+          <div style={{ padding: "14px 20px 24px" }}>
+            <div style={{ fontSize: 9.5, fontWeight: 700, color: "var(--ink-5)", letterSpacing: ".07em", textTransform: "uppercase", marginBottom: 8 }}>
+              Custom message
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+              <textarea ref={ta} value={text} onChange={e => setText(e.target.value)}
+                placeholder="Type a message to the driver…" rows={2}
+                disabled={sending || !!result?.success}
+                style={{ flex: 1, resize: "none", border: "1px solid var(--border-mid)", borderRadius: 12, padding: "10px 13px", fontFamily: "var(--font)", fontSize: 13, color: "var(--ink)", background: "var(--bg-soft)", outline: "none", transition: "border-color .18s, box-shadow .18s" }}
+                onFocus={e => { e.target.style.borderColor = "var(--ink)"; e.target.style.boxShadow = "0 0 0 3px rgba(10,10,15,.05)"; }}
+                onBlur={e => { e.target.style.borderColor = "var(--border-mid)"; e.target.style.boxShadow = "none"; }}
+              />
+              <button onClick={() => send()} disabled={!text.trim() || sending || !!result?.success}
+                style={{
+                  width: 44, height: 44, borderRadius: 12, border: "none",
+                  background: result?.success ? "var(--green)" : text.trim() && !sending ? "var(--ink)" : "var(--bg-soft)",
+                  color: text.trim() || result?.success ? "#fff" : "var(--ink-5)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  cursor: text.trim() && !sending && !result?.success ? "pointer" : "not-allowed",
+                  transition: "all .18s", flexShrink: 0,
+                  boxShadow: text.trim() && !result?.success ? "0 4px 14px rgba(10,10,15,.2)" : "none",
+                }}>
+                {sending ? <Loader2 size={18} className="spin"/>
+                : result?.success ? <CheckCircle2 size={18}/>
+                : <Send size={16}/>}
+              </button>
+            </div>
+
+            {/* Error */}
+            {error && (
+              <div style={{
+                marginTop: 10, padding: "9px 12px", borderRadius: 10,
+                background: "var(--red-dim)", border: "1px solid #F9BCBC",
+                color: "var(--red)", fontSize: 12, fontWeight: 600,
+                display: "flex", alignItems: "center", gap: 6,
               }}>
-              {sent ? <CheckCircle2 size={18} /> : <Send size={16} />}
-            </button>
+                <AlertCircle size={13}/>
+                {error}
+              </div>
+            )}
+
+            {/* Result success */}
+            {result?.success && (
+              <div style={{
+                marginTop: 10, padding: "10px 12px", borderRadius: 10,
+                background: "var(--green-dim)", border: "1px solid #99EDCA",
+                color: "var(--green)", fontSize: 12, fontWeight: 600,
+                display: "flex", alignItems: "center", gap: 6,
+              }}>
+                <CheckCircle2 size={13}/>
+                <span>
+                  Sent via {[result.fcmSent && "push", result.emailSent && "email"].filter(Boolean).join(" + ")}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -493,7 +804,6 @@ function CardMap({ ride, status }) {
   const isCancelled = status === "cancelled";
   const isSearching = status === "searching_driver";
 
-  // Decode polyline → [lng,lat] for Mapbox
   const routeCoords = useMemo(() => {
     if (!ride.polyline) return [];
     return decodePolyline(ride.polyline).map(p => [p[1], p[0]]);
@@ -518,7 +828,6 @@ function CardMap({ ride, status }) {
     bounds ? [(bounds.minLng + bounds.maxLng) / 2, (bounds.minLat + bounds.maxLat) / 2] : [-81.4696, 28.573],
     [bounds]);
 
-  // Init map
   useEffect(() => {
     if (!containerRef.current || initializedRef.current) return;
     loadMapbox(() => {
@@ -544,13 +853,11 @@ function CardMap({ ride, status }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Draw route + markers whenever coords change
   useEffect(() => {
     if (!mapRef.current) return;
     const attach = () => {
       if (!mapRef.current?.isStyleLoaded()) { setTimeout(attach, 80); return; }
 
-      /* ── Route polyline ── */
       if (routeCoords.length > 1) {
         const geo = { type: "Feature", geometry: { type: "LineString", coordinates: routeCoords } };
         const routeColor = isCancelled ? "#E8383A" : isCompleted ? "#9898AA" : "#00C16A";
@@ -558,19 +865,16 @@ function CardMap({ ride, status }) {
           mapRef.current.getSource("route").setData(geo);
         } else {
           mapRef.current.addSource("route", { type: "geojson", data: geo });
-          // Halo
           mapRef.current.addLayer({
             id: "route-halo", type: "line", source: "route",
             layout: { "line-cap": "round", "line-join": "round" },
             paint: { "line-color": "#ffffff", "line-width": 10, "line-opacity": isCompleted ? 0.2 : 0.14, "line-blur": 6 },
           });
-          // Main
           mapRef.current.addLayer({
             id: "route-main", type: "line", source: "route",
             layout: { "line-cap": "round", "line-join": "round" },
             paint: { "line-color": routeColor, "line-width": 3.5, "line-opacity": isCancelled ? 0.55 : 1 },
           });
-          // Animated dash (active only)
           if (!isCancelled && !isCompleted) {
             mapRef.current.addLayer({
               id: "route-dash", type: "line", source: "route",
@@ -581,7 +885,6 @@ function CardMap({ ride, status }) {
         }
       }
 
-      /* ── Clear markers ── */
       markersRef.current.forEach(m => m.remove()); markersRef.current = [];
 
       const addMarker = (lngLat, html, anchor = "center") => {
@@ -594,7 +897,6 @@ function CardMap({ ride, status }) {
         );
       };
 
-      /* ── Pickup pin (green filled circle) ── */
       if (ride.pickupLat && ride.pickupLng) {
         addMarker([ride.pickupLng, ride.pickupLat], `
           <div style="position:relative;width:28px;height:28px;display:flex;align-items:center;justify-content:center;">
@@ -603,7 +905,6 @@ function CardMap({ ride, status }) {
           </div>`);
       }
 
-      /* ── Dropoff pin (teardrop) ── */
       if (ride.dropoffLat && ride.dropoffLng) {
         const pc = isCancelled ? "#E8383A" : isCompleted ? "#6E6E82" : "#0A0A0F";
         addMarker([ride.dropoffLng, ride.dropoffLat], `
@@ -616,7 +917,6 @@ function CardMap({ ride, status }) {
           </div>`, "bottom");
       }
 
-      /* ── Driver dot (blue pulsing) ── active/assigned only ── */
       if (ride.driverLat && ride.driverLng && !isCompleted && !isCancelled) {
         addMarker([ride.driverLng, ride.driverLat], `
           <div style="position:relative;width:22px;height:22px;display:flex;align-items:center;justify-content:center;">
@@ -625,7 +925,6 @@ function CardMap({ ride, status }) {
           </div>`);
       }
 
-      /* ── Rider dot (amber) — only when meaningfully separate from driver ── */
       if (ride.riderLat && ride.riderLng && isActive) {
         const driverNearby = ride.driverLat &&
           Math.hypot(ride.riderLat - ride.driverLat, ride.riderLng - ride.driverLng) < 0.0005;
@@ -637,7 +936,6 @@ function CardMap({ ride, status }) {
         }
       }
 
-      /* ── Fit to bounds ── */
       if (bounds) {
         mapRef.current.fitBounds(
           [[bounds.minLng, bounds.minLat], [bounds.maxLng, bounds.maxLat]],
@@ -705,16 +1003,49 @@ function RideCard({ ride, index }) {
   const isSearching = status === "searching_driver";
   const hasDriver   = !!(ride.driverUid && !isSearching);
 
-  const [showMsg, setShowMsg] = useState(false);
+  const [showMsg,         setShowMsg]         = useState(false);
+  const [callLoading,     setCallLoading]     = useState(false);
+  const [driverDoc,       setDriverDoc]       = useState(null);
+  const [driverDocLoaded, setDriverDocLoaded] = useState(false);
 
-  const etaChip = useMemo(() => {
-    if (status === "driver_assigned" || status === "driver_arriving") return ride.driverEtaMin != null ? `${ride.driverEtaMin}m to pickup` : null;
-    if (status === "in_progress")  return ride.dropoffEtaMin != null ? `${ride.dropoffEtaMin}m to dropoff` : null;
-    if (status === "arrived")      return ride.dropoffEtaMin != null ? `${ride.dropoffEtaMin}m to dropoff` : null;
-    return null;
-  }, [status, ride.driverEtaMin, ride.dropoffEtaMin]);
+  // Lazy-load driver doc once (for phone, email, fcm token)
+  useEffect(() => {
+    if (!ride.driverUid || driverDocLoaded) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, "Drivers", ride.driverUid));
+        if (!cancelled && snap.exists()) {
+          setDriverDoc(snap.data());
+        }
+      } catch (e) {
+        console.error("Driver fetch failed:", e);
+      } finally {
+        if (!cancelled) setDriverDocLoaded(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [ride.driverUid, driverDocLoaded]);
 
-  // Trip duration for completed
+  const handleCallDriver = async () => {
+    if (callLoading) return;
+    setCallLoading(true);
+    try {
+      const phone = driverDoc?.contact?.phone;
+      if (!phone) {
+        alert("No phone number on file for this driver.");
+        return;
+      }
+      const cleaned = phone.replace(/[^\d+]/g, "");
+      window.location.href = `tel:${cleaned}`;
+    } catch (e) {
+      console.error("Call failed:", e);
+      alert("Could not initiate call");
+    } finally {
+      setCallLoading(false);
+    }
+  };
+
   const tripDuration = useMemo(() => {
     if (!isCompleted) return null;
     const start = tsToMs(ride.startedAt), end = tsToMs(ride.completedAt);
@@ -733,6 +1064,13 @@ function RideCard({ ride, index }) {
     ? "linear-gradient(90deg,#2F6FED,#7BA7FF)"
     : "linear-gradient(90deg,#D4D4E0,#E4E4F0)";
 
+  const driverFullName = driverDoc
+    ? `${driverDoc.firstName ?? ""} ${driverDoc.lastName ?? ""}`.trim()
+    : null;
+  const hasFcm = !!driverDoc?.fcmToken;
+  const driverEmail = driverDoc?.email;
+  const driverPhone = driverDoc?.contact?.phone;
+
   return (
     <>
       <div className="card card-hover fade-up" style={{ animationDelay: `${160 + index * 40}ms`, padding: 0, overflow: "hidden" }}>
@@ -743,7 +1081,6 @@ function RideCard({ ride, index }) {
         {/* ── Header ── */}
         <div style={{ padding: "14px 16px 12px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 11, minWidth: 0 }}>
-            {/* Avatar */}
             <div style={{
               width: 42, height: 42, borderRadius: 13, flexShrink: 0,
               background: isCancelled
@@ -762,15 +1099,14 @@ function RideCard({ ride, index }) {
                 {riderLabel}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                {driverLabel
-                  ? <><Car size={9} color="var(--ink-5)" strokeWidth={2.5} /><span style={{ fontSize: 11, color: "var(--ink-4)", fontWeight: 600 }}>{driverLabel}</span></>
+                {driverFullName || driverLabel
+                  ? <><Car size={9} color="var(--ink-5)" strokeWidth={2.5} /><span style={{ fontSize: 11, color: "var(--ink-4)", fontWeight: 600 }}>{driverFullName || driverLabel}</span></>
                   : <span style={{ fontSize: 11, color: "#F59500", fontWeight: 700, fontStyle: "italic" }}>Awaiting driver</span>
                 }
               </div>
             </div>
           </div>
 
-          {/* Status + fare */}
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 7, flexShrink: 0 }}>
             <div className="pill" style={{ background: s.bg, color: s.accent, border: `1px solid ${s.border}` }}>
               <span className={isActive ? "blink" : ""} style={{ width: 5, height: 5, borderRadius: "50%", background: s.dot, boxShadow: `0 0 5px ${s.dot}`, display: "inline-block" }} />
@@ -786,19 +1122,16 @@ function RideCard({ ride, index }) {
         <div style={{ position: "relative", height: 170, margin: "0 16px", borderRadius: 14, overflow: "hidden", border: "1px solid var(--border)", background: "#0d1117" }}>
           <CardMap ride={ride} status={status} />
 
-          {/* Pickup chip — top left */}
           <div style={{ position: "absolute", top: 8, left: 8, zIndex: 20, display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,.94)", backdropFilter: "blur(10px)", border: "1px solid rgba(0,0,0,.07)", borderRadius: 9, padding: "4px 9px", maxWidth: "54%" }}>
             <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#00C16A", flexShrink: 0, boxShadow: "0 0 8px rgba(0,193,106,.9)" }} />
             <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{shortAddr(ride.pickup) || "Pickup"}</span>
           </div>
 
-          {/* Dropoff chip — top right */}
           <div style={{ position: "absolute", top: 8, right: 8, zIndex: 20, display: "flex", alignItems: "center", gap: 5, background: "rgba(10,10,15,.85)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 9, padding: "4px 9px", maxWidth: "54%" }}>
             <MapPin size={9} color={isCancelled ? "#E8383A" : isCompleted ? "#9898AA" : "rgba(255,255,255,.7)"} />
             <span style={{ fontSize: 10.5, fontWeight: 700, color: "rgba(255,255,255,.9)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{shortAddr(ride.dropoff) || "Dropoff"}</span>
           </div>
 
-          {/* Live badge */}
           {isActive && (
             <div style={{ position: "absolute", bottom: 8, right: 8, zIndex: 20, display: "flex", alignItems: "center", gap: 5, background: "rgba(10,10,15,.82)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,.12)", borderRadius: 20, padding: "4px 10px" }}>
               <div className="live-dot blink" style={{ background: "#00C16A", color: "#00C16A", width: 5, height: 5 }} />
@@ -806,58 +1139,57 @@ function RideCard({ ride, index }) {
             </div>
           )}
 
-          {/* Driver distance badge (active) */}
-          {isActive && ride.driverDistanceMiles != null && ride.driverEtaMin != null && (
-            <div style={{ position: "absolute", bottom: 8, left: 8, zIndex: 20, display: "flex", alignItems: "center", gap: 5, background: "rgba(47,111,237,.88)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,.15)", borderRadius: 20, padding: "4px 10px" }}>
-              <Navigation size={8} color="#fff" />
-              <span style={{ fontSize: 9, fontWeight: 700, color: "#fff", letterSpacing: ".05em" }}>{ride.driverEtaMin}m · {ride.driverDistanceMiles}mi</span>
-            </div>
-          )}
-
-          {/* Cancelled overlay */}
           {isCancelled && <div style={{ position: "absolute", inset: 0, background: "rgba(232,56,58,.08)", zIndex: 10, pointerEvents: "none" }} />}
 
-          {/* Pin legend */}
           <MapLegend ride={ride} status={status} />
         </div>
 
-        {/* ── Ride timeline (completed) ── */}
+        {/* ── Live tracking panel (NEW) ── */}
+        {isActive && <div style={{ paddingTop: 11 }}><LiveTrackingPanel ride={ride}/></div>}
+
         {isCompleted && <RideTimeline ride={ride} />}
 
         {/* ── Quick Actions ── */}
         {hasDriver && (
           <div style={{ padding: "11px 16px 0", display: "flex", gap: 8 }}>
-            {/* Message Driver */}
             <button
               className="qa-btn"
               onClick={() => setShowMsg(true)}
               style={{ background: "#EDF2FF", color: "#2F6FED", border: "1px solid #BAD0FF", boxShadow: "0 2px 8px rgba(47,111,237,.12)" }}
+              title={`Sends to ${hasFcm ? "FCM push" : "no push"}${driverEmail ? " + email" : ""}`}
             >
               <MessageSquare size={13} strokeWidth={2.5} />
-              Message Driver
+              Message
+              {driverDocLoaded && (hasFcm || driverEmail) && (
+                <span style={{ display: "inline-flex", gap: 2, marginLeft: 2 }}>
+                  {hasFcm && <Bell size={9} strokeWidth={2.6}/>}
+                  {driverEmail && <AtSign size={9} strokeWidth={2.6}/>}
+                </span>
+              )}
             </button>
 
-            {/* Call Driver */}
             <button
               className="qa-btn"
-              onClick={() => {
-                if (ride.driverPhone) {
-                  window.open(`tel:${ride.driverPhone}`);
-                } else {
-                  alert("Driver phone number not available.");
-                }
+              onClick={handleCallDriver}
+              disabled={callLoading || !driverDocLoaded || !driverPhone}
+              style={{
+                background: driverPhone ? "#E6FFF3" : "var(--bg-soft)",
+                color: driverPhone ? "#00A659" : "var(--ink-5)",
+                border: `1px solid ${driverPhone ? "#99EDCA" : "var(--border-mid)"}`,
+                boxShadow: driverPhone ? "0 2px 8px rgba(0,193,106,.12)" : "none",
               }}
-              style={{ background: "#E6FFF3", color: "#00A659", border: "1px solid #99EDCA", boxShadow: "0 2px 8px rgba(0,193,106,.12)" }}
+              title={driverPhone ? `Call ${driverPhone}` : "No phone number"}
             >
-              <Phone size={13} strokeWidth={2.5} />
-              Call Driver
+              {callLoading
+                ? <Loader2 size={13} className="spin"/>
+                : <Phone size={13} strokeWidth={2.5} />}
+              {!driverDocLoaded ? "Loading…" : driverPhone ? "Call" : "No phone"}
             </button>
           </div>
         )}
 
         {/* ── Footer meta ── */}
         <div style={{ padding: "11px 16px 14px", display: "flex", flexDirection: "column", gap: 9 }}>
-          {/* Pills row */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, flexWrap: "wrap" }}>
             <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
               {ride.rideLabel && (
@@ -871,11 +1203,6 @@ function RideCard({ ride, index }) {
               )}
               {tripDuration && (
                 <span className="pill" style={{ background: "var(--bg-soft)", color: "var(--ink-3)", border: "1px solid var(--border)" }}>⏱ {tripDuration}</span>
-              )}
-              {etaChip && (
-                <span className="pill" style={{ background: "var(--green-dim)", color: "var(--green)", border: "1px solid rgba(0,193,106,.2)" }}>
-                  <Clock size={8} /> {etaChip}
-                </span>
               )}
               {isSearching && (
                 <>
@@ -894,11 +1221,14 @@ function RideCard({ ride, index }) {
             <span style={{ fontSize: 10.5, color: "var(--ink-5)", fontWeight: 600, fontFamily: "var(--mono)", whiteSpace: "nowrap" }}>{timeAgo(ride.createdAt)}</span>
           </div>
 
-          {/* Payment row */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 9, borderTop: "1px solid var(--border)", flexWrap: "wrap", gap: 6 }}>
             <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-              <span className="pill" style={{ background: ride.paymentMethod === "cashapp" ? "#E6FFF3" : "#EDF2FF", color: ride.paymentMethod === "cashapp" ? "#00A659" : "#2F6FED", border: "none" }}>
-                {ride.paymentMethod === "cashapp" ? "Cash App" : ride.paymentMethod === "card" ? "Card" : (ride.paymentMethod ?? "—")}
+              <span className="pill" style={{
+                background: ride.paymentMethod === "cashapp" ? "#E6FFF3" : ride.paymentMethod === "cash" ? "#FFF8E6" : "#EDF2FF",
+                color:      ride.paymentMethod === "cashapp" ? "#00A659" : ride.paymentMethod === "cash" ? "#CC7A00" : "#2F6FED",
+                border: "none",
+              }}>
+                {ride.paymentMethod === "cashapp" ? "Cash App" : ride.paymentMethod === "cash" ? "Cash" : ride.paymentMethod === "card" ? "Card" : (ride.paymentMethod ?? "—")}
               </span>
               <span className="pill" style={{ background: pm.bg, color: pm.color }}>{pm.label}</span>
               <span className="pill" style={{ background: po.bg, color: po.color }}>{po.label}</span>
@@ -914,7 +1244,15 @@ function RideCard({ ride, index }) {
         <StatusBar ride={ride} />
       </div>
 
-      {showMsg && <MessageModal ride={ride} driverName={ride.driverName} onClose={() => setShowMsg(false)} />}
+      {showMsg && (
+        <MessageModal
+          ride={ride}
+          driverName={driverFullName ?? ride.driverName}
+          driverEmail={driverEmail}
+          hasFcm={hasFcm}
+          onClose={() => setShowMsg(false)}
+        />
+      )}
     </>
   );
 }
@@ -1045,7 +1383,7 @@ function FilterPanel({ filters, onChange, onClear, count }) {
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         {[
           { key: "status",         opts: [["", "All statuses"], ["searching_driver", "Searching"], ["driver_assigned", "Assigned"], ["arrived", "Arrived"], ["in_progress", "In Progress"], ["completed", "Completed"], ["cancelled", "Cancelled"]] },
-          { key: "paymentMethod",  opts: [["", "All payments"], ["card", "Card"], ["cashapp", "Cash App"]] },
+          { key: "paymentMethod",  opts: [["", "All payments"], ["card", "Card"], ["cashapp", "Cash App"], ["cash", "Cash"]] },
           { key: "paymentStatus",  opts: [["", "Pay status"],   ["succeeded", "Paid"], ["pending", "Pending"], ["failed", "Failed"]] },
           { key: "payoutStatus",   opts: [["", "Payout"],       ["processing", "Processing"], ["pending", "Pending"], ["paid", "Paid"], ["failed", "Failed"]] },
         ].map(({ key, opts }) => (
@@ -1107,6 +1445,18 @@ export function HomeTab({
     return true;
   }), [liveRides, filters]);
 
+  /* ── Compute "Active Drivers" = online + offline only ─────────
+     (drivers who have completed signup, are approved, and could
+      be either currently online taking rides or offline awaiting)
+  */
+  const onlineOfflineDrivers = useMemo(() => {
+    const all = uatobdrivers.length > 0 ? uatobdrivers : activeDrivers;
+    return all.filter(d => d?.status === "online" || d?.status === "offline");
+  }, [uatobdrivers, activeDrivers]);
+
+  const onlineCount  = useMemo(() => onlineOfflineDrivers.filter(d => d.status === "online").length,  [onlineOfflineDrivers]);
+  const offlineCount = useMemo(() => onlineOfflineDrivers.filter(d => d.status === "offline").length, [onlineOfflineDrivers]);
+
   /* KPI strip data */
   const kpis = [
     { val: totalAccounts,         sub: "Accounts",  dot: "#00C16A" },
@@ -1115,12 +1465,40 @@ export function HomeTab({
     { val: searchingRides.length, sub: "Searching", dot: "#F59500" },
   ];
 
-  /* Stat cards */
+  /* Stat cards — Active Drivers shows online/offline split */
   const statRows = [
-    { label: "Total Rides",    val: totalRides ?? liveRides.length,              accent: "#2F6FED", Icon: Activity,   delay: 0   },
-    { label: "Active Drivers", val: activeDrivers.length,                        accent: "#00C16A", Icon: Car,        delay: 50  },
-    { label: "Revenue Today",  val: revenue != null ? `$${revenue.toFixed(2)}` : "—", accent: "#F59500", Icon: DollarSign, delay: 100 },
-    { label: "Pending Apps",   val: allApprovals.length,                         accent: "#E8383A", Icon: Shield,     delay: 150 },
+    {
+      label: "Total Rides",
+      val:   totalRides ?? liveRides.length,
+      accent:"#2F6FED",
+      Icon:  Activity,
+      delay: 0,
+    },
+    {
+      label: "Active Drivers",
+      val:   onlineOfflineDrivers.length,
+      accent:"#00C16A",
+      Icon:  Car,
+      delay: 50,
+      breakdown: [
+        { dot: "#00C16A", label: "online",  val: onlineCount  },
+        { dot: "#9898AA", label: "offline", val: offlineCount },
+      ],
+    },
+    {
+      label: "Revenue Today",
+      val:   revenue != null ? `$${revenue.toFixed(2)}` : "—",
+      accent:"#F59500",
+      Icon:  DollarSign,
+      delay: 100,
+    },
+    {
+      label: "Pending Apps",
+      val:   allApprovals.length,
+      accent:"#E8383A",
+      Icon:  Shield,
+      delay: 150,
+    },
   ];
 
   return (
@@ -1133,7 +1511,7 @@ export function HomeTab({
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
             <div style={{ display: "flex", gap: 0, overflowX: "auto", flex: 1 }}>
               {kpis.map(({ val, sub, dot }, i) => (
-                <div key={sub} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 14px", borderRight: i < 3 ? "1px solid var(--border)" : "none", flexShrink: 0 }}>
+                <div key={sub} className="kpi-tile" style={{ borderRight: i < 3 ? "1px solid var(--border)" : "none" }}>
                   <div className="live-dot" style={{ background: dot, color: dot }} />
                   <span style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", letterSpacing: "-.03em", fontFamily: "var(--mono)" }}>{val}</span>
                   <span style={{ fontSize: 11, color: "var(--ink-5)", fontWeight: 500 }}>{sub}</span>
@@ -1148,17 +1526,52 @@ export function HomeTab({
 
         {/* ── Stat cards (2-col grid) ── */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
-          {statRows.map(({ label, val, accent, Icon, delay }) => (
+          {statRows.map(({ label, val, accent, Icon, delay, breakdown }) => (
             <div key={label} className="card card-hover fade-up" style={{ padding: 15, animationDelay: `${delay}ms`, overflow: "hidden", position: "relative" }}>
               <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2.5, background: accent, opacity: .9, borderRadius: "18px 18px 0 0" }} />
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 11 }}>
-                <div style={{ width: 33, height: 33, borderRadius: 10, background: `${accent}14`, border: `1px solid ${accent}30`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div className="hero-stat-icon" style={{ background: `${accent}14`, border: `1px solid ${accent}30` }}>
                   <Icon size={14} color={accent} strokeWidth={2.3} />
                 </div>
                 <ArrowUpRight size={11} color="var(--ink-5)" />
               </div>
               <div style={{ fontSize: 25, color: "var(--ink)", fontWeight: 800, letterSpacing: "-.05em", lineHeight: 1, fontFamily: "var(--mono)", marginBottom: 5 }}>{val}</div>
               <div style={{ fontSize: 11, color: "var(--ink-5)", fontWeight: 600, letterSpacing: ".01em" }}>{label}</div>
+
+              {/* Online/offline breakdown */}
+              {breakdown && (
+                <div style={{
+                  display: "flex", gap: 8, marginTop: 10,
+                  paddingTop: 9, borderTop: "1px solid var(--border)",
+                }}>
+                  {breakdown.map(b => (
+                    <div key={b.label} style={{
+                      display: "flex", alignItems: "center", gap: 5,
+                      flex: 1,
+                    }}>
+                      <div className={b.label === "online" && b.val > 0 ? "live-dot blink" : ""} style={{
+                        width: 6, height: 6, borderRadius: "50%",
+                        background: b.dot, color: b.dot,
+                        boxShadow: b.label === "online" && b.val > 0 ? `0 0 6px ${b.dot}` : "none",
+                        flexShrink: 0,
+                      }}/>
+                      <span style={{
+                        fontSize: 11, fontFamily: "var(--mono)",
+                        fontWeight: 700, color: "var(--ink)",
+                      }}>
+                        {b.val}
+                      </span>
+                      <span style={{
+                        fontSize: 9.5, color: "var(--ink-5)",
+                        fontWeight: 600, textTransform: "uppercase",
+                        letterSpacing: ".05em",
+                      }}>
+                        {b.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>
