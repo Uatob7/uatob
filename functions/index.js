@@ -72,6 +72,7 @@ const { saveAdminFcmToken } = require("./admin/saveAdminFcmToken");
 const { approveDriver } = require("./admin/approveDriver");
 const { rejectDriver } = require("./admin/rejectDriver");
 const { computeRideAnalytics } = require("./admin/computeRideAnalytics");
+const { adminSendDriverMessage } = require("./admin/adminSendDriverMessage");
 
 
 // Exports
@@ -116,6 +117,7 @@ exports.updateDriverAchievements = updateDriverAchievements;
 exports.onDriverApplicationSubmitted = onDriverApplicationSubmitted;
 exports.withdraw = withdraw;
 exports.saveDriverFcmToken = saveDriverFcmToken;
+exports.adminSendDriverMessage = adminSendDriverMessage;
 exports.saveRiderFcmToken = saveRiderFcmToken;
 exports.reassignRide = reassignRide;
 exports.processWithdrawal = processWithdrawal;
