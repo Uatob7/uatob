@@ -16,6 +16,7 @@ exports.withdraw = onSchedule(
       const snap = await db.collection("Rides")
         .where("status",        "==", "completed")
         .where("paymentStatus", "==", "succeeded")
+        .where("payoutStatus",  "==", "pending")
         .get();
 
       // ── Group rides by driverUid ────────────────────────────────
