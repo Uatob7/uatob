@@ -7,6 +7,7 @@ import { firebase_app } from "@/firebase/config";
 const db = getFirestore(firebase_app);
 
 export function useTotalRides() {
+  const [rides, setRides] = useState([]);        // store full objects
   const [totalRides, setTotalRides] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -17,6 +18,12 @@ export function useTotalRides() {
     const unsubscribe = onSnapshot(
       ridesRef,
       (snapshot) => {
+        const ridesData = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),   // full object
+        }));
+
+        setRides(ridesData);
         setTotalRides(snapshot.size);
         setLoading(false);
       },
@@ -30,5 +37,5 @@ export function useTotalRides() {
     return () => unsubscribe();
   }, []);
 
-  return { totalRides, loading, error };
+  return { rides, totalRides, loading, error };
 }
