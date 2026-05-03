@@ -177,19 +177,6 @@ const CSS = `
 .timeline-dot {
   width:8px; height:8px; border-radius:50%; flex-shrink:0; border:2px solid transparent;
 }
-
-/* ── Driver strip ── */
-.driver-strip {
-  display:flex; gap:6px; overflow-x:auto; padding:2px 0;
-  scrollbar-width:none;
-}
-.driver-strip::-webkit-scrollbar { display:none; }
-.driver-pill {
-  display:flex; align-items:center; gap:6px;
-  padding:5px 10px; border-radius:10px; flex-shrink:0;
-  font-size:11px; font-weight:700; cursor:default;
-  transition:all .15s;
-}
 `;
 
 /* ─── Helpers ────────────────────────────────────────────────────── */
@@ -396,91 +383,7 @@ function RideTimeline({ ride }) {
   );
 }
 
-/* ─── Driver Strip (KPI area) ────────────────────────────────────── */
-function DriverStrip({ uatobdrivers = [] }) {
-  if (!uatobdrivers.length) return null;
-
-  // Sort: online first, then by firstName
-  const sorted = [...uatobdrivers].sort((a, b) => {
-    const aOnline = a.status === "online" ? 0 : 1;
-    const bOnline = b.status === "online" ? 0 : 1;
-    if (aOnline !== bOnline) return aOnline - bOnline;
-    return (a.firstName ?? "").localeCompare(b.firstName ?? "");
-  });
-
-  const onlineCount  = uatobdrivers.filter(d => d.status === "online").length;
-  const offlineCount = uatobdrivers.length - onlineCount;
-
-  return (
-    <div className="card fade-up" style={{ padding: "13px 14px", marginBottom: 12, animationDelay: "20ms" }}>
-      {/* header row */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-          <Car size={12} color="var(--ink-4)" strokeWidth={2.3} />
-          <span style={{ fontSize: 12, fontWeight: 800, color: "var(--ink)", letterSpacing: "-.02em" }}>Drivers</span>
-        </div>
-        <div style={{ display: "flex", gap: 5 }}>
-          <span className="pill" style={{ background: "#E6FFF3", color: "#00A659", border: "1px solid #99EDCA" }}>
-            <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#00C16A", display: "inline-block" }} />
-            {onlineCount} online
-          </span>
-          <span className="pill" style={{ background: "var(--bg-soft)", color: "var(--ink-4)", border: "1px solid var(--border)" }}>
-            {offlineCount} offline
-          </span>
-        </div>
-      </div>
-
-      {/* pill strip */}
-      <div className="driver-strip">
-        {sorted.map(driver => {
-          const isOnline = driver.status === "online";
-          const name = [driver.firstName, driver.lastName].filter(Boolean).join(" ") || `···${driver.uid?.slice(-4) ?? "????"}`;
-          return (
-            <div
-              key={driver.uid ?? driver.id}
-              className="driver-pill"
-              style={{
-                background: isOnline ? "#E6FFF3" : "var(--bg-soft)",
-                border: `1px solid ${isOnline ? "#99EDCA" : "var(--border-mid)"}`,
-                color: isOnline ? "#00704A" : "var(--ink-4)",
-              }}
-            >
-              {/* status dot */}
-              <div style={{
-                width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
-                background: isOnline ? "#00C16A" : "#9898AA",
-                boxShadow: isOnline ? "0 0 6px rgba(0,193,106,.7)" : "none",
-              }} />
-              {/* initials avatar */}
-              <div style={{
-                width: 20, height: 20, borderRadius: 6, flexShrink: 0,
-                background: isOnline
-                  ? "linear-gradient(135deg,#00C16A,#007A42)"
-                  : "linear-gradient(135deg,#9898AA,#6E6E82)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 8, fontWeight: 800, color: "#fff",
-              }}>
-                {initials(name)}
-              </div>
-              {/* name */}
-              <span style={{ fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>{name}</span>
-              {/* trip indicator */}
-              {driver.trip && (
-                <span style={{
-                  fontSize: 8, fontWeight: 800, padding: "1px 5px",
-                  background: "rgba(47,111,237,.15)", color: "#2F6FED",
-                  borderRadius: 4, letterSpacing: ".04em",
-                }}>ON TRIP</span>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-/* ─── Message Modal — sends FCM push via Cloud Function ──────────── */
+/* ─── Message Modal ──────────────────────────────────────────────── */
 const CANNED = [
   "Please head to the pickup location.",
   "Rider is waiting — confirm your ETA.",
@@ -489,7 +392,7 @@ const CANNED = [
   "Call support if you need assistance.",
 ];
 
-function MessageModal({ ride, driverDoc, onClose }) {
+function MessageModal({ ride, driverName, onClose }) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
@@ -501,26 +404,15 @@ function MessageModal({ ride, driverDoc, onClose }) {
     if (!body || sending) return;
     setSending(true);
     try {
-      // Uses FCM token from the driver's Firestore doc
-      const fcmToken = driverDoc?.fcmToken ?? null;
-      await httpsCallable(functions, "adminSendDriverMessage")({
-        rideId:   ride.id,
-        message:  body,
-        fcmToken, // pass token so Cloud Function can send a push
-      });
+      await httpsCallable(functions, "adminSendDriverMessage")({ rideId: ride.id, message: body });
       setSent(true);
       setTimeout(onClose, 900);
-    } catch (e) {
-      console.error("adminSendDriverMessage error:", e);
-    } finally {
-      setSending(false);
-    }
-  }, [text, sending, ride?.id, driverDoc, onClose]);
+    } catch (e) { console.error(e); }
+    finally { setSending(false); }
+  }, [text, sending, ride?.id, onClose]);
 
-  const shortId  = ride.id?.slice(-6).toUpperCase();
-  const dname    = driverDoc
-    ? [driverDoc.firstName, driverDoc.lastName].filter(Boolean).join(" ") || `···${ride.driverUid?.slice(-4)}`
-    : ride.driverUid ? `Driver ···${ride.driverUid.slice(-4)}` : "Driver";
+  const shortId = ride.id?.slice(-6).toUpperCase();
+  const dname = driverName ?? (ride.driverUid ? `Driver ···${ride.driverUid.slice(-4)}` : "Driver");
 
   return (
     <div className="msg-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -538,13 +430,7 @@ function MessageModal({ ride, driverDoc, onClose }) {
             </div>
             <div>
               <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)", letterSpacing: "-.02em" }}>Message Driver</div>
-              <div style={{ fontSize: 11, color: "var(--ink-5)", fontWeight: 500, marginTop: 1 }}>
-                {dname} · Ride #{shortId}
-                {driverDoc?.fcmToken
-                  ? <span style={{ marginLeft: 6, color: "#00A659" }}>· Push ready</span>
-                  : <span style={{ marginLeft: 6, color: "#E8383A" }}>· No FCM token</span>
-                }
-              </div>
+              <div style={{ fontSize: 11, color: "var(--ink-5)", fontWeight: 500, marginTop: 1 }}>{dname} · Ride #{shortId}</div>
             </div>
           </div>
           <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 9, border: "1px solid var(--border-mid)", background: "var(--bg-soft)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--ink-4)" }}>
@@ -607,6 +493,7 @@ function CardMap({ ride, status }) {
   const isCancelled = status === "cancelled";
   const isSearching = status === "searching_driver";
 
+  // Decode polyline → [lng,lat] for Mapbox
   const routeCoords = useMemo(() => {
     if (!ride.polyline) return [];
     return decodePolyline(ride.polyline).map(p => [p[1], p[0]]);
@@ -631,6 +518,7 @@ function CardMap({ ride, status }) {
     bounds ? [(bounds.minLng + bounds.maxLng) / 2, (bounds.minLat + bounds.maxLat) / 2] : [-81.4696, 28.573],
     [bounds]);
 
+  // Init map
   useEffect(() => {
     if (!containerRef.current || initializedRef.current) return;
     loadMapbox(() => {
@@ -656,11 +544,13 @@ function CardMap({ ride, status }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Draw route + markers whenever coords change
   useEffect(() => {
     if (!mapRef.current) return;
     const attach = () => {
       if (!mapRef.current?.isStyleLoaded()) { setTimeout(attach, 80); return; }
 
+      /* ── Route polyline ── */
       if (routeCoords.length > 1) {
         const geo = { type: "Feature", geometry: { type: "LineString", coordinates: routeCoords } };
         const routeColor = isCancelled ? "#E8383A" : isCompleted ? "#9898AA" : "#00C16A";
@@ -668,14 +558,30 @@ function CardMap({ ride, status }) {
           mapRef.current.getSource("route").setData(geo);
         } else {
           mapRef.current.addSource("route", { type: "geojson", data: geo });
-          mapRef.current.addLayer({ id: "route-halo", type: "line", source: "route", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#ffffff", "line-width": 10, "line-opacity": isCompleted ? 0.2 : 0.14, "line-blur": 6 } });
-          mapRef.current.addLayer({ id: "route-main", type: "line", source: "route", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": routeColor, "line-width": 3.5, "line-opacity": isCancelled ? 0.55 : 1 } });
+          // Halo
+          mapRef.current.addLayer({
+            id: "route-halo", type: "line", source: "route",
+            layout: { "line-cap": "round", "line-join": "round" },
+            paint: { "line-color": "#ffffff", "line-width": 10, "line-opacity": isCompleted ? 0.2 : 0.14, "line-blur": 6 },
+          });
+          // Main
+          mapRef.current.addLayer({
+            id: "route-main", type: "line", source: "route",
+            layout: { "line-cap": "round", "line-join": "round" },
+            paint: { "line-color": routeColor, "line-width": 3.5, "line-opacity": isCancelled ? 0.55 : 1 },
+          });
+          // Animated dash (active only)
           if (!isCancelled && !isCompleted) {
-            mapRef.current.addLayer({ id: "route-dash", type: "line", source: "route", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#fff", "line-width": 1.5, "line-opacity": 0.28, "line-dasharray": [0, 6] } });
+            mapRef.current.addLayer({
+              id: "route-dash", type: "line", source: "route",
+              layout: { "line-cap": "round", "line-join": "round" },
+              paint: { "line-color": "#fff", "line-width": 1.5, "line-opacity": 0.28, "line-dasharray": [0, 6] },
+            });
           }
         }
       }
 
+      /* ── Clear markers ── */
       markersRef.current.forEach(m => m.remove()); markersRef.current = [];
 
       const addMarker = (lngLat, html, anchor = "center") => {
@@ -688,6 +594,7 @@ function CardMap({ ride, status }) {
         );
       };
 
+      /* ── Pickup pin (green filled circle) ── */
       if (ride.pickupLat && ride.pickupLng) {
         addMarker([ride.pickupLng, ride.pickupLat], `
           <div style="position:relative;width:28px;height:28px;display:flex;align-items:center;justify-content:center;">
@@ -696,6 +603,7 @@ function CardMap({ ride, status }) {
           </div>`);
       }
 
+      /* ── Dropoff pin (teardrop) ── */
       if (ride.dropoffLat && ride.dropoffLng) {
         const pc = isCancelled ? "#E8383A" : isCompleted ? "#6E6E82" : "#0A0A0F";
         addMarker([ride.dropoffLng, ride.dropoffLat], `
@@ -708,6 +616,7 @@ function CardMap({ ride, status }) {
           </div>`, "bottom");
       }
 
+      /* ── Driver dot (blue pulsing) ── active/assigned only ── */
       if (ride.driverLat && ride.driverLng && !isCompleted && !isCancelled) {
         addMarker([ride.driverLng, ride.driverLat], `
           <div style="position:relative;width:22px;height:22px;display:flex;align-items:center;justify-content:center;">
@@ -716,6 +625,7 @@ function CardMap({ ride, status }) {
           </div>`);
       }
 
+      /* ── Rider dot (amber) — only when meaningfully separate from driver ── */
       if (ride.riderLat && ride.riderLng && isActive) {
         const driverNearby = ride.driverLat &&
           Math.hypot(ride.riderLat - ride.driverLat, ride.riderLng - ride.driverLng) < 0.0005;
@@ -727,6 +637,7 @@ function CardMap({ ride, status }) {
         }
       }
 
+      /* ── Fit to bounds ── */
       if (bounds) {
         mapRef.current.fitBounds(
           [[bounds.minLng, bounds.minLat], [bounds.maxLng, bounds.maxLat]],
@@ -779,23 +690,10 @@ function MapLegend({ ride, status }) {
 }
 
 /* ─── Ride Card ──────────────────────────────────────────────────── */
-function RideCard({ ride, index, uatobdrivers = [] }) {
-  // ── Look up the assigned driver from uatobdrivers ──────────────
-  const driverDoc = useMemo(
-    () => uatobdrivers.find(d => (d.uid ?? d.id) === ride.driverUid) ?? null,
-    [uatobdrivers, ride.driverUid]
-  );
-
-  const driverName = driverDoc
-    ? [driverDoc.firstName, driverDoc.lastName].filter(Boolean).join(" ")
-    : null;
-
-  const driverPhone = driverDoc?.contact?.phone ?? null;
-
+function RideCard({ ride, index }) {
   const riderLabel  = ride.riderName  ?? (ride.uid       ? `Rider ···${ride.uid.slice(-4)}`       : "Rider");
-  const driverLabel = driverName ?? (ride.driverUid ? `Driver ···${ride.driverUid.slice(-4)}` : null);
-
-  const status = ride.status ?? "unknown";
+  const driverLabel = ride.driverName ?? (ride.driverUid ? `Driver ···${ride.driverUid.slice(-4)}` : null);
+  const status      = ride.status ?? "unknown";
 
   const s  = STATUS[status]                ?? { label: status,              accent: "#6E6E82", bg: "#F5F5F8", border: "#D4D4E0", dot: "#6E6E82" };
   const pm = PAY_STATUS[ride.paymentStatus] ?? { bg: "#F5F5F8", color: "#6E6E82", label: ride.paymentStatus ?? "—" };
@@ -816,6 +714,7 @@ function RideCard({ ride, index, uatobdrivers = [] }) {
     return null;
   }, [status, ride.driverEtaMin, ride.dropoffEtaMin]);
 
+  // Trip duration for completed
   const tripDuration = useMemo(() => {
     if (!isCompleted) return null;
     const start = tsToMs(ride.startedAt), end = tsToMs(ride.completedAt);
@@ -834,17 +733,6 @@ function RideCard({ ride, index, uatobdrivers = [] }) {
     ? "linear-gradient(90deg,#2F6FED,#7BA7FF)"
     : "linear-gradient(90deg,#D4D4E0,#E4E4F0)";
 
-  /* ── Call driver: dial from uatobdrivers doc ── */
-  const handleCallDriver = () => {
-    if (driverPhone) {
-      window.open(`tel:${driverPhone}`);
-    } else if (driverDoc) {
-      alert(`No phone number on file for ${driverLabel}.`);
-    } else {
-      alert("Assigned driver not found in driver list.");
-    }
-  };
-
   return (
     <>
       <div className="card card-hover fade-up" style={{ animationDelay: `${160 + index * 40}ms`, padding: 0, overflow: "hidden" }}>
@@ -855,6 +743,7 @@ function RideCard({ ride, index, uatobdrivers = [] }) {
         {/* ── Header ── */}
         <div style={{ padding: "14px 16px 12px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 11, minWidth: 0 }}>
+            {/* Avatar */}
             <div style={{
               width: 42, height: 42, borderRadius: 13, flexShrink: 0,
               background: isCancelled
@@ -874,20 +763,7 @@ function RideCard({ ride, index, uatobdrivers = [] }) {
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                 {driverLabel
-                  ? (
-                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <Car size={9} color="var(--ink-5)" strokeWidth={2.5} />
-                      <span style={{ fontSize: 11, color: "var(--ink-4)", fontWeight: 600 }}>{driverLabel}</span>
-                      {/* Online dot for assigned driver */}
-                      {driverDoc && (
-                        <div style={{
-                          width: 5, height: 5, borderRadius: "50%", flexShrink: 0,
-                          background: driverDoc.status === "online" ? "#00C16A" : "#9898AA",
-                          boxShadow: driverDoc.status === "online" ? "0 0 5px rgba(0,193,106,.7)" : "none",
-                        }} />
-                      )}
-                    </div>
-                  )
+                  ? <><Car size={9} color="var(--ink-5)" strokeWidth={2.5} /><span style={{ fontSize: 11, color: "var(--ink-4)", fontWeight: 600 }}>{driverLabel}</span></>
                   : <span style={{ fontSize: 11, color: "#F59500", fontWeight: 700, fontStyle: "italic" }}>Awaiting driver</span>
                 }
               </div>
@@ -910,16 +786,19 @@ function RideCard({ ride, index, uatobdrivers = [] }) {
         <div style={{ position: "relative", height: 170, margin: "0 16px", borderRadius: 14, overflow: "hidden", border: "1px solid var(--border)", background: "#0d1117" }}>
           <CardMap ride={ride} status={status} />
 
+          {/* Pickup chip — top left */}
           <div style={{ position: "absolute", top: 8, left: 8, zIndex: 20, display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,.94)", backdropFilter: "blur(10px)", border: "1px solid rgba(0,0,0,.07)", borderRadius: 9, padding: "4px 9px", maxWidth: "54%" }}>
             <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#00C16A", flexShrink: 0, boxShadow: "0 0 8px rgba(0,193,106,.9)" }} />
             <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{shortAddr(ride.pickup) || "Pickup"}</span>
           </div>
 
+          {/* Dropoff chip — top right */}
           <div style={{ position: "absolute", top: 8, right: 8, zIndex: 20, display: "flex", alignItems: "center", gap: 5, background: "rgba(10,10,15,.85)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 9, padding: "4px 9px", maxWidth: "54%" }}>
             <MapPin size={9} color={isCancelled ? "#E8383A" : isCompleted ? "#9898AA" : "rgba(255,255,255,.7)"} />
             <span style={{ fontSize: 10.5, fontWeight: 700, color: "rgba(255,255,255,.9)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{shortAddr(ride.dropoff) || "Dropoff"}</span>
           </div>
 
+          {/* Live badge */}
           {isActive && (
             <div style={{ position: "absolute", bottom: 8, right: 8, zIndex: 20, display: "flex", alignItems: "center", gap: 5, background: "rgba(10,10,15,.82)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,.12)", borderRadius: 20, padding: "4px 10px" }}>
               <div className="live-dot blink" style={{ background: "#00C16A", color: "#00C16A", width: 5, height: 5 }} />
@@ -927,6 +806,7 @@ function RideCard({ ride, index, uatobdrivers = [] }) {
             </div>
           )}
 
+          {/* Driver distance badge (active) */}
           {isActive && ride.driverDistanceMiles != null && ride.driverEtaMin != null && (
             <div style={{ position: "absolute", bottom: 8, left: 8, zIndex: 20, display: "flex", alignItems: "center", gap: 5, background: "rgba(47,111,237,.88)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,.15)", borderRadius: 20, padding: "4px 10px" }}>
               <Navigation size={8} color="#fff" />
@@ -934,7 +814,10 @@ function RideCard({ ride, index, uatobdrivers = [] }) {
             </div>
           )}
 
+          {/* Cancelled overlay */}
           {isCancelled && <div style={{ position: "absolute", inset: 0, background: "rgba(232,56,58,.08)", zIndex: 10, pointerEvents: "none" }} />}
+
+          {/* Pin legend */}
           <MapLegend ride={ride} status={status} />
         </div>
 
@@ -944,7 +827,7 @@ function RideCard({ ride, index, uatobdrivers = [] }) {
         {/* ── Quick Actions ── */}
         {hasDriver && (
           <div style={{ padding: "11px 16px 0", display: "flex", gap: 8 }}>
-            {/* Message Driver — sends FCM push */}
+            {/* Message Driver */}
             <button
               className="qa-btn"
               onClick={() => setShowMsg(true)}
@@ -954,28 +837,27 @@ function RideCard({ ride, index, uatobdrivers = [] }) {
               Message Driver
             </button>
 
-            {/* Call Driver — number from uatobdrivers doc */}
+            {/* Call Driver */}
             <button
               className="qa-btn"
-              onClick={handleCallDriver}
-              style={{
-                background: driverPhone ? "#E6FFF3" : "var(--bg-soft)",
-                color: driverPhone ? "#00A659" : "var(--ink-4)",
-                border: `1px solid ${driverPhone ? "#99EDCA" : "var(--border-mid)"}`,
-                boxShadow: driverPhone ? "0 2px 8px rgba(0,193,106,.12)" : "none",
+              onClick={() => {
+                if (ride.driverPhone) {
+                  window.open(`tel:${ride.driverPhone}`);
+                } else {
+                  alert("Driver phone number not available.");
+                }
               }}
+              style={{ background: "#E6FFF3", color: "#00A659", border: "1px solid #99EDCA", boxShadow: "0 2px 8px rgba(0,193,106,.12)" }}
             >
               <Phone size={13} strokeWidth={2.5} />
-              {driverPhone
-                ? `Call ${driverPhone.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3")}`
-                : "Call Driver"
-              }
+              Call Driver
             </button>
           </div>
         )}
 
         {/* ── Footer meta ── */}
         <div style={{ padding: "11px 16px 14px", display: "flex", flexDirection: "column", gap: 9 }}>
+          {/* Pills row */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, flexWrap: "wrap" }}>
             <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
               {ride.rideLabel && (
@@ -1012,6 +894,7 @@ function RideCard({ ride, index, uatobdrivers = [] }) {
             <span style={{ fontSize: 10.5, color: "var(--ink-5)", fontWeight: 600, fontFamily: "var(--mono)", whiteSpace: "nowrap" }}>{timeAgo(ride.createdAt)}</span>
           </div>
 
+          {/* Payment row */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 9, borderTop: "1px solid var(--border)", flexWrap: "wrap", gap: 6 }}>
             <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
               <span className="pill" style={{ background: ride.paymentMethod === "cashapp" ? "#E6FFF3" : "#EDF2FF", color: ride.paymentMethod === "cashapp" ? "#00A659" : "#2F6FED", border: "none" }}>
@@ -1031,14 +914,7 @@ function RideCard({ ride, index, uatobdrivers = [] }) {
         <StatusBar ride={ride} />
       </div>
 
-      {/* Message Modal — passes full driverDoc for FCM token */}
-      {showMsg && (
-        <MessageModal
-          ride={ride}
-          driverDoc={driverDoc}
-          onClose={() => setShowMsg(false)}
-        />
-      )}
+      {showMsg && <MessageModal ride={ride} driverName={ride.driverName} onClose={() => setShowMsg(false)} />}
     </>
   );
 }
@@ -1270,9 +1146,6 @@ export function HomeTab({
           </div>
         </div>
 
-        {/* ── Driver strip ── */}
-        <DriverStrip uatobdrivers={uatobdrivers} />
-
         {/* ── Stat cards (2-col grid) ── */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
           {statRows.map(({ label, val, accent, Icon, delay }) => (
@@ -1315,7 +1188,7 @@ export function HomeTab({
 
         {showFilters && <FilterPanel filters={filters} onChange={onChange} onClear={onClear} count={filtered.length} />}
 
-        {/* ── Ride list — passes uatobdrivers for lookups ── */}
+        {/* ── Ride list ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {filtered.length === 0 && (
             <div className="card" style={{ textAlign: "center", padding: "52px 24px" }}>
@@ -1326,14 +1199,7 @@ export function HomeTab({
               <div style={{ fontSize: 12, color: "var(--ink-5)", fontWeight: 500 }}>{activeCount > 0 ? "Try clearing some filters" : "Waiting for new rides…"}</div>
             </div>
           )}
-          {filtered.map((ride, i) => (
-            <RideCard
-              key={ride.id}
-              ride={ride}
-              index={i}
-              uatobdrivers={uatobdrivers}
-            />
-          ))}
+          {filtered.map((ride, i) => <RideCard key={ride.id} ride={ride} index={i} />)}
         </div>
       </div>
     </>
