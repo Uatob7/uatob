@@ -34,7 +34,7 @@ exports.confirmCashCollection = onCall(
 
     await rideRef.update({
       payoutStatus:     "paid",
-      paymentStatus:    "cash_collected",
+      paymentStatus:    "succeeded",
       cashCollectedAt:  admin.firestore.FieldValue.serverTimestamp(),
       updatedAt:        admin.firestore.FieldValue.serverTimestamp(),
     });

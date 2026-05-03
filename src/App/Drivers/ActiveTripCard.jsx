@@ -626,7 +626,7 @@ export default function ActiveTripCard({
               <div className="atc-cash-step">
                 <div className="atc-cash-step-num">1</div>
                 <div className="atc-cash-step-text">
-                  Ask the rider for <strong>${activeTrip.fareTotal?.toFixed(2) ?? "--"}</strong> before they exit the vehicle.
+                  Ask the rider for <strong>${activeTrip.fareTotal?.toFixed(2) ?? "--"}</strong>
                 </div>
               </div>
               <div className="atc-cash-step">

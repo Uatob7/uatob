@@ -25,6 +25,7 @@ const { cardPayment } = require("./payments/cardPayment");
 const { cashAppPayment } = require("./payments/cashAppPayment");
 const { cardChecker } = require("./payments/cardChecker");
 const { setupDeposit } = require("./payments/setupDeposit");
+const { confirmCashCollection } = require("./payments/confirmCashCollection");
 
 // driver functions
 const { createDriverProfile } = require("./drivers/createDriverProfile");
@@ -88,6 +89,7 @@ exports.cardPayment = cardPayment;
 exports.cashPayment = cashPayment;
 exports.checkDriverDeposit = checkDriverDeposit;
 exports.cashAppPayment = cashAppPayment;
+exports.confirmCashCollection = confirmCashCollection;
 exports.setupDeposit = setupDeposit;
 exports.acceptRide = acceptRide;
 exports.pushCandidateDrivers = pushCandidateDrivers;
