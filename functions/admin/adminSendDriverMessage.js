@@ -1,186 +1,174 @@
-// functions/src/adminSendDriverMessage.js
-//
-// Firebase Cloud Functions v2 — onCall
-// Region: us-east1  (matches admin dashboard client)
-//
-// Called by the admin dashboard to send a message to a driver.
-// Delivers via two channels simultaneously:
-//   1. FCM push notification  → driver sees it even if app is backgrounded
-//   2. Firestore subcollection → driver's in-app DriverMessagePanel renders it
-//
-// Payload from client:
-//   { rideId, driverUid, fcmToken, message }
-//
-// Firestore writes:
-//   Rides/{rideId}/messages/{messageId}          ← ride-scoped thread
-//   Drivers/{driverUid}/adminMessages/{messageId} ← driver-scoped inbox
+// functions/index.js (or adminSendDriverMessage.js)
 
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
-const { getFirestore, FieldValue } = require("firebase-admin/firestore");
-const { getMessaging } = require("firebase-admin/messaging");
+const { getFirestore }       = require("firebase-admin/firestore");
+const { getMessaging }       = require("firebase-admin/messaging");
+const sgMail                 = require("@sendgrid/mail");
+
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const REGION = "us-east1";
 
-/* ─── Validation helpers ─────────────────────────────────────────── */
-function requireString(val, name) {
-  if (typeof val !== "string" || !val.trim()) {
-    throw new HttpsError("invalid-argument", `${name} must be a non-empty string.`);
+exports.adminSendDriverMessage = onCall({ region: REGION }, async (request) => {
+  // Auth guard — only signed-in admins
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be signed in.");
   }
-  return val.trim();
+
+  const { rideId, driverUid, message } = request.data;
+
+  if (!driverUid || !message?.trim()) {
+    throw new HttpsError("invalid-argument", "driverUid and message are required.");
+  }
+
+  const db = getFirestore();
+  const driverSnap = await db.collection("Drivers").doc(driverUid).get();
+
+  if (!driverSnap.exists) {
+    throw new HttpsError("not-found", `Driver ${driverUid} not found.`);
+  }
+
+  const driver     = driverSnap.data();
+  const fcmToken   = driver.fcmToken   ?? null;
+  const email      = driver.email      ?? null;
+  const firstName  = driver.firstName  ?? "Driver";
+  const shortRide  = rideId ? `#${rideId.slice(-6).toUpperCase()}` : "";
+
+  const errors   = [];
+  let   fcmSent  = false;
+  let   emailSent = false;
+
+  // ── 1. FCM Push ──────────────────────────────────────────────────
+  if (fcmToken) {
+    try {
+      await getMessaging().send({
+        token: fcmToken,
+        notification: {
+          title: `UaTob Admin${shortRide ? ` · Ride ${shortRide}` : ""}`,
+          body:  message.trim(),
+        },
+        data: {
+          type:   "admin_message",
+          rideId: rideId ?? "",
+        },
+        android: {
+          priority: "high",
+          notification: { sound: "default", channelId: "admin_alerts" },
+        },
+        apns: {
+          payload: { aps: { sound: "default", badge: 1 } },
+        },
+      });
+      fcmSent = true;
+    } catch (e) {
+      console.error("FCM send failed:", e);
+      errors.push(`FCM: ${e.message}`);
+    }
+  }
+
+  // ── 2. SendGrid Email ─────────────────────────────────────────────
+  if (email) {
+    try {
+      await sgMail.send({
+        to:      email,
+        from:    { name: "UaTob Admin", email: "no-reply@uatob.com" },
+        subject: `Admin Message${shortRide ? ` · Ride ${shortRide}` : ""} — UaTob`,
+        html: buildEmailHtml({ firstName, message: message.trim(), shortRide }),
+      });
+      emailSent = true;
+    } catch (e) {
+      console.error("Email send failed:", e);
+      errors.push(`Email: ${e.message}`);
+    }
+  }
+
+  const success = fcmSent || emailSent;
+
+  // ── 3. Log to Firestore ───────────────────────────────────────────
+  try {
+    const logRef = rideId
+      ? db.collection("Rides").doc(rideId).collection("adminMessages")
+      : db.collection("adminMessageLogs");
+
+    await logRef.add({
+      driverUid,
+      message:   message.trim(),
+      sentBy:    request.auth.uid,
+      fcmSent,
+      emailSent,
+      errors,
+      createdAt: new Date(),
+    });
+  } catch (e) {
+    console.error("Log write failed:", e); // non-fatal
+  }
+
+  return { success, fcmSent, emailSent, errors };
+});
+
+// ── Email template ────────────────────────────────────────────────
+function buildEmailHtml({ firstName, message, shortRide }) {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+</head>
+<body style="margin:0;padding:0;background:#0C0F0C;font-family:'Courier New',monospace;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0C0F0C;padding:40px 0;">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0" style="background:#111511;border:1px solid #1E2A1E;border-radius:16px;overflow:hidden;">
+
+        <!-- Header -->
+        <tr>
+          <td style="background:linear-gradient(135deg,#1a2e4a,#0d1f35);padding:28px 32px;border-bottom:1px solid #1E2A1E;">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td>
+                  <div style="font-size:11px;font-weight:700;color:#22C55E;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px;">
+                    UaTob Admin
+                  </div>
+                  <div style="font-size:22px;font-weight:800;color:#FFFFFF;letter-spacing:-.02em;">
+                    Message from HQ
+                  </div>
+                  ${shortRide ? `<div style="margin-top:6px;display:inline-block;background:rgba(47,111,237,.2);border:1px solid rgba(47,111,237,.4);border-radius:6px;padding:3px 10px;font-size:11px;font-weight:700;color:#7BA7FF;letter-spacing:.04em;">Ride ${shortRide}</div>` : ""}
+                </td>
+                <td align="right" style="vertical-align:top;">
+                  <div style="width:44px;height:44px;background:#22C55E;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:#0C0F0C;text-align:center;line-height:44px;">U</div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="padding:28px 32px;">
+            <p style="margin:0 0 20px;font-size:14px;color:#9CA89C;line-height:1.5;">
+              Hi ${firstName},
+            </p>
+            <div style="background:#0C0F0C;border:1px solid #1E2A1E;border-left:3px solid #22C55E;border-radius:10px;padding:18px 20px;margin-bottom:24px;">
+              <p style="margin:0;font-size:15px;color:#E8F0E8;line-height:1.65;white-space:pre-wrap;">${message.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>
+            </div>
+            <p style="margin:0;font-size:12px;color:#4A5E4A;line-height:1.6;">
+              This message was sent directly from the UaTob admin dashboard. If you have questions, contact support.
+            </p>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="padding:16px 32px 24px;border-top:1px solid #1E2A1E;">
+            <p style="margin:0;font-size:10px;color:#2E3E2E;text-align:center;letter-spacing:.06em;text-transform:uppercase;">
+              UaTob · Orlando, FL · Driver Operations
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
 }
-
-/* ─── Cloud Function ─────────────────────────────────────────────── */
-exports.adminSendDriverMessage = onCall(
-  {
-    region: REGION,
-    enforceAppCheck: false, // flip to true once App Check is wired up
-  },
-  async (request) => {
-    /* ── 1. Auth guard — caller must be signed in ── */
-    if (!request.auth) {
-      throw new HttpsError(
-        "unauthenticated",
-        "You must be signed in to send driver messages."
-      );
-    }
-
-    /* ── 2. Parse + validate inputs ── */
-    const { rideId, driverUid, fcmToken, message } = request.data ?? {};
-
-    const safeRideId    = requireString(rideId,    "rideId");
-    const safeDriverUid = requireString(driverUid, "driverUid");
-    const safeMessage   = requireString(message,   "message");
-
-    // fcmToken is optional — we still write to Firestore even without it
-    const safeFcmToken = typeof fcmToken === "string" && fcmToken.trim()
-      ? fcmToken.trim()
-      : null;
-
-    const db          = getFirestore();
-    const adminUid    = request.auth.uid;
-    const sentAt      = FieldValue.serverTimestamp();
-
-    /* ── 3. Build the message document ── */
-    const messageDoc = {
-      text:        safeMessage,
-      senderUid:   adminUid,
-      senderRole:  "admin",
-      recipientUid: safeDriverUid,
-      rideId:      safeRideId,
-      sentAt,
-      deliveredViaPush: false, // updated below if FCM succeeds
-      read: false,
-    };
-
-    /* ── 4. Write to Firestore (both collections) ── */
-    const rideMessageRef   = db
-      .collection("Rides")
-      .doc(safeRideId)
-      .collection("messages")
-      .doc(); // auto-ID
-
-    const driverMessageRef = db
-      .collection("Drivers")
-      .doc(safeDriverUid)
-      .collection("adminMessages")
-      .doc(rideMessageRef.id); // same ID → easy cross-reference
-
-    const batch = db.batch();
-    batch.set(rideMessageRef,   messageDoc);
-    batch.set(driverMessageRef, messageDoc);
-    await batch.commit();
-
-    const messageId = rideMessageRef.id;
-
-    /* ── 5. FCM push (best-effort — never throw on FCM failure) ── */
-    let fcmResult = { sent: false, reason: "no_token" };
-
-    if (safeFcmToken) {
-      try {
-        const fcmPayload = {
-          token: safeFcmToken,
-
-          // Shown in the system notification tray
-          notification: {
-            title: "📣 Message from UaTob Admin",
-            body:  safeMessage.length > 100
-              ? `${safeMessage.slice(0, 97)}…`
-              : safeMessage,
-          },
-
-          // Data payload — DriverMessagePanel can act on these
-          data: {
-            type:       "admin_message",
-            messageId,
-            rideId:     safeRideId,
-            senderRole: "admin",
-            text:       safeMessage,
-          },
-
-          // Android config — high priority so it wakes a backgrounded app
-          android: {
-            priority: "high",
-            notification: {
-              channelId: "admin_messages",
-              sound:     "default",
-              priority:  "high",
-            },
-          },
-
-          // APNs config for iOS
-          apns: {
-            headers: {
-              "apns-priority": "10",
-            },
-            payload: {
-              aps: {
-                alert: {
-                  title: "📣 Message from UaTob Admin",
-                  body:  safeMessage,
-                },
-                sound: "default",
-                badge: 1,
-              },
-            },
-          },
-        };
-
-        const fcmResponse = await getMessaging().send(fcmPayload);
-        fcmResult = { sent: true, fcmMessageId: fcmResponse };
-
-        // Back-patch both Firestore docs to reflect push delivery
-        const deliveredUpdate = { deliveredViaPush: true };
-        await Promise.all([
-          rideMessageRef.update(deliveredUpdate),
-          driverMessageRef.update(deliveredUpdate),
-        ]);
-      } catch (fcmErr) {
-        // Log but don't surface to admin — message is already in Firestore
-        console.error(
-          `[adminSendDriverMessage] FCM send failed for driver ${safeDriverUid}:`,
-          fcmErr?.errorInfo ?? fcmErr
-        );
-
-        // If the token is stale/invalid, note it (don't crash the function)
-        const isInvalidToken =
-          fcmErr?.code === "messaging/registration-token-not-registered" ||
-          fcmErr?.code === "messaging/invalid-registration-token";
-
-        fcmResult = {
-          sent:   false,
-          reason: isInvalidToken ? "invalid_token" : "fcm_error",
-          error:  fcmErr?.errorInfo?.message ?? fcmErr?.message ?? "unknown",
-        };
-      }
-    }
-
-    /* ── 6. Return result to admin dashboard ── */
-    return {
-      success:   true,
-      messageId,
-      rideId:    safeRideId,
-      driverUid: safeDriverUid,
-      fcm:       fcmResult,
-    };
-  }
-);
