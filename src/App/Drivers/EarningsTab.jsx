@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react';
 import {
   ArrowDownToLine, BadgeDollarSign, TrendingUp, TrendingDown,
-  CheckCircle2, AlertCircle, Loader2, Sparkles, Calendar,
+  CheckCircle2, AlertCircle, Loader2, Sparkles,
   Banknote, Wallet, ChevronRight, Clock, Flame,
-  AlertTriangle, X, CreditCard, DollarSign, ShieldCheck,
+  AlertTriangle, X, CreditCard, ShieldCheck, Calculator,
 } from 'lucide-react';
 import { C } from '@/App/Drivers/constants.js';
 import { getFunctions, httpsCallable } from 'firebase/functions';
@@ -26,8 +26,8 @@ function getTodayLabel() {
 
 // ── Pay Balance Modal ──────────────────────────────────────────────────
 function PayBalanceModal({ owedToUaTob, cashRideBreakdown, driverUid, onClose, onSuccess }) {
-  const [step,        setStep]        = useState("confirm"); // confirm | processing | done | error
-  const [errorMsg,    setErrorMsg]    = useState(null);
+  const [step,     setStep]     = useState("confirm"); // confirm | processing | done | error
+  const [errorMsg, setErrorMsg] = useState(null);
 
   const rides = cashRideBreakdown ?? [];
 
@@ -53,7 +53,6 @@ function PayBalanceModal({ owedToUaTob, cashRideBreakdown, driverUid, onClose, o
   };
 
   return (
-    // ── Backdrop ──
     <div
       onClick={onClose}
       style={{
@@ -65,13 +64,12 @@ function PayBalanceModal({ owedToUaTob, cashRideBreakdown, driverUid, onClose, o
       }}
     >
       <style>{`
-        @keyframes modalIn    { from { opacity:0 } to { opacity:1 } }
-        @keyframes sheetUp    { from { transform:translateY(100%) } to { transform:translateY(0) } }
-        @keyframes checkPop   { 0%{transform:scale(0) rotate(-20deg)} 70%{transform:scale(1.2) rotate(4deg)} 100%{transform:scale(1) rotate(0)} }
-        @keyframes spinCw     { to { transform: rotate(360deg); } }
+        @keyframes modalIn  { from { opacity:0 } to { opacity:1 } }
+        @keyframes sheetUp  { from { transform:translateY(100%) } to { transform:translateY(0) } }
+        @keyframes checkPop { 0%{transform:scale(0) rotate(-20deg)} 70%{transform:scale(1.2) rotate(4deg)} 100%{transform:scale(1) rotate(0)} }
+        @keyframes spinCw   { to { transform: rotate(360deg); } }
       `}</style>
 
-      {/* ── Sheet ── */}
       <div
         onClick={e => e.stopPropagation()}
         style={{
@@ -83,12 +81,10 @@ function PayBalanceModal({ owedToUaTob, cashRideBreakdown, driverUid, onClose, o
           overflow: "hidden",
         }}
       >
-        {/* Handle */}
         <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 6px" }}>
           <div style={{ width: 40, height: 4, borderRadius: 100, background: C.border ?? "#333" }}/>
         </div>
 
-        {/* Header row */}
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "6px 22px 18px",
@@ -123,11 +119,9 @@ function PayBalanceModal({ owedToUaTob, cashRideBreakdown, driverUid, onClose, o
           )}
         </div>
 
-        {/* ── CONFIRM step ── */}
         {(step === "confirm" || step === "error") && (
           <div style={{ padding: "0 22px" }}>
 
-            {/* Amount hero */}
             <div style={{
               background: "linear-gradient(135deg,#FEF2F2,#FEE2E2)",
               border: "1.5px solid rgba(239,68,68,.3)",
@@ -161,7 +155,6 @@ function PayBalanceModal({ owedToUaTob, cashRideBreakdown, driverUid, onClose, o
               </div>
             </div>
 
-            {/* Ride breakdown */}
             {rides.length > 0 && (
               <div style={{
                 background: C.surfaceAlt ?? "#1a1a1a",
@@ -211,7 +204,6 @@ function PayBalanceModal({ owedToUaTob, cashRideBreakdown, driverUid, onClose, o
               </div>
             )}
 
-            {/* What happens note */}
             <div style={{
               display: "flex", alignItems: "flex-start", gap: 9,
               padding: "10px 13px",
@@ -225,7 +217,6 @@ function PayBalanceModal({ owedToUaTob, cashRideBreakdown, driverUid, onClose, o
               </span>
             </div>
 
-            {/* Error message */}
             {step === "error" && errorMsg && (
               <div style={{
                 background: "#FEF2F2",
@@ -241,7 +232,6 @@ function PayBalanceModal({ owedToUaTob, cashRideBreakdown, driverUid, onClose, o
               </div>
             )}
 
-            {/* CTA */}
             <button
               onClick={handlePay}
               style={{
@@ -274,7 +264,6 @@ function PayBalanceModal({ owedToUaTob, cashRideBreakdown, driverUid, onClose, o
           </div>
         )}
 
-        {/* ── PROCESSING step ── */}
         {step === "processing" && (
           <div style={{
             padding: "40px 22px 20px",
@@ -299,7 +288,6 @@ function PayBalanceModal({ owedToUaTob, cashRideBreakdown, driverUid, onClose, o
           </div>
         )}
 
-        {/* ── DONE step ── */}
         {step === "done" && (
           <div style={{
             padding: "40px 22px 20px",
@@ -336,8 +324,6 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
   const [feedback,           setFeedback]           = useState(null);
   const [showPayModal,       setShowPayModal]       = useState(false);
 
-  const accentColor = online ? C.onlineGreen : C.offlineInk;
-
   const todayEarnings  = earnings?.today?.earnings    ?? 0;
   const todayTrips     = earnings?.today?.trips       ?? 0;
   const weekEarnings   = earnings?.week?.earnings     ?? 0;
@@ -348,23 +334,55 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
   const changePercent  = earnings?.week?.changePercent ?? 0;
   const dailyBreakdown = earnings?.week?.dailyBreakdown ?? [];
 
-  const withdrawal          = driver?.transferCapability === "enabled";
-  const pendingData         = driver?.withdrawal;
-  const totalPayout         = pendingData?.totalPayout    ?? 0;
-  const rideCount           = pendingData?.rideCount      ?? 0;
-  const owedToUaTob         = pendingData?.owedToUaTob    ?? 0;
-  const cashRideBreakdown   = pendingData?.cashRideBreakdown ?? [];
-  const lastPaidAt          = pendingData?.paidAt;
-  const payoutStatus        = pendingData?.status;
-  const lastPayoutAmt       = (pendingData?.rideBreakdown ?? [])
+  // ─── NEW WITHDRAWAL SCHEMA ────────────────────────────────────────────
+  const withdrawal        = driver?.transferCapability === "enabled";
+  const w                 = driver?.withdrawal || {};
+
+  // Card side: what we OWE the driver (gross)
+  const totalPayout       = w.totalPayout       ?? 0;
+  const rideCount         = w.rideCount         ?? 0;
+  const cardRideBreakdown = w.rideBreakdown     ?? [];
+
+  // Cash side this cycle: what driver collected, owes UaTob
+  const cashFeeOwed       = w.cashFeeOwed       ?? 0;
+  const cashRideCount     = w.cashRideCount     ?? 0;
+  const cashRideBreakdown = w.cashRideBreakdown ?? [];
+
+  // Carried-forward debt from previous cycles (long-running ledger)
+  const carriedCashOwed   = w.carriedCashOwed   ?? 0;
+
+  // ⭐ NET: what actually transfers to the driver's bank
+  // (could be 0 if cash fees > card payout)
+  const netPayout         = w.netPayout         ?? 0;
+
+  // After this settlement, what's still on the ledger
+  const cashOwedAfter     = w.cashOwedAfter     ?? 0;
+
+  // Long-running balance across all cycles
+  const cashOwedBalance   = driver?.cashOwedBalance ?? 0;
+
+  // Total combined cash debt (this cycle + carried)
+  const totalCashOwed     = +(cashFeeOwed + carriedCashOwed).toFixed(2);
+
+  const lastPaidAt        = w.paidAt;
+  const payoutStatus      = w.status;
+  const lastPayoutAmt     = (cardRideBreakdown ?? [])
     .reduce((s, r) => s + (Number(r.driverPayout) || 0), 0);
 
-  const showSetupGate  = !driver?.accountId || withdrawal !== true;
-  const nothingPending = totalPayout === 0;
-  const isPaid         = payoutStatus === "paid";
-  const hasCashOwed    = owedToUaTob > 0;
+  // ─── State flags ───────────────────────────────────────────────
+  const showSetupGate     = !driver?.accountId || withdrawal !== true;
+  const isPaid            = payoutStatus === "paid";
 
-  // ── Streak ───────────────────────────────────────────────────────────
+  // Has cash debt to pay (this cycle OR carried OR on the long-running ledger)
+  const hasCashOwed       = totalCashOwed > 0 || cashOwedBalance > 0;
+
+  // Combined "anything pending" check
+  const nothingPending    = totalPayout === 0 && cashRideCount === 0 && netPayout === 0;
+
+  // Card payouts get partially or fully eaten by cash debt
+  const isOffsetting      = totalPayout > 0 && totalCashOwed > 0;
+
+  // Streak ─────────────────────────────────────────────────────────────
   const streak = useMemo(() => {
     if (!dailyBreakdown.length) return 0;
     let count = 0;
@@ -381,7 +399,7 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
   const maxAmount = Math.max(...dailyBreakdown.map(d => d.amount ?? 0), 1);
   const weekAvg   = weekTrips > 0 ? weekEarnings / weekTrips : 0;
 
-  // ── Setup deposit ────────────────────────────────────────────────────
+  // Setup deposit ─────────────────────────────────────────────────────
   const handleSetupDeposit = async () => {
     setIsSettingUpDeposit(true);
     setFeedback(null);
@@ -400,9 +418,9 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
     }
   };
 
-  // ── Process withdrawal ───────────────────────────────────────────────
+  // Process withdrawal ────────────────────────────────────────────────
   const handleWithdraw = async () => {
-    if (nothingPending || isWithdrawing) return;
+    if (netPayout === 0 || isWithdrawing) return;
     setIsWithdrawing(true);
     setFeedback(null);
     try {
@@ -410,7 +428,7 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
       if (data?.success) {
         setFeedback({
           type: "success",
-          message: `$${fmtMoney(data.totalPayout)} sent · ${data.rideCount} ride${data.rideCount !== 1 ? "s" : ""}`,
+          message: `$${fmtMoney(data.netPayout ?? data.totalPayout)} sent · ${data.rideCount} ride${data.rideCount !== 1 ? "s" : ""}`,
         });
         setTimeout(() => setFeedback(null), 5000);
       } else {
@@ -426,16 +444,13 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
 
   return (
     <>
-      {/* ── Pay Balance Modal ── */}
       {showPayModal && (
         <PayBalanceModal
-          owedToUaTob={owedToUaTob}
+          owedToUaTob={totalCashOwed}
           cashRideBreakdown={cashRideBreakdown}
           driverUid={driver?.uid}
           onClose={() => setShowPayModal(false)}
-          onSuccess={() => {
-            // parent should refresh driver doc; nothing else needed here
-          }}
+          onSuccess={() => {}}
         />
       )}
 
@@ -448,7 +463,7 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
           @keyframes earnFadeIn  { from { opacity:0;transform:translateY(-4px); } to { opacity:1;transform:translateY(0); } }
         `}</style>
 
-        {/* ── Header ── */}
+        {/* Header */}
         <div>
           <div className="condensed" style={{ fontSize: 28, fontWeight: 900, color: C.text, letterSpacing: "-0.5px", lineHeight: 1.1 }}>
             Earnings
@@ -458,7 +473,7 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
           </div>
         </div>
 
-        {/* ── Hero today's earnings card ── */}
+        {/* Hero today's earnings card */}
         <div style={{
           background: online
             ? "linear-gradient(135deg,#0F172A,#1E293B 50%,#0F172A)"
@@ -560,7 +575,7 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
           </div>
         </div>
 
-        {/* ── Streak ── */}
+        {/* Streak */}
         {streak >= 2 && (
           <div style={{
             background: "linear-gradient(135deg,#FFFBEB,#FEF3C7)",
@@ -588,9 +603,9 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
           </div>
         )}
 
-        {/* ══════════════════════════════════════════════════════════════
-            ── CASH OWED BANNER (always shown when owedToUaTob > 0) ──
-        ══════════════════════════════════════════════════════════════ */}
+        {/* ════════════════════════════════════════════════════════════
+            CASH OWED BANNER (carried + this cycle + ledger)
+        ════════════════════════════════════════════════════════════ */}
         {hasCashOwed && (
           <div style={{
             background: "linear-gradient(135deg,#FEF2F2,#FEE2E2 50%,#FEF2F2)",
@@ -600,13 +615,11 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
             boxShadow: "0 8px 28px rgba(239,68,68,.12)",
             animation: "earnFadeIn .35s ease-out",
           }}>
-            {/* BG glow */}
             <div style={{
               position: "absolute", top: -50, right: -50,
               width: 180, height: 180, borderRadius: "50%",
               background: "rgba(239,68,68,0.10)", pointerEvents: "none",
             }}/>
-            {/* Stripe pattern */}
             <div style={{
               position: "absolute", inset: 0,
               backgroundImage: "repeating-linear-gradient(45deg,transparent,transparent 40px,rgba(239,68,68,.04) 40px,rgba(239,68,68,.04) 41px)",
@@ -614,13 +627,12 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
             }}/>
 
             <div style={{ position: "relative" }}>
-              {/* Top row */}
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 6 }}>
                 <div className="mono" style={{
                   fontSize: 10, fontWeight: 700, letterSpacing: ".1em",
                   textTransform: "uppercase", color: "#B91C1C",
                 }}>
-                  Cash balance owed
+                  {carriedCashOwed > 0 ? "Cash balance · carried forward" : "Cash balance owed"}
                 </div>
                 <div style={{
                   background: "#EF4444", color: "#fff",
@@ -634,76 +646,109 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
                 </div>
               </div>
 
-              {/* Amount */}
               <div className="condensed" style={{
                 fontSize: 48, fontWeight: 900, color: "#DC2626",
                 letterSpacing: "-1.2px", lineHeight: 1, marginBottom: 6,
                 fontVariantNumeric: "tabular-nums",
               }}>
-                ${fmtMoney(owedToUaTob)}
+                ${fmtMoney(totalCashOwed || cashOwedBalance)}
               </div>
 
-              {/* Sub */}
               <div style={{
                 fontSize: 12.5, color: "#B91C1C", fontWeight: 600,
-                marginBottom: 18, display: "flex", alignItems: "center", gap: 6,
+                marginBottom: 14, display: "flex", alignItems: "center", gap: 6,
               }}>
                 <Banknote size={13}/>
-                {cashRideBreakdown.length} cash ride{cashRideBreakdown.length !== 1 ? "s" : ""} · platform fee collected in cash
+                {cashRideCount > 0
+                  ? `${cashRideCount} cash ride${cashRideCount !== 1 ? "s" : ""} · platform fee collected`
+                  : "Outstanding from previous cycles"}
               </div>
 
-              {/* Explainer */}
-              <div style={{
-                background: "rgba(239,68,68,.08)",
-                border: "1px solid rgba(239,68,68,.18)",
-                borderRadius: 11, padding: "9px 13px",
-                display: "flex", alignItems: "flex-start", gap: 8,
-                marginBottom: 16,
-              }}>
-                <AlertTriangle size={13} color="#EF4444" style={{ flexShrink: 0, marginTop: 1 }}/>
-                <span style={{ fontSize: 11.5, color: "#991B1B", fontWeight: 500, lineHeight: 1.45 }}>
-                  You collected the full fare in cash from riders. UaTob's platform fee must be returned. Tap below to pay.
-                </span>
-              </div>
+              {/* Carried-forward note */}
+              {carriedCashOwed > 0 && cashFeeOwed > 0 && (
+                <div style={{
+                  background: "rgba(217,119,6,.08)",
+                  border: "1px solid rgba(217,119,6,.20)",
+                  borderRadius: 10, padding: "8px 12px",
+                  marginBottom: 12,
+                  display: "flex", alignItems: "center", gap: 8,
+                  fontSize: 11.5, color: "#92400E", fontWeight: 600,
+                }}>
+                  <Calculator size={12}/>
+                  <span>
+                    ${fmtMoney(cashFeeOwed)} this cycle + ${fmtMoney(carriedCashOwed)} carried over
+                  </span>
+                </div>
+              )}
 
-              {/* CTA */}
-              <button
-                onClick={() => setShowPayModal(true)}
-                style={{
-                  width: "100%", padding: "15px 20px",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
-                  background: "linear-gradient(135deg,#EF4444,#DC2626 55%,#B91C1C)",
-                  border: "none", borderRadius: 14, color: "#fff",
-                  fontFamily: "'Barlow',sans-serif", fontWeight: 800, fontSize: 15,
-                  letterSpacing: ".3px", cursor: "pointer",
-                  boxShadow: "0 10px 28px rgba(239,68,68,.38)",
-                  animation: "earnPulseRed 2.4s ease-in-out infinite",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.filter = "brightness(1.08)"; }}
-                onMouseLeave={e => { e.currentTarget.style.filter = ""; }}
-                onMouseDown={e  => { e.currentTarget.style.transform = "scale(.98)"; }}
-                onMouseUp={e    => { e.currentTarget.style.transform = ""; }}
-              >
-                <CreditCard size={17} strokeWidth={2.4}/>
-                Pay ${fmtMoney(owedToUaTob)} Balance
-              </button>
+              {/* Auto-offset explainer */}
+              {isOffsetting ? (
+                <div style={{
+                  background: "rgba(37,99,235,.08)",
+                  border: "1px solid rgba(37,99,235,.20)",
+                  borderRadius: 11, padding: "10px 13px",
+                  marginBottom: 16,
+                  display: "flex", alignItems: "flex-start", gap: 8,
+                }}>
+                  <Sparkles size={13} color="#2563EB" style={{ flexShrink: 0, marginTop: 1 }}/>
+                  <span style={{ fontSize: 11.5, color: "#1E3A8A", fontWeight: 600, lineHeight: 1.45 }}>
+                    Good news — your card payout of <strong>${fmtMoney(totalPayout)}</strong> will automatically offset this. Withdraw below to settle in one step.
+                  </span>
+                </div>
+              ) : (
+                <div style={{
+                  background: "rgba(239,68,68,.08)",
+                  border: "1px solid rgba(239,68,68,.18)",
+                  borderRadius: 11, padding: "9px 13px",
+                  display: "flex", alignItems: "flex-start", gap: 8,
+                  marginBottom: 16,
+                }}>
+                  <AlertTriangle size={13} color="#EF4444" style={{ flexShrink: 0, marginTop: 1 }}/>
+                  <span style={{ fontSize: 11.5, color: "#991B1B", fontWeight: 500, lineHeight: 1.45 }}>
+                    You collected the full fare in cash from riders. UaTob's platform fee must be returned. Tap below to pay.
+                  </span>
+                </div>
+              )}
 
-              <div style={{
-                marginTop: 10,
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                fontSize: 11, color: "#B91C1C", fontWeight: 600,
-              }}>
-                <ShieldCheck size={11}/>
-                Deducted via your connected bank account
-              </div>
+              {/* Show pay button only if NOT offsetting */}
+              {!isOffsetting && (
+                <>
+                  <button
+                    onClick={() => setShowPayModal(true)}
+                    style={{
+                      width: "100%", padding: "15px 20px",
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
+                      background: "linear-gradient(135deg,#EF4444,#DC2626 55%,#B91C1C)",
+                      border: "none", borderRadius: 14, color: "#fff",
+                      fontFamily: "'Barlow',sans-serif", fontWeight: 800, fontSize: 15,
+                      letterSpacing: ".3px", cursor: "pointer",
+                      boxShadow: "0 10px 28px rgba(239,68,68,.38)",
+                      animation: "earnPulseRed 2.4s ease-in-out infinite",
+                    }}
+                  >
+                    <CreditCard size={17} strokeWidth={2.4}/>
+                    Pay ${fmtMoney(totalCashOwed || cashOwedBalance)} Balance
+                  </button>
+
+                  <div style={{
+                    marginTop: 10,
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                    fontSize: 11, color: "#B91C1C", fontWeight: 600,
+                  }}>
+                    <ShieldCheck size={11}/>
+                    Deducted via your connected bank account
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
 
-        {/* ══════════════════════════════════════════════════════════════
-            ── CARD WITHDRAWAL FLOW (unchanged, shown independently) ──
-        ══════════════════════════════════════════════════════════════ */}
+        {/* ════════════════════════════════════════════════════════════
+            WITHDRAWAL FLOW
+        ════════════════════════════════════════════════════════════ */}
         {showSetupGate ? (
+          // ─── Stripe setup gate ──────────────────────────────────
           <div style={{
             background: "linear-gradient(135deg,#EFF6FF,#DBEAFE)",
             border: "1.5px solid rgba(37,99,235,.25)",
@@ -779,6 +824,7 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
           </div>
 
         ) : nothingPending ? (
+          // ─── Nothing pending ────────────────────────────────────
           <div style={{
             background: C.surface, border: `1.5px solid ${C.border}`,
             borderRadius: 22, padding: "22px 20px", position: "relative",
@@ -845,6 +891,7 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
           </div>
 
         ) : (
+          // ─── Available to withdraw (shows NET payout after offsets) ──
           <div style={{
             background: "linear-gradient(135deg,#F0FDF4,#DCFCE7,#F0FDF4)",
             border: "1.5px solid rgba(22,163,74,.3)",
@@ -882,18 +929,94 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
                 </div>
               </div>
 
+              {/* NET payout (the actual transfer amount) */}
               <div className="condensed" style={{
                 fontSize: 48, fontWeight: 900, color: C.text,
                 letterSpacing: "-1.2px", lineHeight: 1, marginBottom: 6,
                 fontVariantNumeric: "tabular-nums",
               }}>
-                ${fmtMoney(totalPayout)}
+                ${fmtMoney(netPayout)}
               </div>
 
-              <div style={{ fontSize: 12.5, color: "#15803D", fontWeight: 600, marginBottom: 18, display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ fontSize: 12.5, color: "#15803D", fontWeight: 600, marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
                 <Banknote size={13}/>
                 {rideCount} ride{rideCount !== 1 ? "s" : ""} · instant transfer to bank
               </div>
+
+              {/* ─── BREAKDOWN: gross → cash debt → net ─── */}
+              {isOffsetting && (
+                <div style={{
+                  background: "rgba(255,255,255,.65)",
+                  border: "1px solid rgba(22,163,74,.18)",
+                  borderRadius: 12, padding: "12px 14px",
+                  marginBottom: 16,
+                  display: "flex", flexDirection: "column", gap: 6,
+                }}>
+                  <div className="mono" style={{
+                    fontSize: 9, fontWeight: 700, letterSpacing: ".1em",
+                    textTransform: "uppercase", color: "#15803D", marginBottom: 2,
+                  }}>
+                    Settlement
+                  </div>
+                  <div style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    fontSize: 12, color: C.textMid, fontWeight: 600,
+                  }}>
+                    <span>Card payout</span>
+                    <span className="mono" style={{ color: C.text, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
+                      ${fmtMoney(totalPayout)}
+                    </span>
+                  </div>
+                  {cashFeeOwed > 0 && (
+                    <div style={{
+                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                      fontSize: 12, color: "#991B1B", fontWeight: 600,
+                    }}>
+                      <span>Cash fees this cycle</span>
+                      <span className="mono" style={{ fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
+                        −${fmtMoney(cashFeeOwed)}
+                      </span>
+                    </div>
+                  )}
+                  {carriedCashOwed > 0 && (
+                    <div style={{
+                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                      fontSize: 12, color: "#991B1B", fontWeight: 600,
+                    }}>
+                      <span>Carried from previous</span>
+                      <span className="mono" style={{ fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
+                        −${fmtMoney(carriedCashOwed)}
+                      </span>
+                    </div>
+                  )}
+                  <div style={{
+                    height: 1, background: "rgba(22,163,74,.20)",
+                    margin: "4px 0",
+                  }}/>
+                  <div style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    fontSize: 13, fontWeight: 800,
+                  }}>
+                    <span style={{ color: "#15803D" }}>Net to bank</span>
+                    <span className="mono" style={{ color: "#15803D", fontVariantNumeric: "tabular-nums" }}>
+                      ${fmtMoney(netPayout)}
+                    </span>
+                  </div>
+                  {cashOwedAfter > 0 && (
+                    <div style={{
+                      marginTop: 4, padding: "6px 10px",
+                      background: "rgba(217,119,6,.08)",
+                      border: "1px solid rgba(217,119,6,.18)",
+                      borderRadius: 8,
+                      fontSize: 10.5, color: "#92400E", fontWeight: 600,
+                      display: "flex", alignItems: "center", gap: 6,
+                    }}>
+                      <AlertTriangle size={10}/>
+                      ${fmtMoney(cashOwedAfter)} cash debt will carry forward
+                    </div>
+                  )}
+                </div>
+              )}
 
               {feedback && (
                 <div style={{
@@ -918,28 +1041,28 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
 
               <button
                 onClick={handleWithdraw}
-                disabled={isWithdrawing}
+                disabled={isWithdrawing || netPayout === 0}
                 style={{
                   width: "100%", padding: "15px 20px",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
-                  background: "linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D)",
+                  background: netPayout === 0
+                    ? "linear-gradient(135deg,#9CA3AF,#6B7280)"
+                    : "linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D)",
                   border: "none", borderRadius: 14, color: "#fff",
                   fontFamily: "'Barlow',sans-serif", fontWeight: 800, fontSize: 15,
                   letterSpacing: ".3px",
-                  cursor: isWithdrawing ? "not-allowed" : "pointer",
-                  opacity: isWithdrawing ? 0.75 : 1,
-                  boxShadow: "0 10px 28px rgba(22,163,74,.40)",
-                  animation: !isWithdrawing ? "earnPulse 2.4s ease-in-out infinite" : "none",
+                  cursor: (isWithdrawing || netPayout === 0) ? "not-allowed" : "pointer",
+                  opacity: (isWithdrawing || netPayout === 0) ? 0.75 : 1,
+                  boxShadow: netPayout === 0 ? "none" : "0 10px 28px rgba(22,163,74,.40)",
+                  animation: !isWithdrawing && netPayout > 0 ? "earnPulse 2.4s ease-in-out infinite" : "none",
                 }}
-                onMouseEnter={e => { if (!isWithdrawing) e.currentTarget.style.filter = "brightness(1.08)"; }}
-                onMouseLeave={e => { e.currentTarget.style.filter = ""; }}
-                onMouseDown={e  => { if (!isWithdrawing) e.currentTarget.style.transform = "scale(.98)"; }}
-                onMouseUp={e    => { e.currentTarget.style.transform = ""; }}
               >
                 {isWithdrawing ? (
                   <><Loader2 size={17} style={{ animation: "earnSpin 0.8s linear infinite" }}/> Processing payout…</>
+                ) : netPayout === 0 ? (
+                  <><AlertCircle size={17} strokeWidth={2.4}/> Cash debt offsets payout</>
                 ) : (
-                  <><ArrowDownToLine size={17} strokeWidth={2.4}/> Withdraw ${fmtMoney(totalPayout)}</>
+                  <><ArrowDownToLine size={17} strokeWidth={2.4}/> Withdraw ${fmtMoney(netPayout)}</>
                 )}
               </button>
 
@@ -954,7 +1077,7 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
           </div>
         )}
 
-        {/* ── Weekly chart ── */}
+        {/* Weekly chart */}
         <div style={{
           background: C.surface, border: `1px solid ${C.border}`,
           borderRadius: 20, padding: "22px",
@@ -1061,7 +1184,7 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
           </div>
         </div>
 
-        {/* ── Footer ── */}
+        {/* Footer */}
         {!showSetupGate && (
           <div style={{
             background: C.surfaceAlt, border: `1px solid ${C.border}`,
