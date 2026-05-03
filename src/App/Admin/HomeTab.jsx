@@ -1,3 +1,1173 @@
+Protect your Cloud Firestore resources from abuse, such as billing fraud or phishing
+
+
+
+Drivers
+duuEID4AofX1ooCLfSsfVMjJpUu1
+(default)
+
+Accounts
+
+Admin
+
+Drivers
+
+Rides
+
+Search
+Drivers
+
+0Kh5xBvMgPNTN1WSpfBVOWRiVHe2
+
+19p3TOD7Engd8MlQUWldVwYsd2I3
+
+1tw4E15GBGgNsYlvfMFQudJveke2
+
+2qLrPQ2FMWZ1RAZ1sVb6zm38sTb2
+
+47HjcOmHIXQ5YOWnB0UruH5TtW12
+
+4gmxZQmeFQYIzj4x2ZKI6K1EdB02
+
+6Xq0SPFdjeh8l1LJ99w1JE0AXIH2
+
+AbP8iGZrOaTYJ957Q5rz65GNMGR2
+
+CBmYmBLg5PN2I2BEdQQGRTDYcx92
+
+F6NkWOSeRkR2mOxnaOkAMbXqHlB3
+
+KJBTiHJDHITTt5QoELRfxIJ94oO2
+
+KbNHci2uNwMvMDYM1jgEvwZI5jf1
+
+MJb7EUxcXZPDy1qIWm2BMn5WBbf1
+
+XinBKi27ONeTAs4h3wwSLzBtuOP2
+
+YeF7ORioZAQKTiB4zU2n8mpSSB92
+
+ZDNOkXmPDvc8Dyz1maiSHvy0TUs2
+
+at5VxbnwfXWAzsXVdKOwHMQCnOb2
+
+bBb4dBnOk7acwvpPpEH8tgyTuKX2
+
+beVkhSMhXlgDodcBpHNmnZ0O7SO2
+
+d0Ud2s6CEnZoEoS9sTSFHd1oaNo1
+
+duuEID4AofX1ooCLfSsfVMjJpUu1
+
+fNUiMv7uh4X73HPTramhtO47tn53
+
+fwOGRp9xHCZQBWYdznnDXcErBp32
+
+khfZ88XTF8TjI9dBcbqY0730MQA3
+
+lU9imSvYTwMGzqCjvxlm4rYHBme2
+
+mfdCQM5oCPRTuvujW1cqXD0Cyn92
+
+qglT9bECjKZ5dCkkb90c9BT3rPN2
+
+tNwCvgJhPxPPMRYJlqZ3nIKUYQL2
+
+u2lsIx9WbIVVS2rfGPSXtVCyJpn1
+
+u4nokTQZGTd1qgsf2KCYJKz1KVk2
+
+vf81da95QxRYlpkrhxG79vAXJF23
+
+vsAetMhtv7Wkhoiezixh5EReLgW2
+duuEID4AofX1ooCLfSsfVMjJpUu1
+accountId
+"acct_1TNLq8JjpI5W0Bwk"
+(string)
+
+
+
+achievements
+(map)
+
+
+firstRide
+true
+(boolean)
+
+
+adminNotified
+true
+(boolean)
+
+
+approvalEmailSent
+true
+(boolean)
+
+
+approvedAt
+May 3, 2026 at 9:57:11 AM UTC-4
+(timestamp)
+
+
+cashOwedBalance
+1.25
+(double)
+
+
+
+contact
+(map)
+
+
+address
+"2382 locke ave"
+(string)
+
+
+city
+"Orlando"
+(string)
+
+
+phone
+"4079426078"
+(string)
+
+
+state
+"FL"
+(string)
+
+
+zip
+"32818"
+(string)
+
+
+createdAt
+May 3, 2026 at 9:54:01 AM UTC-4
+(timestamp)
+
+
+currentStep
+5
+(int64)
+
+
+deposit
+true
+(boolean)
+
+
+depositCheckedAt
+May 3, 2026 at 4:42:05 PM UTC-4
+(timestamp)
+
+
+
+documents
+(map)
+
+
+insurance
+true
+(boolean)
+
+
+insuranceUrl
+"https://firebasestorage.googleapis.com/v0/b/uatob-e7b4b.firebasestorage.app/o/drivers%2FduuEID4AofX1ooCLfSsfVMjJpUu1%2Fdocuments%2Finsurance_1777816596712.jpg?alt=media&token=188ff59d-677a-4830-ad0b-61aa1b63d6f8"
+(string)
+
+
+licenseBack
+true
+(boolean)
+
+
+licenseBackUrl
+"https://firebasestorage.googleapis.com/v0/b/uatob-e7b4b.firebasestorage.app/o/drivers%2FduuEID4AofX1ooCLfSsfVMjJpUu1%2Fdocuments%2FlicenseBack_1777816536723.jpg?alt=media&token=4584d9f7-5c9b-4bee-8879-943ae18ecfd4"
+(string)
+
+
+licenseFront
+true
+(boolean)
+
+
+licenseFrontUrl
+"https://firebasestorage.googleapis.com/v0/b/uatob-e7b4b.firebasestorage.app/o/drivers%2FduuEID4AofX1ooCLfSsfVMjJpUu1%2Fdocuments%2FlicenseFront_1777816514176.jpg?alt=media&token=76ccb19c-51a8-48e2-9a00-0a23e57e1881"
+(string)
+
+
+licenseNumber
+""
+(string)
+
+
+profilePhoto
+false
+(boolean)
+
+
+profilePhotoUrl
+""
+(string)
+
+
+registration
+false
+(boolean)
+
+
+registrationUrl
+""
+(string)
+
+
+
+earnings
+(map)
+
+
+lastSyncedAt
+May 3, 2026 at 4:22:54 PM UTC-4
+(timestamp)
+
+
+
+month
+(map)
+
+
+earnings
+3.74
+(double)
+
+
+trips
+1
+(int64)
+
+
+
+today
+(map)
+
+
+earnings
+3.74
+(double)
+
+
+trips
+1
+(int64)
+
+
+
+week
+(map)
+
+
+changePercent
+100
+(int64)
+
+
+
+dailyBreakdown
+(array)
+
+
+
+0
+(map)
+
+
+amount
+3.74
+(double)
+
+
+day
+"Sun"
+(string)
+
+
+isToday
+true
+(boolean)
+
+
+
+1
+(map)
+
+
+amount
+null
+(null)
+
+
+day
+"Mon"
+(string)
+
+
+isToday
+false
+(boolean)
+
+
+
+2
+(map)
+
+
+amount
+null
+(null)
+
+
+day
+"Tue"
+(string)
+
+
+isToday
+false
+(boolean)
+
+
+
+3
+(map)
+
+
+amount
+null
+(null)
+
+
+day
+"Wed"
+(string)
+
+
+isToday
+false
+(boolean)
+
+
+
+4
+(map)
+
+
+amount
+null
+(null)
+
+
+day
+"Thu"
+(string)
+
+
+isToday
+false
+(boolean)
+
+
+
+5
+(map)
+
+
+amount
+null
+(null)
+
+
+day
+"Fri"
+(string)
+
+
+isToday
+false
+(boolean)
+
+
+
+6
+(map)
+
+
+amount
+null
+(null)
+
+
+day
+"Sat"
+(string)
+
+
+isToday
+false
+(boolean)
+
+
+earnings
+3.74
+(double)
+
+
+lastWeekEarnings
+0
+(int64)
+
+
+trips
+1
+(int64)
+
+
+email
+"support@uatob.com"
+(string)
+
+
+fcmToken
+"cQGmClMh2_ByVMnPC31bwO:APA91bE0tMgAmb9dSuUdz_nyjP9PNK7xC8TZTbD6Os3wzakOQCSjFMIJ9Ghz1Alx8i2pcqdp5ZMubOm0SpbPb6PjUcb_uXBlyYFNdAqK-L3VVEdvJ-NwvSQ"
+(string)
+
+
+fcmTokenUpdatedAt
+May 3, 2026 at 2:13:48 PM UTC-4
+(timestamp)
+
+
+firstName
+"Dar"
+(string)
+
+
+lastLocationAt
+May 3, 2026 at 2:24:30 PM UTC-4
+(timestamp)
+
+
+lastName
+"Corvoisier"
+(string)
+
+
+lastSeenAt
+May 3, 2026 at 2:24:30 PM UTC-4
+(timestamp)
+
+
+lat
+28.5726954
+(double)
+
+
+lng
+-81.46776900000002
+(double)
+
+
+minutesSinceLastSeen
+137
+(int64)
+
+
+presenceUpdatedAt
+May 3, 2026 at 4:42:04 PM UTC-4
+(timestamp)
+
+
+
+settings
+(map)
+
+
+darkModeAuto
+false
+(boolean)
+
+
+dataSaver
+false
+(boolean)
+
+
+notifyAppUpdates
+false
+(boolean)
+
+
+notifyPayoutConfirmed
+false
+(boolean)
+
+
+notifyPromotions
+false
+(boolean)
+
+
+notifyRideRequests
+false
+(boolean)
+
+
+notifyWeeklySummary
+false
+(boolean)
+
+
+soundHaptics
+false
+(boolean)
+
+
+updatedAt
+May 3, 2026 at 2:21:30 PM UTC-4
+(timestamp)
+
+
+status
+"offline"
+(string)
+
+
+submittedAt
+May 3, 2026 at 9:56:42 AM UTC-4
+(timestamp)
+
+
+submittedEmailSent
+true
+(boolean)
+
+
+totalRides
+1
+(int64)
+
+
+transferCapability
+"enabled"
+(string)
+
+
+transferCapabilityCheckedAt
+May 3, 2026 at 4:42:04 PM UTC-4
+(timestamp)
+
+
+trip
+false
+(boolean)
+
+
+tripStartedAt
+May 3, 2026 at 10:32:02 AM UTC-4
+(timestamp)
+
+
+uid
+"duuEID4AofX1ooCLfSsfVMjJpUu1"
+(string)
+
+
+updatedAt
+May 3, 2026 at 4:22:54 PM UTC-4
+(timestamp)
+
+
+
+vehicle
+(map)
+
+
+color
+"Black"
+(string)
+
+
+make
+"Ford"
+(string)
+
+
+model
+"Cicvi"
+(string)
+
+
+plate
+"UFF"
+(string)
+
+
+
+rideTypes
+(array)
+
+
+0
+"economy"
+(string)
+
+
+1
+"standard"
+(string)
+
+
+vin
+null
+(null)
+
+
+year
+"2025"
+(string)
+
+
+welcomeEmailSent
+true
+(boolean)
+
+
+
+withdrawal
+(map)
+
+
+carriedCashOwed
+0
+(int64)
+
+
+cashFeeOwed
+1.25
+(double)
+
+
+cashOwedAfter
+1.25
+(double)
+
+
+
+cashRideBreakdown
+(array)
+
+
+
+0
+(map)
+
+
+completedAt
+May 3, 2026 at 10:32:11 AM UTC-4
+(timestamp)
+
+
+driverPayout
+3.74
+(double)
+
+
+dropoff
+"3024 North Powers Drive, Orlando, FL, USA"
+(string)
+
+
+fareTotal
+4.99
+(double)
+
+
+paymentMethod
+"cash"
+(string)
+
+
+pickup
+"2382 Locke Ave, Orlando, FL, USA"
+(string)
+
+
+platformFee
+1.25
+(double)
+
+
+rideId
+"WbtG2eQrnieF7b3WVDXj"
+(string)
+
+
+rideType
+"economy"
+(string)
+
+
+riderName
+"testing"
+(string)
+
+
+riderUid
+"5BlsJlZGTVesHtaCbmxgD5ENHXy2"
+(string)
+
+
+cashRideCount
+1
+(int64)
+
+
+
+cashRideIds
+(array)
+
+
+0
+"WbtG2eQrnieF7b3WVDXj"
+(string)
+
+
+createdAt
+May 3, 2026 at 2:06:01 PM UTC-4
+(timestamp)
+
+
+netPayout
+0
+(int64)
+
+
+
+rideBreakdown
+(array)
+
+
+rideCount
+0
+(int64)
+
+
+
+rideIds
+(array)
+
+
+status
+"pending"
+(string)
+
+
+totalPayout
+0
+(int64)
+
+
+updatedAt
+May 3, 2026 at 2:06:01 PM UTC-4
+
+
+
+driver data set 
+
+
+Usage
+Query Insights
+Extensions
+Protect your Cloud Firestore resources from abuse, such as billing fraud or phishing
+
+
+
+Rides
+WbtG2eQrnieF7b3WVDXj
+(default)
+
+Accounts
+
+Admin
+
+Drivers
+
+Rides
+
+Search
+Rides
+
+MPjnntkYtjyzMaD1G8Mq
+
+WbtG2eQrnieF7b3WVDXj
+
+bZtWOvkw8bBrPaeENbtd
+WbtG2eQrnieF7b3WVDXj
+acceptedAt
+May 3, 2026 at 9:59:04 AM UTC-4
+(timestamp)
+
+
+adminNotified
+true
+(boolean)
+
+
+arrivedAt
+May 3, 2026 at 10:09:46 AM UTC-4
+(timestamp)
+
+
+
+candidateDriverUids
+(array)
+
+
+0
+"duuEID4AofX1ooCLfSsfVMjJpUu1"
+(string)
+
+
+
+candidateDrivers
+(array)
+
+
+
+0
+(map)
+
+
+distance
+0.001203767555356099
+(double)
+
+
+uid
+"duuEID4AofX1ooCLfSsfVMjJpUu1"
+(string)
+
+
+completedAt
+May 3, 2026 at 10:32:11 AM UTC-4
+(timestamp)
+
+
+completedEmailSent
+true
+(boolean)
+
+
+completedEmailSentAt
+May 3, 2026 at 10:32:12 AM UTC-4
+(timestamp)
+
+
+createdAt
+May 3, 2026 at 9:57:39 AM UTC-4
+(timestamp)
+
+
+currentDriverIndex
+0
+(int64)
+
+
+driverDistanceMiles
+0.08
+(double)
+
+
+driverEtaMin
+1
+(int64)
+
+
+driverInfo
+null
+(null)
+
+
+driverLat
+28.57270825
+(double)
+
+
+driverLng
+-81.46776849999999
+(double)
+
+
+driverLocationAt
+May 3, 2026 at 10:32:07 AM UTC-4
+(timestamp)
+
+
+driverPayout
+3.74
+(double)
+
+
+driverUid
+"duuEID4AofX1ooCLfSsfVMjJpUu1"
+(string)
+
+
+dropoff
+"3024 North Powers Drive, Orlando, FL, USA"
+(string)
+
+
+dropoffCity
+"Orlando"
+(string)
+
+
+dropoffDistanceMiles
+0.79
+(double)
+
+
+dropoffEtaMin
+4
+(int64)
+
+
+dropoffLat
+28.5819909
+(double)
+
+
+dropoffLng
+-81.4694363
+(double)
+
+
+dropoffZip
+"32818"
+(string)
+
+
+emailDispatchAt
+May 3, 2026 at 9:58:46 AM UTC-4
+(timestamp)
+
+
+emailDispatchStarted
+true
+(boolean)
+
+
+
+emailSentToDrivers
+(map)
+
+
+duuEID4AofX1ooCLfSsfVMjJpUu1
+true
+(boolean)
+
+
+expiresAt
+May 3, 2026 at 10:07:39 AM UTC-4
+(timestamp)
+
+
+
+fareBreakdown
+(map)
+
+
+fareTotal
+4.99
+(double)
+
+
+lastPushAt
+May 3, 2026 at 9:59:04 AM UTC-4
+(timestamp)
+
+
+paymentIntentId
+null
+(null)
+
+
+paymentMethod
+"cash"
+(string)
+
+
+paymentStatus
+"succeeded"
+(string)
+
+
+payoutStatus
+"processing"
+(string)
+
+
+pickup
+"2382 Locke Ave, Orlando, FL, USA"
+(string)
+
+
+pickupCity
+"Orlando"
+(string)
+
+
+pickupLat
+28.5730568
+(double)
+
+
+pickupLng
+-81.46963459999999
+(double)
+
+
+pickupZip
+"32818"
+(string)
+
+
+platformFee
+1.25
+(double)
+
+
+polyline
+"wtkmDp~fpNxACLI?a@GeF@s@{\F_C?{@?qXHBjBFJIdEBTDNRT"
+(string)
+
+
+pushDispatchAt
+May 3, 2026 at 9:58:04 AM UTC-4
+(timestamp)
+
+
+pushDispatchStarted
+true
+(boolean)
+
+
+pushDriverIndex
+10
+(int64)
+
+
+
+pushSentToDrivers
+(map)
+
+
+duuEID4AofX1ooCLfSsfVMjJpUu1
+true
+(boolean)
+
+
+receiptEmailSent
+true
+(boolean)
+
+
+requestSentAt
+May 3, 2026 at 9:59:03 AM UTC-4
+(timestamp)
+
+
+rideLabel
+"Economy"
+(string)
+
+
+rideType
+"economy"
+(string)
+
+
+riderDropoffDistanceMiles
+0.8
+(double)
+
+
+riderDropoffEtaMin
+4
+(int64)
+
+
+riderLat
+28.57270521428572
+(double)
+
+
+riderLng
+-81.46776814285715
+(double)
+
+
+riderLocationAt
+May 3, 2026 at 10:01:18 AM UTC-4
+(timestamp)
+
+
+startedAt
+May 3, 2026 at 10:32:05 AM UTC-4
+(timestamp)
+
+
+status
+"completed"
+(string)
+
+
+timeoutMinutes
+10
+(int64)
+
+
+tripDistanceMiles
+0.93
+(double)
+
+
+tripDurationMin
+5
+(int64)
+
+
+tripProgress
+0.13978494623655913
+(double)
+
+
+uid
+"5BlsJlZGTVesHtaCbmxgD5ENHXy2"
+(string)
+
+
+updatedAt
+May 3, 2026 at 2:06:01 PM UTC-4  
+
+ride data set
+
+
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import {
@@ -177,6 +1347,19 @@ const CSS = `
 /* ── Status timeline ── */
 .timeline-dot {
   width:8px; height:8px; border-radius:50%; flex-shrink:0; border:2px solid transparent;
+}
+
+/* ── Driver strip ── */
+.driver-strip {
+  display:flex; gap:6px; overflow-x:auto; padding:2px 0;
+  scrollbar-width:none;
+}
+.driver-strip::-webkit-scrollbar { display:none; }
+.driver-pill {
+  display:flex; align-items:center; gap:6px;
+  padding:5px 10px; border-radius:10px; flex-shrink:0;
+  font-size:11px; font-weight:700; cursor:default;
+  transition:all .15s;
 }
 `;
 
@@ -384,7 +1567,91 @@ function RideTimeline({ ride }) {
   );
 }
 
-/* ─── Message Modal ──────────────────────────────────────────────── */
+/* ─── Driver Strip (KPI area) ────────────────────────────────────── */
+function DriverStrip({ uatobdrivers = [] }) {
+  if (!uatobdrivers.length) return null;
+
+  // Sort: online first, then by firstName
+  const sorted = [...uatobdrivers].sort((a, b) => {
+    const aOnline = a.status === "online" ? 0 : 1;
+    const bOnline = b.status === "online" ? 0 : 1;
+    if (aOnline !== bOnline) return aOnline - bOnline;
+    return (a.firstName ?? "").localeCompare(b.firstName ?? "");
+  });
+
+  const onlineCount  = uatobdrivers.filter(d => d.status === "online").length;
+  const offlineCount = uatobdrivers.length - onlineCount;
+
+  return (
+    <div className="card fade-up" style={{ padding: "13px 14px", marginBottom: 12, animationDelay: "20ms" }}>
+      {/* header row */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <Car size={12} color="var(--ink-4)" strokeWidth={2.3} />
+          <span style={{ fontSize: 12, fontWeight: 800, color: "var(--ink)", letterSpacing: "-.02em" }}>Drivers</span>
+        </div>
+        <div style={{ display: "flex", gap: 5 }}>
+          <span className="pill" style={{ background: "#E6FFF3", color: "#00A659", border: "1px solid #99EDCA" }}>
+            <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#00C16A", display: "inline-block" }} />
+            {onlineCount} online
+          </span>
+          <span className="pill" style={{ background: "var(--bg-soft)", color: "var(--ink-4)", border: "1px solid var(--border)" }}>
+            {offlineCount} offline
+          </span>
+        </div>
+      </div>
+
+      {/* pill strip */}
+      <div className="driver-strip">
+        {sorted.map(driver => {
+          const isOnline = driver.status === "online";
+          const name = [driver.firstName, driver.lastName].filter(Boolean).join(" ") || `···${driver.uid?.slice(-4) ?? "????"}`;
+          return (
+            <div
+              key={driver.uid ?? driver.id}
+              className="driver-pill"
+              style={{
+                background: isOnline ? "#E6FFF3" : "var(--bg-soft)",
+                border: `1px solid ${isOnline ? "#99EDCA" : "var(--border-mid)"}`,
+                color: isOnline ? "#00704A" : "var(--ink-4)",
+              }}
+            >
+              {/* status dot */}
+              <div style={{
+                width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
+                background: isOnline ? "#00C16A" : "#9898AA",
+                boxShadow: isOnline ? "0 0 6px rgba(0,193,106,.7)" : "none",
+              }} />
+              {/* initials avatar */}
+              <div style={{
+                width: 20, height: 20, borderRadius: 6, flexShrink: 0,
+                background: isOnline
+                  ? "linear-gradient(135deg,#00C16A,#007A42)"
+                  : "linear-gradient(135deg,#9898AA,#6E6E82)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 8, fontWeight: 800, color: "#fff",
+              }}>
+                {initials(name)}
+              </div>
+              {/* name */}
+              <span style={{ fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>{name}</span>
+              {/* trip indicator */}
+              {driver.trip && (
+                <span style={{
+                  fontSize: 8, fontWeight: 800, padding: "1px 5px",
+                  background: "rgba(47,111,237,.15)", color: "#2F6FED",
+                  borderRadius: 4, letterSpacing: ".04em",
+                }}>ON TRIP</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Message Modal — sends FCM push via Cloud Function ──────────── */
 const CANNED = [
   "Please head to the pickup location.",
   "Rider is waiting — confirm your ETA.",
@@ -393,7 +1660,7 @@ const CANNED = [
   "Call support if you need assistance.",
 ];
 
-function MessageModal({ ride, driverName, onClose }) {
+function MessageModal({ ride, driverDoc, onClose }) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
@@ -405,15 +1672,26 @@ function MessageModal({ ride, driverName, onClose }) {
     if (!body || sending) return;
     setSending(true);
     try {
-      await httpsCallable(functions, "adminSendDriverMessage")({ rideId: ride.id, message: body });
+      // Uses FCM token from the driver's Firestore doc
+      const fcmToken = driverDoc?.fcmToken ?? null;
+      await httpsCallable(functions, "adminSendDriverMessage")({
+        rideId:   ride.id,
+        message:  body,
+        fcmToken, // pass token so Cloud Function can send a push
+      });
       setSent(true);
       setTimeout(onClose, 900);
-    } catch (e) { console.error(e); }
-    finally { setSending(false); }
-  }, [text, sending, ride?.id, onClose]);
+    } catch (e) {
+      console.error("adminSendDriverMessage error:", e);
+    } finally {
+      setSending(false);
+    }
+  }, [text, sending, ride?.id, driverDoc, onClose]);
 
-  const shortId = ride.id?.slice(-6).toUpperCase();
-  const dname = driverName ?? (ride.driverUid ? `Driver ···${ride.driverUid.slice(-4)}` : "Driver");
+  const shortId  = ride.id?.slice(-6).toUpperCase();
+  const dname    = driverDoc
+    ? [driverDoc.firstName, driverDoc.lastName].filter(Boolean).join(" ") || `···${ride.driverUid?.slice(-4)}`
+    : ride.driverUid ? `Driver ···${ride.driverUid.slice(-4)}` : "Driver";
 
   return (
     <div className="msg-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -431,7 +1709,13 @@ function MessageModal({ ride, driverName, onClose }) {
             </div>
             <div>
               <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)", letterSpacing: "-.02em" }}>Message Driver</div>
-              <div style={{ fontSize: 11, color: "var(--ink-5)", fontWeight: 500, marginTop: 1 }}>{dname} · Ride #{shortId}</div>
+              <div style={{ fontSize: 11, color: "var(--ink-5)", fontWeight: 500, marginTop: 1 }}>
+                {dname} · Ride #{shortId}
+                {driverDoc?.fcmToken
+                  ? <span style={{ marginLeft: 6, color: "#00A659" }}>· Push ready</span>
+                  : <span style={{ marginLeft: 6, color: "#E8383A" }}>· No FCM token</span>
+                }
+              </div>
             </div>
           </div>
           <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 9, border: "1px solid var(--border-mid)", background: "var(--bg-soft)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--ink-4)" }}>
@@ -494,7 +1778,6 @@ function CardMap({ ride, status }) {
   const isCancelled = status === "cancelled";
   const isSearching = status === "searching_driver";
 
-  // Decode polyline → [lng,lat] for Mapbox
   const routeCoords = useMemo(() => {
     if (!ride.polyline) return [];
     return decodePolyline(ride.polyline).map(p => [p[1], p[0]]);
@@ -519,7 +1802,6 @@ function CardMap({ ride, status }) {
     bounds ? [(bounds.minLng + bounds.maxLng) / 2, (bounds.minLat + bounds.maxLat) / 2] : [-81.4696, 28.573],
     [bounds]);
 
-  // Init map
   useEffect(() => {
     if (!containerRef.current || initializedRef.current) return;
     loadMapbox(() => {
@@ -545,13 +1827,11 @@ function CardMap({ ride, status }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Draw route + markers whenever coords change
   useEffect(() => {
     if (!mapRef.current) return;
     const attach = () => {
       if (!mapRef.current?.isStyleLoaded()) { setTimeout(attach, 80); return; }
 
-      /* ── Route polyline ── */
       if (routeCoords.length > 1) {
         const geo = { type: "Feature", geometry: { type: "LineString", coordinates: routeCoords } };
         const routeColor = isCancelled ? "#E8383A" : isCompleted ? "#9898AA" : "#00C16A";
@@ -559,30 +1839,14 @@ function CardMap({ ride, status }) {
           mapRef.current.getSource("route").setData(geo);
         } else {
           mapRef.current.addSource("route", { type: "geojson", data: geo });
-          // Halo
-          mapRef.current.addLayer({
-            id: "route-halo", type: "line", source: "route",
-            layout: { "line-cap": "round", "line-join": "round" },
-            paint: { "line-color": "#ffffff", "line-width": 10, "line-opacity": isCompleted ? 0.2 : 0.14, "line-blur": 6 },
-          });
-          // Main
-          mapRef.current.addLayer({
-            id: "route-main", type: "line", source: "route",
-            layout: { "line-cap": "round", "line-join": "round" },
-            paint: { "line-color": routeColor, "line-width": 3.5, "line-opacity": isCancelled ? 0.55 : 1 },
-          });
-          // Animated dash (active only)
+          mapRef.current.addLayer({ id: "route-halo", type: "line", source: "route", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#ffffff", "line-width": 10, "line-opacity": isCompleted ? 0.2 : 0.14, "line-blur": 6 } });
+          mapRef.current.addLayer({ id: "route-main", type: "line", source: "route", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": routeColor, "line-width": 3.5, "line-opacity": isCancelled ? 0.55 : 1 } });
           if (!isCancelled && !isCompleted) {
-            mapRef.current.addLayer({
-              id: "route-dash", type: "line", source: "route",
-              layout: { "line-cap": "round", "line-join": "round" },
-              paint: { "line-color": "#fff", "line-width": 1.5, "line-opacity": 0.28, "line-dasharray": [0, 6] },
-            });
+            mapRef.current.addLayer({ id: "route-dash", type: "line", source: "route", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#fff", "line-width": 1.5, "line-opacity": 0.28, "line-dasharray": [0, 6] } });
           }
         }
       }
 
-      /* ── Clear markers ── */
       markersRef.current.forEach(m => m.remove()); markersRef.current = [];
 
       const addMarker = (lngLat, html, anchor = "center") => {
@@ -595,7 +1859,6 @@ function CardMap({ ride, status }) {
         );
       };
 
-      /* ── Pickup pin (green filled circle) ── */
       if (ride.pickupLat && ride.pickupLng) {
         addMarker([ride.pickupLng, ride.pickupLat], `
           <div style="position:relative;width:28px;height:28px;display:flex;align-items:center;justify-content:center;">
@@ -604,7 +1867,6 @@ function CardMap({ ride, status }) {
           </div>`);
       }
 
-      /* ── Dropoff pin (teardrop) ── */
       if (ride.dropoffLat && ride.dropoffLng) {
         const pc = isCancelled ? "#E8383A" : isCompleted ? "#6E6E82" : "#0A0A0F";
         addMarker([ride.dropoffLng, ride.dropoffLat], `
@@ -617,7 +1879,6 @@ function CardMap({ ride, status }) {
           </div>`, "bottom");
       }
 
-      /* ── Driver dot (blue pulsing) ── active/assigned only ── */
       if (ride.driverLat && ride.driverLng && !isCompleted && !isCancelled) {
         addMarker([ride.driverLng, ride.driverLat], `
           <div style="position:relative;width:22px;height:22px;display:flex;align-items:center;justify-content:center;">
@@ -626,7 +1887,6 @@ function CardMap({ ride, status }) {
           </div>`);
       }
 
-      /* ── Rider dot (amber) — only when meaningfully separate from driver ── */
       if (ride.riderLat && ride.riderLng && isActive) {
         const driverNearby = ride.driverLat &&
           Math.hypot(ride.riderLat - ride.driverLat, ride.riderLng - ride.driverLng) < 0.0005;
@@ -638,7 +1898,6 @@ function CardMap({ ride, status }) {
         }
       }
 
-      /* ── Fit to bounds ── */
       if (bounds) {
         mapRef.current.fitBounds(
           [[bounds.minLng, bounds.minLat], [bounds.maxLng, bounds.maxLat]],
@@ -691,10 +1950,23 @@ function MapLegend({ ride, status }) {
 }
 
 /* ─── Ride Card ──────────────────────────────────────────────────── */
-function RideCard({ ride, index }) {
+function RideCard({ ride, index, uatobdrivers = [] }) {
+  // ── Look up the assigned driver from uatobdrivers ──────────────
+  const driverDoc = useMemo(
+    () => uatobdrivers.find(d => (d.uid ?? d.id) === ride.driverUid) ?? null,
+    [uatobdrivers, ride.driverUid]
+  );
+
+  const driverName = driverDoc
+    ? [driverDoc.firstName, driverDoc.lastName].filter(Boolean).join(" ")
+    : null;
+
+  const driverPhone = driverDoc?.contact?.phone ?? null;
+
   const riderLabel  = ride.riderName  ?? (ride.uid       ? `Rider ···${ride.uid.slice(-4)}`       : "Rider");
-  const driverLabel = ride.driverName ?? (ride.driverUid ? `Driver ···${ride.driverUid.slice(-4)}` : null);
-  const status      = ride.status ?? "unknown";
+  const driverLabel = driverName ?? (ride.driverUid ? `Driver ···${ride.driverUid.slice(-4)}` : null);
+
+  const status = ride.status ?? "unknown";
 
   const s  = STATUS[status]                ?? { label: status,              accent: "#6E6E82", bg: "#F5F5F8", border: "#D4D4E0", dot: "#6E6E82" };
   const pm = PAY_STATUS[ride.paymentStatus] ?? { bg: "#F5F5F8", color: "#6E6E82", label: ride.paymentStatus ?? "—" };
@@ -715,7 +1987,6 @@ function RideCard({ ride, index }) {
     return null;
   }, [status, ride.driverEtaMin, ride.dropoffEtaMin]);
 
-  // Trip duration for completed
   const tripDuration = useMemo(() => {
     if (!isCompleted) return null;
     const start = tsToMs(ride.startedAt), end = tsToMs(ride.completedAt);
@@ -734,6 +2005,17 @@ function RideCard({ ride, index }) {
     ? "linear-gradient(90deg,#2F6FED,#7BA7FF)"
     : "linear-gradient(90deg,#D4D4E0,#E4E4F0)";
 
+  /* ── Call driver: dial from uatobdrivers doc ── */
+  const handleCallDriver = () => {
+    if (driverPhone) {
+      window.open(`tel:${driverPhone}`);
+    } else if (driverDoc) {
+      alert(`No phone number on file for ${driverLabel}.`);
+    } else {
+      alert("Assigned driver not found in driver list.");
+    }
+  };
+
   return (
     <>
       <div className="card card-hover fade-up" style={{ animationDelay: `${160 + index * 40}ms`, padding: 0, overflow: "hidden" }}>
@@ -744,7 +2026,6 @@ function RideCard({ ride, index }) {
         {/* ── Header ── */}
         <div style={{ padding: "14px 16px 12px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 11, minWidth: 0 }}>
-            {/* Avatar */}
             <div style={{
               width: 42, height: 42, borderRadius: 13, flexShrink: 0,
               background: isCancelled
@@ -764,7 +2045,20 @@ function RideCard({ ride, index }) {
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                 {driverLabel
-                  ? <><Car size={9} color="var(--ink-5)" strokeWidth={2.5} /><span style={{ fontSize: 11, color: "var(--ink-4)", fontWeight: 600 }}>{driverLabel}</span></>
+                  ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <Car size={9} color="var(--ink-5)" strokeWidth={2.5} />
+                      <span style={{ fontSize: 11, color: "var(--ink-4)", fontWeight: 600 }}>{driverLabel}</span>
+                      {/* Online dot for assigned driver */}
+                      {driverDoc && (
+                        <div style={{
+                          width: 5, height: 5, borderRadius: "50%", flexShrink: 0,
+                          background: driverDoc.status === "online" ? "#00C16A" : "#9898AA",
+                          boxShadow: driverDoc.status === "online" ? "0 0 5px rgba(0,193,106,.7)" : "none",
+                        }} />
+                      )}
+                    </div>
+                  )
                   : <span style={{ fontSize: 11, color: "#F59500", fontWeight: 700, fontStyle: "italic" }}>Awaiting driver</span>
                 }
               </div>
@@ -787,19 +2081,16 @@ function RideCard({ ride, index }) {
         <div style={{ position: "relative", height: 170, margin: "0 16px", borderRadius: 14, overflow: "hidden", border: "1px solid var(--border)", background: "#0d1117" }}>
           <CardMap ride={ride} status={status} />
 
-          {/* Pickup chip — top left */}
           <div style={{ position: "absolute", top: 8, left: 8, zIndex: 20, display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,.94)", backdropFilter: "blur(10px)", border: "1px solid rgba(0,0,0,.07)", borderRadius: 9, padding: "4px 9px", maxWidth: "54%" }}>
             <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#00C16A", flexShrink: 0, boxShadow: "0 0 8px rgba(0,193,106,.9)" }} />
             <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{shortAddr(ride.pickup) || "Pickup"}</span>
           </div>
 
-          {/* Dropoff chip — top right */}
           <div style={{ position: "absolute", top: 8, right: 8, zIndex: 20, display: "flex", alignItems: "center", gap: 5, background: "rgba(10,10,15,.85)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 9, padding: "4px 9px", maxWidth: "54%" }}>
             <MapPin size={9} color={isCancelled ? "#E8383A" : isCompleted ? "#9898AA" : "rgba(255,255,255,.7)"} />
             <span style={{ fontSize: 10.5, fontWeight: 700, color: "rgba(255,255,255,.9)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{shortAddr(ride.dropoff) || "Dropoff"}</span>
           </div>
 
-          {/* Live badge */}
           {isActive && (
             <div style={{ position: "absolute", bottom: 8, right: 8, zIndex: 20, display: "flex", alignItems: "center", gap: 5, background: "rgba(10,10,15,.82)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,.12)", borderRadius: 20, padding: "4px 10px" }}>
               <div className="live-dot blink" style={{ background: "#00C16A", color: "#00C16A", width: 5, height: 5 }} />
@@ -807,7 +2098,6 @@ function RideCard({ ride, index }) {
             </div>
           )}
 
-          {/* Driver distance badge (active) */}
           {isActive && ride.driverDistanceMiles != null && ride.driverEtaMin != null && (
             <div style={{ position: "absolute", bottom: 8, left: 8, zIndex: 20, display: "flex", alignItems: "center", gap: 5, background: "rgba(47,111,237,.88)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,.15)", borderRadius: 20, padding: "4px 10px" }}>
               <Navigation size={8} color="#fff" />
@@ -815,10 +2105,7 @@ function RideCard({ ride, index }) {
             </div>
           )}
 
-          {/* Cancelled overlay */}
           {isCancelled && <div style={{ position: "absolute", inset: 0, background: "rgba(232,56,58,.08)", zIndex: 10, pointerEvents: "none" }} />}
-
-          {/* Pin legend */}
           <MapLegend ride={ride} status={status} />
         </div>
 
@@ -828,7 +2115,7 @@ function RideCard({ ride, index }) {
         {/* ── Quick Actions ── */}
         {hasDriver && (
           <div style={{ padding: "11px 16px 0", display: "flex", gap: 8 }}>
-            {/* Message Driver */}
+            {/* Message Driver — sends FCM push */}
             <button
               className="qa-btn"
               onClick={() => setShowMsg(true)}
@@ -838,27 +2125,28 @@ function RideCard({ ride, index }) {
               Message Driver
             </button>
 
-            {/* Call Driver */}
+            {/* Call Driver — number from uatobdrivers doc */}
             <button
               className="qa-btn"
-              onClick={() => {
-                if (ride.driverPhone) {
-                  window.open(`tel:${ride.driverPhone}`);
-                } else {
-                  alert("Driver phone number not available.");
-                }
+              onClick={handleCallDriver}
+              style={{
+                background: driverPhone ? "#E6FFF3" : "var(--bg-soft)",
+                color: driverPhone ? "#00A659" : "var(--ink-4)",
+                border: `1px solid ${driverPhone ? "#99EDCA" : "var(--border-mid)"}`,
+                boxShadow: driverPhone ? "0 2px 8px rgba(0,193,106,.12)" : "none",
               }}
-              style={{ background: "#E6FFF3", color: "#00A659", border: "1px solid #99EDCA", boxShadow: "0 2px 8px rgba(0,193,106,.12)" }}
             >
               <Phone size={13} strokeWidth={2.5} />
-              Call Driver
+              {driverPhone
+                ? `Call ${driverPhone.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3")}`
+                : "Call Driver"
+              }
             </button>
           </div>
         )}
 
         {/* ── Footer meta ── */}
         <div style={{ padding: "11px 16px 14px", display: "flex", flexDirection: "column", gap: 9 }}>
-          {/* Pills row */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, flexWrap: "wrap" }}>
             <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
               {ride.rideLabel && (
@@ -895,7 +2183,6 @@ function RideCard({ ride, index }) {
             <span style={{ fontSize: 10.5, color: "var(--ink-5)", fontWeight: 600, fontFamily: "var(--mono)", whiteSpace: "nowrap" }}>{timeAgo(ride.createdAt)}</span>
           </div>
 
-          {/* Payment row */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 9, borderTop: "1px solid var(--border)", flexWrap: "wrap", gap: 6 }}>
             <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
               <span className="pill" style={{ background: ride.paymentMethod === "cashapp" ? "#E6FFF3" : "#EDF2FF", color: ride.paymentMethod === "cashapp" ? "#00A659" : "#2F6FED", border: "none" }}>
@@ -915,7 +2202,14 @@ function RideCard({ ride, index }) {
         <StatusBar ride={ride} />
       </div>
 
-      {showMsg && <MessageModal ride={ride} driverName={ride.driverName} onClose={() => setShowMsg(false)} />}
+      {/* Message Modal — passes full driverDoc for FCM token */}
+      {showMsg && (
+        <MessageModal
+          ride={ride}
+          driverDoc={driverDoc}
+          onClose={() => setShowMsg(false)}
+        />
+      )}
     </>
   );
 }
@@ -1147,6 +2441,9 @@ export function HomeTab({
           </div>
         </div>
 
+        {/* ── Driver strip ── */}
+        <DriverStrip uatobdrivers={uatobdrivers} />
+
         {/* ── Stat cards (2-col grid) ── */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
           {statRows.map(({ label, val, accent, Icon, delay }) => (
@@ -1189,7 +2486,7 @@ export function HomeTab({
 
         {showFilters && <FilterPanel filters={filters} onChange={onChange} onClear={onClear} count={filtered.length} />}
 
-        {/* ── Ride list ── */}
+        {/* ── Ride list — passes uatobdrivers for lookups ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {filtered.length === 0 && (
             <div className="card" style={{ textAlign: "center", padding: "52px 24px" }}>
@@ -1200,7 +2497,14 @@ export function HomeTab({
               <div style={{ fontSize: 12, color: "var(--ink-5)", fontWeight: 500 }}>{activeCount > 0 ? "Try clearing some filters" : "Waiting for new rides…"}</div>
             </div>
           )}
-          {filtered.map((ride, i) => <RideCard key={ride.id} ride={ride} index={i} />)}
+          {filtered.map((ride, i) => (
+            <RideCard
+              key={ride.id}
+              ride={ride}
+              index={i}
+              uatobdrivers={uatobdrivers}
+            />
+          ))}
         </div>
       </div>
     </>
