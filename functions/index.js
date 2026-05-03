@@ -20,6 +20,7 @@ const { onRideStatusChangedNotifyRider } = require("./ride/onRideStatusChangedNo
 const { trackView } = require("./ride/trackView");
 
 // Payment functions
+const { cashPayment } = require("./payments/cashPayment");
 const { cardPayment } = require("./payments/cardPayment");
 const { cashAppPayment } = require("./payments/cashAppPayment");
 const { cardChecker } = require("./payments/cardChecker");
@@ -84,6 +85,7 @@ exports.extendRideSearch = extendRideSearch;
 exports.Geo = Geo;
 exports.onRidePaymentSucceeded = onRidePaymentSucceeded;
 exports.cardPayment = cardPayment;
+exports.cashPayment = cashPayment;
 exports.checkDriverDeposit = checkDriverDeposit;
 exports.cashAppPayment = cashAppPayment;
 exports.setupDeposit = setupDeposit;

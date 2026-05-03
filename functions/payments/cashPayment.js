@@ -55,7 +55,7 @@ exports.cashPayment = onCall(
 
         paymentMethod:   "cash",
         paymentIntentId: null,
-        paymentStatus:   "cash_pending",   // driver confirms receipt at end of trip
+        paymentStatus:   "succeeded",   // driver confirms receipt at end of trip
 
         driverInfo: bookingPayload.driverInfo
           ? {
