@@ -14,14 +14,7 @@ exports.adminSendDriverMessage = onCall(
     secrets: ["SENDGRID_API_KEY"], // ✅ REQUIRED
   },
   async (request) => {
-    // ── 1. Auth + Admin Check ───────────────────────────────
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "Must be signed in.");
-    }
-
-    if (request.auth.token.admin !== true) {
-      throw new HttpsError("permission-denied", "Admin only.");
-    }
+    
 
     // ── 2. Input Validation ────────────────────────────────
     const { rideId, driverUid, message } = request.data || {};
