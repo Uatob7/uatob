@@ -17,29 +17,34 @@ function tsToMs(ts) {
 }
 
 /**
- * For a CASH ride to count as collected and ready to be reconciled:
+ * Decide if a ride should count toward this payout cycle.
+ *
+ * STRIPE-COLLECTED rides (card / cashapp / applepay / googlepay):
+ *   - status === "completed"
+ *   - paymentStatus === "succeeded"  (Stripe captured the money)
+ *   - payoutStatus is empty OR "pending"
+ *
+ * CASH rides:
+ *   - status === "completed"  (driver delivered the rider)
  *   - paymentMethod === "cash"
- *   - status === "completed"
- *   - cashCollectedAt is set (driver tapped "Cash collected")
- *   - paymentStatus === "succeeded"
- *
- * For a CARD ride to count:
- *   - paymentMethod !== "cash"  (card | cashapp | applepay | googlepay)
- *   - status === "completed"
- *   - paymentStatus === "succeeded"
- *
- * Both must have payoutStatus === "pending" (not already accumulated).
+ *   - payoutStatus is empty OR "pending"
+ *   - paymentStatus is IGNORED — there's no Stripe paymentStatus for cash;
+ *     the proof of "money received" is that the driver completed the trip
+ *     (we trust the driver tapped "Cash collected" to mark complete)
  */
 function isReadyForPayout(ride) {
-  if (ride.status !== "completed")            return false;
-  if (ride.paymentStatus !== "succeeded")     return false;
+  if (ride.status !== "completed") return false;
+
+  // Already processed or paid — skip
   if (ride.payoutStatus && ride.payoutStatus !== "pending") return false;
 
   if (ride.paymentMethod === "cash") {
-    // Cash MUST be collected before we count it
-    return !!ride.cashCollectedAt;
+    // Cash: completed status IS the proof of collection
+    return true;
   }
-  return true;
+
+  // Stripe-collected: must show captured payment
+  return ride.paymentStatus === "succeeded";
 }
 
 exports.withdraw = onSchedule(
@@ -51,17 +56,16 @@ exports.withdraw = onSchedule(
   async () => {
     try {
       // ─────────────────────────────────────────────────────
-      // 1) Pull every completed + paid ride
+      // 1) Pull every completed ride
+      //    (Note: removed paymentStatus filter — we filter
+      //     in JS so cash rides don't get excluded)
       // ─────────────────────────────────────────────────────
       const snap = await db.collection("Rides")
-        .where("status",        "==", "completed")
-        .where("paymentStatus", "==", "succeeded")
+        .where("status", "==", "completed")
         .get();
 
       // ─────────────────────────────────────────────────────
-      // 2) Group rides per driver, separating card vs cash
-      //    Skip rides that aren't ready (e.g. cash without
-      //    cashCollectedAt yet).
+      // 2) Group rides per driver, separating Stripe vs cash
       // ─────────────────────────────────────────────────────
       const driverMap = {};
 
@@ -73,10 +77,10 @@ exports.withdraw = onSchedule(
 
         if (!driverMap[uid]) {
           driverMap[uid] = {
-            cardRides:        [],
-            cashRides:        [],
-            cardPayoutSum:    0, // we owe driver
-            cashFeeOwedSum:   0, // driver owes us
+            stripeRides:    [],   // card | cashapp | applepay | googlepay (we owe driver)
+            cashRides:      [],   // cash (driver owes us platform fee)
+            stripePayoutSum: 0,
+            cashFeeOwedSum:  0,
           };
         }
 
@@ -86,9 +90,9 @@ exports.withdraw = onSchedule(
             driverMap[uid].cashFeeOwedSum + (data.platformFee || 0)
           );
         } else {
-          driverMap[uid].cardRides.push(data);
-          driverMap[uid].cardPayoutSum = round2(
-            driverMap[uid].cardPayoutSum + (data.driverPayout || 0)
+          driverMap[uid].stripeRides.push(data);
+          driverMap[uid].stripePayoutSum = round2(
+            driverMap[uid].stripePayoutSum + (data.driverPayout || 0)
           );
         }
       });
@@ -129,7 +133,7 @@ exports.withdraw = onSchedule(
       // 4) Process each driver
       // ─────────────────────────────────────────────────────
       for (const [uid, group] of Object.entries(driverMap)) {
-        const { cardRides, cashRides, cardPayoutSum, cashFeeOwedSum } = group;
+        const { stripeRides, cashRides, stripePayoutSum, cashFeeOwedSum } = group;
 
         const driverSnap = await db.collection("Drivers").doc(uid).get();
         if (!driverSnap.exists) {
@@ -143,13 +147,13 @@ exports.withdraw = onSchedule(
 
         // ─── Carry-forward balance ──────────────────────────
         // cashOwedBalance is a long-lived ledger. If a driver did 5 cash rides
-        // and 0 card rides, they owe us $X. That doesn't get wiped by a payout
-        // event — it carries forward and gets deducted from their NEXT card
-        // payout.
+        // and 0 stripe rides, they owe us $X. That doesn't get wiped by a
+        // payout event — it carries forward and gets deducted from their NEXT
+        // stripe payout.
         const carriedCashOwed = round2(driver.cashOwedBalance ?? 0);
 
         // ─── Look up rider names ────────────────────────────
-        const allRides  = [...cardRides, ...cashRides];
+        const allRides  = [...stripeRides, ...cashRides];
         const riderUids = [...new Set(allRides.map(r => r.uid).filter(Boolean))];
         const riderDocs = await Promise.all(
           riderUids.map(ruid => db.collection("Accounts").doc(ruid).get())
@@ -163,7 +167,7 @@ exports.withdraw = onSchedule(
         });
 
         // ─── Build rich breakdowns ──────────────────────────
-        const cardRideBreakdown = cardRides.map(r => ({
+        const stripeRideBreakdown = stripeRides.map(r => ({
           rideId:        r.id,
           riderUid:      r.uid          ?? null,
           riderName:     riderNameMap[r.uid] ?? "Unknown",
@@ -184,33 +188,29 @@ exports.withdraw = onSchedule(
           dropoff:         r.dropoff      ?? "",
           fareTotal:       r.fareTotal    ?? 0,
           driverPayout:    r.driverPayout ?? 0, // already in driver's pocket
-          platformFee:     r.platformFee  ?? 0, // ← this is what they owe us
-          cashCollectedAt: r.cashCollectedAt ?? null,
+          platformFee:     r.platformFee  ?? 0, // ← what they owe us
           completedAt:     r.completedAt  ?? null,
           rideType:        r.rideType     ?? "standard",
           paymentMethod:   "cash",
         }));
 
         // ─── Net the math ───────────────────────────────────
-        // cardPayoutSum     = $$$ we OWE driver from card/cashapp/etc
-        // cashFeeOwedSum    = $$$ driver OWES us (platform fee on cash they collected)
-        // carriedCashOwed   = $$$ driver still owes from earlier cycles
+        // stripePayoutSum  = $$$ we OWE driver (card/cashapp/etc)
+        // cashFeeOwedSum   = $$$ driver OWES us this cycle (cash platform fees)
+        // carriedCashOwed  = $$$ driver still owes from earlier cycles
         //
-        //   netPayout = cardPayout - cashFeeOwed (this run) - carriedCashOwed
+        //   netPayout = stripePayout - cashFeeOwed (this run) - carriedCashOwed
         //
         // If positive → we transfer that amount to their bank
-        // If zero/negative → we transfer nothing, and the leftover becomes
-        //   the new cashOwedBalance for next cycle.
+        // If zero/negative → we transfer nothing, leftover carries forward.
         const totalCashOwed = round2(cashFeeOwedSum + carriedCashOwed);
-        let   netPayout     = round2(cardPayoutSum - totalCashOwed);
+        let   netPayout     = round2(stripePayoutSum - totalCashOwed);
         let   newCashOwedBalance = 0;
 
         if (netPayout < 0) {
-          // Driver still owes us after this. Carry it forward.
           newCashOwedBalance = round2(-netPayout);
           netPayout = 0;
         } else {
-          // Driver paid off all cash debt with their card payouts.
           newCashOwedBalance = 0;
         }
 
@@ -222,11 +222,11 @@ exports.withdraw = onSchedule(
           batch.update(driverRef, {
             cashOwedBalance: newCashOwedBalance,
             withdrawal: {
-              // CARD side (what we owe driver)
-              totalPayout:       cardPayoutSum,
-              rideCount:         cardRides.length,
-              rideIds:           cardRides.map(r => r.id),
-              rideBreakdown:     cardRideBreakdown,
+              // STRIPE side (what we owe driver)
+              totalPayout:       stripePayoutSum,
+              rideCount:         stripeRides.length,
+              rideIds:           stripeRides.map(r => r.id),
+              rideBreakdown:     stripeRideBreakdown,
 
               // CASH side (what driver owes us this cycle)
               cashFeeOwed:       cashFeeOwedSum,
@@ -251,16 +251,16 @@ exports.withdraw = onSchedule(
           });
         } else {
           // Accumulate into existing pending withdrawal
-          const mergedCardPayout =
-            round2((existing.totalPayout ?? 0) + cardPayoutSum);
+          const mergedStripePayout =
+            round2((existing.totalPayout ?? 0) + stripePayoutSum);
           const mergedCashFeeOwed =
             round2((existing.cashFeeOwed ?? 0) + cashFeeOwedSum);
-          const mergedCardIds =
-            [...(existing.rideIds ?? []), ...cardRides.map(r => r.id)];
-          const mergedCardCount =
-            (existing.rideCount ?? 0) + cardRides.length;
-          const mergedCardBreakdown =
-            [...(existing.rideBreakdown ?? []), ...cardRideBreakdown];
+          const mergedStripeIds =
+            [...(existing.rideIds ?? []), ...stripeRides.map(r => r.id)];
+          const mergedStripeCount =
+            (existing.rideCount ?? 0) + stripeRides.length;
+          const mergedStripeBreakdown =
+            [...(existing.rideBreakdown ?? []), ...stripeRideBreakdown];
           const mergedCashIds =
             [...(existing.cashRideIds ?? []), ...cashRides.map(r => r.id)];
           const mergedCashCount =
@@ -272,7 +272,7 @@ exports.withdraw = onSchedule(
           const totalCashOwedMerged =
             round2(mergedCashFeeOwed + carriedCashOwed);
           let   netPayoutMerged =
-            round2(mergedCardPayout - totalCashOwedMerged);
+            round2(mergedStripePayout - totalCashOwedMerged);
           let   mergedCashOwedAfter = 0;
 
           if (netPayoutMerged < 0) {
@@ -283,10 +283,10 @@ exports.withdraw = onSchedule(
           batch.update(driverRef, {
             cashOwedBalance: mergedCashOwedAfter,
 
-            "withdrawal.totalPayout":       mergedCardPayout,
-            "withdrawal.rideCount":         mergedCardCount,
-            "withdrawal.rideIds":           mergedCardIds,
-            "withdrawal.rideBreakdown":     mergedCardBreakdown,
+            "withdrawal.totalPayout":       mergedStripePayout,
+            "withdrawal.rideCount":         mergedStripeCount,
+            "withdrawal.rideIds":           mergedStripeIds,
+            "withdrawal.rideBreakdown":     mergedStripeBreakdown,
 
             "withdrawal.cashFeeOwed":       mergedCashFeeOwed,
             "withdrawal.cashRideCount":     mergedCashCount,
@@ -313,15 +313,15 @@ exports.withdraw = onSchedule(
         summary.push({
           driverUid:       uid,
           name:            `${driver.firstName ?? ""} ${driver.lastName ?? ""}`.trim(),
-          cardCount:       cardRides.length,
+          stripeCount:     stripeRides.length,
           cashCount:       cashRides.length,
-          cardPayoutSum,
+          stripePayoutSum,
           cashFeeOwedSum,
           carriedCashOwed,
           netPayout,
           newCashOwedBalance,
           merged:          !isPaidOrEmpty,
-          cardRideBreakdown,
+          stripeRideBreakdown,
           cashRideBreakdown,
         });
       }
@@ -345,10 +345,10 @@ exports.withdraw = onSchedule(
           const lines = [];
           lines.push(`  → ${d.name} (${d.driverUid}) ${d.merged ? "[merged]" : "[new]"}`);
 
-          if (d.cardCount > 0) {
-            lines.push(`    💳 Card payout: $${d.cardPayoutSum.toFixed(2)} (${d.cardCount} rides)`);
-            d.cardRideBreakdown.forEach(r => {
-              lines.push(`      · ${r.riderName} — ${(r.pickup||"").split(",")[0]} → ${(r.dropoff||"").split(",")[0]} — $${(r.driverPayout||0).toFixed(2)}`);
+          if (d.stripeCount > 0) {
+            lines.push(`    💳 Stripe payout: $${d.stripePayoutSum.toFixed(2)} (${d.stripeCount} rides)`);
+            d.stripeRideBreakdown.forEach(r => {
+              lines.push(`      · [${r.paymentMethod}] ${r.riderName} — ${(r.pickup||"").split(",")[0]} → ${(r.dropoff||"").split(",")[0]} — $${(r.driverPayout||0).toFixed(2)}`);
             });
           }
 
@@ -363,9 +363,7 @@ exports.withdraw = onSchedule(
             lines.push(`    📋 Previous balance: -$${d.carriedCashOwed.toFixed(2)} (carried from prior cycle)`);
           }
 
-          lines.push(
-            `    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
-          );
+          lines.push(`    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
           lines.push(
             `    🏦 NET TRANSFER: $${d.netPayout.toFixed(2)}` +
             (d.newCashOwedBalance > 0
