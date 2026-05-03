@@ -55,6 +55,7 @@ const { pushCandidateDrivers } = require("./drivers/notification/pushCandidateDr
 const { reassignRide } = require("./drivers/reassignRide");
 const { onPaymentSucceeded } = require("./drivers/email/onPaymentSucceeded");
 const { pushOfflineDriver } = require("./drivers/notification/pushOfflineDriver");
+const { updateDriverSetting } = require("./drivers/updateDriverSetting");
 
 
 
@@ -123,6 +124,7 @@ exports.onDriverStatusChanged = onDriverStatusChanged;
 exports.checkDriverStripeCapability = checkDriverStripeCapability;
 exports.onPaymentSucceeded = onPaymentSucceeded;
 exports.pushOfflineDriver = pushOfflineDriver;
+exports.updateDriverSetting = updateDriverSetting;
 
 exports.onAccountCreatedNotifyAdmin = onAccountCreatedNotifyAdmin;
 exports.onDriverCreatedNotifyAdmin = onDriverCreatedNotifyAdmin;
