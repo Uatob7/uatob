@@ -1,9 +1,9 @@
 // src/App/UaTob/Admin/tabs/AnalyticsTab.jsx
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import {
-  Clock, CheckCircle, XCircle, DollarSign, ArrowUpRight,
+  ArrowUpRight,
   Eye, Smartphone, Monitor, TrendingUp, Activity, Users, MapPin,
-  UserPlus, ShieldCheck, FileCheck,
+  UserPlus, Search, Crown, Star, Car,
 } from "lucide-react";
 import { C } from '@/App/Admin/Tokens';
 import { Avatar, SectionHeader } from '@/App/Admin/UI';
@@ -36,6 +36,12 @@ function shortPath(path) {
   return path.slice(0, 18) + "…";
 }
 
+function shortAddress(addr) {
+  if (!addr) return "—";
+  const parts = addr.split(",").map(s => s.trim());
+  return parts.slice(0, 2).join(", ") || addr;
+}
+
 function docCompletion(d) {
   const docs = d.documents || {};
   const required = ["licenseFront", "licenseBack", "registration", "insurance", "profilePhoto"];
@@ -43,117 +49,144 @@ function docCompletion(d) {
   return { uploaded, total: required.length };
 }
 
-// ── Tooltip ──────────────────────────────────────────────
-function Tooltip({ visible, x, y, content }) {
-  if (!visible) return null;
+// ── Build week buckets (Mon → Sun) ───────────────────────
+function buildWeekBuckets() {
+  const now = new Date();
+  const monday = new Date(now);
+  monday.setHours(0, 0, 0, 0);
+  monday.setDate(now.getDate() - dayIndexFromMonday(now));
+
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return {
+      label: DAYS[i],
+      dateStr: d.toDateString(),
+      isToday: d.toDateString() === now.toDateString(),
+      isFuture: d > now,
+      value: 0,
+    };
+  });
+}
+
+// ── Reusable bar chart ───────────────────────────────────
+function BarChart({ buckets, maxVal, color }) {
   return (
-    <div style={{
-      position: "fixed",
-      left: x + 14,
-      top: y - 90,
-      zIndex: 999,
-      background: C.surface ?? "#fff",
-      border: `1px solid ${C.border}`,
-      borderRadius: 10,
-      padding: "10px 14px",
-      fontSize: 12,
-      color: C.text,
-      pointerEvents: "none",
-      minWidth: 170,
-      boxShadow: "0 4px 16px rgba(0,0,0,.1)",
-    }}>
-      {content}
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 100 }}>
+      {buckets.map((b, i) => {
+        const pct = b.isFuture ? 0 : Math.max((b.value / maxVal) * 80, b.value > 0 ? 6 : 0);
+        return (
+          <div
+            key={DAYS[i]}
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 5,
+            }}
+          >
+            {!b.isFuture && b.value > 0 && (
+              <div className="mono" style={{
+                fontSize: 9, fontWeight: 700,
+                color: b.isToday ? color : C.textDim,
+                fontVariantNumeric: "tabular-nums",
+              }}>
+                {b.value}
+              </div>
+            )}
+            {(b.isFuture || b.value === 0) && <div style={{ fontSize: 9, color: "transparent" }}>·</div>}
+            <div style={{
+              width: "100%",
+              borderRadius: "4px 4px 0 0",
+              height: `${b.isFuture ? 4 : Math.max(pct, 4)}px`,
+              background: b.isFuture
+                ? C.borderLight ?? `${C.border}`
+                : b.isToday
+                  ? `linear-gradient(180deg,${color},${color}cc 50%,${color}99)`
+                  : `${color}22`,
+              border: b.isFuture
+                ? `1px solid ${C.border}`
+                : `1px solid ${color}${b.isToday ? "bb" : "30"}`,
+              boxShadow: b.isToday && !b.isFuture
+                ? `0 4px 12px ${color}40`
+                : "none",
+              transition: "height .6s cubic-bezier(.34,1.2,.64,1)",
+              minHeight: 4,
+            }} />
+            <div style={{
+              fontSize: 9,
+              color: b.isToday ? color : C.textDim,
+              fontWeight: b.isToday ? 800 : 700,
+              letterSpacing: ".5px",
+            }}>
+              {DAYS[i]}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-// ── Driver Signups Chart ─────────────────────────────────
-function DriverSignupsChart({ uatobdrivers = [] }) {
+// ── Searches Chart ───────────────────────────────────────
+function SearchesChart({ searches = [] }) {
   const stats = useMemo(() => {
-    const now = new Date();
-    const monday = new Date(now);
-    monday.setHours(0, 0, 0, 0);
-    const todayDayIdx = dayIndexFromMonday(now);
-    monday.setDate(now.getDate() - todayDayIdx);
+    const buckets = buildWeekBuckets();
 
-    const buckets = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + i);
-      return {
-        label: DAYS[i],
-        dateStr: d.toDateString(),
-        isToday: d.toDateString() === now.toDateString(),
-        isFuture: d > now,
-        signups: 0,
-        approved: 0,
-        pending: 0,
-      };
-    });
+    let withDriverInfo = 0;
+    let noDriverInfo   = 0;
+    let totalMiles     = 0;
+    let totalMinutes   = 0;
+    const dropoffCounts = new Map();
 
-    let total           = uatobdrivers.length;
-    let online          = 0;
-    let offline         = 0;
-    let approved        = 0;
-    let pending         = 0;
-    let inProgress      = 0;
-    let rejected        = 0;
-    let suspended       = 0;
-    let docsComplete    = 0;
-    let stripeConnected = 0;
-
-    uatobdrivers.forEach(d => {
-      const ms = tsToMs(d.createdAt);
+    searches.forEach(s => {
+      const ms = tsToMs(s.createdAt);
       if (ms) {
-        const day = new Date(ms);
-        day.setHours(0, 0, 0, 0);
-        const idx = buckets.findIndex(b => b.dateStr === day.toDateString());
-        if (idx >= 0) {
-          buckets[idx].signups++;
-          if (d.status === "approved" || d.status === "online" || d.status === "offline") {
-            buckets[idx].approved++;
-          } else if (d.status === "pending") {
-            buckets[idx].pending++;
-          }
-        }
+        const d = new Date(ms);
+        d.setHours(0, 0, 0, 0);
+        const idx = buckets.findIndex(b => b.dateStr === d.toDateString());
+        if (idx >= 0) buckets[idx].value++;
       }
 
-      switch (d.status) {
-        case "online":      online++; break;
-        case "offline":     offline++; break;
-        case "approved":    approved++; break;
-        case "pending":     pending++; break;
-        case "in_progress": inProgress++; break;
-        case "rejected":    rejected++; break;
-        case "suspended":   suspended++; break;
-        default:
-          if (!d.status && (d.currentStep ?? 0) < 5) inProgress++;
-      }
+      if (s.driverInfo) withDriverInfo++;
+      else noDriverInfo++;
 
-      const dc = docCompletion(d);
-      if (dc.uploaded === dc.total) docsComplete++;
-      if (d.accountId) stripeConnected++;
+      if (typeof s.miles   === "number") totalMiles   += s.miles;
+      if (typeof s.minutes === "number") totalMinutes += s.minutes;
+
+      const dropoffKey = shortAddress(s.dropoff);
+      if (dropoffKey && dropoffKey !== "—") {
+        dropoffCounts.set(dropoffKey, (dropoffCounts.get(dropoffKey) ?? 0) + 1);
+      }
     });
 
-    const weekSignups = buckets.reduce((s, b) => s + b.signups, 0);
-    const maxVal = Math.max(...buckets.map(b => b.signups), 1);
+    const total      = searches.length;
+    const weekTotal  = buckets.reduce((s, b) => s + b.value, 0);
+    const maxVal     = Math.max(...buckets.map(b => b.value), 1);
+    const avgMiles   = total > 0 ? totalMiles / total   : 0;
+    const avgMinutes = total > 0 ? totalMinutes / total : 0;
+    const matchRate  = total > 0 ? Math.round((withDriverInfo / total) * 100) : 0;
 
-    const active      = online + offline;
-    const approvedAll = approved + active;
-    const inFunnel    = inProgress + pending;
-    const conversionPct = total > 0 ? Math.round((approvedAll / total) * 100) : 0;
+    const topDropoffs = [...dropoffCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4);
 
     return {
-      buckets, weekSignups, maxVal, total, online, offline, approved,
-      pending, inProgress, rejected, suspended, active, approvedAll,
-      inFunnel, conversionPct, docsComplete, stripeConnected,
+      buckets, weekTotal, maxVal, total,
+      withDriverInfo, noDriverInfo,
+      avgMiles: avgMiles.toFixed(2),
+      avgMinutes: avgMinutes.toFixed(1),
+      matchRate, topDropoffs,
     };
-  }, [uatobdrivers]);
+  }, [searches]);
 
-  const todaysSignups     = stats.buckets.find(b => b.isToday)?.signups ?? 0;
-  const yesterdayIdx      = stats.buckets.findIndex(b => b.isToday) - 1;
-  const yesterdaysSignups = yesterdayIdx >= 0 ? stats.buckets[yesterdayIdx].signups : 0;
-  const dayDelta = yesterdaysSignups > 0
-    ? Math.round(((todaysSignups - yesterdaysSignups) / yesterdaysSignups) * 100)
+  const blue = C.blue ?? "#2563EB";
+  const todayBucket  = stats.buckets.find(b => b.isToday);
+  const yesterdayIdx = stats.buckets.findIndex(b => b.isToday) - 1;
+  const yesterday    = yesterdayIdx >= 0 ? stats.buckets[yesterdayIdx] : null;
+  const dayDelta     = yesterday?.value > 0
+    ? Math.round(((todayBucket.value - yesterday.value) / yesterday.value) * 100)
     : null;
 
   return (
@@ -162,7 +195,7 @@ function DriverSignupsChart({ uatobdrivers = [] }) {
       style={{
         padding: 0,
         marginBottom: 16,
-        animationDelay: "30ms",
+        animationDelay: "10ms",
         opacity: 0,
         boxShadow: "0 1px 8px rgba(0,0,0,.05)",
         overflow: "hidden",
@@ -181,11 +214,299 @@ function DriverSignupsChart({ uatobdrivers = [] }) {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{
             width: 32, height: 32, borderRadius: 9,
-            background: `${C.green}14`,
-            border: `1.5px solid ${C.green}28`,
+            background: `${blue}14`,
+            border: `1.5px solid ${blue}28`,
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
-            <UserPlus size={15} color={C.green} strokeWidth={2.4}/>
+            <Search size={15} color={blue} strokeWidth={2.4}/>
+          </div>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>Fare Quote Searches</div>
+            <div style={{ fontSize: 11, color: C.textMuted }}>
+              {stats.total.toLocaleString()} total · {stats.matchRate}% matched a driver
+            </div>
+          </div>
+        </div>
+
+        <div style={{ textAlign: "right" }}>
+          <div className="mono" style={{
+            fontSize: 22, fontWeight: 700, color: C.text, lineHeight: 1,
+            fontVariantNumeric: "tabular-nums", letterSpacing: "-.5px",
+          }}>
+            {stats.weekTotal.toLocaleString()}
+          </div>
+          <div style={{
+            fontSize: 10, color: C.textMuted, fontWeight: 700,
+            marginTop: 4, letterSpacing: ".3px", textTransform: "uppercase",
+          }}>
+            This week
+          </div>
+        </div>
+      </div>
+
+      {/* Bar chart */}
+      <div style={{ padding: "18px 18px 14px" }}>
+        <BarChart buckets={stats.buckets} maxVal={stats.maxVal} color={blue}/>
+      </div>
+
+      {/* Footer stats */}
+      <div style={{
+        display: "flex",
+        borderTop: `1px solid ${C.border}`,
+        background: C.surfaceAlt ?? `${C.bg ?? "#FAFAFA"}`,
+      }}>
+        <div style={{ flex: 1, padding: "12px 14px", borderRight: `1px solid ${C.border}` }}>
+          <div style={{
+            fontSize: 9.5, color: C.textMuted, fontWeight: 700,
+            letterSpacing: ".4px", textTransform: "uppercase", marginBottom: 4,
+          }}>
+            Today
+          </div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+            <span className="mono" style={{
+              fontSize: 16, fontWeight: 700, color: C.text,
+              fontVariantNumeric: "tabular-nums", letterSpacing: "-.3px",
+            }}>
+              {todayBucket?.value ?? 0}
+            </span>
+            {dayDelta !== null && (
+              <span style={{
+                display: "inline-flex", alignItems: "center", gap: 2,
+                fontSize: 10, fontWeight: 700,
+                color: dayDelta >= 0 ? C.green : C.red,
+                fontFamily: "var(--mono)", letterSpacing: ".02em",
+              }}>
+                <TrendingUp
+                  size={9}
+                  strokeWidth={2.6}
+                  style={{ transform: dayDelta < 0 ? "rotate(180deg)" : "none" }}
+                />
+                {dayDelta >= 0 ? "+" : ""}{dayDelta}%
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div style={{ flex: 1, padding: "12px 14px", borderRight: `1px solid ${C.border}` }}>
+          <div style={{
+            fontSize: 9.5, color: C.textMuted, fontWeight: 700,
+            letterSpacing: ".4px", textTransform: "uppercase", marginBottom: 4,
+          }}>
+            Match Rate
+          </div>
+          <span className="mono" style={{
+            fontSize: 16, fontWeight: 700,
+            color: stats.matchRate >= 70 ? C.green : stats.matchRate >= 40 ? "#D97706" : C.red,
+            fontVariantNumeric: "tabular-nums", letterSpacing: "-.3px",
+          }}>
+            {stats.matchRate}%
+          </span>
+          <div style={{ fontSize: 9, color: C.textDim, fontWeight: 600, marginTop: 2 }}>
+            {stats.withDriverInfo}/{stats.total} matched
+          </div>
+        </div>
+
+        <div style={{ flex: 1, padding: "12px 14px" }}>
+          <div style={{
+            fontSize: 9.5, color: C.textMuted, fontWeight: 700,
+            letterSpacing: ".4px", textTransform: "uppercase", marginBottom: 4,
+          }}>
+            Avg Trip
+          </div>
+          <span className="mono" style={{
+            fontSize: 16, fontWeight: 700, color: C.text,
+            fontVariantNumeric: "tabular-nums", letterSpacing: "-.3px",
+          }}>
+            {stats.avgMiles}<span style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}> mi</span>
+          </span>
+          <div style={{ fontSize: 9, color: C.textDim, fontWeight: 600, marginTop: 2 }}>
+            {stats.avgMinutes} min avg
+          </div>
+        </div>
+      </div>
+
+      {/* No-driver alert */}
+      {stats.total > 0 && stats.matchRate < 50 && (
+        <div style={{
+          padding: "10px 14px",
+          background: `${C.red}08`,
+          borderTop: `1px solid ${C.red}22`,
+          display: "flex", alignItems: "center", gap: 8,
+        }}>
+          <span style={{
+            width: 6, height: 6, borderRadius: "50%",
+            background: C.red, boxShadow: `0 0 6px ${C.red}88`,
+          }}/>
+          <span style={{ fontSize: 11, fontWeight: 600, color: C.red }}>
+            <strong>{stats.noDriverInfo}</strong> riders found no nearby drivers — recruit drivers in hot zones
+          </span>
+        </div>
+      )}
+
+      {/* Top drop-offs */}
+      {stats.topDropoffs.length > 0 && (
+        <div style={{ padding: "14px 18px 16px", borderTop: `1px solid ${C.border}` }}>
+          <div style={{
+            fontSize: 9.5, color: C.textMuted, fontWeight: 800,
+            letterSpacing: ".5px", textTransform: "uppercase",
+            marginBottom: 10,
+            display: "flex", alignItems: "center", gap: 5,
+          }}>
+            <MapPin size={10} strokeWidth={2.4}/>
+            Top Destinations
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {stats.topDropoffs.map(([addr, count]) => {
+              const pct = (count / stats.total) * 100;
+              return (
+                <div
+                  key={addr}
+                  style={{
+                    position: "relative",
+                    background: `${blue}06`,
+                    border: `1px solid ${blue}15`,
+                    borderRadius: 8,
+                    padding: "8px 12px",
+                    overflow: "hidden",
+                  }}
+                >
+                  <div style={{
+                    position: "absolute",
+                    top: 0, left: 0, bottom: 0,
+                    width: `${pct}%`,
+                    background: `linear-gradient(90deg,${blue}18,${blue}08)`,
+                    transition: "width .6s cubic-bezier(.34,1.2,.64,1)",
+                  }}/>
+                  <div style={{
+                    position: "relative",
+                    display: "flex", alignItems: "center",
+                    justifyContent: "space-between", gap: 10,
+                  }}>
+                    <span style={{
+                      fontSize: 12, fontWeight: 700, color: C.text,
+                      whiteSpace: "nowrap", overflow: "hidden",
+                      textOverflow: "ellipsis", flex: 1,
+                    }}>
+                      {addr}
+                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                      <span className="mono" style={{
+                        fontSize: 11, color: C.textMuted, fontWeight: 600,
+                        fontVariantNumeric: "tabular-nums",
+                      }}>
+                        {pct.toFixed(0)}%
+                      </span>
+                      <span className="mono" style={{
+                        fontSize: 12, fontWeight: 700, color: blue,
+                        fontVariantNumeric: "tabular-nums",
+                        minWidth: 30, textAlign: "right",
+                      }}>
+                        {count}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Driver Signups Chart ─────────────────────────────────
+function DriverSignupsChart({ uatobdrivers = [] }) {
+  const stats = useMemo(() => {
+    const buckets = buildWeekBuckets();
+
+    let total           = uatobdrivers.length;
+    let online          = 0;
+    let offline         = 0;
+    let approved        = 0;
+    let pending         = 0;
+    let inProgress      = 0;
+    let rejected        = 0;
+    let suspended       = 0;
+    let docsComplete    = 0;
+    let stripeConnected = 0;
+
+    uatobdrivers.forEach(d => {
+      const ms = tsToMs(d.createdAt);
+      if (ms) {
+        const day = new Date(ms);
+        day.setHours(0, 0, 0, 0);
+        const idx = buckets.findIndex(b => b.dateStr === day.toDateString());
+        if (idx >= 0) buckets[idx].value++;
+      }
+
+      switch (d.status) {
+        case "online":      online++;      break;
+        case "offline":     offline++;     break;
+        case "approved":    approved++;    break;
+        case "pending":     pending++;     break;
+        case "in_progress": inProgress++;  break;
+        case "rejected":    rejected++;    break;
+        case "suspended":   suspended++;   break;
+        default:
+          if (!d.status && (d.currentStep ?? 0) < 5) inProgress++;
+      }
+
+      const dc = docCompletion(d);
+      if (dc.uploaded === dc.total) docsComplete++;
+      if (d.accountId) stripeConnected++;
+    });
+
+    const weekSignups   = buckets.reduce((s, b) => s + b.value, 0);
+    const maxVal        = Math.max(...buckets.map(b => b.value), 1);
+    const active        = online + offline;
+    const approvedAll   = approved + active;
+    const conversionPct = total > 0 ? Math.round((approvedAll / total) * 100) : 0;
+
+    return {
+      buckets, weekSignups, maxVal,
+      total, online, offline, approved, pending, inProgress, rejected, suspended,
+      active, approvedAll, conversionPct, docsComplete, stripeConnected,
+    };
+  }, [uatobdrivers]);
+
+  const green        = C.green;
+  const todayBucket  = stats.buckets.find(b => b.isToday);
+  const yesterdayIdx = stats.buckets.findIndex(b => b.isToday) - 1;
+  const yesterday    = yesterdayIdx >= 0 ? stats.buckets[yesterdayIdx] : null;
+  const dayDelta     = yesterday?.value > 0
+    ? Math.round(((todayBucket.value - yesterday.value) / yesterday.value) * 100)
+    : null;
+
+  return (
+    <div
+      className="card fade-up"
+      style={{
+        padding: 0,
+        marginBottom: 16,
+        animationDelay: "30ms",
+        opacity: 0,
+        boxShadow: "0 1px 8px rgba(0,0,0,.05)",
+        overflow: "hidden",
+      }}
+    >
+      <div style={{
+        padding: "16px 18px 14px",
+        borderBottom: `1px solid ${C.border}`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
+        flexWrap: "wrap",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 9,
+            background: `${green}14`,
+            border: `1.5px solid ${green}28`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <UserPlus size={15} color={green} strokeWidth={2.4}/>
           </div>
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>Driver Signups This Week</div>
@@ -211,58 +532,10 @@ function DriverSignupsChart({ uatobdrivers = [] }) {
         </div>
       </div>
 
-      {/* Bar chart */}
       <div style={{ padding: "18px 18px 14px" }}>
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 100 }}>
-          {stats.buckets.map((b, i) => {
-            const pct = b.isFuture ? 0 : Math.max((b.signups / stats.maxVal) * 80, b.signups > 0 ? 6 : 0);
-            const green = C.green;
-            return (
-              <div
-                key={DAYS[i]}
-                style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}
-              >
-                {!b.isFuture && b.signups > 0 && (
-                  <div className="mono" style={{
-                    fontSize: 9, fontWeight: 700,
-                    color: b.isToday ? green : C.textDim,
-                    fontVariantNumeric: "tabular-nums",
-                  }}>
-                    {b.signups}
-                  </div>
-                )}
-                {(b.isFuture || b.signups === 0) && <div style={{ fontSize: 9, color: "transparent" }}>·</div>}
-                <div style={{
-                  width: "100%",
-                  borderRadius: "4px 4px 0 0",
-                  height: `${b.isFuture ? 4 : Math.max(pct, 4)}px`,
-                  background: b.isFuture
-                    ? C.borderLight ?? `${C.border}`
-                    : b.isToday
-                      ? `linear-gradient(180deg,#22C55E,${green} 50%,#15803D)`
-                      : `${green}22`,
-                  border: b.isFuture
-                    ? `1px solid ${C.border}`
-                    : `1px solid ${green}${b.isToday ? "bb" : "30"}`,
-                  boxShadow: b.isToday && !b.isFuture ? `0 4px 12px ${green}40` : "none",
-                  transition: "height .6s cubic-bezier(.34,1.2,.64,1)",
-                  minHeight: 4,
-                }} />
-                <div style={{
-                  fontSize: 9,
-                  color: b.isToday ? green : C.textDim,
-                  fontWeight: b.isToday ? 800 : 700,
-                  letterSpacing: ".5px",
-                }}>
-                  {DAYS[i]}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <BarChart buckets={stats.buckets} maxVal={stats.maxVal} color={green}/>
       </div>
 
-      {/* Footer stats */}
       <div style={{
         display: "flex",
         borderTop: `1px solid ${C.border}`,
@@ -280,7 +553,7 @@ function DriverSignupsChart({ uatobdrivers = [] }) {
               fontSize: 16, fontWeight: 700, color: C.text,
               fontVariantNumeric: "tabular-nums", letterSpacing: "-.3px",
             }}>
-              {todaysSignups}
+              {todayBucket?.value ?? 0}
             </span>
             {dayDelta !== null && (
               <span style={{
@@ -290,7 +563,8 @@ function DriverSignupsChart({ uatobdrivers = [] }) {
                 fontFamily: "var(--mono)", letterSpacing: ".02em",
               }}>
                 <TrendingUp
-                  size={9} strokeWidth={2.6}
+                  size={9}
+                  strokeWidth={2.6}
                   style={{ transform: dayDelta < 0 ? "rotate(180deg)" : "none" }}
                 />
                 {dayDelta >= 0 ? "+" : ""}{dayDelta}%
@@ -336,7 +610,6 @@ function DriverSignupsChart({ uatobdrivers = [] }) {
         </div>
       </div>
 
-      {/* Lifecycle Breakdown */}
       <div style={{ padding: "14px 18px 16px", borderTop: `1px solid ${C.border}` }}>
         <div style={{
           fontSize: 9.5, color: C.textMuted, fontWeight: 800,
@@ -374,7 +647,8 @@ function DriverSignupsChart({ uatobdrivers = [] }) {
                   }}
                 >
                   <div style={{
-                    position: "absolute", top: 0, left: 0, bottom: 0,
+                    position: "absolute",
+                    top: 0, left: 0, bottom: 0,
                     width: `${pct}%`,
                     background: `linear-gradient(90deg,${row.color}18,${row.color}08)`,
                     transition: "width .6s cubic-bezier(.34,1.2,.64,1)",
@@ -390,7 +664,8 @@ function DriverSignupsChart({ uatobdrivers = [] }) {
                     }}>
                       <span style={{
                         width: 6, height: 6, borderRadius: "50%",
-                        background: row.color, boxShadow: `0 0 6px ${row.color}88`,
+                        background: row.color,
+                        boxShadow: `0 0 6px ${row.color}88`,
                       }}/>
                       {row.label}
                     </span>
@@ -416,9 +691,11 @@ function DriverSignupsChart({ uatobdrivers = [] }) {
 
           {stats.total === 0 && (
             <div style={{
-              padding: "20px", textAlign: "center",
+              padding: "20px",
+              textAlign: "center",
               fontSize: 12, color: C.textMuted,
-              background: C.surfaceAlt ?? "#FAFAFA", borderRadius: 8,
+              background: C.surfaceAlt ?? "#FAFAFA",
+              borderRadius: 8,
             }}>
               No drivers yet
             </div>
@@ -432,43 +709,21 @@ function DriverSignupsChart({ uatobdrivers = [] }) {
 // ── Views Chart ──────────────────────────────────────────
 function ViewsChart({ views = [] }) {
   const stats = useMemo(() => {
-    const now = new Date();
-    const monday = new Date(now);
-    monday.setHours(0, 0, 0, 0);
-    const todayDayIdx = dayIndexFromMonday(now);
-    monday.setDate(now.getDate() - todayDayIdx);
+    const buckets = buildWeekBuckets();
 
-    const buckets = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + i);
-      return {
-        label: DAYS[i],
-        dateStr: d.toDateString(),
-        isToday: d.toDateString() === now.toDateString(),
-        isFuture: d > now,
-        views: 0,
-        sessions: new Set(),
-      };
-    });
-
-    const pathCounts = new Map();
-    let mobileCount = 0;
-    let desktopCount = 0;
-    let totalSessions = new Set();
-    let totalUsers = new Set();
+    const pathCounts    = new Map();
+    let mobileCount     = 0;
+    let desktopCount    = 0;
+    const totalSessions = new Set();
+    const totalUsers    = new Set();
 
     views.forEach(v => {
       const ms = tsToMs(v.timestamp ?? v.createdAt);
       if (!ms) return;
-
       const d = new Date(ms);
       d.setHours(0, 0, 0, 0);
       const idx = buckets.findIndex(b => b.dateStr === d.toDateString());
-
-      if (idx >= 0) {
-        buckets[idx].views++;
-        if (v.sessionId) buckets[idx].sessions.add(v.sessionId);
-      }
+      if (idx >= 0) buckets[idx].value++;
 
       const p = v.path || "/";
       pathCounts.set(p, (pathCounts.get(p) ?? 0) + 1);
@@ -480,48 +735,58 @@ function ViewsChart({ views = [] }) {
       if (v.uid) totalUsers.add(v.uid);
     });
 
-    const totalViews = buckets.reduce((s, b) => s + b.views, 0);
-    const maxVal = Math.max(...buckets.map(b => b.views), 1);
-    const topPaths = [...pathCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+    const totalViews  = buckets.reduce((s, b) => s + b.value, 0);
+    const maxVal      = Math.max(...buckets.map(b => b.value), 1);
+    const topPaths    = [...pathCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
     const totalDevices = mobileCount + desktopCount;
-    const mobilePct = totalDevices > 0 ? Math.round((mobileCount / totalDevices) * 100) : 0;
+    const mobilePct   = totalDevices > 0 ? Math.round((mobileCount / totalDevices) * 100) : 0;
 
     return {
       buckets, totalViews, maxVal,
       totalSessions: totalSessions.size,
       totalUsers: totalUsers.size,
-      mobileCount, desktopCount, mobilePct, topPaths,
+      mobileCount, desktopCount, mobilePct,
+      topPaths,
     };
   }, [views]);
 
-  const todaysViews    = stats.buckets.find(b => b.isToday)?.views ?? 0;
-  const yesterdayIdx   = stats.buckets.findIndex(b => b.isToday) - 1;
-  const yesterdaysViews = yesterdayIdx >= 0 ? stats.buckets[yesterdayIdx].views : 0;
-  const dayDelta = yesterdaysViews > 0
-    ? Math.round(((todaysViews - yesterdaysViews) / yesterdaysViews) * 100)
+  const purple       = C.violet ?? "#7C3AED";
+  const todayBucket  = stats.buckets.find(b => b.isToday);
+  const yesterdayIdx = stats.buckets.findIndex(b => b.isToday) - 1;
+  const yesterday    = yesterdayIdx >= 0 ? stats.buckets[yesterdayIdx] : null;
+  const dayDelta     = yesterday?.value > 0
+    ? Math.round(((todayBucket.value - yesterday.value) / yesterday.value) * 100)
     : null;
 
   return (
     <div
       className="card fade-up"
       style={{
-        padding: 0, marginBottom: 16, animationDelay: "20ms", opacity: 0,
-        boxShadow: "0 1px 8px rgba(0,0,0,.05)", overflow: "hidden",
+        padding: 0,
+        marginBottom: 16,
+        animationDelay: "20ms",
+        opacity: 0,
+        boxShadow: "0 1px 8px rgba(0,0,0,.05)",
+        overflow: "hidden",
       }}
     >
       <div style={{
-        padding: "16px 18px 14px", borderBottom: `1px solid ${C.border}`,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        gap: 12, flexWrap: "wrap",
+        padding: "16px 18px 14px",
+        borderBottom: `1px solid ${C.border}`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
+        flexWrap: "wrap",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{
             width: 32, height: 32, borderRadius: 9,
-            background: `${C.violet ?? "#7C3AED"}14`,
-            border: `1.5px solid ${C.violet ?? "#7C3AED"}28`,
+            background: `${purple}14`,
+            border: `1.5px solid ${purple}28`,
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
-            <Eye size={15} color={C.violet ?? "#7C3AED"} strokeWidth={2.4}/>
+            <Eye size={15} color={purple} strokeWidth={2.4}/>
           </div>
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>Page Views This Week</div>
@@ -548,54 +813,12 @@ function ViewsChart({ views = [] }) {
       </div>
 
       <div style={{ padding: "18px 18px 14px" }}>
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 100 }}>
-          {stats.buckets.map((b, i) => {
-            const pct = b.isFuture ? 0 : Math.max((b.views / stats.maxVal) * 80, b.views > 0 ? 6 : 0);
-            const purple = C.violet ?? "#7C3AED";
-            return (
-              <div
-                key={DAYS[i]}
-                style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}
-              >
-                {!b.isFuture && b.views > 0 && (
-                  <div className="mono" style={{
-                    fontSize: 9, fontWeight: 700,
-                    color: b.isToday ? purple : C.textDim,
-                    fontVariantNumeric: "tabular-nums",
-                  }}>
-                    {b.views}
-                  </div>
-                )}
-                {(b.isFuture || b.views === 0) && <div style={{ fontSize: 9, color: "transparent" }}>·</div>}
-                <div style={{
-                  width: "100%", borderRadius: "4px 4px 0 0",
-                  height: `${b.isFuture ? 4 : Math.max(pct, 4)}px`,
-                  background: b.isFuture
-                    ? C.borderLight ?? `${C.border}`
-                    : b.isToday
-                      ? `linear-gradient(180deg,${purple},${purple}cc 50%,${purple}99)`
-                      : `${purple}22`,
-                  border: b.isFuture
-                    ? `1px solid ${C.border}`
-                    : `1px solid ${purple}${b.isToday ? "bb" : "30"}`,
-                  boxShadow: b.isToday && !b.isFuture ? `0 4px 12px ${purple}40` : "none",
-                  transition: "height .6s cubic-bezier(.34,1.2,.64,1)",
-                  minHeight: 4,
-                }} />
-                <div style={{
-                  fontSize: 9, color: b.isToday ? purple : C.textDim,
-                  fontWeight: b.isToday ? 800 : 700, letterSpacing: ".5px",
-                }}>
-                  {DAYS[i]}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <BarChart buckets={stats.buckets} maxVal={stats.maxVal} color={purple}/>
       </div>
 
       <div style={{
-        display: "flex", borderTop: `1px solid ${C.border}`,
+        display: "flex",
+        borderTop: `1px solid ${C.border}`,
         background: C.surfaceAlt ?? `${C.bg ?? "#FAFAFA"}`,
       }}>
         <div style={{ flex: 1, padding: "12px 14px", borderRight: `1px solid ${C.border}` }}>
@@ -610,7 +833,7 @@ function ViewsChart({ views = [] }) {
               fontSize: 16, fontWeight: 700, color: C.text,
               fontVariantNumeric: "tabular-nums", letterSpacing: "-.3px",
             }}>
-              {todaysViews}
+              {todayBucket?.value ?? 0}
             </span>
             {dayDelta !== null && (
               <span style={{
@@ -620,7 +843,8 @@ function ViewsChart({ views = [] }) {
                 fontFamily: "var(--mono)", letterSpacing: ".02em",
               }}>
                 <TrendingUp
-                  size={9} strokeWidth={2.6}
+                  size={9}
+                  strokeWidth={2.6}
                   style={{ transform: dayDelta < 0 ? "rotate(180deg)" : "none" }}
                 />
                 {dayDelta >= 0 ? "+" : ""}{dayDelta}%
@@ -639,7 +863,8 @@ function ViewsChart({ views = [] }) {
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{
               display: "inline-flex", alignItems: "center", gap: 4,
-              fontSize: 11, fontWeight: 700, color: C.text, fontFamily: "var(--mono)",
+              fontSize: 11, fontWeight: 700, color: C.text,
+              fontFamily: "var(--mono)",
             }}>
               <Smartphone size={11} color={C.blue} strokeWidth={2.4}/>
               {stats.mobilePct}%
@@ -647,7 +872,8 @@ function ViewsChart({ views = [] }) {
             <span style={{ color: C.textDim, fontSize: 10 }}>·</span>
             <span style={{
               display: "inline-flex", alignItems: "center", gap: 4,
-              fontSize: 11, fontWeight: 700, color: C.textMuted, fontFamily: "var(--mono)",
+              fontSize: 11, fontWeight: 700, color: C.textMuted,
+              fontFamily: "var(--mono)",
             }}>
               <Monitor size={11} color={C.textDim} strokeWidth={2.4}/>
               {100 - stats.mobilePct}%
@@ -678,7 +904,8 @@ function ViewsChart({ views = [] }) {
           <div style={{
             fontSize: 9.5, color: C.textMuted, fontWeight: 800,
             letterSpacing: ".5px", textTransform: "uppercase",
-            marginBottom: 10, display: "flex", alignItems: "center", gap: 5,
+            marginBottom: 10,
+            display: "flex", alignItems: "center", gap: 5,
           }}>
             <MapPin size={10} strokeWidth={2.4}/>
             Top Pages
@@ -686,30 +913,35 @@ function ViewsChart({ views = [] }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {stats.topPaths.map(([path, count]) => {
               const pct = (count / stats.totalViews) * 100;
-              const purple = C.violet ?? "#7C3AED";
               return (
                 <div
                   key={path}
                   style={{
-                    position: "relative", background: `${purple}06`,
-                    border: `1px solid ${purple}15`, borderRadius: 8,
-                    padding: "8px 12px", overflow: "hidden",
+                    position: "relative",
+                    background: `${purple}06`,
+                    border: `1px solid ${purple}15`,
+                    borderRadius: 8,
+                    padding: "8px 12px",
+                    overflow: "hidden",
                   }}
                 >
                   <div style={{
-                    position: "absolute", top: 0, left: 0, bottom: 0,
+                    position: "absolute",
+                    top: 0, left: 0, bottom: 0,
                     width: `${pct}%`,
                     background: `linear-gradient(90deg,${purple}18,${purple}08)`,
                     transition: "width .6s cubic-bezier(.34,1.2,.64,1)",
                   }}/>
                   <div style={{
-                    position: "relative", display: "flex", alignItems: "center",
+                    position: "relative",
+                    display: "flex", alignItems: "center",
                     justifyContent: "space-between", gap: 10,
                   }}>
                     <span style={{
                       fontSize: 12, fontWeight: 700, color: C.text,
-                      fontFamily: "var(--mono)", whiteSpace: "nowrap",
-                      overflow: "hidden", textOverflow: "ellipsis", flex: 1,
+                      fontFamily: "var(--mono)",
+                      whiteSpace: "nowrap", overflow: "hidden",
+                      textOverflow: "ellipsis", flex: 1,
                     }}>
                       {shortPath(path)}
                     </span>
@@ -744,25 +976,13 @@ function RidesChart({ rides = [] }) {
   const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, content: null });
 
   const stats = useMemo(() => {
-    const now = new Date();
-    const monday = new Date(now);
-    monday.setHours(0, 0, 0, 0);
-    monday.setDate(now.getDate() - dayIndexFromMonday(now));
-
-    const buckets = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + i);
-      return {
-        label: DAYS[i],
-        dateStr: d.toDateString(),
-        isToday: d.toDateString() === now.toDateString(),
-        isFuture: d > now,
-        rides: [],
-        fare: 0,
-        platform: 0,
-        driver: 0,
-      };
-    });
+    const buckets = buildWeekBuckets().map(b => ({
+      ...b,
+      rides:    [],
+      fare:     0,
+      platform: 0,
+      driver:   0,
+    }));
 
     let totalFare = 0, totalPlatform = 0, totalDriver = 0;
 
@@ -782,22 +1002,18 @@ function RidesChart({ rides = [] }) {
       totalDriver   += r.driverPayout ?? 0;
     });
 
-    const totalRides  = rides.length;
-    const maxFare     = Math.max(...buckets.map(b => b.fare), 1);
-    const platPct     = totalFare > 0 ? Math.round((totalPlatform / totalFare) * 100) : 25;
-    const driverPct   = totalFare > 0 ? Math.round((totalDriver   / totalFare) * 100) : 75;
-    const avgFare     = totalRides > 0 ? totalFare / totalRides : 0;
-
-    const todayBucket = buckets.find(b => b.isToday);
-    const todayRides  = todayBucket?.rides.length ?? 0;
+    const totalRides = rides.length;
+    const maxFare    = Math.max(...buckets.map(b => b.fare), 1);
+    const platPct    = totalFare > 0 ? Math.round((totalPlatform / totalFare) * 100) : 25;
+    const driverPct  = totalFare > 0 ? Math.round((totalDriver   / totalFare) * 100) : 75;
+    const avgFare    = totalRides > 0 ? totalFare / totalRides : 0;
 
     return {
       buckets, totalRides, totalFare, totalPlatform, totalDriver,
-      maxFare, platPct, driverPct, avgFare, todayRides,
+      maxFare, platPct, driverPct, avgFare,
     };
   }, [rides]);
 
-  // Recent rides sorted newest first
   const recentRides = useMemo(() =>
     [...rides]
       .sort((a, b) => tsToMs(b.createdAt) - tsToMs(a.createdAt))
@@ -806,10 +1022,10 @@ function RidesChart({ rides = [] }) {
   );
 
   const STATUS_COLORS = {
-    completed:        C.green  ?? "#22C55E",
-    searching_driver: C.amber  ?? "#D97706",
-    in_progress:      C.blue   ?? "#2563EB",
-    cancelled:        C.red    ?? "#DC2626",
+    completed:        C.green   ?? "#22C55E",
+    searching_driver: C.amber   ?? "#D97706",
+    in_progress:      C.blue    ?? "#2563EB",
+    cancelled:        C.red     ?? "#DC2626",
     expired:          C.textDim ?? "#9CA3AF",
   };
 
@@ -866,7 +1082,6 @@ function RidesChart({ rides = [] }) {
         display: "flex", borderBottom: `1px solid ${C.border}`,
         background: C.surfaceAlt ?? `${C.bg ?? "#FAFAFA"}`,
       }}>
-        {/* Total revenue */}
         <div style={{ flex: 1, padding: "12px 14px", borderRight: `1px solid ${C.border}` }}>
           <div style={{
             fontSize: 9.5, color: C.textMuted, fontWeight: 700,
@@ -885,7 +1100,6 @@ function RidesChart({ rides = [] }) {
           </div>
         </div>
 
-        {/* Platform keeps */}
         <div style={{ flex: 1, padding: "12px 14px", borderRight: `1px solid ${C.border}` }}>
           <div style={{
             fontSize: 9.5, color: C.textMuted, fontWeight: 700,
@@ -904,7 +1118,6 @@ function RidesChart({ rides = [] }) {
           </div>
         </div>
 
-        {/* Drivers keep */}
         <div style={{ flex: 1, padding: "12px 14px" }}>
           <div style={{
             fontSize: 9.5, color: C.textMuted, fontWeight: 700,
@@ -925,10 +1138,7 @@ function RidesChart({ rides = [] }) {
       </div>
 
       {/* Legend */}
-      <div style={{
-        padding: "10px 18px 0",
-        display: "flex", alignItems: "center", gap: 14,
-      }}>
+      <div style={{ padding: "10px 18px 0", display: "flex", alignItems: "center", gap: 14 }}>
         {[
           { color: DRIVER_COLOR,   label: `Driver payout (${stats.driverPct}%)` },
           { color: PLATFORM_COLOR, label: `Platform fee (${stats.platPct}%)` },
@@ -952,8 +1162,7 @@ function RidesChart({ rides = [] }) {
             const totalH = b.isFuture
               ? 0
               : Math.max((b.fare / stats.maxFare) * 90, b.fare > 0 ? 8 : 0);
-
-            const driverH   = totalH > 0 ? (b.driver   / b.fare) * totalH : 0;
+            const driverH   = totalH > 0 ? (b.driver / b.fare) * totalH : 0;
             const platformH = totalH - driverH;
 
             return (
@@ -961,7 +1170,6 @@ function RidesChart({ rides = [] }) {
                 key={DAYS[i]}
                 style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}
               >
-                {/* Value label above bar */}
                 {!b.isFuture && b.fare > 0 ? (
                   <div className="mono" style={{
                     fontSize: 9, fontWeight: 700,
@@ -974,7 +1182,6 @@ function RidesChart({ rides = [] }) {
                   <div style={{ fontSize: 9, color: "transparent" }}>·</div>
                 )}
 
-                {/* Stacked bar */}
                 {b.isFuture || b.fare === 0 ? (
                   <div style={{
                     width: "100%", height: 4, borderRadius: "4px 4px 0 0",
@@ -984,20 +1191,14 @@ function RidesChart({ rides = [] }) {
                 ) : (
                   <div
                     style={{
-                      width: "100%",
-                      borderRadius: "4px 4px 0 0",
-                      overflow: "hidden",
-                      display: "flex",
-                      flexDirection: "column",
-                      height: `${totalH}px`,
-                      cursor: "pointer",
+                      width: "100%", borderRadius: "4px 4px 0 0", overflow: "hidden",
+                      display: "flex", flexDirection: "column",
+                      height: `${totalH}px`, cursor: "pointer",
                       outline: b.isToday ? `1.5px solid ${C.amber}` : "none",
                       outlineOffset: 1,
                     }}
                     onMouseEnter={e => setTooltip({
-                      visible: true,
-                      x: e.clientX,
-                      y: e.clientY,
+                      visible: true, x: e.clientX, y: e.clientY,
                       content: (
                         <div>
                           <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 6, color: C.text }}>
@@ -1036,7 +1237,6 @@ function RidesChart({ rides = [] }) {
                   </div>
                 )}
 
-                {/* Day label */}
                 <div style={{
                   fontSize: 9,
                   color: b.isToday ? C.amber : C.textDim,
@@ -1079,7 +1279,7 @@ function RidesChart({ rides = [] }) {
                       fontSize: 11, color: C.text, fontWeight: 700,
                       whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                     }}>
-                      {(r.pickup  ?? "").split(",")[0] ?? "—"} → {(r.dropoff ?? "").split(",")[0] ?? "—"}
+                      {(r.pickup  ?? "").split(",")[0] || "—"} → {(r.dropoff ?? "").split(",")[0] || "—"}
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
                       <span style={{ fontSize: 10, color: sc, fontWeight: 700, textTransform: "capitalize" }}>
@@ -1090,7 +1290,6 @@ function RidesChart({ rides = [] }) {
                       </span>
                     </div>
                   </div>
-
                   <div style={{ textAlign: "right", flexShrink: 0 }}>
                     <div className="mono" style={{
                       fontSize: 13, fontWeight: 700, color: C.text,
@@ -1119,18 +1318,230 @@ function RidesChart({ rides = [] }) {
       {tooltip.visible && (
         <div style={{
           position: "fixed",
-          left: tooltip.x + 14,
-          top: tooltip.y - 90,
+          left: tooltip.x + 14, top: tooltip.y - 90,
           zIndex: 999,
           background: C.surface ?? "#fff",
           border: `1px solid ${C.border}`,
-          borderRadius: 10,
-          padding: "10px 14px",
-          pointerEvents: "none",
-          minWidth: 170,
+          borderRadius: 10, padding: "10px 14px",
+          pointerEvents: "none", minWidth: 170,
           boxShadow: "0 4px 16px rgba(0,0,0,.1)",
         }}>
           {tooltip.content}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Top Drivers Leaderboard ──────────────────────────────
+function TopDriversLeaderboard({ topDrivers = [] }) {
+  const maxRides = Math.max(...topDrivers.map(d => d.rides ?? 0), 1);
+
+  const getRankStyle = (rank) => {
+    switch (rank) {
+      case 0: return { color: "#F59E0B", bg: "#FEF3C7", icon: "👑", label: "GOLD",   gradient: "linear-gradient(135deg,#F59E0B,#D97706)" };
+      case 1: return { color: "#9CA3AF", bg: "#F3F4F6", icon: "🥈", label: "SILVER", gradient: "linear-gradient(135deg,#9CA3AF,#6B7280)" };
+      case 2: return { color: "#B45309", bg: "#FEF3C7", icon: "🥉", label: "BRONZE", gradient: "linear-gradient(135deg,#B45309,#92400E)" };
+      default: return { color: C.textMuted, bg: C.surfaceAlt ?? "#F9FAFB", icon: null, label: null, gradient: null };
+    }
+  };
+
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <div style={{
+        display: "flex", alignItems: "center",
+        justifyContent: "space-between",
+        marginBottom: 12, padding: "0 2px",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Crown size={14} color="#F59E0B" strokeWidth={2.4}/>
+          <span style={{
+            fontSize: 11, fontWeight: 800, color: C.text,
+            letterSpacing: ".5px", textTransform: "uppercase",
+          }}>
+            Top Drivers
+          </span>
+        </div>
+        <span style={{
+          fontSize: 10, fontWeight: 700, color: C.textMuted,
+          letterSpacing: ".3px", textTransform: "uppercase",
+        }}>
+          This Week
+        </span>
+      </div>
+
+      {topDrivers.length === 0 ? (
+        <div
+          className="card"
+          style={{
+            padding: "32px 16px",
+            textAlign: "center",
+            boxShadow: "0 1px 6px rgba(0,0,0,.04)",
+          }}
+        >
+          <Crown size={28} color={C.textDim} strokeWidth={1.6} style={{ marginBottom: 10 }}/>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 4 }}>
+            No completed rides yet
+          </div>
+          <div style={{ fontSize: 11, color: C.textMuted }}>
+            Top drivers will appear here once trips start completing
+          </div>
+        </div>
+      ) : (
+        <div className="card" style={{ overflow: "hidden", boxShadow: "0 1px 6px rgba(0,0,0,.04)" }}>
+          {topDrivers.map((d, i) => {
+            const rank     = getRankStyle(i);
+            const ridePct  = ((d.rides ?? 0) / maxRides) * 100;
+            const rating   = d.averageRating;
+            const isPodium = i < 3;
+
+            return (
+              <div
+                key={d.uid ?? i}
+                style={{
+                  position: "relative",
+                  display: "flex", alignItems: "center", gap: 12,
+                  padding: "14px 16px",
+                  borderBottom: i < topDrivers.length - 1 ? `1px solid ${C.border}` : "none",
+                  background: isPodium ? `${rank.color}05` : "transparent",
+                  transition: "background .15s",
+                }}
+              >
+                {/* Rank medallion */}
+                <div style={{
+                  width: 36, height: 36, borderRadius: 10,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  background: rank.gradient ?? rank.bg,
+                  flexShrink: 0,
+                  boxShadow: isPodium ? `0 4px 10px ${rank.color}40` : "none",
+                  border: isPodium ? `1.5px solid ${rank.color}50` : `1.5px solid ${C.border}`,
+                }}>
+                  <span className="mono" style={{
+                    fontSize: 15, fontWeight: 900,
+                    color: isPodium ? "#fff" : C.text,
+                    fontVariantNumeric: "tabular-nums",
+                    letterSpacing: "-.5px",
+                  }}>
+                    {i + 1}
+                  </span>
+                </div>
+
+                {/* Avatar with crown for #1 */}
+                <div style={{ position: "relative", flexShrink: 0 }}>
+                  <Avatar name={d.name ?? d.uid} size={40} colorIdx={i}/>
+                  {i === 0 && (
+                    <div style={{
+                      position: "absolute",
+                      top: -8, right: -6,
+                      width: 18, height: 18,
+                      borderRadius: "50%",
+                      background: "linear-gradient(135deg,#F59E0B,#D97706)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      border: "2px solid #fff",
+                      boxShadow: "0 2px 4px rgba(0,0,0,.2)",
+                    }}>
+                      <Crown size={9} color="#fff" strokeWidth={3} fill="#fff"/>
+                    </div>
+                  )}
+                </div>
+
+                {/* Name + stats */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                    <span style={{
+                      fontSize: 14, fontWeight: 700, color: C.text,
+                      whiteSpace: "nowrap", overflow: "hidden",
+                      textOverflow: "ellipsis", maxWidth: 160,
+                      letterSpacing: "-.1px",
+                    }}>
+                      {d.name ?? d.uid}
+                    </span>
+                    {isPodium && rank.label && (
+                      <span style={{
+                        fontSize: 8.5, fontWeight: 800, color: "#fff",
+                        background: rank.gradient,
+                        padding: "2px 6px", borderRadius: 100,
+                        letterSpacing: ".4px",
+                      }}>
+                        {rank.label}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Progress bar */}
+                  <div style={{
+                    height: 5, borderRadius: 100,
+                    background: `${rank.color}15`,
+                    overflow: "hidden", marginBottom: 6, maxWidth: 220,
+                  }}>
+                    <div style={{
+                      width: `${ridePct}%`, height: "100%",
+                      background: rank.gradient ?? `linear-gradient(90deg,${C.green},${C.green}cc)`,
+                      borderRadius: 100,
+                      transition: "width .8s cubic-bezier(.34,1.2,.64,1)",
+                    }}/>
+                  </div>
+
+                  {/* Stats row */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 11, color: C.textMuted }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontFamily: "var(--mono)" }}>
+                      <Car size={9} strokeWidth={2.4}/>
+                      <span style={{ fontWeight: 700, color: C.text }}>{d.rides ?? 0}</span>
+                      <span> rides</span>
+                    </span>
+
+                    {rating !== undefined && rating !== null && (
+                      <>
+                        <span style={{ color: C.textDim }}>·</span>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontFamily: "var(--mono)" }}>
+                          <Star
+                            size={9} strokeWidth={2.4}
+                            color={rating >= 4.8 ? "#F59E0B" : C.textMuted}
+                            fill={rating  >= 4.8 ? "#F59E0B" : "none"}
+                          />
+                          <span style={{ fontWeight: 700, color: rating >= 4.8 ? "#F59E0B" : C.text }}>
+                            {rating.toFixed(2)}
+                          </span>
+                        </span>
+                      </>
+                    )}
+
+                    {d.earnings !== undefined && d.earnings !== null && (
+                      <>
+                        <span style={{ color: C.textDim }}>·</span>
+                        <span style={{
+                          display: "inline-flex", alignItems: "center", gap: 2,
+                          fontFamily: "var(--mono)", fontWeight: 700, color: C.green,
+                        }}>
+                          ${d.earnings.toFixed(0)}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Podium badge */}
+                {isPodium && (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3, flexShrink: 0 }}>
+                    <div style={{
+                      display: "inline-flex", alignItems: "center", gap: 3,
+                      padding: "3px 8px",
+                      background: `${rank.color}15`,
+                      border: `1px solid ${rank.color}30`,
+                      borderRadius: 100,
+                    }}>
+                      <ArrowUpRight size={10} color={rank.color} strokeWidth={2.6}/>
+                      <span style={{
+                        fontSize: 9.5, fontWeight: 800, color: rank.color, letterSpacing: ".3px",
+                      }}>
+                        TOP {i + 1}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -1141,6 +1552,8 @@ function RidesChart({ rides = [] }) {
 export function AnalyticsTab({
   uatobdrivers     = [],
   views            = [],
+  searches         = [],
+  rides            = [],
   avgTripDuration  = 0,
   avgFare          = 0,
   acceptanceRate   = 0,
@@ -1148,57 +1561,25 @@ export function AnalyticsTab({
   topDrivers       = [],
   totalRides       = 0,
   ridesPerDay      = [0, 0, 0, 0, 0, 0, 0],
-  rides            = [],
 }) {
   return (
     <div style={{ padding: "0 16px 16px" }}>
 
-      {/* ─── PAGE VIEWS CHART ─── */}
+      {/* ─── PAGE VIEWS ─── */}
       <ViewsChart views={views}/>
 
-      {/* ─── DRIVER SIGNUPS CHART ─── */}
+      {/* ─── FARE QUOTE SEARCHES ─── */}
+      <SearchesChart searches={searches}/>
+
+      {/* ─── DRIVER SIGNUPS ─── */}
       <DriverSignupsChart uatobdrivers={uatobdrivers}/>
 
       {/* ─── RIDES THIS WEEK (stacked fare breakdown) ─── */}
       <RidesChart rides={rides}/>
 
-      {/* ─── TOP DRIVERS ─── */}
-      <SectionHeader title="Top Drivers"/>
-      {topDrivers.length === 0 ? (
-        <div
-          className="card"
-          style={{ padding: "20px 16px", textAlign: "center", fontSize: 12, color: C.textMuted }}
-        >
-          No completed rides yet this week
-        </div>
-      ) : (
-        <div className="card" style={{ overflow: "hidden", boxShadow: "0 1px 6px rgba(0,0,0,.04)" }}>
-          {topDrivers.map((d, i) => (
-            <div
-              key={d.uid ?? i}
-              style={{
-                display: "flex", alignItems: "center", gap: 12,
-                padding: "12px 16px",
-                borderBottom: i < topDrivers.length - 1 ? `1px solid ${C.border}` : "none",
-              }}
-            >
-              <div className="mono" style={{ fontSize: 12, fontWeight: 700, color: C.textDim, width: 16 }}>
-                #{i + 1}
-              </div>
-              <Avatar name={d.name ?? d.uid} size={32} colorIdx={i}/>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 700 }}>{d.name ?? d.uid}</div>
-                <div style={{ fontSize: 11, color: C.textMuted }}>
-                  {d.rides} rides · ★ {d.averageRating?.toFixed(2) ?? "—"}
-                </div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: C.green, fontWeight: 700 }}>
-                <ArrowUpRight size={11}/> Top
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* ─── TOP DRIVERS LEADERBOARD ─── */}
+      <TopDriversLeaderboard topDrivers={topDrivers}/>
+
     </div>
   );
 }

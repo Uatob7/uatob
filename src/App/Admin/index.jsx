@@ -31,6 +31,7 @@ import { useFleetDrivers }    from "@/App/Admin/useFleetDrivers";
 import { useApprovals }       from "@/App/Admin/useApprovals";
 import { useRideAnalytics }   from "@/App/Admin/useRideAnalytics";
 import { useRiders }          from "@/App/Admin/useRiders";
+import { useSearches } from "@/App/Admin/useSearches";
 
 // ── Callables ──────────────────────────────────────────────────────────────
 const functions          = getFunctions(firebase_app, "us-east1");
@@ -188,6 +189,7 @@ export default function UaTobAdminDashboard() {
   const [notifLoading,   setNotifLoading]   = useState(false);
   const [notifError,     setNotifError]     = useState("");
   const { views } = useViews();
+  const { searches } = useSearches();
 
   console.log("Admin views:", views);
 
@@ -300,6 +302,7 @@ export default function UaTobAdminDashboard() {
       case "analytics":
         return (
           <AnalyticsTab
+            searches={searches}
             uatobdrivers={uatobdrivers}
             rides={rides}
             views={views}
