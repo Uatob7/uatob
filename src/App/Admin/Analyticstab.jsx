@@ -1150,19 +1150,6 @@ export function AnalyticsTab({
   ridesPerDay      = [0, 0, 0, 0, 0, 0, 0],
   rides            = [],
 }) {
-  const formatDuration = (minutes) => {
-    const m = Math.floor(minutes);
-    const s = Math.round((minutes - m) * 60);
-    return `${m}m ${s}s`;
-  };
-
-  const metrics = [
-    { label: "Avg Trip Duration", value: formatDuration(avgTripDuration), icon: Clock,       color: C.blue  },
-    { label: "Acceptance Rate",   value: `${acceptanceRate}%`,            icon: CheckCircle, color: C.green },
-    { label: "Cancellation Rate", value: `${cancellationRate}%`,          icon: XCircle,     color: C.red   },
-    { label: "Avg Fare",          value: `$${avgFare}`,                   icon: DollarSign,  color: C.amber },
-  ];
-
   return (
     <div style={{ padding: "0 16px 16px" }}>
 
@@ -1174,36 +1161,6 @@ export function AnalyticsTab({
 
       {/* ─── RIDES THIS WEEK (stacked fare breakdown) ─── */}
       <RidesChart rides={rides}/>
-
-      {/* ─── KEY METRICS ─── */}
-      <SectionHeader title="Key Metrics"/>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
-        {metrics.map(({ label, value, icon: Icon, color }, i) => (
-          <div
-            key={label}
-            className="card fade-up"
-            style={{
-              padding: "14px",
-              animationDelay: `${90 + i * 55}ms`,
-              opacity: 0,
-              boxShadow: "0 1px 5px rgba(0,0,0,.04)",
-            }}
-          >
-            <div style={{
-              width: 32, height: 32, borderRadius: 9,
-              background: `${color}14`, border: `1.5px solid ${color}28`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              marginBottom: 10,
-            }}>
-              <Icon size={15} color={color}/>
-            </div>
-            <div className="mono" style={{ fontSize: 17, fontWeight: 600, marginBottom: 3 }}>{value}</div>
-            <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 700, letterSpacing: ".3px" }}>
-              {label.toUpperCase()}
-            </div>
-          </div>
-        ))}
-      </div>
 
       {/* ─── TOP DRIVERS ─── */}
       <SectionHeader title="Top Drivers"/>
