@@ -1,16 +1,16 @@
 // src/App/PaymentModal.jsx
 import React, { useMemo, useState } from 'react';
-import { X, CreditCard, Check, Loader2, ShieldCheck, Wallet, Smartphone } from 'lucide-react';
+import { X, CreditCard, Check, Loader2, ShieldCheck, Wallet, Smartphone, Banknote } from 'lucide-react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { firebase_app } from '@/firebase/config';
 
 // ── Callables ─────────────────────────────────────────────────────────
-const functions          = getFunctions(firebase_app, "us-east1");
-const callCardPayment    = httpsCallable(functions, "cardPayment");
-const callCashAppPayment = httpsCallable(functions, "cashAppPayment");
-
+const functions           = getFunctions(firebase_app, "us-east1");
+const callCardPayment     = httpsCallable(functions, "cardPayment");
+const callCashAppPayment  = httpsCallable(functions, "cashAppPayment");
+const callCashPayment     = httpsCallable(functions, "cashPayment");
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
 
@@ -28,6 +28,7 @@ const T = {
 const PAYMENT_METHODS = [
   { id: 'card',    label: 'Credit / Debit Card', color: '#16A34A' },
   { id: 'cashapp', label: 'Cash App',            color: '#00D632' },
+  { id: 'cash',    label: 'Cash',                color: '#D97706' },
 ];
 
 /* ── Card Element Options ────────────────────────────── */
@@ -161,8 +162,9 @@ function PaymentModalInner({
 }) {
   const stripe = useStripe();
 
-  const [cashLoading, setCashLoading] = useState(false);
-  const [topError,    setTopError]    = useState('');
+  const [cashLoading,    setCashLoading]    = useState(false);
+  const [cashAppLoading, setCashAppLoading] = useState(false);
+  const [topError,       setTopError]       = useState('');
 
   const total       = useMemo(() => Number(bookingPayload?.fareEstimate || 0).toFixed(2), [bookingPayload]);
   const rideType    = bookingPayload?.rideType          ?? 'standard';
@@ -174,9 +176,10 @@ function PaymentModalInner({
     setSelectedPayment(id);
   };
 
-  const handleConfirmCash = async () => {
+  // ── Cash App ──────────────────────────────────────────
+  const handleConfirmCashApp = async () => {
     setTopError('');
-    setCashLoading(true);
+    setCashAppLoading(true);
     try {
       const { data } = await callCashAppPayment({ uid, bookingPayload });
 
@@ -191,6 +194,23 @@ function PaymentModalInner({
       onSuccess?.({ method: 'cashapp', rideId: data.rideId });
     } catch (err) {
       setTopError(err.message || 'Cash App payment failed.');
+    } finally {
+      setCashAppLoading(false);
+    }
+  };
+
+  // ── Cash ──────────────────────────────────────────────
+  const handleConfirmCash = async () => {
+    setTopError('');
+    setCashLoading(true);
+    try {
+      const { data } = await callCashPayment({ uid, bookingPayload });
+
+      if (!data.success) throw new Error(data.message || 'Failed to book cash ride.');
+      onSuccess?.({ method: 'cash', rideId: data.rideId });
+      onClose?.();
+    } catch (err) {
+      setTopError(err.message || 'Cash booking failed.');
     } finally {
       setCashLoading(false);
     }
@@ -309,15 +329,16 @@ function PaymentModalInner({
                       background: isActive ? `${opt.color}18` : '#F3F4F6',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
-                      {opt.id === 'card'
-                        ? <CreditCard size={22} color={isActive ? opt.color : '#9CA3AF'} />
-                        : <span style={{ fontSize: 22, fontWeight: 900, color: isActive ? opt.color : '#9CA3AF', fontFamily: 'system-ui' }}>$</span>
-                      }
+                      {opt.id === 'card'    && <CreditCard size={22} color={isActive ? opt.color : '#9CA3AF'} />}
+                      {opt.id === 'cashapp' && <span style={{ fontSize: 22, fontWeight: 900, color: isActive ? opt.color : '#9CA3AF', fontFamily: 'system-ui' }}>$</span>}
+                      {opt.id === 'cash'    && <Banknote size={22} color={isActive ? opt.color : '#9CA3AF'} />}
                     </div>
                     <div style={{ flex: 1, textAlign: 'left' }}>
                       <div style={{ fontSize: 15, fontWeight: 800, color: T.text, marginBottom: 2 }}>{opt.label}</div>
                       <div style={{ fontSize: 12, color: T.textMuted, lineHeight: 1.4 }}>
-                        {opt.id === 'card' ? 'Enter your card securely and pay instantly' : 'Opens Cash App on your device to pay'}
+                        {opt.id === 'card'    && 'Enter your card securely and pay instantly'}
+                        {opt.id === 'cashapp' && 'Opens Cash App on your device to pay'}
+                        {opt.id === 'cash'    && 'Pay your driver in cash when you arrive'}
                       </div>
                     </div>
                     {isActive
@@ -348,7 +369,11 @@ function PaymentModalInner({
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#166534', fontSize: 12, fontWeight: 700 }}>
-                <Wallet size={14} /> Payment is processed before driver assignment
+                <Wallet size={14} />
+                {selectedPayment === 'cash'
+                  ? 'Pay your driver directly in cash after the ride'
+                  : 'Payment is processed before driver assignment'
+                }
               </div>
             </div>
 
@@ -377,21 +402,21 @@ function PaymentModalInner({
                 </div>
 
                 <button
-                  onClick={handleConfirmCash}
-                  disabled={cashLoading}
+                  onClick={handleConfirmCashApp}
+                  disabled={cashAppLoading}
                   style={{
                     width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     gap: 14, padding: '19px 24px', borderRadius: 20, border: 'none',
-                    background: cashLoading
+                    background: cashAppLoading
                       ? 'linear-gradient(135deg,#00b82b,#009e25)'
                       : 'linear-gradient(135deg,#00D632,#00b82b)',
-                    cursor: cashLoading ? 'not-allowed' : 'pointer',
-                    boxShadow: cashLoading ? 'none' : '0 10px 32px rgba(0,214,50,.40)',
+                    cursor: cashAppLoading ? 'not-allowed' : 'pointer',
+                    boxShadow: cashAppLoading ? 'none' : '0 10px 32px rgba(0,214,50,.40)',
                     transition: 'all 0.22s ease',
-                    transform: cashLoading ? 'scale(0.98)' : 'scale(1)',
+                    transform: cashAppLoading ? 'scale(0.98)' : 'scale(1)',
                   }}
                 >
-                  {cashLoading ? (
+                  {cashAppLoading ? (
                     <>
                       <Loader2 size={22} color="#fff" className="spin" />
                       <span style={{ fontSize: 17, fontWeight: 800, color: '#fff', fontFamily: '"Outfit",system-ui,sans-serif' }}>
@@ -422,6 +447,88 @@ function PaymentModalInner({
                   <ShieldCheck size={13} color={T.textMuted} />
                   <span style={{ fontSize: 11.5, color: T.textMuted, fontWeight: 500 }}>
                     Opens Cash App on your device to confirm payment
+                  </span>
+                </div>
+              </>
+            )}
+
+            {/* ── Cash UI ───────────────────────────────────── */}
+            {selectedPayment === 'cash' && (
+              <>
+                {/* Info banner */}
+                <div style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 12,
+                  background: '#FFFBEB', border: '1.5px solid #FDE68A',
+                  borderRadius: 16, padding: '14px 16px', marginBottom: 20,
+                }}>
+                  <Banknote size={20} color="#D97706" style={{ flexShrink: 0, marginTop: 1 }} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: '#92400E', marginBottom: 4 }}>
+                      Pay your driver directly
+                    </div>
+                    <div style={{ fontSize: 12, color: '#B45309', lineHeight: 1.6 }}>
+                      Have <strong style={{ fontFamily: '"JetBrains Mono",monospace' }}>${total}</strong> in cash ready when your driver arrives. Your driver will confirm receipt at the end of the trip.
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 20 }}>
+                  <div style={{ height: 1, flex: 1, background: '#E5E7EB' }} />
+                  <span style={{ fontSize: 13, color: T.textMuted, fontWeight: 600 }}>
+                    Exact amount:{' '}
+                    <span style={{ color: '#D97706', fontWeight: 900, fontFamily: '"JetBrains Mono",monospace' }}>
+                      ${total}
+                    </span>
+                  </span>
+                  <div style={{ height: 1, flex: 1, background: '#E5E7EB' }} />
+                </div>
+
+                <button
+                  onClick={handleConfirmCash}
+                  disabled={cashLoading}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    gap: 14, padding: '19px 24px', borderRadius: 20, border: 'none',
+                    background: cashLoading
+                      ? 'linear-gradient(135deg,#b45309,#92400e)'
+                      : 'linear-gradient(135deg,#D97706,#B45309)',
+                    cursor: cashLoading ? 'not-allowed' : 'pointer',
+                    boxShadow: cashLoading ? 'none' : '0 10px 32px rgba(217,119,6,.35)',
+                    transition: 'all 0.22s ease',
+                    transform: cashLoading ? 'scale(0.98)' : 'scale(1)',
+                  }}
+                >
+                  {cashLoading ? (
+                    <>
+                      <Loader2 size={22} color="#fff" className="spin" />
+                      <span style={{ fontSize: 17, fontWeight: 800, color: '#fff', fontFamily: '"Outfit",system-ui,sans-serif' }}>
+                        Booking Ride...
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ width: 36, height: 36, background: 'rgba(255,255,255,.2)', borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Banknote size={20} color="#fff" />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,.75)', letterSpacing: '1px', textTransform: 'uppercase', lineHeight: 1, marginBottom: 3 }}>
+                          Cash payment
+                        </span>
+                        <span style={{ fontSize: 18, fontWeight: 900, color: '#fff', fontFamily: '"Outfit",system-ui,sans-serif', letterSpacing: '-0.3px', lineHeight: 1 }}>
+                          Confirm &amp; Find Driver
+                        </span>
+                      </div>
+                      <div style={{ marginLeft: 'auto', background: 'rgba(255,255,255,.2)', borderRadius: 10, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Check size={18} color="#fff" strokeWidth={2.5} />
+                      </div>
+                    </>
+                  )}
+                </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14 }}>
+                  <ShieldCheck size={13} color={T.textMuted} />
+                  <span style={{ fontSize: 11.5, color: T.textMuted, fontWeight: 500 }}>
+                    Driver will be assigned immediately after confirming
                   </span>
                 </div>
               </>
