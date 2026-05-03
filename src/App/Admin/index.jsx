@@ -197,6 +197,7 @@ export default function UaTobAdminDashboard() {
   // ── Data hooks ─────────────────────────────────────────────────────────
   const { totalAccounts }  = useTotalAccounts();
   const { uatobdrivers }   = useDriverPresence();
+  console.log("Driver presence data:", uatobdrivers);
   const { activeRides }    = useActiveRides();
   const { searchingRides } = useSearchingRides();
   const { totalRides }     = useTotalRides();
@@ -300,6 +301,8 @@ export default function UaTobAdminDashboard() {
       case "analytics":
         return (
           <AnalyticsTab
+            uatobdrivers={uatobdrivers}
+            views={views}
             totalRides={analyticsTotal}
             ridesPerDay={ridesPerDay}
             avgTripDuration={avgTripDuration}
