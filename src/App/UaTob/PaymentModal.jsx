@@ -533,31 +533,7 @@ function PaymentModalInner({
                 <Clock size={11} strokeWidth={2.4}/>
                 ~{durationMin} min
               </span>
-              {hasBreakdown && (
-                <button
-                  onClick={() => setShowBreakdown(s => !s)}
-                  style={{
-                    marginLeft: 'auto',
-                    background: 'transparent',
-                    border: 'none',
-                    color: T.green,
-                    fontSize: 11.5, fontWeight: 700,
-                    cursor: 'pointer',
-                    padding: 0,
-                    display: 'inline-flex', alignItems: 'center', gap: 2,
-                  }}
-                >
-                  {showBreakdown ? 'Hide' : 'View'} breakdown
-                  <ChevronRight
-                    size={12}
-                    strokeWidth={2.6}
-                    style={{
-                      transform: showBreakdown ? 'rotate(90deg)' : 'rotate(0)',
-                      transition: 'transform .2s',
-                    }}
-                  />
-                </button>
-              )}
+        
             </div>
 
             <FareBreakdown payload={bookingPayload} expanded={showBreakdown}/>
