@@ -4,7 +4,6 @@ import {
   collection,
   query,
   orderBy,
-  limit,
   onSnapshot,
   where,
   Timestamp,
@@ -15,8 +14,7 @@ import { getFirestore } from "firebase/firestore";
 
 const db = getFirestore(firebase_app);
 
-
-export function useViews(pageSize = 100) {
+export function useViews() {
   const [state, setState] = useState({
     views: [],
     loading: true,
@@ -34,8 +32,7 @@ export function useViews(pageSize = 100) {
       collection(db, "Admin", "views", "events"),
       where("createdAt", ">=", Timestamp.fromDate(startOfDay)),
       where("createdAt", "<=", Timestamp.fromDate(endOfDay)),
-      orderBy("createdAt", "desc"),
-      limit(pageSize)
+      orderBy("createdAt", "desc")
     );
 
     const unsub = onSnapshot(
@@ -58,6 +55,7 @@ export function useViews(pageSize = 100) {
               : null,
           };
         });
+
         setState({ views, loading: false, error: null });
       },
       (err) => {
@@ -67,7 +65,7 @@ export function useViews(pageSize = 100) {
     );
 
     return () => unsub();
-  }, [pageSize]);
+  }, []);
 
   return state;
 }
