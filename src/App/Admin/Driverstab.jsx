@@ -1,267 +1,3 @@
-
-(41) [{...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}]
-
-Driverstab.jsx:530 DriversTab render  Database
-
-(default)
-
-[Data](https://console.firebase.google.com/project/uatob-e7b4b/firestore/databases/-default-/data/~2FRides~2FlZ7AAqFoCz1zifaoIfMJ#)
-
-[Rules](https://console.firebase.google.com/project/uatob-e7b4b/firestore/databases/-default-/data/~2FRides~2FlZ7AAqFoCz1zifaoIfMJ#)
-
-[Indexes](https://console.firebase.google.com/project/uatob-e7b4b/firestore/databases/-default-/data/~2FRides~2FlZ7AAqFoCz1zifaoIfMJ#)
-
-[Disaster Recovery](https://console.firebase.google.com/project/uatob-e7b4b/firestore/databases/-default-/disasterrecovery)
-
-[Usage](https://console.firebase.google.com/project/uatob-e7b4b/firestore/databases/-default-/usage)
-
-[Query Insights](https://console.firebase.google.com/project/uatob-e7b4b/firestore/databases/-default-/data/~2FRides~2FlZ7AAqFoCz1zifaoIfMJ#)
-
-[Extensions](https://console.firebase.google.com/project/uatob-e7b4b/firestore/databases/-default-/data/~2FRides~2FlZ7AAqFoCz1zifaoIfMJ#)
-
-Protect your Cloud Firestore resources from abuse, such as billing fraud or phishing
-
-[Rides](https://console.firebase.google.com/project/uatob-e7b4b/firestore/databases/-default-/data/~2FRides~2FlZ7AAqFoCz1zifaoIfMJ#)
-
-[lZ7AAqFoCz1zifaoIfMJ](https://console.firebase.google.com/project/uatob-e7b4b/firestore/databases/-default-/data/~2FRides~2FlZ7AAqFoCz1zifaoIfMJ#)
-
-(default)
-
-Accounts
-
-Admin
-
-Drivers
-
-Rides
-
-Search
-
-Rides
-
-lZ7AAqFoCz1zifaoIfMJ
-
-lZ7AAqFoCz1zifaoIfMJ
-
-adminNotifiedtrue
-
-(boolean)
-
-candidateDriverUids
-
-(array)
-
-0"duuEID4AofX1ooCLfSsfVMjJpUu1"
-
-(string)
-
-candidateDrivers
-
-(array)
-
-0
-
-(map)
-
-distance0.0005774563553737655
-
-(double)
-
-uid"duuEID4AofX1ooCLfSsfVMjJpUu1"
-
-(string)
-
-createdAtMay 4, 2026 at 5:00:06 PM UTC-4
-
-(timestamp)
-
-currentDriverIndex0
-
-(int64)
-
-driverInfonull
-
-(null)
-
-driverPayout3.74
-
-(double)
-
-dropoff"3024 North Powers Drive, Orlando, FL, USA"
-
-(string)
-
-dropoffCity"Orlando"
-
-(string)
-
-dropoffLat28.5819909
-
-(double)
-
-dropoffLng-81.4694363
-
-(double)
-
-dropoffZip"32818"
-
-(string)
-
-emailDispatchAtMay 4, 2026 at 5:01:45 PM UTC-4
-
-(timestamp)
-
-emailDispatchStartedtrue
-
-(boolean)
-
-emailSentToDrivers
-
-(map)
-
-duuEID4AofX1ooCLfSsfVMjJpUu1true
-
-(boolean)
-
-expiresAtMay 4, 2026 at 5:10:06 PM UTC-4
-
-(timestamp)
-
-fareBreakdown
-
-(map)
-
-fareTotal4.99
-
-(double)
-
-lastDispatchAtMay 4, 2026 at 5:02:44 PM UTC-4
-
-(timestamp)
-
-lastPushAtMay 4, 2026 at 5:03:04 PM UTC-4
-
-(timestamp)
-
-offlineDriversEmailedAtMay 4, 2026 at 5:01:04 PM UTC-4
-
-(timestamp)
-
-offlineDriversNotified
-
-(map)
-
-0Kh5xBvMgPNTN1WSpfBVOWRiVHe2true
-
-(boolean)
-
-duuEID4AofX1ooCLfSsfVMjJpUu1true
-
-(boolean)
-
-paymentIntentIdnull
-
-(null)
-
-paymentMethod"cash"
-
-(string)
-
-paymentStatus"succeeded"
-
-(string)
-
-payoutStatus"pending"
-
-(string)
-
-pickup"2382 Locke Avenue, Orlando, FL, USA"
-
-(string)
-
-pickupCity"Orlando"
-
-(string)
-
-pickupLat28.5730568
-
-(double)
-
-pickupLng-81.46963459999999
-
-(double)
-
-pickupZip"32818"
-
-(string)
-
-platformFee1.25
-
-(double)
-
-polyline"wtkmDp~fpNxACLI?a@GeF@s@{\F_C?{@?qXHBjBFJIdEBTDNRT"
-
-(string)
-
-pushDispatchAtMay 4, 2026 at 5:02:04 PM UTC-4
-
-(timestamp)
-
-pushDispatchStartedtrue
-
-(boolean)
-
-pushDriverIndex10
-
-(int64)
-
-pushSentToDrivers
-
-(map)
-
-duuEID4AofX1ooCLfSsfVMjJpUu1true
-
-(boolean)
-
-requestSentAtMay 4, 2026 at 5:04:03 PM UTC-4
-
-(timestamp)
-
-rideLabel"Economy"
-
-(string)
-
-rideType"economy"
-
-(string)
-
-status"searching_driver"
-
-(string)
-
-timeoutMinutes10
-
-(int64)
-
-tripDistanceMiles0.93
-
-(double)
-
-tripDurationMin7
-
-(int64)
-
-uid"7T5ejUmqxOgYeC94WEXlkRtlEHq2"
-
-(string)
-
-updatedAtMay 4, 2026 at 5:00:06 PM UTC-4
-
-(timestamp)
-
-Database location: nam5 show the rides in the map
-
-
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   Search, Bell, CheckCircle, XCircle, Ban, ChevronRight,
@@ -269,6 +5,7 @@ import {
   Star, TrendingUp, DollarSign, Clock, Shield, Eye,
   AlertCircle, CheckCircle2, X, CreditCard, Hash,
   Map as MapIcon, Navigation, Maximize2, Minimize2,
+  Route,
 } from "lucide-react";
 import { C, STATUS_CONFIG } from '@/App/Admin/Tokens';
 import { Avatar, StatusPill } from '@/App/Admin/UI';
@@ -308,17 +45,70 @@ function loadMapbox(cb) {
   document.head.appendChild(script);
 }
 
-// Status → pin color mapping
-const PIN_COLORS = {
-  online:      "#16A34A", // green
-  offline:     "#9CA3AF", // gray
-  pending:     "#F59E0B", // amber
-  in_progress: "#3B82F6", // blue
-  rejected:    "#DC2626", // red
-  suspended:   "#DC2626", // red
+// ─── GOOGLE ENCODED POLYLINE DECODER ───────────────────────────────────────
+function decodePolyline(encoded) {
+  if (!encoded) return [];
+  const points = [];
+  let index = 0, lat = 0, lng = 0;
+  while (index < encoded.length) {
+    let shift = 0, result = 0, b;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    shift = result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    points.push([lng / 1e5, lat / 1e5]);
+  }
+  return points;
+}
+
+// ─── RIDE STATUS → COLOR ────────────────────────────────────────────────────
+const RIDE_STATUS_COLOR = {
+  searching_driver: "#F59E0B",   // amber
+  driver_assigned:  "#3B82F6",   // blue
+  driver_arriving:  "#8B5CF6",   // purple
+  arrived:          "#06B6D4",   // cyan
+  in_progress:      "#10B981",   // green
+  completed:        "#6B7280",   // gray
+  cancelled:        "#EF4444",   // red
 };
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
+function rideStatusColor(status) {
+  return RIDE_STATUS_COLOR[status] || "#9CA3AF";
+}
+
+function rideStatusLabel(status) {
+  const map = {
+    searching_driver: "Searching",
+    driver_assigned:  "Assigned",
+    driver_arriving:  "Arriving",
+    arrived:          "Arrived",
+    in_progress:      "In Progress",
+    completed:        "Completed",
+    cancelled:        "Cancelled",
+  };
+  return map[status] || status;
+}
+
+// ─── Driver pin colors ──────────────────────────────────────────────────────
+const PIN_COLORS = {
+  online:      "#16A34A",
+  offline:     "#9CA3AF",
+  pending:     "#F59E0B",
+  in_progress: "#3B82F6",
+  rejected:    "#DC2626",
+  suspended:   "#DC2626",
+};
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
 function timeAgo(ts) {
   if (!ts) return "—";
   const seconds = ts?.seconds ?? Math.floor(ts / 1000);
@@ -363,49 +153,70 @@ function locationStr(d) {
   return parts.join(", ");
 }
 
+function truncateAddress(addr, max = 28) {
+  if (!addr) return "—";
+  return addr.length > max ? addr.slice(0, max) + "…" : addr;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
-// DRIVER MAP VIEW
+// DRIVER + RIDE MAP VIEW
 // ═══════════════════════════════════════════════════════════════════════════
-function DriverMapView({ drivers = [], onDriverClick, height = 280, expandable = true }) {
+function DriverMapView({ drivers = [], rides = [], onDriverClick, height = 280, expandable = true }) {
   const containerRef    = useRef(null);
   const mapRef          = useRef(null);
-  const markersRef      = useRef([]);
+  const markersRef      = useRef([]);       // driver + ride endpoint markers
   const initializedRef  = useRef(false);
+  const routeLayerIds   = useRef([]);        // track added Mapbox layer IDs
+
   const [expanded,      setExpanded]      = useState(false);
   const [hoveredDriver, setHoveredDriver] = useState(null);
+  const [hoveredRide,   setHoveredRide]   = useState(null);
   const [tooltipPos,    setTooltipPos]    = useState({ x: 0, y: 0 });
+  const [showRides,     setShowRides]     = useState(true);
+  const [showDrivers,   setShowDrivers]   = useState(true);
 
   const mapHeight = expanded ? 520 : height;
 
-  // Drivers with valid coordinates
-  const pinned = useMemo(
+  // Drivers with valid coords
+  const pinnedDrivers = useMemo(
     () => drivers.filter(d => typeof d.lat === "number" && typeof d.lng === "number" && !isNaN(d.lat) && !isNaN(d.lng)),
     [drivers]
   );
 
-  const counts = useMemo(() => {
-    const out = { online: 0, offline: 0, pending: 0, in_progress: 0, suspended: 0, other: 0 };
-    pinned.forEach(d => {
-      if (out[d.status] != null) out[d.status]++;
-      else out.other++;
-    });
+  // Rides with valid pickup coords
+  const pinnedRides = useMemo(
+    () => rides.filter(r =>
+      typeof r.pickupLat === "number" && typeof r.pickupLng === "number" &&
+      typeof r.dropoffLat === "number" && typeof r.dropoffLng === "number" &&
+      !isNaN(r.pickupLat) && !isNaN(r.pickupLng)
+    ),
+    [rides]
+  );
+
+  const driverCounts = useMemo(() => {
+    const out = { online: 0, offline: 0, pending: 0, in_progress: 0, suspended: 0 };
+    pinnedDrivers.forEach(d => { if (out[d.status] != null) out[d.status]++; });
     return out;
-  }, [pinned]);
+  }, [pinnedDrivers]);
 
-  // Compute bounds
+  // Combined bounds (drivers + rides)
   const bounds = useMemo(() => {
-    if (pinned.length === 0) return null;
-    const lats = pinned.map(d => d.lat);
-    const lngs = pinned.map(d => d.lng);
+    const allLats = [
+      ...pinnedDrivers.map(d => d.lat),
+      ...pinnedRides.flatMap(r => [r.pickupLat, r.dropoffLat]),
+    ];
+    const allLngs = [
+      ...pinnedDrivers.map(d => d.lng),
+      ...pinnedRides.flatMap(r => [r.pickupLng, r.dropoffLng]),
+    ];
+    if (allLats.length === 0) return null;
     return {
-      minLat: Math.min(...lats),
-      maxLat: Math.max(...lats),
-      minLng: Math.min(...lngs),
-      maxLng: Math.max(...lngs),
+      minLat: Math.min(...allLats), maxLat: Math.max(...allLats),
+      minLng: Math.min(...allLngs), maxLng: Math.max(...allLngs),
     };
-  }, [pinned]);
+  }, [pinnedDrivers, pinnedRides]);
 
-  // Initialize map ONCE
+  // ── Init map ONCE ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!containerRef.current || initializedRef.current) return;
 
@@ -416,7 +227,7 @@ function DriverMapView({ drivers = [], onDriverClick, height = 280, expandable =
 
       const center = bounds
         ? [(bounds.minLng + bounds.maxLng) / 2, (bounds.minLat + bounds.maxLat) / 2]
-        : [-81.3792, 28.5383]; // Orlando default
+        : [-81.3792, 28.5383];
 
       mapRef.current = new window.mapboxgl.Map({
         container: containerRef.current,
@@ -445,14 +256,23 @@ function DriverMapView({ drivers = [], onDriverClick, height = 280, expandable =
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Resize map when expanded changes
+  // ── Resize on expand toggle ────────────────────────────────────────────
   useEffect(() => {
     if (!mapRef.current) return;
     const t = setTimeout(() => mapRef.current?.resize(), 320);
     return () => clearTimeout(t);
   }, [expanded]);
 
-  // Render markers whenever drivers change
+  // ── Helper: clear all ride layers + sources ────────────────────────────
+  function clearRideLayers(map) {
+    routeLayerIds.current.forEach(id => {
+      if (map.getLayer(id))  map.removeLayer(id);
+      if (map.getSource(id)) map.removeSource(id);
+    });
+    routeLayerIds.current = [];
+  }
+
+  // ── Render everything ──────────────────────────────────────────────────
   useEffect(() => {
     if (!mapRef.current) return;
 
@@ -462,95 +282,199 @@ function DriverMapView({ drivers = [], onDriverClick, height = 280, expandable =
         return;
       }
 
-      // Clear existing markers
+      const map = mapRef.current;
+
+      // ── 1. Clear existing markers ──────────────────────────────────────
       markersRef.current.forEach(m => m.remove());
       markersRef.current = [];
 
-      pinned.forEach(driver => {
-        const color  = PIN_COLORS[driver.status] || "#9CA3AF";
-        const isLive = driver.status === "online";
+      // ── 2. Clear existing route layers ────────────────────────────────
+      clearRideLayers(map);
 
-        const wrap = document.createElement("div");
-        wrap.style.cursor = "pointer";
-        wrap.innerHTML = `
-          <div style="position:relative;width:28px;height:36px;display:flex;align-items:flex-end;justify-content:center;filter:drop-shadow(0 4px 8px rgba(0,0,0,.35));">
-            ${isLive ? `
-              <div style="
-                position:absolute;
-                bottom:-4px;left:50%;transform:translateX(-50%);
-                width:34px;height:34px;border-radius:50%;
-                border:2px solid ${color};opacity:0;
-                animation:driverPulse 2.2s ease-out infinite;
-              "></div>` : ""}
-            <svg width="28" height="36" viewBox="0 0 28 36" fill="none" style="position:relative;">
-              <path d="M14 0C6.27 0 0 6.27 0 14c0 10 14 22 14 22s14-12 14-22C28 6.27 21.73 0 14 0z" fill="${color}"/>
-              <circle cx="14" cy="14" r="6.5" fill="#fff"/>
-              <circle cx="14" cy="14" r="3" fill="${color}"/>
-            </svg>
-          </div>
-        `;
+      // ── 3. Draw ride routes (polylines) ───────────────────────────────
+      if (showRides) {
+        pinnedRides.forEach((ride, idx) => {
+          const color    = rideStatusColor(ride.status);
+          const sourceId = `ride-route-${ride.id ?? idx}`;
+          const layerBgId = `ride-route-bg-${ride.id ?? idx}`;
+          const layerFgId = `ride-route-fg-${ride.id ?? idx}`;
 
-        // Hover
-        wrap.addEventListener("mouseenter", (e) => {
-          setHoveredDriver(driver);
-          const rect = containerRef.current?.getBoundingClientRect();
-          if (rect) {
-            setTooltipPos({
-              x: e.clientX - rect.left,
-              y: e.clientY - rect.top,
-            });
+          let coords = decodePolyline(ride.polyline);
+          // Fallback: straight line if no polyline
+          if (coords.length < 2) {
+            coords = [
+              [ride.pickupLng,  ride.pickupLat],
+              [ride.dropoffLng, ride.dropoffLat],
+            ];
           }
-          const inner = wrap.querySelector("svg");
-          if (inner) inner.style.transform = "scale(1.18)";
-          inner.style.transition = "transform .15s";
-        });
-        wrap.addEventListener("mousemove", (e) => {
-          const rect = containerRef.current?.getBoundingClientRect();
-          if (rect) {
-            setTooltipPos({
-              x: e.clientX - rect.left,
-              y: e.clientY - rect.top,
-            });
-          }
-        });
-        wrap.addEventListener("mouseleave", () => {
-          setHoveredDriver(null);
-          const inner = wrap.querySelector("svg");
-          if (inner) inner.style.transform = "";
-        });
 
-        // Click
-        wrap.addEventListener("click", (e) => {
-          e.stopPropagation();
-          onDriverClick?.(driver);
-        });
+          const geojson = {
+            type: "Feature",
+            geometry: { type: "LineString", coordinates: coords },
+          };
 
-        const marker = new window.mapboxgl.Marker({
-          element: wrap.firstElementChild,
-          anchor:  "bottom",
-        })
-          .setLngLat([driver.lng, driver.lat])
-          .addTo(mapRef.current);
-
-        markersRef.current.push(marker);
-      });
-
-      // Fit bounds
-      if (pinned.length > 0 && bounds) {
-        if (pinned.length === 1) {
-          mapRef.current.flyTo({
-            center: [pinned[0].lng, pinned[0].lat],
-            zoom:   14,
-            duration: 700,
+          // Background glow layer
+          map.addSource(sourceId, { type: "geojson", data: geojson });
+          map.addLayer({
+            id:     layerBgId,
+            type:   "line",
+            source: sourceId,
+            layout: { "line-join": "round", "line-cap": "round" },
+            paint: {
+              "line-color":   color,
+              "line-width":   6,
+              "line-opacity": 0.18,
+              "line-blur":    3,
+            },
           });
+          // Foreground crisp line
+          map.addLayer({
+            id:     layerFgId,
+            type:   "line",
+            source: sourceId,
+            layout: { "line-join": "round", "line-cap": "round" },
+            paint: {
+              "line-color":   color,
+              "line-width":   2.5,
+              "line-opacity": 0.85,
+              "line-dasharray": ride.status === "searching_driver" ? [2, 2] : [1],
+            },
+          });
+
+          routeLayerIds.current.push(sourceId, layerBgId, layerFgId);
+
+          // ── Pickup marker ──────────────────────────────────────────────
+          const pickupEl = document.createElement("div");
+          pickupEl.style.cssText = `
+            width: 24px; height: 24px; border-radius: 50%;
+            background: ${color}; border: 2.5px solid #fff;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.35);
+            font-size: 9px; font-weight: 900; color: #fff;
+            font-family: 'Barlow',sans-serif;
+            transition: transform .15s;
+          `;
+          pickupEl.textContent = "P";
+
+          pickupEl.addEventListener("mouseenter", (e) => {
+            setHoveredRide({ ...ride, _hoverType: "pickup" });
+            const rect = containerRef.current?.getBoundingClientRect();
+            if (rect) setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+            pickupEl.style.transform = "scale(1.3)";
+          });
+          pickupEl.addEventListener("mousemove", (e) => {
+            const rect = containerRef.current?.getBoundingClientRect();
+            if (rect) setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+          });
+          pickupEl.addEventListener("mouseleave", () => {
+            setHoveredRide(null);
+            pickupEl.style.transform = "";
+          });
+
+          const pickupMarker = new window.mapboxgl.Marker({ element: pickupEl, anchor: "center" })
+            .setLngLat([ride.pickupLng, ride.pickupLat])
+            .addTo(map);
+          markersRef.current.push(pickupMarker);
+
+          // ── Dropoff marker ─────────────────────────────────────────────
+          const dropoffEl = document.createElement("div");
+          dropoffEl.style.cssText = `
+            width: 24px; height: 24px; border-radius: 6px;
+            background: ${color}; border: 2.5px solid #fff;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.35);
+            font-size: 9px; font-weight: 900; color: #fff;
+            font-family: 'Barlow',sans-serif;
+            transition: transform .15s;
+          `;
+          dropoffEl.textContent = "D";
+
+          dropoffEl.addEventListener("mouseenter", (e) => {
+            setHoveredRide({ ...ride, _hoverType: "dropoff" });
+            const rect = containerRef.current?.getBoundingClientRect();
+            if (rect) setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+            dropoffEl.style.transform = "scale(1.3)";
+          });
+          dropoffEl.addEventListener("mousemove", (e) => {
+            const rect = containerRef.current?.getBoundingClientRect();
+            if (rect) setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+          });
+          dropoffEl.addEventListener("mouseleave", () => {
+            setHoveredRide(null);
+            dropoffEl.style.transform = "";
+          });
+
+          const dropoffMarker = new window.mapboxgl.Marker({ element: dropoffEl, anchor: "center" })
+            .setLngLat([ride.dropoffLng, ride.dropoffLat])
+            .addTo(map);
+          markersRef.current.push(dropoffMarker);
+        });
+      }
+
+      // ── 4. Draw driver pins ────────────────────────────────────────────
+      if (showDrivers) {
+        pinnedDrivers.forEach(driver => {
+          const color  = PIN_COLORS[driver.status] || "#9CA3AF";
+          const isLive = driver.status === "online";
+
+          const wrap = document.createElement("div");
+          wrap.style.cursor = "pointer";
+          wrap.innerHTML = `
+            <div style="position:relative;width:28px;height:36px;display:flex;align-items:flex-end;justify-content:center;filter:drop-shadow(0 4px 8px rgba(0,0,0,.35));">
+              ${isLive ? `
+                <div style="
+                  position:absolute;
+                  bottom:-4px;left:50%;transform:translateX(-50%);
+                  width:34px;height:34px;border-radius:50%;
+                  border:2px solid ${color};opacity:0;
+                  animation:driverPulse 2.2s ease-out infinite;
+                "></div>` : ""}
+              <svg width="28" height="36" viewBox="0 0 28 36" fill="none" style="position:relative;">
+                <path d="M14 0C6.27 0 0 6.27 0 14c0 10 14 22 14 22s14-12 14-22C28 6.27 21.73 0 14 0z" fill="${color}"/>
+                <circle cx="14" cy="14" r="6.5" fill="#fff"/>
+                <circle cx="14" cy="14" r="3" fill="${color}"/>
+              </svg>
+            </div>
+          `;
+
+          wrap.addEventListener("mouseenter", (e) => {
+            setHoveredDriver(driver);
+            setHoveredRide(null);
+            const rect = containerRef.current?.getBoundingClientRect();
+            if (rect) setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+            const inner = wrap.querySelector("svg");
+            if (inner) { inner.style.transform = "scale(1.18)"; inner.style.transition = "transform .15s"; }
+          });
+          wrap.addEventListener("mousemove", (e) => {
+            const rect = containerRef.current?.getBoundingClientRect();
+            if (rect) setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+          });
+          wrap.addEventListener("mouseleave", () => {
+            setHoveredDriver(null);
+            const inner = wrap.querySelector("svg");
+            if (inner) inner.style.transform = "";
+          });
+          wrap.addEventListener("click", (e) => {
+            e.stopPropagation();
+            onDriverClick?.(driver);
+          });
+
+          const marker = new window.mapboxgl.Marker({ element: wrap.firstElementChild, anchor: "bottom" })
+            .setLngLat([driver.lng, driver.lat])
+            .addTo(map);
+          markersRef.current.push(marker);
+        });
+      }
+
+      // ── 5. Fit bounds ──────────────────────────────────────────────────
+      const totalPins = (showDrivers ? pinnedDrivers.length : 0) + (showRides ? pinnedRides.length * 2 : 0);
+      if (totalPins > 0 && bounds) {
+        if (totalPins === 1 && pinnedDrivers.length === 1 && !showRides) {
+          map.flyTo({ center: [pinnedDrivers[0].lng, pinnedDrivers[0].lat], zoom: 14, duration: 700 });
         } else {
-          mapRef.current.fitBounds(
+          map.fitBounds(
             [[bounds.minLng, bounds.minLat], [bounds.maxLng, bounds.maxLat]],
-            {
-              padding: { top: 50, bottom: 60, left: 30, right: 50 },
-              maxZoom: 14,
-              duration: 700,
-            }
+            { padding: { top: 55, bottom: 65, left: 36, right: 56 }, maxZoom: 14, duration: 700 }
           );
         }
       }
@@ -558,16 +482,32 @@ function DriverMapView({ drivers = [], onDriverClick, height = 280, expandable =
 
     if (mapRef.current.loaded()) render();
     else mapRef.current.once("load", render);
-  }, [pinned, bounds, onDriverClick]);
+  }, [pinnedDrivers, pinnedRides, bounds, onDriverClick, showRides, showDrivers]);
 
-  // Legend items
-  const legendItems = [
-    { label: "Online",  count: counts.online,      color: PIN_COLORS.online,      live: true },
-    { label: "Offline", count: counts.offline,     color: PIN_COLORS.offline },
-    { label: "Pending", count: counts.pending,     color: PIN_COLORS.pending },
-    ...(counts.in_progress > 0 ? [{ label: "On Trip",  count: counts.in_progress, color: PIN_COLORS.in_progress, live: true }] : []),
-    ...(counts.suspended   > 0 ? [{ label: "Suspended", count: counts.suspended,   color: PIN_COLORS.suspended }] : []),
+  // ── Legend config ──────────────────────────────────────────────────────
+  const driverLegend = [
+    { label: "Online",  count: driverCounts.online,      color: PIN_COLORS.online,      live: true },
+    { label: "Offline", count: driverCounts.offline,     color: PIN_COLORS.offline },
+    { label: "Pending", count: driverCounts.pending,     color: PIN_COLORS.pending },
+    ...(driverCounts.in_progress > 0 ? [{ label: "On Trip",   count: driverCounts.in_progress, color: PIN_COLORS.in_progress, live: true }] : []),
+    ...(driverCounts.suspended   > 0 ? [{ label: "Suspended", count: driverCounts.suspended,   color: PIN_COLORS.suspended }] : []),
   ].filter(it => it.count > 0);
+
+  // Group rides by status for legend
+  const rideLegend = useMemo(() => {
+    const grouped = {};
+    pinnedRides.forEach(r => {
+      grouped[r.status] = (grouped[r.status] || 0) + 1;
+    });
+    return Object.entries(grouped).map(([status, count]) => ({
+      label: rideStatusLabel(status),
+      count,
+      color: rideStatusColor(status),
+      live: ["in_progress", "driver_arriving", "arrived", "driver_assigned"].includes(status),
+    }));
+  }, [pinnedRides]);
+
+  const hasAnything = pinnedDrivers.length > 0 || pinnedRides.length > 0;
 
   return (
     <div className="card fade-up" style={{ marginBottom: 12, animationDelay: "20ms", opacity: 0, overflow: "hidden", position: "relative" }}>
@@ -592,9 +532,10 @@ function DriverMapView({ drivers = [], onDriverClick, height = 280, expandable =
         .mapboxgl-ctrl-group button + button { border-top-color: rgba(255,255,255,.1) !important; }
         .mapboxgl-ctrl-group button:hover { background: rgba(255,255,255,.08) !important; }
         .mapboxgl-ctrl-group button .mapboxgl-ctrl-icon { filter: invert(1) !important; opacity: .8; }
+        @keyframes tooltipIn { from { opacity:0; transform:translateY(4px) } to { opacity:1; transform:translateY(0) } }
       `}</style>
 
-      {/* Header */}
+      {/* ── Header ──────────────────────────────────────────────────────── */}
       <div style={{
         padding: "12px 14px 10px",
         display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -614,34 +555,71 @@ function DriverMapView({ drivers = [], onDriverClick, height = 280, expandable =
               Fleet Map
             </div>
             <div style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 600, marginTop: 1 }}>
-              {pinned.length} / {drivers.length} pinned
-              {drivers.length - pinned.length > 0 && ` · ${drivers.length - pinned.length} no location`}
+              {pinnedDrivers.length} driver{pinnedDrivers.length !== 1 ? "s" : ""}
+              {" · "}
+              {pinnedRides.length} ride{pinnedRides.length !== 1 ? "s" : ""}
             </div>
           </div>
         </div>
 
-        {expandable && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {/* Toggle: Rides */}
           <button
-            onClick={() => setExpanded(e => !e)}
+            onClick={() => setShowRides(v => !v)}
+            title={showRides ? "Hide rides" : "Show rides"}
             style={{
-              width: 30, height: 30, borderRadius: 9,
-              border: `1px solid ${C.border}`,
-              background: C.surfaceHigh,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              cursor: "pointer", transition: "background .15s",
+              height: 28, padding: "0 10px", borderRadius: 8,
+              border: `1.5px solid ${showRides ? "#3B82F6" : C.border}`,
+              background: showRides ? "#3B82F615" : C.surfaceHigh,
+              color: showRides ? "#3B82F6" : C.textMuted,
+              fontSize: 10.5, fontWeight: 700,
+              fontFamily: "'Barlow',sans-serif",
+              cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
+              transition: "all .15s",
             }}
-            onMouseEnter={e => e.currentTarget.style.background = C.border}
-            onMouseLeave={e => e.currentTarget.style.background = C.surfaceHigh}
-            title={expanded ? "Collapse map" : "Expand map"}
           >
-            {expanded
-              ? <Minimize2 size={12} color={C.textMuted}/>
-              : <Maximize2 size={12} color={C.textMuted}/>}
+            <Route size={10} />
+            Rides
           </button>
-        )}
+          {/* Toggle: Drivers */}
+          <button
+            onClick={() => setShowDrivers(v => !v)}
+            title={showDrivers ? "Hide drivers" : "Show drivers"}
+            style={{
+              height: 28, padding: "0 10px", borderRadius: 8,
+              border: `1.5px solid ${showDrivers ? C.green : C.border}`,
+              background: showDrivers ? C.greenGlow : C.surfaceHigh,
+              color: showDrivers ? C.green : C.textMuted,
+              fontSize: 10.5, fontWeight: 700,
+              fontFamily: "'Barlow',sans-serif",
+              cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
+              transition: "all .15s",
+            }}
+          >
+            <Car size={10} />
+            Drivers
+          </button>
+          {expandable && (
+            <button
+              onClick={() => setExpanded(e => !e)}
+              style={{
+                width: 30, height: 30, borderRadius: 9,
+                border: `1px solid ${C.border}`,
+                background: C.surfaceHigh,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: "pointer", transition: "background .15s",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = C.border}
+              onMouseLeave={e => e.currentTarget.style.background = C.surfaceHigh}
+              title={expanded ? "Collapse map" : "Expand map"}
+            >
+              {expanded ? <Minimize2 size={12} color={C.textMuted}/> : <Maximize2 size={12} color={C.textMuted}/>}
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Map container */}
+      {/* ── Map container ───────────────────────────────────────────────── */}
       <div style={{
         position: "relative",
         height: mapHeight,
@@ -651,13 +629,11 @@ function DriverMapView({ drivers = [], onDriverClick, height = 280, expandable =
         <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
 
         {/* Empty overlay */}
-        {pinned.length === 0 && (
+        {!hasAnything && (
           <div style={{
             position: "absolute", inset: 0,
             display: "flex", alignItems: "center", justifyContent: "center",
-            background: "rgba(13,17,23,.96)",
-            backdropFilter: "blur(2px)",
-            zIndex: 20,
+            background: "rgba(13,17,23,.96)", backdropFilter: "blur(2px)", zIndex: 20,
           }}>
             <div style={{ textAlign: "center", padding: 20 }}>
               <div style={{
@@ -669,32 +645,26 @@ function DriverMapView({ drivers = [], onDriverClick, height = 280, expandable =
               }}>
                 <Navigation size={20} color="rgba(255,255,255,.4)"/>
               </div>
-              <div style={{ fontSize: 13, fontWeight: 800, color: "#fff", marginBottom: 4 }}>
-                No drivers on map
-              </div>
-              <div style={{ fontSize: 11.5, color: "rgba(255,255,255,.5)", fontWeight: 500 }}>
-                None of these drivers have location data yet
-              </div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: "#fff", marginBottom: 4 }}>No data on map</div>
+              <div style={{ fontSize: 11.5, color: "rgba(255,255,255,.5)", fontWeight: 500 }}>No drivers or rides with location data</div>
             </div>
           </div>
         )}
 
-        {/* Hover tooltip */}
-        {hoveredDriver && (
+        {/* ── Driver tooltip ─────────────────────────────────────────────── */}
+        {hoveredDriver && !hoveredRide && (
           <div style={{
             position: "absolute",
-            left: Math.min(tooltipPos.x + 14, (containerRef.current?.clientWidth ?? 999) - 200),
-            top:  Math.max(tooltipPos.y - 60, 8),
-            zIndex: 30,
-            pointerEvents: "none",
-            background: "rgba(15,23,42,.96)",
+            left: Math.min(tooltipPos.x + 14, (containerRef.current?.clientWidth ?? 999) - 210),
+            top:  Math.max(tooltipPos.y - 64, 8),
+            zIndex: 30, pointerEvents: "none",
+            background: "rgba(15,23,42,.97)",
             backdropFilter: "blur(12px)",
             border: "1px solid rgba(255,255,255,.12)",
-            borderRadius: 10,
-            padding: "9px 12px",
-            minWidth: 180,
+            borderRadius: 10, padding: "9px 12px",
+            minWidth: 190,
             boxShadow: "0 10px 28px rgba(0,0,0,.35)",
-            animation: "fadeIn .12s ease-out",
+            animation: "tooltipIn .12s ease-out",
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
               <div style={{
@@ -702,95 +672,149 @@ function DriverMapView({ drivers = [], onDriverClick, height = 280, expandable =
                 background: PIN_COLORS[hoveredDriver.status] || "#9CA3AF",
                 boxShadow: hoveredDriver.status === "online" ? `0 0 8px ${PIN_COLORS[hoveredDriver.status]}` : "none",
               }}/>
-              <span style={{
-                fontSize: 9.5, fontWeight: 800, letterSpacing: ".08em",
-                textTransform: "uppercase",
-                color: PIN_COLORS[hoveredDriver.status] || "#9CA3AF",
-              }}>
-                {hoveredDriver.status}
+              <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: ".08em", textTransform: "uppercase", color: PIN_COLORS[hoveredDriver.status] || "#9CA3AF" }}>
+                Driver · {hoveredDriver.status}
               </span>
             </div>
-            <div style={{
-              fontSize: 13, fontWeight: 800, color: "#fff",
-              letterSpacing: "-0.1px", marginBottom: 2,
-              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-            }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#fff", letterSpacing: "-0.1px", marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {fullName(hoveredDriver)}
             </div>
-            <div style={{
-              fontSize: 11, color: "rgba(255,255,255,.6)", fontWeight: 500,
-              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-            }}>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,.6)", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {locationStr(hoveredDriver) || formatMinutesAgo(hoveredDriver.minutesSinceLastSeen)}
             </div>
-            <div style={{
-              marginTop: 6, paddingTop: 6,
-              borderTop: "1px solid rgba(255,255,255,.1)",
-              fontSize: 10, color: "rgba(255,255,255,.45)",
-              fontFamily: "monospace",
-            }}>
+            <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px solid rgba(255,255,255,.1)", fontSize: 10, color: "rgba(255,255,255,.45)", fontFamily: "monospace" }}>
               {hoveredDriver.lat?.toFixed(4)}, {hoveredDriver.lng?.toFixed(4)}
             </div>
-            <div style={{
-              marginTop: 4,
-              fontSize: 10, color: "rgba(255,255,255,.5)", fontWeight: 600,
-            }}>
+            <div style={{ marginTop: 4, fontSize: 10, color: "rgba(255,255,255,.5)", fontWeight: 600 }}>
               Click to view details
             </div>
           </div>
         )}
 
-        {/* Legend (bottom-left) */}
-        {legendItems.length > 0 && (
+        {/* ── Ride tooltip ───────────────────────────────────────────────── */}
+        {hoveredRide && (
           <div style={{
-            position: "absolute", bottom: 12, left: 12, zIndex: 15,
-            display: "flex", flexWrap: "wrap", gap: 5,
-            maxWidth: "calc(100% - 24px)",
+            position: "absolute",
+            left: Math.min(tooltipPos.x + 14, (containerRef.current?.clientWidth ?? 999) - 230),
+            top:  Math.max(tooltipPos.y - 72, 8),
+            zIndex: 30, pointerEvents: "none",
+            background: "rgba(15,23,42,.97)",
+            backdropFilter: "blur(12px)",
+            border: `1px solid ${rideStatusColor(hoveredRide.status)}40`,
+            borderRadius: 10, padding: "10px 13px",
+            minWidth: 220,
+            boxShadow: "0 10px 28px rgba(0,0,0,.35)",
+            animation: "tooltipIn .12s ease-out",
           }}>
-            {legendItems.map(({ label, count, color, live }) => (
-              <div key={label} style={{
-                display: "flex", alignItems: "center", gap: 5,
-                background: "rgba(15,23,42,.85)",
-                backdropFilter: "blur(10px)",
-                border: "1px solid rgba(255,255,255,.1)",
-                borderRadius: 99,
-                padding: "4px 9px",
-              }}>
-                <div style={{
-                  width: 7, height: 7, borderRadius: "50%",
-                  background: color,
-                  boxShadow: live ? `0 0 8px ${color}` : "none",
-                }}/>
-                <span style={{
-                  fontSize: 9.5, fontWeight: 700,
-                  color: "rgba(255,255,255,.85)",
-                  letterSpacing: ".05em", textTransform: "uppercase",
-                }}>
-                  {label}
-                </span>
-                <span style={{
-                  fontSize: 10, fontWeight: 800,
-                  fontFamily: "monospace",
-                  color: "#fff",
-                  background: "rgba(255,255,255,.12)",
-                  padding: "1px 5px", borderRadius: 5,
-                  marginLeft: 1,
-                }}>
-                  {count}
+            {/* Status badge */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 7 }}>
+              <div style={{
+                width: 7, height: 7, borderRadius: "50%",
+                background: rideStatusColor(hoveredRide.status),
+                boxShadow: `0 0 8px ${rideStatusColor(hoveredRide.status)}`,
+              }}/>
+              <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: ".08em", textTransform: "uppercase", color: rideStatusColor(hoveredRide.status) }}>
+                Ride · {rideStatusLabel(hoveredRide.status)}
+              </span>
+              <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,.85)", background: "rgba(255,255,255,.1)", padding: "1px 6px", borderRadius: 4 }}>
+                {fmtMoney(hoveredRide.fareBreakdown?.fareTotal ?? hoveredRide.fareTotal)}
+              </span>
+            </div>
+
+            {/* Route */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 7 }}>
+                <div style={{ width: 16, height: 16, borderRadius: "50%", background: rideStatusColor(hoveredRide.status), border: "2px solid #fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1, fontSize: 7, fontWeight: 900, color: "#fff" }}>P</div>
+                <span style={{ fontSize: 11, color: "rgba(255,255,255,.85)", fontWeight: 500, lineHeight: 1.3 }}>
+                  {truncateAddress(hoveredRide.pickup, 32)}
                 </span>
               </div>
-            ))}
+              <div style={{ width: 1.5, height: 10, background: "rgba(255,255,255,.15)", marginLeft: 7 }} />
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 7 }}>
+                <div style={{ width: 16, height: 16, borderRadius: 4, background: rideStatusColor(hoveredRide.status), border: "2px solid #fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1, fontSize: 7, fontWeight: 900, color: "#fff" }}>D</div>
+                <span style={{ fontSize: 11, color: "rgba(255,255,255,.85)", fontWeight: 500, lineHeight: 1.3 }}>
+                  {truncateAddress(hoveredRide.dropoff, 32)}
+                </span>
+              </div>
+            </div>
+
+            {/* Meta row */}
+            <div style={{ display: "flex", gap: 8, borderTop: "1px solid rgba(255,255,255,.08)", paddingTop: 7 }}>
+              <div style={{ fontSize: 10, color: "rgba(255,255,255,.5)" }}>
+                <span style={{ color: "rgba(255,255,255,.3)", marginRight: 3 }}>TYPE</span>
+                {hoveredRide.rideLabel ?? hoveredRide.rideType ?? "—"}
+              </div>
+              <div style={{ fontSize: 10, color: "rgba(255,255,255,.5)" }}>
+                <span style={{ color: "rgba(255,255,255,.3)", marginRight: 3 }}>DIST</span>
+                {hoveredRide.tripDistanceMiles != null ? `${hoveredRide.tripDistanceMiles} mi` : "—"}
+              </div>
+              <div style={{ fontSize: 10, color: "rgba(255,255,255,.5)" }}>
+                <span style={{ color: "rgba(255,255,255,.3)", marginRight: 3 }}>
+                  {hoveredRide._hoverType === "pickup" ? "PICKUP" : "DROPOFF"}
+                </span>
+                pin
+              </div>
+            </div>
           </div>
         )}
+
+        {/* ── Legend: Drivers ────────────────────────────────────────────── */}
+        <div style={{
+          position: "absolute", bottom: 12, left: 12, zIndex: 15,
+          display: "flex", flexDirection: "column", gap: 5,
+          maxWidth: "calc(100% - 24px)",
+        }}>
+          {/* Driver legend row */}
+          {showDrivers && driverLegend.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+              {driverLegend.map(({ label, count, color, live }) => (
+                <LegendPill key={label} label={label} count={count} color={color} live={live} />
+              ))}
+            </div>
+          )}
+
+          {/* Ride legend row */}
+          {showRides && rideLegend.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+              {rideLegend.map(({ label, count, color, live }) => (
+                <LegendPill key={label} label={`↗ ${label}`} count={count} color={color} live={live} />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
+function LegendPill({ label, count, color, live }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 5,
+      background: "rgba(15,23,42,.85)",
+      backdropFilter: "blur(10px)",
+      border: "1px solid rgba(255,255,255,.1)",
+      borderRadius: 99, padding: "4px 9px",
+    }}>
+      <div style={{
+        width: 7, height: 7, borderRadius: "50%",
+        background: color,
+        boxShadow: live ? `0 0 8px ${color}` : "none",
+      }}/>
+      <span style={{ fontSize: 9.5, fontWeight: 700, color: "rgba(255,255,255,.85)", letterSpacing: ".05em", textTransform: "uppercase" }}>
+        {label}
+      </span>
+      <span style={{ fontSize: 10, fontWeight: 800, fontFamily: "monospace", color: "#fff", background: "rgba(255,255,255,.12)", padding: "1px 5px", borderRadius: 5, marginLeft: 1 }}>
+        {count}
+      </span>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
-// LIST TAB
+// DRIVERS TAB
 // ═══════════════════════════════════════════════════════════════════════════
-export function DriversTab({rides, fleet = [], onToast }) {
+export function DriversTab({ rides = [], fleet = [], onToast }) {
   console.log("DriversTab render", { rides, fleet });
   const [search,    setSearch]    = useState("");
   const [locSearch, setLocSearch] = useState("");
@@ -799,44 +823,38 @@ export function DriversTab({rides, fleet = [], onToast }) {
 
   const filters = ["all", "online", "offline", "pending", "in_progress"];
 
-  // Drivers shown on map (matching the current status filter, but NOT name/zip search,
-  // so the spatial picture is always complete)
   const mapDrivers = useMemo(() => {
-    if (filter === "all") {
-      return fleet.filter(d => ["online", "offline", "pending"].includes(d.status));
-    }
+    if (filter === "all") return fleet.filter(d => ["online", "offline", "pending"].includes(d.status));
     return fleet.filter(d => d.status === filter);
   }, [fleet, filter]);
 
-  // Drivers shown in the list (respects ALL filters)
+  // Rides that are "active" (not completed or cancelled) for map display
+  const activeRides = useMemo(() => {
+    if (!rides) return [];
+    return rides.filter(r => !["completed", "cancelled"].includes(r.status));
+  }, [rides]);
+
   const listDrivers = useMemo(() => {
     return fleet.filter(d => {
-      // Status filter
       if (filter !== "all" && d.status !== filter) return false;
-
-      // Name/email search
       if (search) {
         const q = search.toLowerCase();
         const name = fullName(d).toLowerCase();
         const email = (d.email || "").toLowerCase();
         if (!name.includes(q) && !email.includes(q)) return false;
       }
-
-      // City/zip search
       if (locSearch) {
         const q = locSearch.toLowerCase();
         const c = d.contact ?? {};
         const hay = [c.city, c.state, c.zip, c.address].filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(q)) return false;
       }
-
       return true;
     });
   }, [fleet, filter, search, locSearch]);
 
   const handleDriverClick = useCallback((driver) => {
     setSelected(driver);
-    // Scroll to top so detail view is visible
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
@@ -851,7 +869,6 @@ export function DriversTab({rides, fleet = [], onToast }) {
     );
   }
 
-  // Show map for all non-in-progress filters
   const showMap = filter !== "in_progress";
 
   return (
@@ -880,12 +897,13 @@ export function DriversTab({rides, fleet = [], onToast }) {
         ))}
       </div>
 
-      {/* ─── Fleet Map (only on all/online/offline/pending) ─── */}
+      {/* ─── Fleet + Rides Map ─── */}
       {showMap && (
         <DriverMapView
           drivers={mapDrivers}
+          rides={activeRides}
           onDriverClick={handleDriverClick}
-          height={280}
+          height={300}
         />
       )}
 
@@ -899,25 +917,14 @@ export function DriversTab({rides, fleet = [], onToast }) {
             onChange={e => setSearch(e.target.value)}
           />
           {search && (
-            <button
-              onClick={() => setSearch("")}
-              style={{
-                background: "none", border: "none", cursor: "pointer",
-                padding: 4, display: "flex", color: C.textMuted,
-              }}
-            >
+            <button onClick={() => setSearch("")} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", color: C.textMuted }}>
               <X size={13}/>
             </button>
           )}
         </div>
-
         <div
           className="search-bar fade-up"
-          style={{
-            flex: 1, minWidth: 180, animationDelay: "60ms", opacity: 0,
-            border: locSearch ? `1.5px solid ${C.green}` : undefined,
-            background: locSearch ? C.greenGlow : undefined,
-          }}
+          style={{ flex: 1, minWidth: 180, animationDelay: "60ms", opacity: 0, border: locSearch ? `1.5px solid ${C.green}` : undefined, background: locSearch ? C.greenGlow : undefined }}
         >
           <MapPin size={15} color={locSearch ? C.green : C.textDim} />
           <input
@@ -927,13 +934,7 @@ export function DriversTab({rides, fleet = [], onToast }) {
             style={{ color: locSearch ? C.green : undefined }}
           />
           {locSearch && (
-            <button
-              onClick={() => setLocSearch("")}
-              style={{
-                background: "none", border: "none", cursor: "pointer",
-                padding: 4, display: "flex", color: C.green,
-              }}
-            >
+            <button onClick={() => setLocSearch("")} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", color: C.green }}>
               <X size={13}/>
             </button>
           )}
@@ -945,9 +946,7 @@ export function DriversTab({rides, fleet = [], onToast }) {
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "8px 12px", marginBottom: 10,
-          background: C.greenGlow,
-          border: `1px solid ${C.green}30`,
-          borderRadius: 10,
+          background: C.greenGlow, border: `1px solid ${C.green}30`, borderRadius: 10,
           fontSize: 11.5, fontWeight: 600, color: C.green,
         }}>
           <span>
@@ -955,14 +954,7 @@ export function DriversTab({rides, fleet = [], onToast }) {
             {search && ` · matching "${search}"`}
             {locSearch && ` · in "${locSearch}"`}
           </span>
-          <button
-            onClick={() => { setSearch(""); setLocSearch(""); }}
-            style={{
-              background: "none", border: "none", cursor: "pointer",
-              fontSize: 11, fontWeight: 700, color: C.green,
-              textDecoration: "underline",
-            }}
-          >
+          <button onClick={() => { setSearch(""); setLocSearch(""); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, fontWeight: 700, color: C.green, textDecoration: "underline" }}>
             Clear
           </button>
         </div>
@@ -971,26 +963,12 @@ export function DriversTab({rides, fleet = [], onToast }) {
       {/* ─── Driver list ─── */}
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {listDrivers.length === 0 && (
-          <div style={{
-            textAlign: "center", padding: "40px 20px",
-            background: C.surface,
-            border: `1px solid ${C.border}`,
-            borderRadius: 14,
-          }}>
-            <div style={{
-              width: 44, height: 44, borderRadius: 12,
-              background: C.surfaceHigh,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              margin: "0 auto 10px",
-            }}>
+          <div style={{ textAlign: "center", padding: "40px 20px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: C.surfaceHigh, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 10px" }}>
               <Search size={18} color={C.textMuted}/>
             </div>
-            <div style={{ fontSize: 13, fontWeight: 800, color: C.text, marginBottom: 4 }}>
-              No drivers found
-            </div>
-            <div style={{ fontSize: 11.5, color: C.textMuted, fontWeight: 500 }}>
-              Try adjusting your filters or search terms
-            </div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: C.text, marginBottom: 4 }}>No drivers found</div>
+            <div style={{ fontSize: 11.5, color: C.textMuted, fontWeight: 500 }}>Try adjusting your filters or search terms</div>
           </div>
         )}
 
@@ -1002,38 +980,20 @@ export function DriversTab({rides, fleet = [], onToast }) {
             <div
               key={driver.id}
               className="card fade-up"
-              style={{
-                animationDelay: `${130 + i * 45}ms`, opacity: 0,
-                cursor: "pointer", overflow: "hidden",
-              }}
+              style={{ animationDelay: `${130 + i * 45}ms`, opacity: 0, cursor: "pointer", overflow: "hidden" }}
               onClick={() => setSelected(driver)}
             >
               <div style={{ height: 3, background: STATUS_CONFIG[driver.status]?.color || C.border }} />
               <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ position: "relative" }}>
                   <Avatar name={fullName(driver)} size={42} colorIdx={i} />
-                  <div style={{
-                    position: "absolute", bottom: 0, right: 0,
-                    width: 11, height: 11, borderRadius: "50%",
-                    background: STATUS_CONFIG[driver.status]?.color || C.textDim,
-                    border: `2px solid ${C.surface}`,
-                  }} />
+                  <div style={{ position: "absolute", bottom: 0, right: 0, width: 11, height: 11, borderRadius: "50%", background: STATUS_CONFIG[driver.status]?.color || C.textDim, border: `2px solid ${C.surface}` }} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>
-                    {fullName(driver)}
-                  </div>
-                  <div style={{ fontSize: 11, color: C.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {driver.email}
-                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>{fullName(driver)}</div>
+                  <div style={{ fontSize: 11, color: C.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{driver.email}</div>
                   <div style={{ display: "flex", gap: 6, marginTop: 5, alignItems: "center", flexWrap: "wrap" }}>
-                    <span style={{
-                      fontSize: 10, fontWeight: 700,
-                      color: allDocs ? C.green : "#D97706",
-                      background: allDocs ? C.greenGlow : "#FFFBEB",
-                      border: `1px solid ${allDocs ? C.green + "40" : "#D9770640"}`,
-                      borderRadius: 6, padding: "2px 7px",
-                    }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: allDocs ? C.green : "#D97706", background: allDocs ? C.greenGlow : "#FFFBEB", border: `1px solid ${allDocs ? C.green + "40" : "#D9770640"}`, borderRadius: 6, padding: "2px 7px" }}>
                       {done}/{total} docs
                     </span>
                     {driver.averageRating && (
@@ -1042,17 +1002,11 @@ export function DriversTab({rides, fleet = [], onToast }) {
                       </span>
                     )}
                     {driver.totalRides != null && (
-                      <span style={{ fontSize: 10, color: C.textMuted }}>
-                        {driver.totalRides} rides
-                      </span>
+                      <span style={{ fontSize: 10, color: C.textMuted }}>{driver.totalRides} rides</span>
                     )}
                     {loc && (
-                      <span style={{
-                        display: "inline-flex", alignItems: "center", gap: 3,
-                        fontSize: 10, color: C.textMuted, fontWeight: 600,
-                      }}>
-                        <MapPin size={9} strokeWidth={2.4}/>
-                        {loc}
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, color: C.textMuted, fontWeight: 600 }}>
+                        <MapPin size={9} strokeWidth={2.4}/>{loc}
                       </span>
                     )}
                   </div>
@@ -1153,7 +1107,6 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
 
   const { done: docsDone, total: docsTotal } = docsComplete(docs);
   const allDocs = docsDone === docsTotal;
-
   const statusColor = STATUS_CONFIG[d.status]?.color || C.textDim;
 
   const docSlots = [
@@ -1169,9 +1122,9 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
   return (
     <div style={{ padding: "0 16px 24px" }}>
       <style>{`
-        @keyframes spin     { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
-        @keyframes fadeUp   { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:translateY(0) } }
-        @keyframes fadeIn   { from { opacity:0 } to { opacity:1 } }
+        @keyframes spin   { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:translateY(0) } }
+        @keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
       `}</style>
 
       {lightbox && (
@@ -1187,15 +1140,9 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
         <ArrowLeft size={14} /> Back to drivers
       </button>
 
-      <div style={{
-        background: "linear-gradient(135deg,#0F172A,#1E293B)",
-        borderRadius: 20, padding: "22px 20px 20px",
-        marginBottom: 14, position: "relative", overflow: "hidden",
-        boxShadow: "0 8px 32px rgba(0,0,0,.2)",
-      }}>
+      <div style={{ background: "linear-gradient(135deg,#0F172A,#1E293B)", borderRadius: 20, padding: "22px 20px 20px", marginBottom: 14, position: "relative", overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,.2)" }}>
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: statusColor }} />
         <div style={{ position: "absolute", top: -60, right: -60, width: 180, height: 180, borderRadius: "50%", background: `${statusColor}12`, pointerEvents: "none" }} />
-
         <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 16 }}>
           <Avatar name={name} size={56} colorIdx={driverIdx} />
           <div style={{ flex: 1 }}>
@@ -1210,12 +1157,11 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
             </div>
           </div>
         </div>
-
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
           {[
-            { label: "Total Rides",   value: d.totalRides ?? 0,             icon: <Car size={12} color="rgba(255,255,255,.5)" /> },
-            { label: "Earnings Today",value: fmtMoney(today.earnings),      icon: <DollarSign size={12} color="rgba(255,255,255,.5)" /> },
-            { label: "Last Seen",     value: formatMinutesAgo(d.minutesSinceLastSeen), icon: <Clock size={12} color="rgba(255,255,255,.5)" /> },
+            { label: "Total Rides",    value: d.totalRides ?? 0,                      icon: <Car size={12} color="rgba(255,255,255,.5)" /> },
+            { label: "Earnings Today", value: fmtMoney(today.earnings),               icon: <DollarSign size={12} color="rgba(255,255,255,.5)" /> },
+            { label: "Last Seen",      value: formatMinutesAgo(d.minutesSinceLastSeen), icon: <Clock size={12} color="rgba(255,255,255,.5)" /> },
           ].map(({ label, value, icon }) => (
             <div key={label} style={{ background: "rgba(255,255,255,.06)", borderRadius: 12, padding: "10px 12px", border: "1px solid rgba(255,255,255,.08)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>{icon}<span style={{ fontSize: 9, color: "rgba(255,255,255,.4)", fontWeight: 700, letterSpacing: ".04em" }}>{label.toUpperCase()}</span></div>
@@ -1227,19 +1173,8 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
 
       <div style={{ display: "flex", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 4, gap: 3, marginBottom: 14 }}>
         {tabs.map(t => (
-          <button
-            key={t}
-            onClick={() => setActiveTab(t)}
-            style={{
-              flex: 1, padding: "8px 4px", border: "none",
-              background: activeTab === t ? C.text : "transparent",
-              color: activeTab === t ? "#fff" : C.textMuted,
-              borderRadius: 9, fontSize: 11, fontWeight: 700,
-              fontFamily: "'Barlow Condensed',sans-serif",
-              cursor: "pointer", transition: "all .15s", textTransform: "capitalize",
-            }}
-          >
-            {t === "payout" ? "Payout" : t.charAt(0).toUpperCase() + t.slice(1)}
+          <button key={t} onClick={() => setActiveTab(t)} style={{ flex: 1, padding: "8px 4px", border: "none", background: activeTab === t ? C.text : "transparent", color: activeTab === t ? "#fff" : C.textMuted, borderRadius: 9, fontSize: 11, fontWeight: 700, fontFamily: "'Barlow Condensed',sans-serif", cursor: "pointer", transition: "all .15s", textTransform: "capitalize" }}>
+            {t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
       </div>
@@ -1269,11 +1204,11 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
               {[
                 { label: "UID",      value: d.uid?.slice(0, 12) + "…" ?? "—" },
-                { label: "Joined",   value: timeAgo(d.createdAt)           },
-                { label: "License",  value: docs.licenseNumber ?? "—"      },
-                { label: "Submitted",value: timeAgo(d.submittedAt)         },
+                { label: "Joined",   value: timeAgo(d.createdAt) },
+                { label: "License",  value: docs.licenseNumber ?? "—" },
+                { label: "Submitted",value: timeAgo(d.submittedAt) },
                 { label: "Stripe",   value: d.accountId ? "Connected" : "Not set", color: d.accountId ? C.green : C.red },
-                { label: "Transfer", value: d.transferCapability ?? "—",  color: d.transferCapability === "enabled" ? C.green : "#D97706" },
+                { label: "Transfer", value: d.transferCapability ?? "—", color: d.transferCapability === "enabled" ? C.green : "#D97706" },
               ].map(({ label, value, color }) => (
                 <div key={label} style={{ background: C.surfaceHigh, borderRadius: 10, padding: "10px 12px", border: `1px solid ${C.border}` }}>
                   <div style={{ fontSize: 9, color: C.textMuted, fontWeight: 700, letterSpacing: ".5px", marginBottom: 3 }}>{label.toUpperCase()}</div>
@@ -1290,9 +1225,7 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
                 <span style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: ".06em" }}>VEHICLE</span>
               </div>
               <div style={{ background: C.surfaceHigh, borderRadius: 12, padding: "14px 16px", border: `1px solid ${C.border}`, marginBottom: 10 }}>
-                <div style={{ fontSize: 18, fontWeight: 900, color: C.text, marginBottom: 2 }}>
-                  {vehicle.year} {vehicle.make} {vehicle.model}
-                </div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: C.text, marginBottom: 2 }}>{vehicle.year} {vehicle.make} {vehicle.model}</div>
                 <div style={{ fontSize: 13, color: C.textMuted }}>{vehicle.color}</div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -1323,17 +1256,10 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
                 )}
               </div>
               <div style={{ background: C.surfaceHigh, borderRadius: 10, padding: "12px 14px", border: `1px solid ${C.border}` }}>
-                <div style={{ fontFamily: "monospace", fontSize: 13, color: C.text, marginBottom: 4 }}>
-                  {d.lat?.toFixed(6)}, {d.lng?.toFixed(6)}
-                </div>
+                <div style={{ fontFamily: "monospace", fontSize: 13, color: C.text, marginBottom: 4 }}>{d.lat?.toFixed(6)}, {d.lng?.toFixed(6)}</div>
                 <div style={{ fontSize: 11, color: C.textMuted }}>{formatMinutesAgo(d.minutesSinceLastSeen)}</div>
               </div>
-              <a
-                href={`https://www.google.com/maps?q=${d.lat},${d.lng}`}
-                target="_blank"
-                rel="noreferrer"
-                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8, padding: "9px", background: "#1D4ED815", border: "1px solid #1D4ED830", borderRadius: 10, color: "#2563EB", fontSize: 12, fontWeight: 700, textDecoration: "none" }}
-              >
+              <a href={`https://www.google.com/maps?q=${d.lat},${d.lng}`} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8, padding: "9px", background: "#1D4ED815", border: "1px solid #1D4ED830", borderRadius: 10, color: "#2563EB", fontSize: 12, fontWeight: 700, textDecoration: "none" }}>
                 <MapPin size={12} /> Open in Google Maps
               </a>
             </div>
@@ -1354,39 +1280,23 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
               <div style={{ width: `${(docsDone / docsTotal) * 100}%`, height: "100%", background: allDocs ? C.green : "#D97706", borderRadius: 99, transition: "width .4s" }} />
             </div>
           </div>
-
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             {docSlots.map(({ key, urlKey, label }) => {
               const uploaded = Boolean(docs[urlKey] || docs[key]);
               const url      = docs[urlKey] || "";
               return (
-                <div
-                  key={key}
-                  style={{
-                    background: uploaded ? "#F0FDF4" : "#FEF2F2",
-                    border: `1.5px solid ${uploaded ? "rgba(22,163,74,.25)" : "rgba(220,38,38,.2)"}`,
-                    borderRadius: 14, overflow: "hidden",
-                    cursor: uploaded && url ? "pointer" : "default",
-                  }}
-                  onClick={() => uploaded && url && setLightbox(url)}
-                >
+                <div key={key} style={{ background: uploaded ? "#F0FDF4" : "#FEF2F2", border: `1.5px solid ${uploaded ? "rgba(22,163,74,.25)" : "rgba(220,38,38,.2)"}`, borderRadius: 14, overflow: "hidden", cursor: uploaded && url ? "pointer" : "default" }} onClick={() => uploaded && url && setLightbox(url)}>
                   {url ? (
                     <div style={{ height: 80, background: "#1E293B", overflow: "hidden", position: "relative" }}>
                       <img src={url} alt={label} style={{ width: "100%", height: "100%", objectFit: "cover", opacity: .85 }} />
-                      <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,.15)" }}>
-                        <Eye size={18} color="#fff" />
-                      </div>
+                      <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,.15)" }}><Eye size={18} color="#fff" /></div>
                     </div>
                   ) : (
-                    <div style={{ height: 80, background: "rgba(220,38,38,.06)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <FileText size={22} color="rgba(220,38,38,.4)" />
-                    </div>
+                    <div style={{ height: 80, background: "rgba(220,38,38,.06)", display: "flex", alignItems: "center", justifyContent: "center" }}><FileText size={22} color="rgba(220,38,38,.4)" /></div>
                   )}
                   <div style={{ padding: "10px 12px" }}>
                     <div style={{ fontSize: 11.5, fontWeight: 700, color: C.text, marginBottom: 3 }}>{label}</div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: uploaded ? C.green : "#DC2626" }}>
-                      {uploaded ? "✓ Uploaded" : "✗ Missing"}
-                    </div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: uploaded ? C.green : "#DC2626" }}>{uploaded ? "✓ Uploaded" : "✗ Missing"}</div>
                   </div>
                 </div>
               );
@@ -1399,9 +1309,9 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 12, animation: "fadeUp .3s ease" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             {[
-              { label: "Today",      value: fmtMoney(today.earnings),  sub: `${today.trips ?? 0} trips`,  color: C.green  },
-              { label: "This Week",  value: fmtMoney(week.earnings),   sub: `${week.trips  ?? 0} trips`,  color: "#2563EB" },
-              { label: "This Month", value: fmtMoney(month.earnings),  sub: `${month.trips ?? 0} trips`,  color: "#7C3AED" },
+              { label: "Today",      value: fmtMoney(today.earnings), sub: `${today.trips ?? 0} trips`,  color: C.green  },
+              { label: "This Week",  value: fmtMoney(week.earnings),  sub: `${week.trips  ?? 0} trips`,  color: "#2563EB" },
+              { label: "This Month", value: fmtMoney(month.earnings), sub: `${month.trips ?? 0} trips`,  color: "#7C3AED" },
               { label: "All Time",   value: `${d.totalRides ?? 0} rides`, sub: "completed",              color: "#D97706" },
             ].map(({ label, value, sub, color }) => (
               <div key={label} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 14px", position: "relative", overflow: "hidden" }}>
@@ -1412,7 +1322,6 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
               </div>
             ))}
           </div>
-
           {(week.dailyBreakdown ?? []).length > 0 && (
             <div className="card" style={{ padding: "16px" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: ".06em", marginBottom: 14 }}>DAILY BREAKDOWN</div>
@@ -1432,7 +1341,6 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
               </div>
             </div>
           )}
-
           {earnings.lastSyncedAt && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "center" }}>
               <Clock size={11} color={C.textMuted} />
@@ -1445,31 +1353,18 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
       {activeTab === "payout" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12, animation: "fadeUp .3s ease" }}>
           <div style={{
-            background: withdrawal.status === "paid"
-              ? "linear-gradient(135deg,#14532D,#166534)"
-              : withdrawal.status === "pending"
-                ? "linear-gradient(135deg,#78350F,#92400E)"
-                : "linear-gradient(135deg,#1E293B,#0F172A)",
-            borderRadius: 18, padding: "22px 18px",
-            boxShadow: "0 4px 24px rgba(0,0,0,.2)",
+            background: withdrawal.status === "paid" ? "linear-gradient(135deg,#14532D,#166534)" : withdrawal.status === "pending" ? "linear-gradient(135deg,#78350F,#92400E)" : "linear-gradient(135deg,#1E293B,#0F172A)",
+            borderRadius: 18, padding: "22px 18px", boxShadow: "0 4px 24px rgba(0,0,0,.2)",
           }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,.5)", letterSpacing: ".08em", marginBottom: 6 }}>WITHDRAWAL STATUS</div>
             <div style={{ fontSize: 38, fontWeight: 900, color: "#fff", marginBottom: 4 }}>{fmtMoney(withdrawal.totalPayout)}</div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{
-                fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 20,
-                background: withdrawal.status === "paid" ? "#22C55E30" : withdrawal.status === "pending" ? "#F59E0B30" : "rgba(255,255,255,.1)",
-                color: withdrawal.status === "paid" ? "#4ADE80" : withdrawal.status === "pending" ? "#FCD34D" : "rgba(255,255,255,.6)",
-                border: `1px solid ${withdrawal.status === "paid" ? "#4ADE8040" : withdrawal.status === "pending" ? "#FCD34D40" : "rgba(255,255,255,.15)"}`,
-              }}>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 20, background: withdrawal.status === "paid" ? "#22C55E30" : withdrawal.status === "pending" ? "#F59E0B30" : "rgba(255,255,255,.1)", color: withdrawal.status === "paid" ? "#4ADE80" : withdrawal.status === "pending" ? "#FCD34D" : "rgba(255,255,255,.6)", border: `1px solid ${withdrawal.status === "paid" ? "#4ADE8040" : withdrawal.status === "pending" ? "#FCD34D40" : "rgba(255,255,255,.15)"}` }}>
                 {(withdrawal.status ?? "No payout").toUpperCase()}
               </span>
-              <span style={{ fontSize: 11, color: "rgba(255,255,255,.4)" }}>
-                {withdrawal.rideCount ?? 0} ride{(withdrawal.rideCount ?? 0) !== 1 ? "s" : ""}
-              </span>
+              <span style={{ fontSize: 11, color: "rgba(255,255,255,.4)" }}>{withdrawal.rideCount ?? 0} ride{(withdrawal.rideCount ?? 0) !== 1 ? "s" : ""}</span>
             </div>
           </div>
-
           <div className="card" style={{ padding: "16px" }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: ".06em", marginBottom: 12 }}>PAYOUT DETAILS</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -1488,7 +1383,6 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
               ))}
             </div>
           </div>
-
           <div style={{ background: C.surfaceHigh, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", display: "flex", gap: 12, alignItems: "center" }}>
             <div style={{ width: 36, height: 36, background: "#635BFF15", border: "1px solid #635BFF30", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <CreditCard size={16} color="#635BFF" />
@@ -1501,7 +1395,6 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
               {d.accountId ? "CONNECTED" : "MISSING"}
             </span>
           </div>
-
           {(withdrawal.rideIds ?? []).length > 0 && (
             <div className="card" style={{ padding: "14px 16px" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: ".06em", marginBottom: 10 }}>RIDE IDs</div>
@@ -1521,27 +1414,11 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
         {(d.status === "pending" || d.status === "in_progress") && (
           <>
-            <button
-              className="btn-success"
-              onClick={handleApprove}
-              disabled={approving || rejecting}
-              style={{ opacity: approving || rejecting ? .6 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
-            >
-              {approving
-                ? <><Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> Approving…</>
-                : <><CheckCircle size={15} /> Approve Driver</>
-              }
+            <button className="btn-success" onClick={handleApprove} disabled={approving || rejecting} style={{ opacity: approving || rejecting ? .6 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+              {approving ? <><Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> Approving…</> : <><CheckCircle size={15} /> Approve Driver</>}
             </button>
-            <button
-              className="btn-danger"
-              onClick={handleReject}
-              disabled={approving || rejecting}
-              style={{ opacity: approving || rejecting ? .6 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
-            >
-              {rejecting
-                ? <><Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> Rejecting…</>
-                : <><XCircle size={15} /> Reject Application</>
-              }
+            <button className="btn-danger" onClick={handleReject} disabled={approving || rejecting} style={{ opacity: approving || rejecting ? .6 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+              {rejecting ? <><Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> Rejecting…</> : <><XCircle size={15} /> Reject Application</>}
             </button>
           </>
         )}
@@ -1549,16 +1426,8 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
           <Bell size={14} /> Send Notification
         </button>
         {d.status !== "pending" && d.status !== "in_progress" && (
-          <button
-            className="btn-danger"
-            onClick={handleSuspend}
-            disabled={suspending}
-            style={{ opacity: suspending ? .6 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
-          >
-            {suspending
-              ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Suspending…</>
-              : <><Ban size={14} /> Suspend Driver</>
-            }
+          <button className="btn-danger" onClick={handleSuspend} disabled={suspending} style={{ opacity: suspending ? .6 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            {suspending ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Suspending…</> : <><Ban size={14} /> Suspend Driver</>}
           </button>
         )}
       </div>
