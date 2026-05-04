@@ -1,265 +1,75 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// PATCH FILE — replace the existing DriversTab export and add DriverMapView
-// below the existing helpers at the top of your DriversTab file.
-// ─────────────────────────────────────────────────────────────────────────────
 
-// 1) ADD this import at the top of the file (with your other imports):
-//    import { MapPin as MapPinIcon, Navigation } from "lucide-react";
-//    (MapPin is already imported as MapPin — alias it, or just use the existing one)
+import { useState, useEffect } from "react";
+import {
+  Search, Bell, CheckCircle, XCircle, Ban, ChevronRight,
+  FileText, Car, Loader2, ArrowLeft, MapPin, Phone, Mail,
+  Star, TrendingUp, DollarSign, Clock, Shield, Eye,
+  AlertCircle, CheckCircle2, X, CreditCard, Hash,
+} from "lucide-react";
+import { C, STATUS_CONFIG } from '@/App/Admin/Tokens';
+import { Avatar, StatusPill } from '@/App/Admin/UI';
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { getFirestore, doc, onSnapshot, updateDoc } from "firebase/firestore";
+import { firebase_app } from "@/firebase/config";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MAPBOX LOADER  (copy/paste once near the top of the file, outside components)
-// ─────────────────────────────────────────────────────────────────────────────
-const MAPBOX_TOKEN =
-  "pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA";
+const functions         = getFunctions(firebase_app, "us-east1");
+const callApproveDriver = httpsCallable(functions, "approveDriver");
+const callRejectDriver  = httpsCallable(functions, "rejectDriver");
+const db                = getFirestore(firebase_app);
 
-let _dmLoaded = false;
-let _dmCbs    = [];
-function loadMapboxDM(cb) {
-  if (_dmLoaded && window.mapboxgl) { cb(); return; }
-  _dmCbs.push(cb);
-  if (document.getElementById("dm-mapbox-css")) return;
-  const link  = document.createElement("link");
-  link.id     = "dm-mapbox-css";
-  link.rel    = "stylesheet";
-  link.href   = "https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css";
-  document.head.appendChild(link);
-  const script    = document.createElement("script");
-  script.src      = "https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js";
-  script.onload   = () => { _dmLoaded = true; _dmCbs.forEach(f => f()); _dmCbs = []; };
-  document.head.appendChild(script);
+// ─── Helpers ───────────────────────────────────────────────────────────────
+function timeAgo(ts) {
+  if (!ts) return "—";
+  const seconds = ts?.seconds ?? Math.floor(ts / 1000);
+  const diff = Math.floor(Date.now() / 1000) - seconds;
+  if (diff < 60)    return `${diff}s ago`;
+  if (diff < 3600)  return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
 }
 
-// Status → pin color
-const PIN_COLOR = {
-  online:      "#22C55E",
-  offline:     "#94A3B8",
-  pending:     "#F59E0B",
-  in_progress: "#3B82F6",
-  suspended:   "#EF4444",
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// DriverMapView
-// ─────────────────────────────────────────────────────────────────────────────
-import { useEffect, useRef, useMemo } from "react";
-
-function DriverMapView({ drivers = [], onSelectDriver }) {
-  const containerRef = useRef(null);
-  const mapRef       = useRef(null);
-  const markersRef   = useRef([]);
-  const initRef      = useRef(false);
-
-  // Only drivers that have a valid lat/lng
-  const mappable = useMemo(
-    () => drivers.filter(d => d.lat && d.lng),
-    [drivers]
-  );
-
-  // Init map once
-  useEffect(() => {
-    if (!containerRef.current || initRef.current) return;
-
-    loadMapboxDM(() => {
-      if (!containerRef.current || initRef.current) return;
-      initRef.current = true;
-
-      window.mapboxgl.accessToken = MAPBOX_TOKEN;
-      mapRef.current = new window.mapboxgl.Map({
-        container:          containerRef.current,
-        style:              "mapbox://styles/mapbox/dark-v11",
-        center:             [-81.3792, 28.5383], // Orlando
-        zoom:               11,
-        attributionControl: false,
-        interactive:        true,
-      });
-      mapRef.current.addControl(
-        new window.mapboxgl.AttributionControl({ compact: true }),
-        "bottom-right"
-      );
-      mapRef.current.addControl(
-        new window.mapboxgl.NavigationControl({ showCompass: false }),
-        "top-right"
-      );
-    });
-
-    return () => {
-      if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current  = null;
-        initRef.current = false;
-      }
-    };
-  }, []);
-
-  // Re-render markers whenever the driver list changes
-  useEffect(() => {
-    if (!mapRef.current) return;
-
-    const render = () => {
-      // Clear old markers
-      markersRef.current.forEach(m => m.remove());
-      markersRef.current = [];
-
-      if (!mappable.length) return;
-
-      mappable.forEach(driver => {
-        const color  = PIN_COLOR[driver.status] || "#94A3B8";
-        const name   = fullName(driver);
-
-        // Custom HTML element for the marker
-        const el            = document.createElement("div");
-        el.style.cssText    = `
-          position: relative;
-          width: 32px; height: 32px;
-          cursor: pointer;
-        `;
-        el.innerHTML = `
-          <svg width="32" height="38" viewBox="0 0 32 38" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <filter id="dm-shadow-${driver.id}">
-              <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="${color}" flood-opacity="0.45"/>
-            </filter>
-            <path d="M16 2C9.373 2 4 7.373 4 14c0 8.5 12 22 12 22S28 22.5 28 14C28 7.373 22.627 2 16 2Z"
-                  fill="${color}" filter="url(#dm-shadow-${driver.id})"/>
-            <circle cx="16" cy="14" r="6" fill="white" opacity="0.9"/>
-          </svg>
-          <div style="
-            position: absolute;
-            top: -26px; left: 50%;
-            transform: translateX(-50%);
-            background: rgba(15,23,42,0.92);
-            color: #fff;
-            font-size: 10px;
-            font-weight: 700;
-            font-family: 'Barlow Condensed', sans-serif;
-            white-space: nowrap;
-            padding: 3px 7px;
-            border-radius: 6px;
-            border: 1px solid ${color}55;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity .15s;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-          " class="dm-label">${name}</div>
-        `;
-
-        // Show label on hover
-        el.addEventListener("mouseenter", () => {
-          el.querySelector(".dm-label").style.opacity = "1";
-        });
-        el.addEventListener("mouseleave", () => {
-          el.querySelector(".dm-label").style.opacity = "0";
-        });
-
-        el.addEventListener("click", e => {
-          e.stopPropagation();
-          onSelectDriver?.(driver);
-        });
-
-        const marker = new window.mapboxgl.Marker({ element: el, anchor: "bottom" })
-          .setLngLat([driver.lng, driver.lat])
-          .addTo(mapRef.current);
-
-        markersRef.current.push(marker);
-      });
-
-      // Fit bounds to all visible drivers
-      if (mappable.length === 1) {
-        mapRef.current.flyTo({ center: [mappable[0].lng, mappable[0].lat], zoom: 13, duration: 800 });
-      } else if (mappable.length > 1) {
-        const bounds = new window.mapboxgl.LngLatBounds();
-        mappable.forEach(d => bounds.extend([d.lng, d.lat]));
-        mapRef.current.fitBounds(bounds, { padding: 52, maxZoom: 14, duration: 800 });
-      }
-    };
-
-    if (mapRef.current.loaded()) render();
-    else mapRef.current.once("load", render);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mappable]);
-
-  return (
-    <div style={{
-      borderRadius: 16,
-      overflow: "hidden",
-      border: "1px solid rgba(255,255,255,0.07)",
-      boxShadow: "0 8px 32px rgba(0,0,0,0.25)",
-      position: "relative",
-    }}>
-      <div ref={containerRef} style={{ width: "100%", height: 260 }} />
-
-      {/* Legend */}
-      <div style={{
-        position: "absolute", bottom: 10, left: 10, zIndex: 10,
-        display: "flex", gap: 6, flexWrap: "wrap",
-        background: "rgba(15,23,42,0.88)",
-        backdropFilter: "blur(8px)",
-        border: "1px solid rgba(255,255,255,0.1)",
-        borderRadius: 10, padding: "6px 10px",
-      }}>
-        {Object.entries(PIN_COLOR).map(([status, color]) => {
-          const count = drivers.filter(d => d.status === status && d.lat && d.lng).length;
-          if (count === 0) return null;
-          return (
-            <div key={status} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <div style={{ width: 7, height: 7, borderRadius: "50%", background: color, boxShadow: `0 0 4px ${color}` }} />
-              <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.7)", textTransform: "capitalize" }}>
-                {status === "in_progress" ? "On trip" : status} <span style={{ color: "rgba(255,255,255,.4)" }}>({count})</span>
-              </span>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* No-location notice */}
-      {drivers.length > 0 && mappable.length === 0 && (
-        <div style={{
-          position: "absolute", inset: 0, zIndex: 5,
-          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-          gap: 8, background: "rgba(15,23,42,0.7)", pointerEvents: "none",
-        }}>
-          <MapPin size={20} color="#94A3B8" />
-          <span style={{ fontSize: 12, color: "#94A3B8", fontWeight: 600 }}>No location data for these drivers</span>
-        </div>
-      )}
-    </div>
-  );
+function formatMinutesAgo(minutes) {
+  if (minutes == null) return "—";
+  if (minutes < 1)    return "just now";
+  if (minutes < 60)   return `${minutes}m ago`;
+  if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`;
+  return `${Math.floor(minutes / 1440)}d ago`;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// UPDATED DriversTab  — replace your existing export with this
-// ─────────────────────────────────────────────────────────────────────────────
+function formatTs(ts) {
+  if (!ts) return "—";
+  const date = ts.toDate?.() ?? new Date(ts);
+  return date.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function fmtMoney(val) {
+  return `$${Number(val ?? 0).toFixed(2)}`;
+}
+
+function fullName(d) {
+  return `${d.firstName?.trim() ?? ""} ${d.lastName?.trim() ?? ""}`.trim() || "Unknown";
+}
+
+function docsComplete(documents = {}) {
+  const required = ["insurance", "licenseFront", "profilePhoto", "registration"];
+  const done = required.filter(k => documents[k] === true || documents[`${k}Url`]).length;
+  return { done, total: required.length };
+}
+
+// ─── LIST TAB ──────────────────────────────────────────────────────────────
 export function DriversTab({ fleet = [], onToast }) {
   const [search,   setSearch]   = useState("");
-  const [cityZip,  setCityZip]  = useState("");       // ← new
   const [filter,   setFilter]   = useState("all");
   const [selected, setSelected] = useState(null);
 
-  const filters      = ["all", "online", "offline", "pending", "in_progress"];
-  const showMap      = ["all", "online", "offline", "pending"].includes(filter);
+  const filters = ["all", "online", "offline", "pending", "in_progress"];
 
-  // Drivers shown on the map respect the status filter but NOT the name/cityzip search
-  // so the map always gives a full spatial picture of the selected tier.
-  const mapDrivers = useMemo(() => {
-    if (!showMap) return [];
-    return fleet.filter(d => filter === "all" || d.status === filter);
-  }, [fleet, filter, showMap]);
-
-  // List applies all three filters
   const filtered = fleet.filter(d => {
-    const name       = fullName(d).toLowerCase();
-    const matchName  = name.includes(search.toLowerCase()) ||
-                       d.email?.toLowerCase().includes(search.toLowerCase());
+    const name = fullName(d).toLowerCase();
+    const matchSearch = name.includes(search.toLowerCase()) ||
+                        d.email?.toLowerCase().includes(search.toLowerCase());
     const matchFilter = filter === "all" || d.status === filter;
-    const matchCityZip = (() => {
-      if (!cityZip.trim()) return true;
-      const q     = cityZip.toLowerCase().trim();
-      const city  = (d.contact?.city  ?? "").toLowerCase();
-      const zip   = (d.contact?.zip   ?? "").toLowerCase();
-      const state = (d.contact?.state ?? "").toLowerCase();
-      return city.includes(q) || zip.includes(q) || state.includes(q);
-    })();
-    return matchName && matchFilter && matchCityZip;
+    return matchSearch && matchFilter;
   });
 
   if (selected) {
@@ -275,51 +85,12 @@ export function DriversTab({ fleet = [], onToast }) {
 
   return (
     <div style={{ padding: "0 16px 16px" }}>
-
-      {/* ── Name search ── */}
-      <div className="search-bar fade-up" style={{ marginBottom: 10, animationDelay: "40ms", opacity: 0 }}>
+      <div className="search-bar fade-up" style={{ marginBottom: 12, animationDelay: "40ms", opacity: 0 }}>
         <Search size={15} color={C.textDim} />
-        <input
-          placeholder="Search by name or email…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
+        <input placeholder="Search drivers…" value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
-      {/* ── City / Zip search ── */}
-      <div
-        className="fade-up"
-        style={{
-          display: "flex", alignItems: "center", gap: 8,
-          background: C.surface, border: `1.5px solid ${cityZip ? C.green : C.border}`,
-          borderRadius: 10, padding: "9px 12px",
-          marginBottom: 12, animationDelay: "70ms", opacity: 0,
-          transition: "border-color .2s",
-        }}
-      >
-        <MapPin size={14} color={cityZip ? C.green : C.textDim} style={{ flexShrink: 0 }} />
-        <input
-          placeholder="Filter by city, state, or zip…"
-          value={cityZip}
-          onChange={e => setCityZip(e.target.value)}
-          style={{
-            flex: 1, border: "none", outline: "none",
-            background: "transparent", color: C.text,
-            fontSize: 13, fontFamily: "'Barlow', sans-serif",
-          }}
-        />
-        {cityZip && (
-          <button
-            onClick={() => setCityZip("")}
-            style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", padding: 0 }}
-          >
-            <X size={13} color={C.textMuted} />
-          </button>
-        )}
-      </div>
-
-      {/* ── Filter pills ── */}
-      <div className="fade-up" style={{ display: "flex", gap: 8, marginBottom: 14, animationDelay: "100ms", opacity: 0, overflowX: "auto", paddingBottom: 2 }}>
+      <div className="fade-up" style={{ display: "flex", gap: 8, marginBottom: 16, animationDelay: "80ms", opacity: 0, overflowX: "auto", paddingBottom: 2 }}>
         {filters.map(f => (
           <button
             key={f}
@@ -341,35 +112,9 @@ export function DriversTab({ fleet = [], onToast }) {
         ))}
       </div>
 
-      {/* ── Driver map ── */}
-      {showMap && (
-        <div
-          className="fade-up"
-          style={{ marginBottom: 16, animationDelay: "130ms", opacity: 0 }}
-        >
-          {/* Header row */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: ".06em" }}>
-              DRIVER MAP
-            </span>
-            <span style={{ fontSize: 11, color: C.textMuted }}>
-              {mapDrivers.filter(d => d.lat && d.lng).length} / {mapDrivers.length} pinned
-            </span>
-          </div>
-
-          <DriverMapView
-            drivers={mapDrivers}
-            onSelectDriver={driver => setSelected(driver)}
-          />
-        </div>
-      )}
-
-      {/* ── Driver list ── */}
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {filtered.length === 0 && (
-          <div style={{ textAlign: "center", padding: "32px 0", color: C.textMuted, fontSize: 13 }}>
-            No drivers found
-          </div>
+          <div style={{ textAlign: "center", padding: "32px 0", color: C.textMuted, fontSize: 13 }}>No drivers found</div>
         )}
         {filtered.map((driver, i) => {
           const { done, total } = docsComplete(driver.documents);
@@ -378,9 +123,10 @@ export function DriversTab({ fleet = [], onToast }) {
             <div
               key={driver.id}
               className="card fade-up"
-              style={{ animationDelay: `${160 + i * 40}ms`, opacity: 0, cursor: "pointer", overflow: "hidden" }}
+              style={{ animationDelay: `${130 + i * 45}ms`, opacity: 0, cursor: "pointer", overflow: "hidden" }}
               onClick={() => setSelected(driver)}
             >
+              {/* Status accent bar */}
               <div style={{ height: 3, background: STATUS_CONFIG[driver.status]?.color || C.border }} />
               <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ position: "relative" }}>
@@ -389,20 +135,11 @@ export function DriversTab({ fleet = [], onToast }) {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>{fullName(driver)}</div>
-                  <div style={{ fontSize: 11, color: C.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {driver.email}
-                  </div>
-                  <div style={{ display: "flex", gap: 6, marginTop: 5, alignItems: "center", flexWrap: "wrap" }}>
+                  <div style={{ fontSize: 11, color: C.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{driver.email}</div>
+                  <div style={{ display: "flex", gap: 6, marginTop: 5, alignItems: "center" }}>
                     <span style={{ fontSize: 10, fontWeight: 700, color: allDocs ? C.green : "#D97706", background: allDocs ? C.greenGlow : "#FFFBEB", border: `1px solid ${allDocs ? C.green + "40" : "#D9770640"}`, borderRadius: 6, padding: "2px 7px" }}>
                       {done}/{total} docs
                     </span>
-                    {/* City/zip tag */}
-                    {driver.contact?.city && (
-                      <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10, color: C.textMuted, fontWeight: 600 }}>
-                        <MapPin size={9} color={C.textDim} />
-                        {driver.contact.city}{driver.contact.zip ? `, ${driver.contact.zip}` : ""}
-                      </span>
-                    )}
                     {driver.averageRating && (
                       <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10, color: "#F59E0B", fontWeight: 700 }}>
                         <Star size={9} fill="#F59E0B" /> {Number(driver.averageRating).toFixed(1)}
@@ -426,6 +163,525 @@ export function DriversTab({ fleet = [], onToast }) {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// ─── DRIVER DETAIL ─────────────────────────────────────────────────────────
+function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
+  const [d,          setD]          = useState(null);
+  const [activeTab,  setActiveTab]  = useState("overview");
+  const [approving,  setApproving]  = useState(false);
+  const [rejecting,  setRejecting]  = useState(false);
+  const [suspending, setSuspending] = useState(false);
+  const [lightbox,   setLightbox]   = useState(null);
+
+  // Live listener
+  useEffect(() => {
+    if (!driverId) return;
+    const unsub = onSnapshot(
+      doc(db, "Drivers", driverId),
+      snap => { if (snap.exists()) setD({ id: snap.id, ...snap.data() }); },
+      err  => console.error("[DriverDetail] snapshot error:", err)
+    );
+    return () => unsub();
+  }, [driverId]);
+
+  const handleApprove = async () => {
+    if (approving) return;
+    setApproving(true);
+    try {
+      await callApproveDriver({ driverUid: driverId });
+      onToast(`✅ ${fullName(d)} approved`);
+      onBack();
+    } catch (err) {
+      onToast(`Failed to approve: ${err.message}`);
+    } finally { setApproving(false); }
+  };
+
+  const handleReject = async () => {
+    if (rejecting) return;
+    setRejecting(true);
+    try {
+      await callRejectDriver({ driverUid: driverId });
+      onToast(`❌ ${fullName(d)} rejected`);
+      onBack();
+    } catch (err) {
+      onToast(`Failed to reject: ${err.message}`);
+    } finally { setRejecting(false); }
+  };
+
+  const handleSuspend = async () => {
+    if (suspending) return;
+    setSuspending(true);
+    try {
+      await updateDoc(doc(db, "Drivers", driverId), { status: "suspended" });
+      onToast(`🚫 ${fullName(d)} suspended`);
+      onBack();
+    } catch (err) {
+      onToast("Failed to suspend driver");
+    } finally { setSuspending(false); }
+  };
+
+  if (!d) {
+    return (
+      <div style={{ padding: "60px 16px", textAlign: "center" }}>
+        <Loader2 size={24} color={C.green} style={{ animation: "spin 1s linear infinite" }} />
+        <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
+      </div>
+    );
+  }
+
+  const name       = fullName(d);
+  const docs       = d.documents  ?? {};
+  const vehicle    = d.vehicle    ?? {};
+  const contact    = d.contact    ?? {};
+  const earnings   = d.earnings   ?? {};
+  const withdrawal = d.withdrawal ?? {};
+  const week       = earnings.week  ?? {};
+  const today      = earnings.today ?? {};
+  const month      = earnings.month ?? {};
+
+  const { done: docsDone, total: docsTotal } = docsComplete(docs);
+  const allDocs = docsDone === docsTotal;
+
+  const statusColor = STATUS_CONFIG[d.status]?.color || C.textDim;
+
+  const docSlots = [
+    { key: "licenseFront", urlKey: "licenseFrontUrl", label: "License Front" },
+    { key: "licenseBack",  urlKey: "licenseBackUrl",  label: "License Back"  },
+    { key: "insurance",    urlKey: "insuranceUrl",    label: "Insurance"     },
+    { key: "registration", urlKey: "registrationUrl", label: "Registration"  },
+    { key: "profilePhoto", urlKey: "profilePhotoUrl", label: "Profile Photo" },
+  ];
+
+  const tabs = ["overview", "documents", "earnings", "payout"];
+
+  return (
+    <div style={{ padding: "0 16px 24px" }}>
+      <style>{`
+        @keyframes spin     { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
+        @keyframes fadeUp   { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:translateY(0) } }
+      `}</style>
+
+      {/* Lightbox */}
+      {lightbox && (
+        <div onClick={() => setLightbox(null)} style={{ position: "fixed", inset: 0, zIndex: 1300, background: "rgba(0,0,0,.92)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <button onClick={() => setLightbox(null)} style={{ position: "absolute", top: 20, right: 20, background: "rgba(255,255,255,.15)", border: "none", borderRadius: "50%", width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+            <X size={20} color="#fff" />
+          </button>
+          <img src={lightbox} alt="Document" style={{ maxWidth: "100%", maxHeight: "80vh", borderRadius: 16, objectFit: "contain" }} />
+        </div>
+      )}
+
+      {/* Back */}
+      <button className="btn-ghost" onClick={onBack} style={{ marginBottom: 16, padding: "8px 14px", display: "flex", alignItems: "center", gap: 6 }}>
+        <ArrowLeft size={14} /> Back to drivers
+      </button>
+
+      {/* Hero card */}
+      <div style={{
+        background: "linear-gradient(135deg,#0F172A,#1E293B)",
+        borderRadius: 20, padding: "22px 20px 20px",
+        marginBottom: 14, position: "relative", overflow: "hidden",
+        boxShadow: "0 8px 32px rgba(0,0,0,.2)",
+      }}>
+        {/* Status bar */}
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: statusColor }} />
+        {/* Glow */}
+        <div style={{ position: "absolute", top: -60, right: -60, width: 180, height: 180, borderRadius: "50%", background: `${statusColor}12`, pointerEvents: "none" }} />
+
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 16 }}>
+          <Avatar name={name} size={56} colorIdx={driverIdx} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 20, fontWeight: 900, color: "#fff", marginBottom: 4, letterSpacing: "-0.3px" }}>{name}</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <StatusPill status={d.status} />
+              {d.averageRating != null && (
+                <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#F59E0B", fontWeight: 700, background: "rgba(245,158,11,.12)", borderRadius: 6, padding: "3px 8px" }}>
+                  <Star size={11} fill="#F59E0B" /> {Number(d.averageRating).toFixed(2)} · {d.totalReviews ?? 0} reviews
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Quick stats */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+          {[
+            { label: "Total Rides",   value: d.totalRides ?? 0,             icon: <Car size={12} color="rgba(255,255,255,.5)" /> },
+            { label: "Earnings Today",value: fmtMoney(today.earnings),      icon: <DollarSign size={12} color="rgba(255,255,255,.5)" /> },
+            { label: "Last Seen",     value: formatMinutesAgo(d.minutesSinceLastSeen), icon: <Clock size={12} color="rgba(255,255,255,.5)" /> },
+          ].map(({ label, value, icon }) => (
+            <div key={label} style={{ background: "rgba(255,255,255,.06)", borderRadius: 12, padding: "10px 12px", border: "1px solid rgba(255,255,255,.08)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>{icon}<span style={{ fontSize: 9, color: "rgba(255,255,255,.4)", fontWeight: 700, letterSpacing: ".04em" }}>{label.toUpperCase()}</span></div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: "#fff" }}>{value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Tab bar */}
+      <div style={{ display: "flex", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 4, gap: 3, marginBottom: 14 }}>
+        {tabs.map(t => (
+          <button
+            key={t}
+            onClick={() => setActiveTab(t)}
+            style={{
+              flex: 1, padding: "8px 4px", border: "none",
+              background: activeTab === t ? C.text : "transparent",
+              color: activeTab === t ? "#fff" : C.textMuted,
+              borderRadius: 9, fontSize: 11, fontWeight: 700,
+              fontFamily: "'Barlow Condensed',sans-serif",
+              cursor: "pointer", transition: "all .15s", textTransform: "capitalize",
+            }}
+          >
+            {t === "payout" ? "Payout" : t.charAt(0).toUpperCase() + t.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {/* ── OVERVIEW TAB ── */}
+      {activeTab === "overview" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, animation: "fadeUp .3s ease" }}>
+
+          {/* Contact */}
+          <div className="card" style={{ padding: "16px" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: ".06em", marginBottom: 12 }}>CONTACT</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {[
+                { Icon: Mail,   value: d.email        ?? "—" },
+                { Icon: Phone,  value: contact.phone  ?? "—" },
+                { Icon: MapPin, value: contact.city   ? `${contact.city.trim()}, ${contact.state} ${contact.zip ?? ""}`.trim() : "—" },
+              ].map(({ Icon, value }) => (
+                <div key={value} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 30, height: 30, background: C.surfaceHigh, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Icon size={13} color={C.green} />
+                  </div>
+                  <span style={{ fontSize: 13, color: C.text, fontWeight: 500 }}>{value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Account info */}
+          <div className="card" style={{ padding: "16px" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: ".06em", marginBottom: 12 }}>ACCOUNT</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {[
+                { label: "UID",      value: d.uid?.slice(0, 12) + "…" ?? "—" },
+                { label: "Joined",   value: timeAgo(d.createdAt)           },
+                { label: "License",  value: docs.licenseNumber ?? "—"      },
+                { label: "Submitted",value: timeAgo(d.submittedAt)         },
+                { label: "Stripe",   value: d.accountId ? "Connected" : "Not set", color: d.accountId ? C.green : C.red },
+                { label: "Transfer", value: d.transferCapability ?? "—",  color: d.transferCapability === "enabled" ? C.green : "#D97706" },
+              ].map(({ label, value, color }) => (
+                <div key={label} style={{ background: C.surfaceHigh, borderRadius: 10, padding: "10px 12px", border: `1px solid ${C.border}` }}>
+                  <div style={{ fontSize: 9, color: C.textMuted, fontWeight: 700, letterSpacing: ".5px", marginBottom: 3 }}>{label.toUpperCase()}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: color ?? C.text, wordBreak: "break-all" }}>{value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Vehicle */}
+          {vehicle.make && (
+            <div className="card" style={{ padding: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                <Car size={13} color={C.green} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: ".06em" }}>VEHICLE</span>
+              </div>
+              <div style={{ background: C.surfaceHigh, borderRadius: 12, padding: "14px 16px", border: `1px solid ${C.border}`, marginBottom: 10 }}>
+                <div style={{ fontSize: 18, fontWeight: 900, color: C.text, marginBottom: 2 }}>
+                  {vehicle.year} {vehicle.make} {vehicle.model}
+                </div>
+                <div style={{ fontSize: 13, color: C.textMuted }}>{vehicle.color}</div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {[
+                  { label: "Plate", value: vehicle.plate?.toUpperCase() ?? "—" },
+                  { label: "VIN",   value: vehicle.vin ?? "N/A" },
+                  { label: "Types", value: Array.isArray(vehicle.rideTypes) ? vehicle.rideTypes.join(", ") : "—" },
+                ].map(({ label, value }) => (
+                  <div key={label} style={{ background: C.surfaceHigh, borderRadius: 8, padding: "8px 10px", border: `1px solid ${C.border}` }}>
+                    <div style={{ fontSize: 9, color: C.textMuted, fontWeight: 700, marginBottom: 2 }}>{label}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, textTransform: "capitalize" }}>{value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+  {/* Location */}
+{d.lat && d.lng && (
+  <div className="card" style={{ padding: "16px" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+      <MapPin size={13} color={C.green} />
+      <span style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: ".06em" }}>LAST LOCATION</span>
+      {d.status === "online" && (
+        <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: "auto" }}>
+          <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.green }} />
+          <span style={{ fontSize: 10, fontWeight: 700, color: C.green }}>LIVE</span>
+        </div>
+      )}
+    </div>
+    <div style={{ background: C.surfaceHigh, borderRadius: 10, padding: "12px 14px", border: `1px solid ${C.border}` }}>
+      <div style={{ fontFamily: "monospace", fontSize: 13, color: C.text, marginBottom: 4 }}>
+        {d.lat?.toFixed(6)}, {d.lng?.toFixed(6)}
+      </div>
+      <div style={{ fontSize: 11, color: C.textMuted }}>{formatMinutesAgo(d.minutesSinceLastSeen)}</div>
+    </div>
+    <a
+      href={`https://www.google.com/maps?q=${d.lat},${d.lng}`}
+      target="_blank"
+      rel="noreferrer"
+      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8, padding: "9px", background: "#1D4ED815", border: "1px solid #1D4ED830", borderRadius: 10, color: "#2563EB", fontSize: 12, fontWeight: 700, textDecoration: "none" }}
+    >
+      <MapPin size={12} /> Open in Google Maps
+    </a>
+  </div>
+)}
+        </div>
+      )}
+
+      {/* ── DOCUMENTS TAB ── */}
+      {activeTab === "documents" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, animation: "fadeUp .3s ease" }}>
+
+          {/* Progress */}
+          <div style={{ background: allDocs ? "#F0FDF4" : "#FFFBEB", border: `1.5px solid ${allDocs ? "#86EFAC" : "#FDE68A"}`, borderRadius: 14, padding: "14px 16px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: allDocs ? C.green : "#D97706" }}>
+                {allDocs ? "All documents submitted" : `${docsTotal - docsDone} document${docsTotal - docsDone !== 1 ? "s" : ""} missing`}
+              </span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: allDocs ? C.green : "#D97706" }}>{docsDone}/{docsTotal}</span>
+            </div>
+            <div style={{ height: 6, background: allDocs ? "#BBF7D0" : "#FDE68A", borderRadius: 99, overflow: "hidden" }}>
+              <div style={{ width: `${(docsDone / docsTotal) * 100}%`, height: "100%", background: allDocs ? C.green : "#D97706", borderRadius: 99, transition: "width .4s" }} />
+            </div>
+          </div>
+
+          {/* Doc cards */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {docSlots.map(({ key, urlKey, label }) => {
+              const uploaded = Boolean(docs[urlKey] || docs[key]);
+              const url      = docs[urlKey] || "";
+              return (
+                <div
+                  key={key}
+                  style={{
+                    background: uploaded ? "#F0FDF4" : "#FEF2F2",
+                    border: `1.5px solid ${uploaded ? "rgba(22,163,74,.25)" : "rgba(220,38,38,.2)"}`,
+                    borderRadius: 14, overflow: "hidden",
+                    cursor: uploaded && url ? "pointer" : "default",
+                  }}
+                  onClick={() => uploaded && url && setLightbox(url)}
+                >
+                  {/* Thumbnail */}
+                  {url ? (
+                    <div style={{ height: 80, background: "#1E293B", overflow: "hidden", position: "relative" }}>
+                      <img src={url} alt={label} style={{ width: "100%", height: "100%", objectFit: "cover", opacity: .85 }} />
+                      <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,.15)" }}>
+                        <Eye size={18} color="#fff" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ height: 80, background: "rgba(220,38,38,.06)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <FileText size={22} color="rgba(220,38,38,.4)" />
+                    </div>
+                  )}
+                  <div style={{ padding: "10px 12px" }}>
+                    <div style={{ fontSize: 11.5, fontWeight: 700, color: C.text, marginBottom: 3 }}>{label}</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: uploaded ? C.green : "#DC2626" }}>
+                      {uploaded ? "✓ Uploaded" : "✗ Missing"}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── EARNINGS TAB ── */}
+      {activeTab === "earnings" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, animation: "fadeUp .3s ease" }}>
+
+          {/* Stat cards */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {[
+              { label: "Today",      value: fmtMoney(today.earnings),  sub: `${today.trips ?? 0} trips`,  color: C.green  },
+              { label: "This Week",  value: fmtMoney(week.earnings),   sub: `${week.trips  ?? 0} trips`,  color: "#2563EB" },
+              { label: "This Month", value: fmtMoney(month.earnings),  sub: `${month.trips ?? 0} trips`,  color: "#7C3AED" },
+              { label: "All Time",   value: `${d.totalRides ?? 0} rides`, sub: "completed",              color: "#D97706" },
+            ].map(({ label, value, sub, color }) => (
+              <div key={label} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 14px", position: "relative", overflow: "hidden" }}>
+                <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: color, borderRadius: "14px 14px 0 0" }} />
+                <div style={{ fontSize: 9, color: C.textMuted, fontWeight: 700, letterSpacing: ".06em", marginBottom: 6 }}>{label.toUpperCase()}</div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: C.text, marginBottom: 2 }}>{value}</div>
+                <div style={{ fontSize: 11, color: C.textMuted }}>{sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Weekly breakdown */}
+          {(week.dailyBreakdown ?? []).length > 0 && (
+            <div className="card" style={{ padding: "16px" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: ".06em", marginBottom: 14 }}>DAILY BREAKDOWN</div>
+              <div style={{ display: "flex", gap: 6, alignItems: "flex-end", height: 64 }}>
+                {(week.dailyBreakdown ?? []).map(({ day, amount, isToday }) => {
+                  const max = Math.max(...(week.dailyBreakdown ?? []).map(d => d.amount ?? 0), 1);
+                  const pct = ((amount ?? 0) / max) * 100;
+                  return (
+                    <div key={day} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                      <div style={{ width: "100%", position: "relative", height: 48, display: "flex", alignItems: "flex-end" }}>
+                        <div style={{ width: "100%", height: `${Math.max(pct, (amount ?? 0) > 0 ? 8 : 0)}%`, background: isToday ? C.green : C.green + "35", borderRadius: "4px 4px 2px 2px", transition: "height .4s" }} />
+                      </div>
+                      <div style={{ fontSize: 9, color: isToday ? C.green : C.textMuted, fontWeight: isToday ? 800 : 400 }}>{day}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Last synced */}
+          {earnings.lastSyncedAt && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "center" }}>
+              <Clock size={11} color={C.textMuted} />
+              <span style={{ fontSize: 11, color: C.textMuted }}>Synced {formatTs(earnings.lastSyncedAt)}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── PAYOUT TAB ── */}
+      {activeTab === "payout" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, animation: "fadeUp .3s ease" }}>
+
+          {/* Status hero */}
+          <div style={{
+            background: withdrawal.status === "paid"
+              ? "linear-gradient(135deg,#14532D,#166534)"
+              : withdrawal.status === "pending"
+                ? "linear-gradient(135deg,#78350F,#92400E)"
+                : "linear-gradient(135deg,#1E293B,#0F172A)",
+            borderRadius: 18, padding: "22px 18px",
+            boxShadow: "0 4px 24px rgba(0,0,0,.2)",
+          }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,.5)", letterSpacing: ".08em", marginBottom: 6 }}>WITHDRAWAL STATUS</div>
+            <div style={{ fontSize: 38, fontWeight: 900, color: "#fff", marginBottom: 4 }}>{fmtMoney(withdrawal.totalPayout)}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{
+                fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 20,
+                background: withdrawal.status === "paid" ? "#22C55E30" : withdrawal.status === "pending" ? "#F59E0B30" : "rgba(255,255,255,.1)",
+                color: withdrawal.status === "paid" ? "#4ADE80" : withdrawal.status === "pending" ? "#FCD34D" : "rgba(255,255,255,.6)",
+                border: `1px solid ${withdrawal.status === "paid" ? "#4ADE8040" : withdrawal.status === "pending" ? "#FCD34D40" : "rgba(255,255,255,.15)"}`,
+              }}>
+                {(withdrawal.status ?? "No payout").toUpperCase()}
+              </span>
+              <span style={{ fontSize: 11, color: "rgba(255,255,255,.4)" }}>
+                {withdrawal.rideCount ?? 0} ride{(withdrawal.rideCount ?? 0) !== 1 ? "s" : ""}
+              </span>
+            </div>
+          </div>
+
+          {/* Payout meta */}
+          <div className="card" style={{ padding: "16px" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: ".06em", marginBottom: 12 }}>PAYOUT DETAILS</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {[
+                { label: "Total Payout", value: fmtMoney(withdrawal.totalPayout) },
+                { label: "Ride Count",   value: withdrawal.rideCount ?? 0 },
+                { label: "Status",       value: withdrawal.status ?? "—" },
+                { label: "Created",      value: formatTs(withdrawal.createdAt) },
+                { label: "Updated",      value: formatTs(withdrawal.updatedAt) },
+                { label: "Paid At",      value: formatTs(withdrawal.paidAt) },
+              ].map(({ label, value }) => (
+                <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 10, borderBottom: `1px solid ${C.border}` }}>
+                  <span style={{ fontSize: 12.5, color: C.textMuted }}>{label}</span>
+                  <span style={{ fontSize: 12.5, fontWeight: 700, color: C.text }}>{String(value)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Stripe */}
+          <div style={{ background: C.surfaceHigh, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", display: "flex", gap: 12, alignItems: "center" }}>
+            <div style={{ width: 36, height: 36, background: "#635BFF15", border: "1px solid #635BFF30", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <CreditCard size={16} color="#635BFF" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 2 }}>Stripe Account</div>
+              <div style={{ fontSize: 11, color: C.textMuted, fontFamily: "monospace" }}>{d.accountId ?? "Not connected"}</div>
+            </div>
+            <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: d.accountId ? C.greenGlow : "#FEF2F2", color: d.accountId ? C.green : "#DC2626", border: `1px solid ${d.accountId ? C.green + "30" : "#DC262630"}` }}>
+              {d.accountId ? "CONNECTED" : "MISSING"}
+            </span>
+          </div>
+
+          {/* Ride IDs */}
+          {(withdrawal.rideIds ?? []).length > 0 && (
+            <div className="card" style={{ padding: "14px 16px" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: ".06em", marginBottom: 10 }}>RIDE IDs</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {withdrawal.rideIds.map((id, i) => (
+                  <div key={id} style={{ display: "flex", alignItems: "center", gap: 8, background: C.surfaceHigh, borderRadius: 8, padding: "7px 10px", border: `1px solid ${C.border}` }}>
+                    <Hash size={11} color={C.textMuted} />
+                    <span style={{ fontFamily: "monospace", fontSize: 11, color: C.text }}>{id}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── ACTION BUTTONS ── */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
+        {(d.status === "pending" || d.status === "in_progress") && (
+          <>
+            <button
+              className="btn-success"
+              onClick={handleApprove}
+              disabled={approving || rejecting}
+              style={{ opacity: approving || rejecting ? .6 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+            >
+              {approving
+                ? <><Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> Approving…</>
+                : <><CheckCircle size={15} /> Approve Driver</>
+              }
+            </button>
+            <button
+              className="btn-danger"
+              onClick={handleReject}
+              disabled={approving || rejecting}
+              style={{ opacity: approving || rejecting ? .6 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+            >
+              {rejecting
+                ? <><Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> Rejecting…</>
+                : <><XCircle size={15} /> Reject Application</>
+              }
+            </button>
+          </>
+        )}
+        <button className="btn-ghost" onClick={() => onToast("Notification sent")} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <Bell size={14} /> Send Notification
+        </button>
+        {d.status !== "pending" && d.status !== "in_progress" && (
+          <button
+            className="btn-danger"
+            onClick={handleSuspend}
+            disabled={suspending}
+            style={{ opacity: suspending ? .6 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+          >
+            {suspending
+              ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Suspending…</>
+              : <><Ban size={14} /> Suspend Driver</>
+            }
+          </button>
+        )}
       </div>
     </div>
   );
