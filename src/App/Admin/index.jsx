@@ -296,7 +296,7 @@ export default function UaTobAdminDashboard() {
           />
         );
       case "drivers":
-        return <DriversTab fleet={fleet} onToast={showToast} />;
+        return <DriversTab rides={rides} fleet={fleet} onToast={showToast} />;
       case "approvals":
         return <ApprovalsTab allApprovals={allApprovals} onToast={showToast} />;
       case "analytics":

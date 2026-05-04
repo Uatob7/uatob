@@ -1,3 +1,267 @@
+
+(41) [{...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}]
+
+Driverstab.jsx:530 DriversTab render  Database
+
+(default)
+
+[Data](https://console.firebase.google.com/project/uatob-e7b4b/firestore/databases/-default-/data/~2FRides~2FlZ7AAqFoCz1zifaoIfMJ#)
+
+[Rules](https://console.firebase.google.com/project/uatob-e7b4b/firestore/databases/-default-/data/~2FRides~2FlZ7AAqFoCz1zifaoIfMJ#)
+
+[Indexes](https://console.firebase.google.com/project/uatob-e7b4b/firestore/databases/-default-/data/~2FRides~2FlZ7AAqFoCz1zifaoIfMJ#)
+
+[Disaster Recovery](https://console.firebase.google.com/project/uatob-e7b4b/firestore/databases/-default-/disasterrecovery)
+
+[Usage](https://console.firebase.google.com/project/uatob-e7b4b/firestore/databases/-default-/usage)
+
+[Query Insights](https://console.firebase.google.com/project/uatob-e7b4b/firestore/databases/-default-/data/~2FRides~2FlZ7AAqFoCz1zifaoIfMJ#)
+
+[Extensions](https://console.firebase.google.com/project/uatob-e7b4b/firestore/databases/-default-/data/~2FRides~2FlZ7AAqFoCz1zifaoIfMJ#)
+
+Protect your Cloud Firestore resources from abuse, such as billing fraud or phishing
+
+[Rides](https://console.firebase.google.com/project/uatob-e7b4b/firestore/databases/-default-/data/~2FRides~2FlZ7AAqFoCz1zifaoIfMJ#)
+
+[lZ7AAqFoCz1zifaoIfMJ](https://console.firebase.google.com/project/uatob-e7b4b/firestore/databases/-default-/data/~2FRides~2FlZ7AAqFoCz1zifaoIfMJ#)
+
+(default)
+
+Accounts
+
+Admin
+
+Drivers
+
+Rides
+
+Search
+
+Rides
+
+lZ7AAqFoCz1zifaoIfMJ
+
+lZ7AAqFoCz1zifaoIfMJ
+
+adminNotifiedtrue
+
+(boolean)
+
+candidateDriverUids
+
+(array)
+
+0"duuEID4AofX1ooCLfSsfVMjJpUu1"
+
+(string)
+
+candidateDrivers
+
+(array)
+
+0
+
+(map)
+
+distance0.0005774563553737655
+
+(double)
+
+uid"duuEID4AofX1ooCLfSsfVMjJpUu1"
+
+(string)
+
+createdAtMay 4, 2026 at 5:00:06 PM UTC-4
+
+(timestamp)
+
+currentDriverIndex0
+
+(int64)
+
+driverInfonull
+
+(null)
+
+driverPayout3.74
+
+(double)
+
+dropoff"3024 North Powers Drive, Orlando, FL, USA"
+
+(string)
+
+dropoffCity"Orlando"
+
+(string)
+
+dropoffLat28.5819909
+
+(double)
+
+dropoffLng-81.4694363
+
+(double)
+
+dropoffZip"32818"
+
+(string)
+
+emailDispatchAtMay 4, 2026 at 5:01:45 PM UTC-4
+
+(timestamp)
+
+emailDispatchStartedtrue
+
+(boolean)
+
+emailSentToDrivers
+
+(map)
+
+duuEID4AofX1ooCLfSsfVMjJpUu1true
+
+(boolean)
+
+expiresAtMay 4, 2026 at 5:10:06 PM UTC-4
+
+(timestamp)
+
+fareBreakdown
+
+(map)
+
+fareTotal4.99
+
+(double)
+
+lastDispatchAtMay 4, 2026 at 5:02:44 PM UTC-4
+
+(timestamp)
+
+lastPushAtMay 4, 2026 at 5:03:04 PM UTC-4
+
+(timestamp)
+
+offlineDriversEmailedAtMay 4, 2026 at 5:01:04 PM UTC-4
+
+(timestamp)
+
+offlineDriversNotified
+
+(map)
+
+0Kh5xBvMgPNTN1WSpfBVOWRiVHe2true
+
+(boolean)
+
+duuEID4AofX1ooCLfSsfVMjJpUu1true
+
+(boolean)
+
+paymentIntentIdnull
+
+(null)
+
+paymentMethod"cash"
+
+(string)
+
+paymentStatus"succeeded"
+
+(string)
+
+payoutStatus"pending"
+
+(string)
+
+pickup"2382 Locke Avenue, Orlando, FL, USA"
+
+(string)
+
+pickupCity"Orlando"
+
+(string)
+
+pickupLat28.5730568
+
+(double)
+
+pickupLng-81.46963459999999
+
+(double)
+
+pickupZip"32818"
+
+(string)
+
+platformFee1.25
+
+(double)
+
+polyline"wtkmDp~fpNxACLI?a@GeF@s@{\F_C?{@?qXHBjBFJIdEBTDNRT"
+
+(string)
+
+pushDispatchAtMay 4, 2026 at 5:02:04 PM UTC-4
+
+(timestamp)
+
+pushDispatchStartedtrue
+
+(boolean)
+
+pushDriverIndex10
+
+(int64)
+
+pushSentToDrivers
+
+(map)
+
+duuEID4AofX1ooCLfSsfVMjJpUu1true
+
+(boolean)
+
+requestSentAtMay 4, 2026 at 5:04:03 PM UTC-4
+
+(timestamp)
+
+rideLabel"Economy"
+
+(string)
+
+rideType"economy"
+
+(string)
+
+status"searching_driver"
+
+(string)
+
+timeoutMinutes10
+
+(int64)
+
+tripDistanceMiles0.93
+
+(double)
+
+tripDurationMin7
+
+(int64)
+
+uid"7T5ejUmqxOgYeC94WEXlkRtlEHq2"
+
+(string)
+
+updatedAtMay 4, 2026 at 5:00:06 PM UTC-4
+
+(timestamp)
+
+Database location: nam5 show the rides in the map
+
+
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   Search, Bell, CheckCircle, XCircle, Ban, ChevronRight,
@@ -526,7 +790,8 @@ function DriverMapView({ drivers = [], onDriverClick, height = 280, expandable =
 // ═══════════════════════════════════════════════════════════════════════════
 // LIST TAB
 // ═══════════════════════════════════════════════════════════════════════════
-export function DriversTab({ fleet = [], onToast }) {
+export function DriversTab({rides, fleet = [], onToast }) {
+  console.log("DriversTab render", { rides, fleet });
   const [search,    setSearch]    = useState("");
   const [locSearch, setLocSearch] = useState("");
   const [filter,    setFilter]    = useState("all");
