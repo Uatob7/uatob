@@ -172,7 +172,7 @@ function AdminNotificationPopup({ onEnable, onSkip, loading, error }) {
 // ── Tab titles ─────────────────────────────────────────────────────────────
 const TAB_TITLES = {
   home:       "Dashboard",
-  drivers:    "Fleet",
+  drivers:    "Drivers",
   approvals:  "Approvals",
   analytics:  "Analytics",
   riders:     "Riders",
@@ -190,8 +190,6 @@ export default function UaTobAdminDashboard() {
   const [notifError,     setNotifError]     = useState("");
   const { views } = useViews();
   const { searches } = useSearches();
-
-
 
   const useriders = useRiders();
   const toastRef  = useRef(null);
