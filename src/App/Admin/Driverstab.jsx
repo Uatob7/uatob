@@ -426,12 +426,28 @@ function DriverMapView({
           }
 
           const geojson = { type: "Feature", geometry: { type: "LineString", coordinates: coords } };
-          map.addSource(sourceId, { type: "geojson", data: geojson });
-          map.addLayer({
-            id: layerBgId, type: "line", source: sourceId,
-            layout: { "line-join": "round", "line-cap": "round" },
-            paint: { "line-color": color, "line-width": 7, "line-opacity": 0.18, "line-blur": 3 },
-          });
+if (map.getSource(sourceId)) {
+  map.getSource(sourceId).setData(geojson);
+} else {
+  map.addSource(sourceId, { type: "geojson", data: geojson });
+}
+if (!map.getLayer(layerBgId)) {
+  map.addLayer({
+    id: layerBgId, type: "line", source: sourceId,
+    layout: { "line-join": "round", "line-cap": "round" },
+    paint: { "line-color": color, "line-width": 7, "line-opacity": 0.18, "line-blur": 3 },
+  });
+}
+if (!map.getLayer(layerFgId)) {
+  map.addLayer({
+    id: layerFgId, type: "line", source: sourceId,
+    layout: { "line-join": "round", "line-cap": "round" },
+    paint: {
+      "line-color": color, "line-width": 2.5, "line-opacity": 0.85,
+      "line-dasharray": ride.status === "searching_driver" ? [2, 2] : [1],
+    },
+  });
+}
           map.addLayer({
             id: layerFgId, type: "line", source: sourceId,
             layout: { "line-join": "round", "line-cap": "round" },
