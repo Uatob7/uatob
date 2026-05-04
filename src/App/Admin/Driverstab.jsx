@@ -1,10 +1,10 @@
-
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   Search, Bell, CheckCircle, XCircle, Ban, ChevronRight,
   FileText, Car, Loader2, ArrowLeft, MapPin, Phone, Mail,
   Star, TrendingUp, DollarSign, Clock, Shield, Eye,
   AlertCircle, CheckCircle2, X, CreditCard, Hash,
+  Map as MapIcon, Navigation, Maximize2, Minimize2,
 } from "lucide-react";
 import { C, STATUS_CONFIG } from '@/App/Admin/Tokens';
 import { Avatar, StatusPill } from '@/App/Admin/UI';
@@ -16,6 +16,43 @@ const functions         = getFunctions(firebase_app, "us-east1");
 const callApproveDriver = httpsCallable(functions, "approveDriver");
 const callRejectDriver  = httpsCallable(functions, "rejectDriver");
 const db                = getFirestore(firebase_app);
+
+// ─── MAPBOX LOADER ─────────────────────────────────────────────────────────
+const MAPBOX_TOKEN = "pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA";
+let _mbLoaded = false;
+let _mbCallbacks = [];
+
+function loadMapbox(cb) {
+  if (_mbLoaded && window.mapboxgl) { cb(); return; }
+  _mbCallbacks.push(cb);
+  if (document.getElementById("mapbox-css-drivers")) {
+    if (_mbLoaded) cb();
+    return;
+  }
+  const link = document.createElement("link");
+  link.id   = "mapbox-css-drivers";
+  link.rel  = "stylesheet";
+  link.href = "https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css";
+  document.head.appendChild(link);
+  const script = document.createElement("script");
+  script.src    = "https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js";
+  script.onload = () => {
+    _mbLoaded = true;
+    _mbCallbacks.forEach(f => f());
+    _mbCallbacks = [];
+  };
+  document.head.appendChild(script);
+}
+
+// Status → pin color mapping
+const PIN_COLORS = {
+  online:      "#16A34A", // green
+  offline:     "#9CA3AF", // gray
+  pending:     "#F59E0B", // amber
+  in_progress: "#3B82F6", // blue
+  rejected:    "#DC2626", // red
+  suspended:   "#DC2626", // red
+};
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 function timeAgo(ts) {
@@ -56,21 +93,487 @@ function docsComplete(documents = {}) {
   return { done, total: required.length };
 }
 
-// ─── LIST TAB ──────────────────────────────────────────────────────────────
+function locationStr(d) {
+  const c = d.contact ?? {};
+  const parts = [c.city, c.state, c.zip].filter(Boolean);
+  return parts.join(", ");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DRIVER MAP VIEW
+// ═══════════════════════════════════════════════════════════════════════════
+function DriverMapView({ drivers = [], onDriverClick, height = 280, expandable = true }) {
+  const containerRef    = useRef(null);
+  const mapRef          = useRef(null);
+  const markersRef      = useRef([]);
+  const initializedRef  = useRef(false);
+  const [expanded,      setExpanded]      = useState(false);
+  const [hoveredDriver, setHoveredDriver] = useState(null);
+  const [tooltipPos,    setTooltipPos]    = useState({ x: 0, y: 0 });
+
+  const mapHeight = expanded ? 520 : height;
+
+  // Drivers with valid coordinates
+  const pinned = useMemo(
+    () => drivers.filter(d => typeof d.lat === "number" && typeof d.lng === "number" && !isNaN(d.lat) && !isNaN(d.lng)),
+    [drivers]
+  );
+
+  const counts = useMemo(() => {
+    const out = { online: 0, offline: 0, pending: 0, in_progress: 0, suspended: 0, other: 0 };
+    pinned.forEach(d => {
+      if (out[d.status] != null) out[d.status]++;
+      else out.other++;
+    });
+    return out;
+  }, [pinned]);
+
+  // Compute bounds
+  const bounds = useMemo(() => {
+    if (pinned.length === 0) return null;
+    const lats = pinned.map(d => d.lat);
+    const lngs = pinned.map(d => d.lng);
+    return {
+      minLat: Math.min(...lats),
+      maxLat: Math.max(...lats),
+      minLng: Math.min(...lngs),
+      maxLng: Math.max(...lngs),
+    };
+  }, [pinned]);
+
+  // Initialize map ONCE
+  useEffect(() => {
+    if (!containerRef.current || initializedRef.current) return;
+
+    loadMapbox(() => {
+      if (!containerRef.current || initializedRef.current) return;
+      initializedRef.current = true;
+      window.mapboxgl.accessToken = MAPBOX_TOKEN;
+
+      const center = bounds
+        ? [(bounds.minLng + bounds.maxLng) / 2, (bounds.minLat + bounds.maxLat) / 2]
+        : [-81.3792, 28.5383]; // Orlando default
+
+      mapRef.current = new window.mapboxgl.Map({
+        container: containerRef.current,
+        style:     "mapbox://styles/mapbox/dark-v11",
+        center,
+        zoom:      11,
+        attributionControl: false,
+        fadeDuration: 0,
+      });
+
+      mapRef.current.addControl(
+        new window.mapboxgl.NavigationControl({ showCompass: false, visualizePitch: false }),
+        "top-right"
+      );
+    });
+
+    return () => {
+      markersRef.current.forEach(m => m.remove());
+      markersRef.current = [];
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+        initializedRef.current = false;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Resize map when expanded changes
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const t = setTimeout(() => mapRef.current?.resize(), 320);
+    return () => clearTimeout(t);
+  }, [expanded]);
+
+  // Render markers whenever drivers change
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    const render = () => {
+      if (!mapRef.current?.isStyleLoaded()) {
+        setTimeout(render, 100);
+        return;
+      }
+
+      // Clear existing markers
+      markersRef.current.forEach(m => m.remove());
+      markersRef.current = [];
+
+      pinned.forEach(driver => {
+        const color  = PIN_COLORS[driver.status] || "#9CA3AF";
+        const isLive = driver.status === "online";
+
+        const wrap = document.createElement("div");
+        wrap.style.cursor = "pointer";
+        wrap.innerHTML = `
+          <div style="position:relative;width:28px;height:36px;display:flex;align-items:flex-end;justify-content:center;filter:drop-shadow(0 4px 8px rgba(0,0,0,.35));">
+            ${isLive ? `
+              <div style="
+                position:absolute;
+                bottom:-4px;left:50%;transform:translateX(-50%);
+                width:34px;height:34px;border-radius:50%;
+                border:2px solid ${color};opacity:0;
+                animation:driverPulse 2.2s ease-out infinite;
+              "></div>` : ""}
+            <svg width="28" height="36" viewBox="0 0 28 36" fill="none" style="position:relative;">
+              <path d="M14 0C6.27 0 0 6.27 0 14c0 10 14 22 14 22s14-12 14-22C28 6.27 21.73 0 14 0z" fill="${color}"/>
+              <circle cx="14" cy="14" r="6.5" fill="#fff"/>
+              <circle cx="14" cy="14" r="3" fill="${color}"/>
+            </svg>
+          </div>
+        `;
+
+        // Hover
+        wrap.addEventListener("mouseenter", (e) => {
+          setHoveredDriver(driver);
+          const rect = containerRef.current?.getBoundingClientRect();
+          if (rect) {
+            setTooltipPos({
+              x: e.clientX - rect.left,
+              y: e.clientY - rect.top,
+            });
+          }
+          const inner = wrap.querySelector("svg");
+          if (inner) inner.style.transform = "scale(1.18)";
+          inner.style.transition = "transform .15s";
+        });
+        wrap.addEventListener("mousemove", (e) => {
+          const rect = containerRef.current?.getBoundingClientRect();
+          if (rect) {
+            setTooltipPos({
+              x: e.clientX - rect.left,
+              y: e.clientY - rect.top,
+            });
+          }
+        });
+        wrap.addEventListener("mouseleave", () => {
+          setHoveredDriver(null);
+          const inner = wrap.querySelector("svg");
+          if (inner) inner.style.transform = "";
+        });
+
+        // Click
+        wrap.addEventListener("click", (e) => {
+          e.stopPropagation();
+          onDriverClick?.(driver);
+        });
+
+        const marker = new window.mapboxgl.Marker({
+          element: wrap.firstElementChild,
+          anchor:  "bottom",
+        })
+          .setLngLat([driver.lng, driver.lat])
+          .addTo(mapRef.current);
+
+        markersRef.current.push(marker);
+      });
+
+      // Fit bounds
+      if (pinned.length > 0 && bounds) {
+        if (pinned.length === 1) {
+          mapRef.current.flyTo({
+            center: [pinned[0].lng, pinned[0].lat],
+            zoom:   14,
+            duration: 700,
+          });
+        } else {
+          mapRef.current.fitBounds(
+            [[bounds.minLng, bounds.minLat], [bounds.maxLng, bounds.maxLat]],
+            {
+              padding: { top: 50, bottom: 60, left: 30, right: 50 },
+              maxZoom: 14,
+              duration: 700,
+            }
+          );
+        }
+      }
+    };
+
+    if (mapRef.current.loaded()) render();
+    else mapRef.current.once("load", render);
+  }, [pinned, bounds, onDriverClick]);
+
+  // Legend items
+  const legendItems = [
+    { label: "Online",  count: counts.online,      color: PIN_COLORS.online,      live: true },
+    { label: "Offline", count: counts.offline,     color: PIN_COLORS.offline },
+    { label: "Pending", count: counts.pending,     color: PIN_COLORS.pending },
+    ...(counts.in_progress > 0 ? [{ label: "On Trip",  count: counts.in_progress, color: PIN_COLORS.in_progress, live: true }] : []),
+    ...(counts.suspended   > 0 ? [{ label: "Suspended", count: counts.suspended,   color: PIN_COLORS.suspended }] : []),
+  ].filter(it => it.count > 0);
+
+  return (
+    <div className="card fade-up" style={{ marginBottom: 12, animationDelay: "20ms", opacity: 0, overflow: "hidden", position: "relative" }}>
+      <style>{`
+        @keyframes driverPulse {
+          0%   { transform: translateX(-50%) scale(.6); opacity: .9; }
+          70%  { transform: translateX(-50%) scale(1.8); opacity: 0;  }
+          100% { transform: translateX(-50%) scale(.6); opacity: 0;   }
+        }
+        .mapboxgl-ctrl-bottom-left,
+        .mapboxgl-ctrl-bottom-right { display: none !important; }
+        .mapboxgl-ctrl-top-right { margin: 8px 8px 0 0 !important; }
+        .mapboxgl-ctrl-group {
+          background: rgba(15,23,42,.85) !important;
+          border: 1px solid rgba(255,255,255,.1) !important;
+          backdrop-filter: blur(8px);
+        }
+        .mapboxgl-ctrl-group button {
+          background: transparent !important;
+          color: #fff !important;
+        }
+        .mapboxgl-ctrl-group button + button { border-top-color: rgba(255,255,255,.1) !important; }
+        .mapboxgl-ctrl-group button:hover { background: rgba(255,255,255,.08) !important; }
+        .mapboxgl-ctrl-group button .mapboxgl-ctrl-icon { filter: invert(1) !important; opacity: .8; }
+      `}</style>
+
+      {/* Header */}
+      <div style={{
+        padding: "12px 14px 10px",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        background: C.surface,
+        borderBottom: `1px solid ${C.border}`,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+          <div style={{
+            width: 30, height: 30, borderRadius: 9,
+            background: "linear-gradient(135deg,#0F172A,#1E293B)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <MapIcon size={14} color="#fff" strokeWidth={2.4}/>
+          </div>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: C.text, letterSpacing: "-0.1px" }}>
+              Fleet Map
+            </div>
+            <div style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 600, marginTop: 1 }}>
+              {pinned.length} / {drivers.length} pinned
+              {drivers.length - pinned.length > 0 && ` · ${drivers.length - pinned.length} no location`}
+            </div>
+          </div>
+        </div>
+
+        {expandable && (
+          <button
+            onClick={() => setExpanded(e => !e)}
+            style={{
+              width: 30, height: 30, borderRadius: 9,
+              border: `1px solid ${C.border}`,
+              background: C.surfaceHigh,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", transition: "background .15s",
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = C.border}
+            onMouseLeave={e => e.currentTarget.style.background = C.surfaceHigh}
+            title={expanded ? "Collapse map" : "Expand map"}
+          >
+            {expanded
+              ? <Minimize2 size={12} color={C.textMuted}/>
+              : <Maximize2 size={12} color={C.textMuted}/>}
+          </button>
+        )}
+      </div>
+
+      {/* Map container */}
+      <div style={{
+        position: "relative",
+        height: mapHeight,
+        background: "#0d1117",
+        transition: "height .3s cubic-bezier(.32,.72,0,1)",
+      }}>
+        <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
+
+        {/* Empty overlay */}
+        {pinned.length === 0 && (
+          <div style={{
+            position: "absolute", inset: 0,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: "rgba(13,17,23,.96)",
+            backdropFilter: "blur(2px)",
+            zIndex: 20,
+          }}>
+            <div style={{ textAlign: "center", padding: 20 }}>
+              <div style={{
+                width: 48, height: 48, borderRadius: 14,
+                background: "rgba(255,255,255,.06)",
+                border: "1px solid rgba(255,255,255,.1)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                margin: "0 auto 10px",
+              }}>
+                <Navigation size={20} color="rgba(255,255,255,.4)"/>
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: "#fff", marginBottom: 4 }}>
+                No drivers on map
+              </div>
+              <div style={{ fontSize: 11.5, color: "rgba(255,255,255,.5)", fontWeight: 500 }}>
+                None of these drivers have location data yet
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Hover tooltip */}
+        {hoveredDriver && (
+          <div style={{
+            position: "absolute",
+            left: Math.min(tooltipPos.x + 14, (containerRef.current?.clientWidth ?? 999) - 200),
+            top:  Math.max(tooltipPos.y - 60, 8),
+            zIndex: 30,
+            pointerEvents: "none",
+            background: "rgba(15,23,42,.96)",
+            backdropFilter: "blur(12px)",
+            border: "1px solid rgba(255,255,255,.12)",
+            borderRadius: 10,
+            padding: "9px 12px",
+            minWidth: 180,
+            boxShadow: "0 10px 28px rgba(0,0,0,.35)",
+            animation: "fadeIn .12s ease-out",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+              <div style={{
+                width: 7, height: 7, borderRadius: "50%",
+                background: PIN_COLORS[hoveredDriver.status] || "#9CA3AF",
+                boxShadow: hoveredDriver.status === "online" ? `0 0 8px ${PIN_COLORS[hoveredDriver.status]}` : "none",
+              }}/>
+              <span style={{
+                fontSize: 9.5, fontWeight: 800, letterSpacing: ".08em",
+                textTransform: "uppercase",
+                color: PIN_COLORS[hoveredDriver.status] || "#9CA3AF",
+              }}>
+                {hoveredDriver.status}
+              </span>
+            </div>
+            <div style={{
+              fontSize: 13, fontWeight: 800, color: "#fff",
+              letterSpacing: "-0.1px", marginBottom: 2,
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            }}>
+              {fullName(hoveredDriver)}
+            </div>
+            <div style={{
+              fontSize: 11, color: "rgba(255,255,255,.6)", fontWeight: 500,
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            }}>
+              {locationStr(hoveredDriver) || formatMinutesAgo(hoveredDriver.minutesSinceLastSeen)}
+            </div>
+            <div style={{
+              marginTop: 6, paddingTop: 6,
+              borderTop: "1px solid rgba(255,255,255,.1)",
+              fontSize: 10, color: "rgba(255,255,255,.45)",
+              fontFamily: "monospace",
+            }}>
+              {hoveredDriver.lat?.toFixed(4)}, {hoveredDriver.lng?.toFixed(4)}
+            </div>
+            <div style={{
+              marginTop: 4,
+              fontSize: 10, color: "rgba(255,255,255,.5)", fontWeight: 600,
+            }}>
+              Click to view details
+            </div>
+          </div>
+        )}
+
+        {/* Legend (bottom-left) */}
+        {legendItems.length > 0 && (
+          <div style={{
+            position: "absolute", bottom: 12, left: 12, zIndex: 15,
+            display: "flex", flexWrap: "wrap", gap: 5,
+            maxWidth: "calc(100% - 24px)",
+          }}>
+            {legendItems.map(({ label, count, color, live }) => (
+              <div key={label} style={{
+                display: "flex", alignItems: "center", gap: 5,
+                background: "rgba(15,23,42,.85)",
+                backdropFilter: "blur(10px)",
+                border: "1px solid rgba(255,255,255,.1)",
+                borderRadius: 99,
+                padding: "4px 9px",
+              }}>
+                <div style={{
+                  width: 7, height: 7, borderRadius: "50%",
+                  background: color,
+                  boxShadow: live ? `0 0 8px ${color}` : "none",
+                }}/>
+                <span style={{
+                  fontSize: 9.5, fontWeight: 700,
+                  color: "rgba(255,255,255,.85)",
+                  letterSpacing: ".05em", textTransform: "uppercase",
+                }}>
+                  {label}
+                </span>
+                <span style={{
+                  fontSize: 10, fontWeight: 800,
+                  fontFamily: "monospace",
+                  color: "#fff",
+                  background: "rgba(255,255,255,.12)",
+                  padding: "1px 5px", borderRadius: 5,
+                  marginLeft: 1,
+                }}>
+                  {count}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LIST TAB
+// ═══════════════════════════════════════════════════════════════════════════
 export function DriversTab({ fleet = [], onToast }) {
-  const [search,   setSearch]   = useState("");
-  const [filter,   setFilter]   = useState("all");
-  const [selected, setSelected] = useState(null);
+  const [search,    setSearch]    = useState("");
+  const [locSearch, setLocSearch] = useState("");
+  const [filter,    setFilter]    = useState("all");
+  const [selected,  setSelected]  = useState(null);
 
   const filters = ["all", "online", "offline", "pending", "in_progress"];
 
-  const filtered = fleet.filter(d => {
-    const name = fullName(d).toLowerCase();
-    const matchSearch = name.includes(search.toLowerCase()) ||
-                        d.email?.toLowerCase().includes(search.toLowerCase());
-    const matchFilter = filter === "all" || d.status === filter;
-    return matchSearch && matchFilter;
-  });
+  // Drivers shown on map (matching the current status filter, but NOT name/zip search,
+  // so the spatial picture is always complete)
+  const mapDrivers = useMemo(() => {
+    if (filter === "all") {
+      return fleet.filter(d => ["online", "offline", "pending"].includes(d.status));
+    }
+    return fleet.filter(d => d.status === filter);
+  }, [fleet, filter]);
+
+  // Drivers shown in the list (respects ALL filters)
+  const listDrivers = useMemo(() => {
+    return fleet.filter(d => {
+      // Status filter
+      if (filter !== "all" && d.status !== filter) return false;
+
+      // Name/email search
+      if (search) {
+        const q = search.toLowerCase();
+        const name = fullName(d).toLowerCase();
+        const email = (d.email || "").toLowerCase();
+        if (!name.includes(q) && !email.includes(q)) return false;
+      }
+
+      // City/zip search
+      if (locSearch) {
+        const q = locSearch.toLowerCase();
+        const c = d.contact ?? {};
+        const hay = [c.city, c.state, c.zip, c.address].filter(Boolean).join(" ").toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+
+      return true;
+    });
+  }, [fleet, filter, search, locSearch]);
+
+  const handleDriverClick = useCallback((driver) => {
+    setSelected(driver);
+    // Scroll to top so detail view is visible
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
 
   if (selected) {
     return (
@@ -83,14 +586,14 @@ export function DriversTab({ fleet = [], onToast }) {
     );
   }
 
+  // Show map for all non-in-progress filters
+  const showMap = filter !== "in_progress";
+
   return (
     <div style={{ padding: "0 16px 16px" }}>
-      <div className="search-bar fade-up" style={{ marginBottom: 12, animationDelay: "40ms", opacity: 0 }}>
-        <Search size={15} color={C.textDim} />
-        <input placeholder="Search drivers…" value={search} onChange={e => setSearch(e.target.value)} />
-      </div>
 
-      <div className="fade-up" style={{ display: "flex", gap: 8, marginBottom: 16, animationDelay: "80ms", opacity: 0, overflowX: "auto", paddingBottom: 2 }}>
+      {/* ─── Filter pills ─── */}
+      <div className="fade-up" style={{ display: "flex", gap: 8, marginBottom: 12, animationDelay: "0ms", opacity: 0, overflowX: "auto", paddingBottom: 2 }}>
         {filters.map(f => (
           <button
             key={f}
@@ -112,32 +615,160 @@ export function DriversTab({ fleet = [], onToast }) {
         ))}
       </div>
 
+      {/* ─── Fleet Map (only on all/online/offline/pending) ─── */}
+      {showMap && (
+        <DriverMapView
+          drivers={mapDrivers}
+          onDriverClick={handleDriverClick}
+          height={280}
+        />
+      )}
+
+      {/* ─── Search bars ─── */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+        <div className="search-bar fade-up" style={{ flex: 1, minWidth: 180, animationDelay: "40ms", opacity: 0 }}>
+          <Search size={15} color={C.textDim} />
+          <input
+            placeholder="Search name or email…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                padding: 4, display: "flex", color: C.textMuted,
+              }}
+            >
+              <X size={13}/>
+            </button>
+          )}
+        </div>
+
+        <div
+          className="search-bar fade-up"
+          style={{
+            flex: 1, minWidth: 180, animationDelay: "60ms", opacity: 0,
+            border: locSearch ? `1.5px solid ${C.green}` : undefined,
+            background: locSearch ? C.greenGlow : undefined,
+          }}
+        >
+          <MapPin size={15} color={locSearch ? C.green : C.textDim} />
+          <input
+            placeholder="City, state, or ZIP…"
+            value={locSearch}
+            onChange={e => setLocSearch(e.target.value)}
+            style={{ color: locSearch ? C.green : undefined }}
+          />
+          {locSearch && (
+            <button
+              onClick={() => setLocSearch("")}
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                padding: 4, display: "flex", color: C.green,
+              }}
+            >
+              <X size={13}/>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ─── Active filter summary ─── */}
+      {(search || locSearch) && (
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "8px 12px", marginBottom: 10,
+          background: C.greenGlow,
+          border: `1px solid ${C.green}30`,
+          borderRadius: 10,
+          fontSize: 11.5, fontWeight: 600, color: C.green,
+        }}>
+          <span>
+            Showing {listDrivers.length} of {fleet.length} drivers
+            {search && ` · matching "${search}"`}
+            {locSearch && ` · in "${locSearch}"`}
+          </span>
+          <button
+            onClick={() => { setSearch(""); setLocSearch(""); }}
+            style={{
+              background: "none", border: "none", cursor: "pointer",
+              fontSize: 11, fontWeight: 700, color: C.green,
+              textDecoration: "underline",
+            }}
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
+      {/* ─── Driver list ─── */}
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {filtered.length === 0 && (
-          <div style={{ textAlign: "center", padding: "32px 0", color: C.textMuted, fontSize: 13 }}>No drivers found</div>
+        {listDrivers.length === 0 && (
+          <div style={{
+            textAlign: "center", padding: "40px 20px",
+            background: C.surface,
+            border: `1px solid ${C.border}`,
+            borderRadius: 14,
+          }}>
+            <div style={{
+              width: 44, height: 44, borderRadius: 12,
+              background: C.surfaceHigh,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              margin: "0 auto 10px",
+            }}>
+              <Search size={18} color={C.textMuted}/>
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: C.text, marginBottom: 4 }}>
+              No drivers found
+            </div>
+            <div style={{ fontSize: 11.5, color: C.textMuted, fontWeight: 500 }}>
+              Try adjusting your filters or search terms
+            </div>
+          </div>
         )}
-        {filtered.map((driver, i) => {
+
+        {listDrivers.map((driver, i) => {
           const { done, total } = docsComplete(driver.documents);
           const allDocs = done === total;
+          const loc = locationStr(driver);
           return (
             <div
               key={driver.id}
               className="card fade-up"
-              style={{ animationDelay: `${130 + i * 45}ms`, opacity: 0, cursor: "pointer", overflow: "hidden" }}
+              style={{
+                animationDelay: `${130 + i * 45}ms`, opacity: 0,
+                cursor: "pointer", overflow: "hidden",
+              }}
               onClick={() => setSelected(driver)}
             >
-              {/* Status accent bar */}
               <div style={{ height: 3, background: STATUS_CONFIG[driver.status]?.color || C.border }} />
               <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ position: "relative" }}>
                   <Avatar name={fullName(driver)} size={42} colorIdx={i} />
-                  <div style={{ position: "absolute", bottom: 0, right: 0, width: 11, height: 11, borderRadius: "50%", background: STATUS_CONFIG[driver.status]?.color || C.textDim, border: `2px solid ${C.surface}` }} />
+                  <div style={{
+                    position: "absolute", bottom: 0, right: 0,
+                    width: 11, height: 11, borderRadius: "50%",
+                    background: STATUS_CONFIG[driver.status]?.color || C.textDim,
+                    border: `2px solid ${C.surface}`,
+                  }} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>{fullName(driver)}</div>
-                  <div style={{ fontSize: 11, color: C.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{driver.email}</div>
-                  <div style={{ display: "flex", gap: 6, marginTop: 5, alignItems: "center" }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: allDocs ? C.green : "#D97706", background: allDocs ? C.greenGlow : "#FFFBEB", border: `1px solid ${allDocs ? C.green + "40" : "#D9770640"}`, borderRadius: 6, padding: "2px 7px" }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>
+                    {fullName(driver)}
+                  </div>
+                  <div style={{ fontSize: 11, color: C.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {driver.email}
+                  </div>
+                  <div style={{ display: "flex", gap: 6, marginTop: 5, alignItems: "center", flexWrap: "wrap" }}>
+                    <span style={{
+                      fontSize: 10, fontWeight: 700,
+                      color: allDocs ? C.green : "#D97706",
+                      background: allDocs ? C.greenGlow : "#FFFBEB",
+                      border: `1px solid ${allDocs ? C.green + "40" : "#D9770640"}`,
+                      borderRadius: 6, padding: "2px 7px",
+                    }}>
                       {done}/{total} docs
                     </span>
                     {driver.averageRating && (
@@ -146,7 +777,18 @@ export function DriversTab({ fleet = [], onToast }) {
                       </span>
                     )}
                     {driver.totalRides != null && (
-                      <span style={{ fontSize: 10, color: C.textMuted }}>{driver.totalRides} rides</span>
+                      <span style={{ fontSize: 10, color: C.textMuted }}>
+                        {driver.totalRides} rides
+                      </span>
+                    )}
+                    {loc && (
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", gap: 3,
+                        fontSize: 10, color: C.textMuted, fontWeight: 600,
+                      }}>
+                        <MapPin size={9} strokeWidth={2.4}/>
+                        {loc}
+                      </span>
                     )}
                   </div>
                 </div>
@@ -168,7 +810,9 @@ export function DriversTab({ fleet = [], onToast }) {
   );
 }
 
-// ─── DRIVER DETAIL ─────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// DRIVER DETAIL (unchanged)
+// ═══════════════════════════════════════════════════════════════════════════
 function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
   const [d,          setD]          = useState(null);
   const [activeTab,  setActiveTab]  = useState("overview");
@@ -177,7 +821,6 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
   const [suspending, setSuspending] = useState(false);
   const [lightbox,   setLightbox]   = useState(null);
 
-  // Live listener
   useEffect(() => {
     if (!driverId) return;
     const unsub = onSnapshot(
@@ -263,9 +906,9 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
       <style>{`
         @keyframes spin     { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
         @keyframes fadeUp   { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:translateY(0) } }
+        @keyframes fadeIn   { from { opacity:0 } to { opacity:1 } }
       `}</style>
 
-      {/* Lightbox */}
       {lightbox && (
         <div onClick={() => setLightbox(null)} style={{ position: "fixed", inset: 0, zIndex: 1300, background: "rgba(0,0,0,.92)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
           <button onClick={() => setLightbox(null)} style={{ position: "absolute", top: 20, right: 20, background: "rgba(255,255,255,.15)", border: "none", borderRadius: "50%", width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
@@ -275,21 +918,17 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
         </div>
       )}
 
-      {/* Back */}
       <button className="btn-ghost" onClick={onBack} style={{ marginBottom: 16, padding: "8px 14px", display: "flex", alignItems: "center", gap: 6 }}>
         <ArrowLeft size={14} /> Back to drivers
       </button>
 
-      {/* Hero card */}
       <div style={{
         background: "linear-gradient(135deg,#0F172A,#1E293B)",
         borderRadius: 20, padding: "22px 20px 20px",
         marginBottom: 14, position: "relative", overflow: "hidden",
         boxShadow: "0 8px 32px rgba(0,0,0,.2)",
       }}>
-        {/* Status bar */}
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: statusColor }} />
-        {/* Glow */}
         <div style={{ position: "absolute", top: -60, right: -60, width: 180, height: 180, borderRadius: "50%", background: `${statusColor}12`, pointerEvents: "none" }} />
 
         <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 16 }}>
@@ -307,7 +946,6 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
           </div>
         </div>
 
-        {/* Quick stats */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
           {[
             { label: "Total Rides",   value: d.totalRides ?? 0,             icon: <Car size={12} color="rgba(255,255,255,.5)" /> },
@@ -322,7 +960,6 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
         </div>
       </div>
 
-      {/* Tab bar */}
       <div style={{ display: "flex", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 4, gap: 3, marginBottom: 14 }}>
         {tabs.map(t => (
           <button
@@ -342,11 +979,8 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
         ))}
       </div>
 
-      {/* ── OVERVIEW TAB ── */}
       {activeTab === "overview" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12, animation: "fadeUp .3s ease" }}>
-
-          {/* Contact */}
           <div className="card" style={{ padding: "16px" }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: ".06em", marginBottom: 12 }}>CONTACT</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -365,7 +999,6 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
             </div>
           </div>
 
-          {/* Account info */}
           <div className="card" style={{ padding: "16px" }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: ".06em", marginBottom: 12 }}>ACCOUNT</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -385,7 +1018,6 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
             </div>
           </div>
 
-          {/* Vehicle */}
           {vehicle.make && (
             <div className="card" style={{ padding: "16px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
@@ -413,43 +1045,39 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
             </div>
           )}
 
-  {/* Location */}
-{d.lat && d.lng && (
-  <div className="card" style={{ padding: "16px" }}>
-    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-      <MapPin size={13} color={C.green} />
-      <span style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: ".06em" }}>LAST LOCATION</span>
-      {d.status === "online" && (
-        <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: "auto" }}>
-          <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.green }} />
-          <span style={{ fontSize: 10, fontWeight: 700, color: C.green }}>LIVE</span>
-        </div>
-      )}
-    </div>
-    <div style={{ background: C.surfaceHigh, borderRadius: 10, padding: "12px 14px", border: `1px solid ${C.border}` }}>
-      <div style={{ fontFamily: "monospace", fontSize: 13, color: C.text, marginBottom: 4 }}>
-        {d.lat?.toFixed(6)}, {d.lng?.toFixed(6)}
-      </div>
-      <div style={{ fontSize: 11, color: C.textMuted }}>{formatMinutesAgo(d.minutesSinceLastSeen)}</div>
-    </div>
-    <a
-      href={`https://www.google.com/maps?q=${d.lat},${d.lng}`}
-      target="_blank"
-      rel="noreferrer"
-      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8, padding: "9px", background: "#1D4ED815", border: "1px solid #1D4ED830", borderRadius: 10, color: "#2563EB", fontSize: 12, fontWeight: 700, textDecoration: "none" }}
-    >
-      <MapPin size={12} /> Open in Google Maps
-    </a>
-  </div>
-)}
+          {d.lat && d.lng && (
+            <div className="card" style={{ padding: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <MapPin size={13} color={C.green} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: ".06em" }}>LAST LOCATION</span>
+                {d.status === "online" && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: "auto" }}>
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.green }} />
+                    <span style={{ fontSize: 10, fontWeight: 700, color: C.green }}>LIVE</span>
+                  </div>
+                )}
+              </div>
+              <div style={{ background: C.surfaceHigh, borderRadius: 10, padding: "12px 14px", border: `1px solid ${C.border}` }}>
+                <div style={{ fontFamily: "monospace", fontSize: 13, color: C.text, marginBottom: 4 }}>
+                  {d.lat?.toFixed(6)}, {d.lng?.toFixed(6)}
+                </div>
+                <div style={{ fontSize: 11, color: C.textMuted }}>{formatMinutesAgo(d.minutesSinceLastSeen)}</div>
+              </div>
+              <a
+                href={`https://www.google.com/maps?q=${d.lat},${d.lng}`}
+                target="_blank"
+                rel="noreferrer"
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8, padding: "9px", background: "#1D4ED815", border: "1px solid #1D4ED830", borderRadius: 10, color: "#2563EB", fontSize: 12, fontWeight: 700, textDecoration: "none" }}
+              >
+                <MapPin size={12} /> Open in Google Maps
+              </a>
+            </div>
+          )}
         </div>
       )}
 
-      {/* ── DOCUMENTS TAB ── */}
       {activeTab === "documents" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12, animation: "fadeUp .3s ease" }}>
-
-          {/* Progress */}
           <div style={{ background: allDocs ? "#F0FDF4" : "#FFFBEB", border: `1.5px solid ${allDocs ? "#86EFAC" : "#FDE68A"}`, borderRadius: 14, padding: "14px 16px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: allDocs ? C.green : "#D97706" }}>
@@ -462,7 +1090,6 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
             </div>
           </div>
 
-          {/* Doc cards */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             {docSlots.map(({ key, urlKey, label }) => {
               const uploaded = Boolean(docs[urlKey] || docs[key]);
@@ -478,7 +1105,6 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
                   }}
                   onClick={() => uploaded && url && setLightbox(url)}
                 >
-                  {/* Thumbnail */}
                   {url ? (
                     <div style={{ height: 80, background: "#1E293B", overflow: "hidden", position: "relative" }}>
                       <img src={url} alt={label} style={{ width: "100%", height: "100%", objectFit: "cover", opacity: .85 }} />
@@ -504,11 +1130,8 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
         </div>
       )}
 
-      {/* ── EARNINGS TAB ── */}
       {activeTab === "earnings" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12, animation: "fadeUp .3s ease" }}>
-
-          {/* Stat cards */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             {[
               { label: "Today",      value: fmtMoney(today.earnings),  sub: `${today.trips ?? 0} trips`,  color: C.green  },
@@ -525,7 +1148,6 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
             ))}
           </div>
 
-          {/* Weekly breakdown */}
           {(week.dailyBreakdown ?? []).length > 0 && (
             <div className="card" style={{ padding: "16px" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: ".06em", marginBottom: 14 }}>DAILY BREAKDOWN</div>
@@ -546,7 +1168,6 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
             </div>
           )}
 
-          {/* Last synced */}
           {earnings.lastSyncedAt && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "center" }}>
               <Clock size={11} color={C.textMuted} />
@@ -556,11 +1177,8 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
         </div>
       )}
 
-      {/* ── PAYOUT TAB ── */}
       {activeTab === "payout" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12, animation: "fadeUp .3s ease" }}>
-
-          {/* Status hero */}
           <div style={{
             background: withdrawal.status === "paid"
               ? "linear-gradient(135deg,#14532D,#166534)"
@@ -587,7 +1205,6 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
             </div>
           </div>
 
-          {/* Payout meta */}
           <div className="card" style={{ padding: "16px" }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: ".06em", marginBottom: 12 }}>PAYOUT DETAILS</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -607,7 +1224,6 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
             </div>
           </div>
 
-          {/* Stripe */}
           <div style={{ background: C.surfaceHigh, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", display: "flex", gap: 12, alignItems: "center" }}>
             <div style={{ width: 36, height: 36, background: "#635BFF15", border: "1px solid #635BFF30", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <CreditCard size={16} color="#635BFF" />
@@ -621,12 +1237,11 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
             </span>
           </div>
 
-          {/* Ride IDs */}
           {(withdrawal.rideIds ?? []).length > 0 && (
             <div className="card" style={{ padding: "14px 16px" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: ".06em", marginBottom: 10 }}>RIDE IDs</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {withdrawal.rideIds.map((id, i) => (
+                {withdrawal.rideIds.map((id) => (
                   <div key={id} style={{ display: "flex", alignItems: "center", gap: 8, background: C.surfaceHigh, borderRadius: 8, padding: "7px 10px", border: `1px solid ${C.border}` }}>
                     <Hash size={11} color={C.textMuted} />
                     <span style={{ fontFamily: "monospace", fontSize: 11, color: C.text }}>{id}</span>
@@ -638,7 +1253,6 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
         </div>
       )}
 
-      {/* ── ACTION BUTTONS ── */}
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
         {(d.status === "pending" || d.status === "in_progress") && (
           <>
