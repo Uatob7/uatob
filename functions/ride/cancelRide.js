@@ -1,9 +1,3 @@
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
-const admin  = require("firebase-admin");
-const Stripe = require("stripe");
-
-const db = admin.firestore();
-
 exports.cancelRide = onCall(
   {
     region:  "us-east1",
@@ -32,6 +26,19 @@ exports.cancelRide = onCall(
     if (["cancelled", "completed"].includes(ride.status)) {
       return { success: true, message: "Ride already resolved." };
     }
+
+    // ── Cash rides: skip Stripe entirely ──────────────────────────────────
+    if (ride.paymentMethod === "cash") {
+      await rideRef.update({
+        status:       "cancelled",
+        cancelReason: "rider_timeout_cancel",
+        cancelledAt:  admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt:    admin.firestore.FieldValue.serverTimestamp(),
+      });
+      console.log(`[cancelRide] ✅ Cash ride ${rideId} cancelled (no refund needed).`);
+      return { success: true, refundStatus: "skipped" };
+    }
+    // ──────────────────────────────────────────────────────────────────────
 
     const stripeKey = process.env.STRIPE_SECRET_KEY;
     if (!stripeKey) {
