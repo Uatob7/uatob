@@ -311,7 +311,7 @@ function buildCashAnnouncementEmail({ driver, sendCount }) {
               <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
                      style="margin-top:24px;"><tr>
                 <td align="center">
-                  <a href="https://uatob.com/driver/app" class="cta-btn"
+                  <a href="https://uatob.com/driver/signup" class="cta-btn"
                      style="display:block;background-color:#16A34A;color:#ffffff;
                             font-family:'Courier New',monospace;font-size:15px;font-weight:700;
                             text-decoration:none;padding:20px 32px;border-radius:12px;
