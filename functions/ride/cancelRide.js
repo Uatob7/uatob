@@ -1,3 +1,10 @@
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const admin  = require("firebase-admin");
+const Stripe = require("stripe");
+
+const db = admin.firestore();
+
+
 exports.cancelRide = onCall(
   {
     region:  "us-east1",
