@@ -9,6 +9,31 @@ const callGetDriverToPickup = httpsCallable(functions, "getDriverToPickup");
 
 const MAPBOX_TOKEN = 'pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA';
 
+// ── Payment method config ──────────────────────────────────────────────
+const PAYMENT_CONFIG = {
+  cash: {
+    label: 'CASH',
+    color: '#F59E0B',
+    bg:    'rgba(245,158,11,.13)',
+    border:'rgba(245,158,11,.32)',
+    icon:  '💵',
+  },
+  card: {
+    label: 'CARD',
+    color: '#60A5FA',
+    bg:    'rgba(96,165,250,.12)',
+    border:'rgba(96,165,250,.28)',
+    icon:  '💳',
+  },
+  cashapp: {
+    label: 'CASH APP',
+    color: '#34D399',
+    bg:    'rgba(52,211,153,.12)',
+    border:'rgba(52,211,153,.28)',
+    icon:  '$',
+  },
+};
+
 // ── Polyline decoder ───────────────────────────────────────────────────
 function decodePolyline(encoded) {
   if (!encoded) return [];
@@ -75,9 +100,10 @@ const MODAL_CSS = `
     from { opacity: 0; }
     to   { opacity: 1; }
   }
-  @keyframes trm-scanline {
-    0%   { transform: translateY(-100%); }
-    100% { transform: translateY(200px); }
+  @keyframes trm-payBadgePop {
+    0%   { opacity: 0; transform: scale(.82) translateY(4px); }
+    70%  { transform: scale(1.06) translateY(-1px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
   }
 
   .trm-backdrop {
@@ -88,6 +114,10 @@ const MODAL_CSS = `
   }
   .trm-fade {
     animation: trm-fadeIn .35s ease both;
+  }
+  .trm-pay-badge {
+    animation: trm-payBadgePop .38s cubic-bezier(.22,1,.36,1) both;
+    animation-delay: .12s;
   }
 
   .trm-map-container .mapboxgl-ctrl-logo,
@@ -115,6 +145,61 @@ const MODAL_CSS = `
     transition: all .18s cubic-bezier(.4,0,.2,1);
   }
 `;
+
+// ── Payment Badge ──────────────────────────────────────────────────────
+function PaymentBadge({ paymentMethod }) {
+  const cfg = PAYMENT_CONFIG[paymentMethod] ?? PAYMENT_CONFIG.card;
+  const isCashApp = paymentMethod === 'cashapp';
+
+  return (
+    <div
+      className="trm-pay-badge"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
+        background: cfg.bg,
+        border: `1px solid ${cfg.border}`,
+        borderRadius: 8,
+        padding: '4px 9px',
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Subtle inner glow strip */}
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        background: `linear-gradient(135deg, ${cfg.color}18 0%, transparent 60%)`,
+        pointerEvents: 'none',
+      }} />
+
+      {/* Icon */}
+      <span style={{
+        fontSize: isCashApp ? 10 : 11,
+        lineHeight: 1,
+        fontFamily: isCashApp ? "'DM Mono', monospace" : 'inherit',
+        fontWeight: isCashApp ? 800 : 'normal',
+        color: cfg.color,
+        position: 'relative',
+      }}>
+        {cfg.icon}
+      </span>
+
+      {/* Label */}
+      <span style={{
+        fontFamily: "'DM Mono', monospace",
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: '.1em',
+        color: cfg.color,
+        position: 'relative',
+      }}>
+        {cfg.label}
+      </span>
+    </div>
+  );
+}
 
 // ── Mapbox Route Map ───────────────────────────────────────────────────
 function MapboxRouteMap({ polyline, driverLat, driverLng, pickupLat, pickupLng }) {
@@ -171,7 +256,6 @@ function MapboxRouteMap({ polyline, driverLat, driverLng, pickupLat, pickupLng }
     };
   }, []);
 
-  // Route line
   useEffect(() => {
     if (!mapRef.current || !routeCoords.length) return;
     const attach = () => {
@@ -181,15 +265,12 @@ function MapboxRouteMap({ polyline, driverLat, driverLng, pickupLat, pickupLng }
         mapRef.current.getSource('route').setData(geo);
       } else {
         mapRef.current.addSource('route', { type: 'geojson', data: geo });
-        // Soft white glow
         mapRef.current.addLayer({ id: 'route-glow', type: 'line', source: 'route',
           layout: { 'line-cap': 'round', 'line-join': 'round' },
           paint: { 'line-color': '#ffffff', 'line-width': 10, 'line-opacity': 0.12, 'line-blur': 4 } });
-        // Main route
         mapRef.current.addLayer({ id: 'route-main', type: 'line', source: 'route',
           layout: { 'line-cap': 'round', 'line-join': 'round' },
           paint: { 'line-color': '#22C55E', 'line-width': 3.5, 'line-opacity': 1 } });
-        // Dash shimmer
         mapRef.current.addLayer({ id: 'route-dash', type: 'line', source: 'route',
           layout: { 'line-cap': 'round', 'line-join': 'round' },
           paint: { 'line-color': '#fff', 'line-width': 1.5, 'line-opacity': 0.4, 'line-dasharray': [0, 5] } });
@@ -198,7 +279,6 @@ function MapboxRouteMap({ polyline, driverLat, driverLng, pickupLat, pickupLng }
     attach();
   }, [routeCoords]);
 
-  // Markers + fit bounds
   useEffect(() => {
     if (!mapRef.current) return;
     const attach = () => {
@@ -206,7 +286,6 @@ function MapboxRouteMap({ polyline, driverLat, driverLng, pickupLat, pickupLng }
       markersRef.current.forEach(m => m.remove());
       markersRef.current = [];
 
-      // Driver marker
       if (driverLat && driverLng) {
         const el = document.createElement('div');
         el.style.cssText = 'position:relative;width:12px;height:12px;';
@@ -220,7 +299,6 @@ function MapboxRouteMap({ polyline, driverLat, driverLng, pickupLat, pickupLng }
         );
       }
 
-      // Pickup marker
       if (pickupLat && pickupLng) {
         const el = document.createElement('div');
         el.style.cssText = 'width:10px;height:10px;border-radius:50%;background:#22C55E;border:2px solid #fff;box-shadow:0 0 10px rgba(34,197,94,.65);';
@@ -253,9 +331,7 @@ function TimerRing({ timer, total = 15 }) {
   return (
     <div style={{ position: 'relative', width: 52, height: 52, flexShrink: 0 }}>
       <svg width="52" height="52" viewBox="0 0 52 52" style={{ transform: 'rotate(-90deg)' }}>
-        {/* Track */}
         <circle cx="26" cy="26" r={R} fill="none" stroke="rgba(255,255,255,.08)" strokeWidth="3" />
-        {/* Progress */}
         <circle
           cx="26" cy="26" r={R} fill="none"
           stroke={danger ? '#EF4444' : '#22C55E'}
@@ -327,13 +403,14 @@ export default function TripRequestModal({
 
   if (!tripRequest) return null;
 
-  const fare        = `$${tripRequest.driverPayout?.toFixed(2) ?? '0.00'}`;
-  const distText    = loadingGeo ? null : (driverDistance ?? null);
-  const etaText     = loadingGeo ? null : (driverEta ?? null);
-  const danger      = requestTimer <= 5;
-  const rideColor   = TYPE_COLOR[tripRequest.rideType] ?? '#3B82F6';
-  const pickupShort = (tripRequest.pickup ?? '').split(',')[0].trim();
+  const fare         = `$${tripRequest.driverPayout?.toFixed(2) ?? '0.00'}`;
+  const distText     = loadingGeo ? null : (driverDistance ?? null);
+  const etaText      = loadingGeo ? null : (driverEta ?? null);
+  const danger       = requestTimer <= 5;
+  const rideColor    = TYPE_COLOR[tripRequest.rideType] ?? '#3B82F6';
+  const pickupShort  = (tripRequest.pickup ?? '').split(',')[0].trim();
   const dropoffShort = (tripRequest.dropoff ?? '').split(',')[0].trim();
+  const payMethod    = tripRequest.paymentMethod ?? 'card';
 
   return (
     <>
@@ -361,7 +438,7 @@ export default function TripRequestModal({
             boxShadow: '0 -24px 80px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.06)',
           }}
         >
-          {/* Top accent line — color-coded to ride type */}
+          {/* Top accent line */}
           <div style={{
             height: 2,
             background: `linear-gradient(90deg, transparent 0%, ${rideColor} 30%, ${rideColor} 70%, transparent 100%)`,
@@ -373,8 +450,9 @@ export default function TripRequestModal({
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             padding: '18px 20px 0',
           }}>
-            {/* Left: badge + type + fare */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {/* Left: badges + fare */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+
               {/* Ride type pill */}
               <div style={{
                 display: 'inline-flex', alignItems: 'center', gap: 5,
@@ -393,7 +471,10 @@ export default function TripRequestModal({
                 </span>
               </div>
 
-              {/* Fare — big hero number */}
+              {/* ── Payment badge ── */}
+              <PaymentBadge paymentMethod={payMethod} />
+
+              {/* Fare */}
               <div style={{
                 fontFamily: "'Bebas Neue', sans-serif",
                 fontSize: 40, lineHeight: 1,
@@ -433,7 +514,6 @@ export default function TripRequestModal({
             background: '#070A10',
           }}>
             {loadingGeo ? (
-              /* Skeleton */
               <div style={{
                 width: '100%', height: '100%',
                 background: 'linear-gradient(90deg, #0d1018 25%, #131824 50%, #0d1018 75%)',
@@ -527,20 +607,17 @@ export default function TripRequestModal({
               display: 'flex', flexDirection: 'column', alignItems: 'center',
               gap: 0, paddingTop: 3, flexShrink: 0,
             }}>
-              {/* Pickup dot */}
               <div style={{
                 width: 9, height: 9, borderRadius: '50%',
                 background: '#22C55E',
                 boxShadow: '0 0 8px rgba(34,197,94,.5)',
                 flexShrink: 0,
               }} />
-              {/* Connector */}
               <div style={{
                 width: 1.5, flex: 1, minHeight: 24,
                 background: 'linear-gradient(to bottom, rgba(34,197,94,.4), rgba(255,255,255,.1))',
                 margin: '4px 0', borderRadius: 2,
               }} />
-              {/* Dropoff diamond */}
               <div style={{
                 width: 9, height: 9,
                 background: 'rgba(255,255,255,.7)',
@@ -612,7 +689,7 @@ export default function TripRequestModal({
               </div>
             </div>
 
-            {/* Trip stats — right column */}
+            {/* Trip stats */}
             <div style={{
               display: 'flex', flexDirection: 'column', gap: 8,
               flexShrink: 0, alignItems: 'flex-end', justifyContent: 'center',
@@ -718,11 +795,3 @@ export default function TripRequestModal({
     </>
   );
 }
-
-paymentMethod
-"cash"
-(string)
-
-
- paymentMethod:   "card",
-  paymentMethod:   "cashapp",
