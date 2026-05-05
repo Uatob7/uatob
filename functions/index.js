@@ -73,6 +73,7 @@ const { approveDriver } = require("./admin/approveDriver");
 const { rejectDriver } = require("./admin/rejectDriver");
 const { computeRideAnalytics } = require("./admin/computeRideAnalytics");
 const { adminSendDriverMessage } = require("./admin/adminSendDriverMessage");
+const { announceCashRides } = require("./admin/email/announceCashRides");
 
 
 // Exports
@@ -129,6 +130,7 @@ exports.pushOfflineDriver = pushOfflineDriver;
 exports.updateDriverSetting = updateDriverSetting;
 
 exports.onAccountCreatedNotifyAdmin = onAccountCreatedNotifyAdmin;
+exports.announceCashRides = announceCashRides;
 exports.onDriverCreatedNotifyAdmin = onDriverCreatedNotifyAdmin;
 exports.onRideCreatedNotifyAdmin = onRideCreatedNotifyAdmin;
 exports.ApplicationApproved = ApplicationApproved;
