@@ -82,10 +82,7 @@ const RIDE_STATUS_COLOR = {
   timeout:          "#F59E0B",
 };
 
-// Statuses that should NEVER appear on the map
 const RIDE_STATUSES_HIDDEN_FROM_MAP = new Set(["completed", "cancelled", "timeout"]);
-
-// Statuses where driver has been assigned and live GPS is meaningful
 const DRIVER_LIVE_STATUSES = new Set(["driver_assigned", "driver_arriving", "arrived", "in_progress"]);
 
 const RIDE_STEPS = [
@@ -117,6 +114,7 @@ function rideStatusLabel(status) {
 // ─── Driver pin colors ──────────────────────────────────────────────────────
 const PIN_COLORS = {
   online:      "#16A34A",
+  approved:    "#0EA5E9",   // ← sky blue — approved but not yet online
   offline:     "#9CA3AF",
   pending:     "#F59E0B",
   in_progress: "#3B82F6",
@@ -174,7 +172,6 @@ function truncateAddress(addr, max = 28) {
   return addr.length > max ? addr.slice(0, max) + "…" : addr;
 }
 
-// Get the canonical fare from a ride doc (fareBreakdown is source of truth)
 function rideFare(ride) {
   return ride.fareBreakdown?.fareTotal
       ?? ride.fareTotal
@@ -182,7 +179,6 @@ function rideFare(ride) {
       ?? 0;
 }
 
-// Resolve a short city pair like "Orlando → Orlando"
 function rideCityPair(ride) {
   const p = ride.pickupCity ?? "";
   const d = ride.dropoffCity ?? "";
@@ -300,34 +296,31 @@ function DriverMapView({
 
   const mapHeight = expanded ? 520 : height;
 
-// UIDs of drivers already shown as a live ride marker (blue car icon)
-const driversWithLiveRide = useMemo(() => {
-  const uids = new Set();
-  rides.forEach(r => {
-    if (
-      DRIVER_LIVE_STATUSES.has(r.status) &&
-      r.driverUid &&
-      typeof r.driverLat === "number" &&
-      typeof r.driverLng === "number"
-    ) {
-      uids.add(r.driverUid);
-    }
-  });
-  return uids;
-}, [rides]);
+  const driversWithLiveRide = useMemo(() => {
+    const uids = new Set();
+    rides.forEach(r => {
+      if (
+        DRIVER_LIVE_STATUSES.has(r.status) &&
+        r.driverUid &&
+        typeof r.driverLat === "number" &&
+        typeof r.driverLng === "number"
+      ) {
+        uids.add(r.driverUid);
+      }
+    });
+    return uids;
+  }, [rides]);
 
-const pinnedDrivers = useMemo(
-  () => drivers.filter(d =>
-    typeof d.lat === "number" && typeof d.lng === "number" &&
-    !isNaN(d.lat) && !isNaN(d.lng) &&
-    !driversWithLiveRide.has(d.uid) &&
-    !driversWithLiveRide.has(d.id)
-  ),
-  [drivers, driversWithLiveRide]
-);
-  // Filter rides:
-  // - Hide completed/cancelled/timeout
-  // - Must have valid pickup/dropoff coords
+  const pinnedDrivers = useMemo(
+    () => drivers.filter(d =>
+      typeof d.lat === "number" && typeof d.lng === "number" &&
+      !isNaN(d.lat) && !isNaN(d.lng) &&
+      !driversWithLiveRide.has(d.uid) &&
+      !driversWithLiveRide.has(d.id)
+    ),
+    [drivers, driversWithLiveRide]
+  );
+
   const pinnedRides = useMemo(
     () => rides.filter(r =>
       !RIDE_STATUSES_HIDDEN_FROM_MAP.has(r.status) &&
@@ -338,14 +331,13 @@ const pinnedDrivers = useMemo(
     [rides]
   );
 
-  // Driver counts (for legend)
+  // ── driverCounts now includes "approved" ──
   const driverCounts = useMemo(() => {
-    const out = { online: 0, offline: 0, pending: 0, in_progress: 0, suspended: 0 };
+    const out = { online: 0, approved: 0, offline: 0, pending: 0, in_progress: 0, suspended: 0 };
     pinnedDrivers.forEach(d => { if (out[d.status] != null) out[d.status]++; });
     return out;
   }, [pinnedDrivers]);
 
-  // Compute bounds across drivers + rides + live driver positions
   const bounds = useMemo(() => {
     const allLats = [
       ...pinnedDrivers.map(d => d.lat),
@@ -446,38 +438,28 @@ const pinnedDrivers = useMemo(
           }
 
           const geojson = { type: "Feature", geometry: { type: "LineString", coordinates: coords } };
-if (map.getSource(sourceId)) {
-  map.getSource(sourceId).setData(geojson);
-} else {
-  map.addSource(sourceId, { type: "geojson", data: geojson });
-}
-if (!map.getLayer(layerBgId)) {
-  map.addLayer({
-    id: layerBgId, type: "line", source: sourceId,
-    layout: { "line-join": "round", "line-cap": "round" },
-    paint: { "line-color": color, "line-width": 7, "line-opacity": 0.18, "line-blur": 3 },
-  });
-}
-if (!map.getLayer(layerFgId)) {
-  map.addLayer({
-    id: layerFgId, type: "line", source: sourceId,
-    layout: { "line-join": "round", "line-cap": "round" },
-    paint: {
-      "line-color": color, "line-width": 2.5, "line-opacity": 0.85,
-      "line-dasharray": ride.status === "searching_driver" ? [2, 2] : [1],
-    },
-  });
-}
-          map.addLayer({
-            id: layerFgId, type: "line", source: sourceId,
-            layout: { "line-join": "round", "line-cap": "round" },
-            paint: {
-              "line-color":     color,
-              "line-width":     2.5,
-              "line-opacity":   0.85,
-              "line-dasharray": ride.status === "searching_driver" ? [2, 2] : [1],
-            },
-          });
+          if (map.getSource(sourceId)) {
+            map.getSource(sourceId).setData(geojson);
+          } else {
+            map.addSource(sourceId, { type: "geojson", data: geojson });
+          }
+          if (!map.getLayer(layerBgId)) {
+            map.addLayer({
+              id: layerBgId, type: "line", source: sourceId,
+              layout: { "line-join": "round", "line-cap": "round" },
+              paint: { "line-color": color, "line-width": 7, "line-opacity": 0.18, "line-blur": 3 },
+            });
+          }
+          if (!map.getLayer(layerFgId)) {
+            map.addLayer({
+              id: layerFgId, type: "line", source: sourceId,
+              layout: { "line-join": "round", "line-cap": "round" },
+              paint: {
+                "line-color": color, "line-width": 2.5, "line-opacity": 0.85,
+                "line-dasharray": ride.status === "searching_driver" ? [2, 2] : [1],
+              },
+            });
+          }
           routeLayerIds.current.push(sourceId, layerBgId, layerFgId);
 
           // ── PICKUP MARKER ──
@@ -547,7 +529,7 @@ if (!map.getLayer(layerFgId)) {
               .setLngLat([ride.dropoffLng, ride.dropoffLat]).addTo(map)
           );
 
-          // ── LIVE DRIVER POSITION (en route to pickup or rider in vehicle) ──
+          // ── LIVE DRIVER POSITION ──
           if (
             DRIVER_LIVE_STATUSES.has(ride.status) &&
             typeof ride.driverLat === "number" &&
@@ -615,7 +597,7 @@ if (!map.getLayer(layerFgId)) {
       if (showDrivers) {
         pinnedDrivers.forEach(driver => {
           const color  = PIN_COLORS[driver.status] || "#9CA3AF";
-          const isLive = driver.status === "online";
+          const isLive = driver.status === "online" || driver.status === "approved";
 
           const wrap = document.createElement("div");
           wrap.style.cursor = "pointer";
@@ -655,7 +637,6 @@ if (!map.getLayer(layerFgId)) {
         });
       }
 
-      // Fit bounds
       const totalPins = (showDrivers ? pinnedDrivers.length : 0) + (showRides ? pinnedRides.length * 2 : 0);
       if (totalPins > 0 && bounds) {
         if (totalPins === 1 && pinnedDrivers.length === 1 && !showRides) {
@@ -673,13 +654,14 @@ if (!map.getLayer(layerFgId)) {
     else mapRef.current.once("load", render);
   }, [pinnedDrivers, pinnedRides, bounds, onDriverClick, onRideClick, showRides, showDrivers, driverByUid]);
 
-  // Legend data
+  // ── Legend — now includes "approved" ──
   const driverLegend = [
-    { label: "Online",  count: driverCounts.online,      color: PIN_COLORS.online,      live: true },
-    { label: "Offline", count: driverCounts.offline,     color: PIN_COLORS.offline },
-    { label: "Pending", count: driverCounts.pending,     color: PIN_COLORS.pending },
+    { label: "Online",   count: driverCounts.online,      color: PIN_COLORS.online,   live: true  },
+    { label: "Approved", count: driverCounts.approved,    color: PIN_COLORS.approved, live: true  },
+    { label: "Offline",  count: driverCounts.offline,     color: PIN_COLORS.offline               },
+    { label: "Pending",  count: driverCounts.pending,     color: PIN_COLORS.pending               },
     ...(driverCounts.in_progress > 0 ? [{ label: "On Trip",   count: driverCounts.in_progress, color: PIN_COLORS.in_progress, live: true }] : []),
-    ...(driverCounts.suspended   > 0 ? [{ label: "Suspended", count: driverCounts.suspended,   color: PIN_COLORS.suspended }] : []),
+    ...(driverCounts.suspended   > 0 ? [{ label: "Suspended", count: driverCounts.suspended,   color: PIN_COLORS.suspended                }] : []),
   ].filter(it => it.count > 0);
 
   const rideLegend = useMemo(() => {
@@ -692,8 +674,6 @@ if (!map.getLayer(layerFgId)) {
   }, [pinnedRides]);
 
   const hasAnything = pinnedDrivers.length > 0 || pinnedRides.length > 0;
-
-  // For ride tooltips: pull driver info from fleet
   const hoveredRideDriver = hoveredRide?.driverUid ? driverByUid[hoveredRide.driverUid] : null;
 
   return (
@@ -769,7 +749,7 @@ if (!map.getLayer(layerFgId)) {
         {hoveredDriver && !hoveredRide && (
           <div style={{ position: "absolute", left: Math.min(tooltipPos.x + 14, (containerRef.current?.clientWidth ?? 999) - 210), top: Math.max(tooltipPos.y - 64, 8), zIndex: 30, pointerEvents: "none", background: "rgba(15,23,42,.97)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,.12)", borderRadius: 10, padding: "9px 12px", minWidth: 190, boxShadow: "0 10px 28px rgba(0,0,0,.35)", animation: "tooltipIn .12s ease-out" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-              <div style={{ width: 7, height: 7, borderRadius: "50%", background: PIN_COLORS[hoveredDriver.status] || "#9CA3AF", boxShadow: hoveredDriver.status === "online" ? `0 0 8px ${PIN_COLORS[hoveredDriver.status]}` : "none" }}/>
+              <div style={{ width: 7, height: 7, borderRadius: "50%", background: PIN_COLORS[hoveredDriver.status] || "#9CA3AF", boxShadow: (hoveredDriver.status === "online" || hoveredDriver.status === "approved") ? `0 0 8px ${PIN_COLORS[hoveredDriver.status]}` : "none" }}/>
               <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: ".08em", textTransform: "uppercase", color: PIN_COLORS[hoveredDriver.status] || "#9CA3AF" }}>Driver · {hoveredDriver.status}</span>
             </div>
             <div style={{ fontSize: 13, fontWeight: 800, color: "#fff", letterSpacing: "-0.1px", marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{fullName(hoveredDriver)}</div>
@@ -792,46 +772,22 @@ if (!map.getLayer(layerFgId)) {
             boxShadow: "0 10px 28px rgba(0,0,0,.35)",
             animation: "tooltipIn .12s ease-out",
           }}>
-            {/* Header row */}
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-              <div style={{
-                width: 7, height: 7, borderRadius: "50%",
-                background: rideStatusColor(hoveredRide.status),
-                boxShadow: `0 0 8px ${rideStatusColor(hoveredRide.status)}`,
-              }}/>
-              <span style={{
-                fontSize: 9.5, fontWeight: 800, letterSpacing: ".08em",
-                textTransform: "uppercase",
-                color: rideStatusColor(hoveredRide.status),
-              }}>
+              <div style={{ width: 7, height: 7, borderRadius: "50%", background: rideStatusColor(hoveredRide.status), boxShadow: `0 0 8px ${rideStatusColor(hoveredRide.status)}` }}/>
+              <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: ".08em", textTransform: "uppercase", color: rideStatusColor(hoveredRide.status) }}>
                 {hoveredRide._hoverType === "live" ? "Live · " : "Ride · "}
                 {rideStatusLabel(hoveredRide.status)}
               </span>
-              <span style={{
-                marginLeft: "auto", fontSize: 10.5, fontWeight: 800,
-                color: "#fff", background: "rgba(255,255,255,.1)",
-                padding: "2px 7px", borderRadius: 5,
-                fontFamily: "monospace",
-              }}>
+              <span style={{ marginLeft: "auto", fontSize: 10.5, fontWeight: 800, color: "#fff", background: "rgba(255,255,255,.1)", padding: "2px 7px", borderRadius: 5, fontFamily: "monospace" }}>
                 {fmtMoney(rideFare(hoveredRide))}
               </span>
             </div>
-
-            {/* Live status block (only for "live" hover) */}
             {hoveredRide._hoverType === "live" && (
-              <div style={{
-                display: "flex", gap: 8, marginBottom: 8,
-                padding: "7px 9px",
-                background: `${rideStatusColor(hoveredRide.status)}15`,
-                border: `1px solid ${rideStatusColor(hoveredRide.status)}30`,
-                borderRadius: 8,
-              }}>
+              <div style={{ display: "flex", gap: 8, marginBottom: 8, padding: "7px 9px", background: `${rideStatusColor(hoveredRide.status)}15`, border: `1px solid ${rideStatusColor(hoveredRide.status)}30`, borderRadius: 8 }}>
                 {hoveredRide.driverEtaMin != null && (
                   <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 5 }}>
                     <Timer size={11} color={rideStatusColor(hoveredRide.status)}/>
-                    <span style={{ fontSize: 10.5, fontWeight: 700, color: "#fff" }}>
-                      {hoveredRide.driverEtaMin}m
-                    </span>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: "#fff" }}>{hoveredRide.driverEtaMin}m</span>
                     <span style={{ fontSize: 9.5, color: "rgba(255,255,255,.5)" }}>ETA</span>
                   </div>
                 )}
@@ -848,47 +804,21 @@ if (!map.getLayer(layerFgId)) {
                 )}
               </div>
             )}
-
-            {/* Pickup/Dropoff route preview */}
             <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 8 }}>
               <div style={{ display: "flex", alignItems: "flex-start", gap: 7 }}>
-                <div style={{
-                  width: 16, height: 16, borderRadius: "50%",
-                  background: rideStatusColor(hoveredRide.status), border: "2px solid #fff",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  flexShrink: 0, marginTop: 1, fontSize: 7, fontWeight: 900, color: "#fff",
-                }}>P</div>
-                <span style={{
-                  fontSize: 11, color: "rgba(255,255,255,.85)", fontWeight: 500,
-                  lineHeight: 1.3,
-                }}>{truncateAddress(hoveredRide.pickup, 36)}</span>
+                <div style={{ width: 16, height: 16, borderRadius: "50%", background: rideStatusColor(hoveredRide.status), border: "2px solid #fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1, fontSize: 7, fontWeight: 900, color: "#fff" }}>P</div>
+                <span style={{ fontSize: 11, color: "rgba(255,255,255,.85)", fontWeight: 500, lineHeight: 1.3 }}>{truncateAddress(hoveredRide.pickup, 36)}</span>
               </div>
               <div style={{ width: 1.5, height: 10, background: "rgba(255,255,255,.15)", marginLeft: 7 }} />
               <div style={{ display: "flex", alignItems: "flex-start", gap: 7 }}>
-                <div style={{
-                  width: 16, height: 16, borderRadius: 4,
-                  background: rideStatusColor(hoveredRide.status), border: "2px solid #fff",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  flexShrink: 0, marginTop: 1, fontSize: 7, fontWeight: 900, color: "#fff",
-                }}>D</div>
-                <span style={{
-                  fontSize: 11, color: "rgba(255,255,255,.85)", fontWeight: 500,
-                  lineHeight: 1.3,
-                }}>{truncateAddress(hoveredRide.dropoff, 36)}</span>
+                <div style={{ width: 16, height: 16, borderRadius: 4, background: rideStatusColor(hoveredRide.status), border: "2px solid #fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1, fontSize: 7, fontWeight: 900, color: "#fff" }}>D</div>
+                <span style={{ fontSize: 11, color: "rgba(255,255,255,.85)", fontWeight: 500, lineHeight: 1.3 }}>{truncateAddress(hoveredRide.dropoff, 36)}</span>
               </div>
             </div>
-
-            {/* Stepper */}
             <div style={{ borderTop: "1px solid rgba(255,255,255,.08)", paddingTop: 8 }}>
               <RideStatusStepper status={hoveredRide.status} />
             </div>
-
-            {/* Meta row */}
-            <div style={{
-              display: "flex", flexWrap: "wrap", gap: 10,
-              marginTop: 8, paddingTop: 7,
-              borderTop: "1px solid rgba(255,255,255,.06)",
-            }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 8, paddingTop: 7, borderTop: "1px solid rgba(255,255,255,.06)" }}>
               <div style={{ fontSize: 10, color: "rgba(255,255,255,.55)" }}>
                 <span style={{ color: "rgba(255,255,255,.3)", marginRight: 3, letterSpacing: ".05em" }}>TYPE</span>
                 {hoveredRide.rideLabel ?? hoveredRide.rideType ?? "—"}
@@ -903,46 +833,22 @@ if (!map.getLayer(layerFgId)) {
                   {hoveredRide.tripDurationMin}m
                 </div>
               )}
-              <div style={{
-                display: "flex", alignItems: "center", gap: 3, fontSize: 10,
-                color: hoveredRide.paymentMethod === "cash" ? "#F59E0B" : "#3B82F6",
-                fontWeight: 700,
-              }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10, color: hoveredRide.paymentMethod === "cash" ? "#F59E0B" : "#3B82F6", fontWeight: 700 }}>
                 {hoveredRide.paymentMethod === "cash"
                   ? <><Banknote size={10}/>CASH</>
                   : <><CreditCard size={10}/>CARD</>}
               </div>
             </div>
-
-            {/* Driver row (if assigned) */}
             {hoveredRideDriver && (
-              <div style={{
-                display: "flex", alignItems: "center", gap: 7,
-                marginTop: 7, paddingTop: 7,
-                borderTop: "1px solid rgba(255,255,255,.06)",
-              }}>
-                <div style={{
-                  width: 18, height: 18, borderRadius: "50%",
-                  background: PIN_COLORS[hoveredRideDriver.status] || "#9CA3AF",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 8, fontWeight: 900, color: "#fff",
-                  border: "1.5px solid rgba(255,255,255,.3)",
-                  flexShrink: 0,
-                }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 7, paddingTop: 7, borderTop: "1px solid rgba(255,255,255,.06)" }}>
+                <div style={{ width: 18, height: 18, borderRadius: "50%", background: PIN_COLORS[hoveredRideDriver.status] || "#9CA3AF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 900, color: "#fff", border: "1.5px solid rgba(255,255,255,.3)", flexShrink: 0 }}>
                   <User size={9}/>
                 </div>
-                <span style={{
-                  fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,.9)",
-                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,.9)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {fullName(hoveredRideDriver)}
                 </span>
                 {hoveredRideDriver.vehicle?.plate && (
-                  <span style={{
-                    fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,.4)",
-                    fontFamily: "monospace", letterSpacing: ".05em",
-                    marginLeft: "auto",
-                  }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,.4)", fontFamily: "monospace", letterSpacing: ".05em", marginLeft: "auto" }}>
                     {hoveredRideDriver.vehicle.plate.toUpperCase()}
                   </span>
                 )}
@@ -992,9 +898,9 @@ export function DriversTab({ rides = [], fleet = [], onToast, onSelectRide }) {
   const [filter,    setFilter]    = useState("all");
   const [selected,  setSelected]  = useState(null);
 
-  const filters = ["all", "online", "offline", "pending", "in_progress"];
+  // ── "approved" added to filter pills ──
+  const filters = ["all", "online", "approved", "offline", "pending", "in_progress"];
 
-  // Build a uid → driver lookup so ride markers can show driver info
   const driverByUid = useMemo(() => {
     const out = {};
     fleet.forEach(d => {
@@ -1005,11 +911,14 @@ export function DriversTab({ rides = [], fleet = [], onToast, onSelectRide }) {
   }, [fleet]);
 
   const mapDrivers = useMemo(() => {
-    if (filter === "all") return fleet.filter(d => ["online", "offline", "pending"].includes(d.status));
+    // Show online + approved + offline + pending on the map by default;
+    // when a specific filter is active, respect it.
+    if (filter === "all") return fleet.filter(d =>
+      ["online", "approved", "offline", "pending"].includes(d.status)
+    );
     return fleet.filter(d => d.status === filter);
   }, [fleet, filter]);
 
-  // Active (non-terminal) rides for the map
   const activeRides = useMemo(() => {
     if (!rides) return [];
     return rides.filter(r => !RIDE_STATUSES_HIDDEN_FROM_MAP.has(r.status));
@@ -1083,8 +992,6 @@ export function DriversTab({ rides = [], fleet = [], onToast, onSelectRide }) {
         />
       )}
 
-    
-
       {/* Search bars */}
       <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
         <div className="search-bar fade-up" style={{ flex: 1, minWidth: 180, animationDelay: "40ms", opacity: 0 }}>
@@ -1143,7 +1050,9 @@ export function DriversTab({ rides = [], fleet = [], onToast, onSelectRide }) {
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5 }}>
                   <StatusPill status={driver.status} />
                   <span style={{ fontSize: 10, color: C.textMuted }}>
-                    {(driver.status === "online" || driver.status === "offline") && driver.minutesSinceLastSeen != null ? formatMinutesAgo(driver.minutesSinceLastSeen) : timeAgo(driver.createdAt)}
+                    {(driver.status === "online" || driver.status === "approved" || driver.status === "offline") && driver.minutesSinceLastSeen != null
+                      ? formatMinutesAgo(driver.minutesSinceLastSeen)
+                      : timeAgo(driver.createdAt)}
                   </span>
                 </div>
                 <ChevronRight size={14} color={C.textDim} />
@@ -1245,6 +1154,14 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
   ];
 
   const tabs = ["overview", "documents", "earnings", "payout"];
+
+  // ── Which action buttons to show ──────────────────────────────────────────
+  // pending / in_progress  → Approve + Reject
+  // approved               → Suspend only (they're cleared but not yet online)
+  // online / offline       → Suspend only
+  // suspended / rejected   → no actions (or re-enable if you add that later)
+  const isPendingReview = d.status === "pending" || d.status === "in_progress";
+  const canSuspend      = ["approved", "online", "offline"].includes(d.status);
 
   return (
     <div style={{ padding: "0 16px 24px" }}>
@@ -1375,7 +1292,7 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                 <MapPin size={13} color={C.green} />
                 <span style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: ".06em" }}>LAST LOCATION</span>
-                {d.status === "online" && (
+                {(d.status === "online" || d.status === "approved") && (
                   <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: "auto" }}>
                     <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.green }} />
                     <span style={{ fontSize: 10, fontWeight: 700, color: C.green }}>LIVE</span>
@@ -1535,8 +1452,9 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
         </div>
       )}
 
+      {/* ── Action buttons ── */}
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
-        {(d.status === "pending" || d.status === "in_progress") && (
+        {isPendingReview && (
           <>
             <button className="btn-success" onClick={handleApprove} disabled={approving || rejecting} style={{ opacity: approving || rejecting ? .6 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
               {approving ? <><Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> Approving…</> : <><CheckCircle size={15} /> Approve Driver</>}
@@ -1549,7 +1467,7 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
         <button className="btn-ghost" onClick={() => onToast("Notification sent")} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
           <Bell size={14} /> Send Notification
         </button>
-        {d.status !== "pending" && d.status !== "in_progress" && (
+        {canSuspend && (
           <button className="btn-danger" onClick={handleSuspend} disabled={suspending} style={{ opacity: suspending ? .6 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
             {suspending ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Suspending…</> : <><Ban size={14} /> Suspend Driver</>}
           </button>
