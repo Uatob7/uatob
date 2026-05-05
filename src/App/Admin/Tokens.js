@@ -20,17 +20,20 @@ export const C = {
   redGlow:     "rgba(220,38,38,0.10)",
   purple:      "#7C3AED",
   purpleGlow:  "rgba(124,58,237,0.10)",
+  sky:         "#0EA5E9",           // ← approved
+  skyGlow:     "rgba(14,165,233,0.10)",
 };
 
 export const STATUS_CONFIG = {
-  in_progress:      { label: "In Progress", color: C.blue,    glow: C.blueGlow,   icon: "Activity"     },
-  searching_driver: { label: "Searching",   color: C.amber,   glow: C.amberGlow,  icon: "Clock"        },
-  arrived:          { label: "Arrived",     color: C.purple,  glow: C.purpleGlow, icon: "Zap"          },
-  completed:        { label: "Completed",   color: C.green,   glow: C.greenGlow,  icon: "CheckCircle"  },
-  cancelled:        { label: "Cancelled",   color: C.red,     glow: C.redGlow,    icon: "XCircle"      },
-  online:           { label: "Online",      color: C.green,   glow: C.greenGlow,  icon: "CheckCircle"  },
-  offline:          { label: "Offline",     color: C.textDim, glow: "transparent",icon: "XCircle"      },
-  pending:          { label: "Pending",     color: C.amber,   glow: C.amberGlow,  icon: "Clock"        },
+  in_progress:      { label: "In Progress", color: C.blue,    glow: C.blueGlow,   icon: "Activity"    },
+  searching_driver: { label: "Searching",   color: C.amber,   glow: C.amberGlow,  icon: "Clock"       },
+  arrived:          { label: "Arrived",     color: C.purple,  glow: C.purpleGlow, icon: "Zap"         },
+  completed:        { label: "Completed",   color: C.green,   glow: C.greenGlow,  icon: "CheckCircle" },
+  cancelled:        { label: "Cancelled",   color: C.red,     glow: C.redGlow,    icon: "XCircle"     },
+  online:           { label: "Online",      color: C.green,   glow: C.greenGlow,  icon: "CheckCircle" },
+  approved:         { label: "Approved",    color: C.sky,     glow: C.skyGlow,    icon: "CheckCircle2" }, // ← new
+  offline:          { label: "Offline",     color: C.textDim, glow: "transparent",icon: "XCircle"     },
+  pending:          { label: "Pending",     color: C.amber,   glow: C.amberGlow,  icon: "Clock"       },
 };
 
 export const AVATAR_PALETTE = [
