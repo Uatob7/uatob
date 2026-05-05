@@ -22,7 +22,7 @@ export function useActiveRides() {
   useEffect(() => {
     const q = query(
       collection(db, "Rides"),
-      where("status", "==", "driver_assigned")
+      where("status", "in", ['searching_driver', 'driver_assigned', 'driver_arriving', 'arrived', 'in_progress'])
     );
 
     const unsubscribe = onSnapshot(
