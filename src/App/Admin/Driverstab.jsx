@@ -1083,57 +1083,7 @@ export function DriversTab({ rides = [], fleet = [], onToast, onSelectRide }) {
         />
       )}
 
-      {/* Active ride summary strip (when there are live rides) */}
-      {showMap && activeRides.length > 0 && (
-        <div className="fade-up" style={{ marginBottom: 12, animationDelay: "30ms", opacity: 0, display: "flex", gap: 8, overflowX: "auto", paddingBottom: 2 }}>
-          {activeRides.slice(0, 6).map(ride => {
-            const driver = ride.driverUid ? driverByUid[ride.driverUid] : null;
-            const color  = rideStatusColor(ride.status);
-            const isCash = ride.paymentMethod === "cash";
-            return (
-              <button
-                key={ride.id}
-                onClick={() => handleRideClick(ride)}
-                style={{
-                  flexShrink: 0,
-                  display: "flex", alignItems: "center", gap: 8,
-                  padding: "7px 11px", borderRadius: 99,
-                  border: `1.5px solid ${color}40`,
-                  background: `${color}10`,
-                  cursor: "pointer", transition: "all .15s",
-                  fontFamily: "'Barlow',sans-serif",
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = `${color}20`}
-                onMouseLeave={e => e.currentTarget.style.background = `${color}10`}
-              >
-                <div style={{ position: "relative", width: 7, height: 7 }}>
-                  <div style={{ width: 7, height: 7, borderRadius: "50%", background: color, boxShadow: `0 0 8px ${color}` }}/>
-                </div>
-                <span style={{ fontSize: 10.5, fontWeight: 800, color, letterSpacing: ".04em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
-                  {rideStatusLabel(ride.status)}
-                </span>
-                <span style={{ width: 1, height: 11, background: `${color}40` }}/>
-                <span style={{ fontSize: 11, fontWeight: 700, color: C.text, whiteSpace: "nowrap", maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {driver ? fullName(driver) : rideCityPair(ride)}
-                </span>
-                {ride.driverEtaMin != null && DRIVER_LIVE_STATUSES.has(ride.status) && (
-                  <span style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, fontFamily: "monospace" }}>
-                    {ride.driverEtaMin}m
-                  </span>
-                )}
-                <span style={{ fontSize: 10, fontWeight: 800, color: C.text, fontFamily: "monospace", marginLeft: 2 }}>
-                  {fmtMoney(rideFare(ride))}
-                </span>
-                {isCash && (
-                  <span style={{ fontSize: 9, fontWeight: 800, color: "#F59E0B", background: "#F59E0B15", padding: "1px 5px", borderRadius: 4, letterSpacing: ".04em" }}>
-                    CASH
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
+    
 
       {/* Search bars */}
       <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
