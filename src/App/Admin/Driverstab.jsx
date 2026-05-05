@@ -300,11 +300,31 @@ function DriverMapView({
 
   const mapHeight = expanded ? 520 : height;
 
-  const pinnedDrivers = useMemo(
-    () => drivers.filter(d => typeof d.lat === "number" && typeof d.lng === "number" && !isNaN(d.lat) && !isNaN(d.lng)),
-    [drivers]
-  );
+// UIDs of drivers already shown as a live ride marker (blue car icon)
+const driversWithLiveRide = useMemo(() => {
+  const uids = new Set();
+  rides.forEach(r => {
+    if (
+      DRIVER_LIVE_STATUSES.has(r.status) &&
+      r.driverUid &&
+      typeof r.driverLat === "number" &&
+      typeof r.driverLng === "number"
+    ) {
+      uids.add(r.driverUid);
+    }
+  });
+  return uids;
+}, [rides]);
 
+const pinnedDrivers = useMemo(
+  () => drivers.filter(d =>
+    typeof d.lat === "number" && typeof d.lng === "number" &&
+    !isNaN(d.lat) && !isNaN(d.lng) &&
+    !driversWithLiveRide.has(d.uid) &&
+    !driversWithLiveRide.has(d.id)
+  ),
+  [drivers, driversWithLiveRide]
+);
   // Filter rides:
   // - Hide completed/cancelled/timeout
   // - Must have valid pickup/dropoff coords
