@@ -93,8 +93,8 @@ const LOCK_SVG = `
 // Email builder
 // ─────────────────────────────────────────────────────────────
 function buildCandidateEmail({ driver, ride, rideId, totalCandidates, minutesRemaining }) {
-  const firstName = esc(driver.firstName || "Driver");
-  const safeType  = esc(
+  const firstName  = esc(driver.firstName || "Driver");
+  const safeType   = esc(
     ride.rideLabel ||
     (ride.rideType
       ? ride.rideType.charAt(0).toUpperCase() + ride.rideType.slice(1)
@@ -111,8 +111,7 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, minutesRem
       ? fmt.currency(Number(ride.driverPayout ?? 0) / Number(ride.tripDistanceMiles))
       : null;
 
-  // ── URGENCY CONFIG ──────────────────────────────────────────
-  // Low time  = red heat  |  healthy time = standard green
+  // ── URGENCY: flip entire hero to red when ≤5 min remaining ──
   const isUrgent    = minutesRemaining !== null && minutesRemaining <= 5;
   const heroBg      = isUrgent
     ? "background:linear-gradient(135deg,#3b0000 0%,#7f1d1d 50%,#991b1b 100%);"
@@ -188,7 +187,7 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, minutesRem
         <td style="background-color:#111111;border-radius:20px;
                    border:1px solid #1f1f1f;overflow:hidden;">
 
-          <!-- ── HERO ── -->
+          <!-- ── HERO (urgency-aware) ── -->
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
             <td style="${heroBg}padding:40px 36px 36px;">
               <div style="display:inline-block;background-color:${badgeBg};
@@ -210,7 +209,7 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, minutesRem
             </td>
           </tr></table>
 
-          <!-- ── PAYOUT HERO ── -->
+          <!-- ── PAYOUT HEADLINE (68px, first visual anchor) ── -->
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
             <td align="center"
                 style="padding:36px 36px 28px;border-bottom:1px solid #1f1f1f;">
@@ -254,13 +253,13 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, minutesRem
             </td>
           </tr></table>
 
-          <!-- ── LOCKED ROUTE CARD ── -->
+          <!-- ── LOCKED ROUTE (both addresses hidden) ── -->
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
             <td style="padding:28px 36px;border-top:1px solid #1f1f1f;">
               <p style="margin:0 0 18px;font-family:'Courier New',monospace;font-size:11px;
                         font-weight:700;color:#4ADE80;letter-spacing:2px;">TRIP ROUTE</p>
 
-              <!-- Pickup row -->
+              <!-- A · Pickup (hidden) -->
               <table width="100%" cellpadding="0" cellspacing="0"
                      role="presentation" style="margin-bottom:6px;">
                 <tr>
@@ -275,18 +274,17 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, minutesRem
                     <p style="margin:0 0 3px;font-family:'Courier New',monospace;
                                font-size:10px;font-weight:700;color:#6B7280;
                                letter-spacing:1.5px;">PICKUP</p>
-                    <p style="margin:0;font-family:'Courier New',monospace;font-size:13px;
-                               color:#374151;letter-spacing:2px;user-select:none;">
-                      ${LOCK_SVG}
-                      <span style="background-color:#1a1a1a;border-radius:4px;
-                                   padding:3px 10px;color:#374151;font-size:13px;
-                                   letter-spacing:3px;">&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;</span>
-                    </p>
+                    <span style="display:inline-block;background-color:#1a1a1a;
+                                 border-radius:6px;padding:5px 12px;">
+                      ${LOCK_SVG}<span style="font-family:'Courier New',monospace;
+                        font-size:13px;color:#374151;letter-spacing:3px;">
+                        &#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;</span>
+                    </span>
                   </td>
                 </tr>
               </table>
 
-              <!-- Connector -->
+              <!-- Dashed connector -->
               <table cellpadding="0" cellspacing="0" role="presentation"
                      style="margin:0 0 6px 13px;">
                 <tr>
@@ -294,7 +292,7 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, minutesRem
                 </tr>
               </table>
 
-              <!-- Dropoff row -->
+              <!-- B · Dropoff (hidden) -->
               <table width="100%" cellpadding="0" cellspacing="0"
                      role="presentation" style="margin-bottom:20px;">
                 <tr>
@@ -309,18 +307,17 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, minutesRem
                     <p style="margin:0 0 3px;font-family:'Courier New',monospace;
                                font-size:10px;font-weight:700;color:#374151;
                                letter-spacing:1.5px;">DROPOFF</p>
-                    <p style="margin:0;font-family:'Courier New',monospace;font-size:13px;
-                               color:#374151;letter-spacing:2px;user-select:none;">
-                      ${LOCK_SVG}
-                      <span style="background-color:#1a1a1a;border-radius:4px;
-                                   padding:3px 10px;color:#374151;font-size:13px;
-                                   letter-spacing:3px;">&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;</span>
-                    </p>
+                    <span style="display:inline-block;background-color:#1a1a1a;
+                                 border-radius:6px;padding:5px 12px;">
+                      ${LOCK_SVG}<span style="font-family:'Courier New',monospace;
+                        font-size:13px;color:#374151;letter-spacing:3px;">
+                        &#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;</span>
+                    </span>
                   </td>
                 </tr>
               </table>
 
-              <!-- Unlock nudge -->
+              <!-- Unlock nudge bar -->
               <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
                 <td style="background-color:#0d1a0d;border:1px solid #1a3320;
                            border-radius:10px;padding:14px 18px;">
