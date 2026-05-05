@@ -69,7 +69,7 @@ const ARROW_SVG = `
 </svg>`.trim();
 
 // ─────────────────────────────────────────────────────────────
-// Email builder — updated for 100% cash, future deduction model
+// Email builder
 // ─────────────────────────────────────────────────────────────
 function buildCashAnnouncementEmail({ driver, sendCount }) {
   const firstName = String(driver.firstName || "Driver")
@@ -82,7 +82,7 @@ function buildCashAnnouncementEmail({ driver, sendCount }) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="light">
-  <title>Cash Rides Now Live — UaTob</title>
+  <title>Cash Rides Are Live — UaTob</title>
   <style type="text/css">
     body, html {
       -webkit-text-size-adjust: 100% !important;
@@ -91,7 +91,7 @@ function buildCashAnnouncementEmail({ driver, sendCount }) {
       background-color: #0a0a0a !important;
     }
     @media only screen and (max-width: 600px) {
-      .hero-title { font-size: 28px !important; }
+      .hero-title { font-size: 26px !important; }
       .step-td    { display: block !important; width: 100% !important;
                     border-right: none !important; border-bottom: 1px solid #1f1f1f !important; }
       .cta-btn    { font-size: 14px !important; padding: 16px 20px !important; }
@@ -121,7 +121,7 @@ function buildCashAnnouncementEmail({ driver, sendCount }) {
               <span style="font-family:'Courier New',monospace;font-size:9px;font-weight:700;
                            color:#4ADE80;background-color:#052e16;padding:4px 9px;
                            border-radius:100px;letter-spacing:1.5px;
-                           border:1px solid #166534;display:inline-block;">NEW FEATURE</span>
+                           border:1px solid #166534;display:inline-block;">NEW</span>
             </td>
           </tr></table>
         </td>
@@ -132,191 +132,128 @@ function buildCashAnnouncementEmail({ driver, sendCount }) {
         <td style="background-color:#111111;border-radius:20px;
                    border:1px solid #1f1f1f;overflow:hidden;">
 
-          <!-- HERO BANNER -->
+          <!-- HERO -->
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
-            <td style="background:linear-gradient(135deg,#052e16 0%,#14532d 50%,#166534 100%);
-                       padding:44px 36px 36px;">
-              <div style="display:inline-block;background-color:rgba(74,222,128,0.15);
-                          border:1.5px solid #4ADE80;border-radius:100px;
-                          padding:5px 14px;margin-bottom:20px;">
-                <span style="font-family:'Courier New',monospace;font-size:10px;
-                             font-weight:700;color:#4ADE80;letter-spacing:2px;">
-                  &#9679;&nbsp; PLATFORM UPDATE
-                </span>
-              </div>
+            <td style="background:linear-gradient(135deg,#052e16 0%,#14532d 55%,#166534 100%);
+                       padding:48px 40px 40px;">
               <h1 class="hero-title"
-                  style="margin:0 0 10px;font-family:Georgia,serif;font-size:38px;
-                         font-weight:700;color:#ffffff;line-height:1.15;letter-spacing:-1px;">
-                Cash Rides<br/>
-                <span style="color:#4ADE80;">Are Now Live.</span>
+                  style="margin:0 0 16px;font-family:Georgia,serif;font-size:36px;
+                         font-weight:700;color:#ffffff;line-height:1.2;letter-spacing:-1px;">
+                Hey ${firstName} &mdash; riders<br/>
+                can now <span style="color:#4ADE80;">pay you in cash.</span>
               </h1>
-              <p style="margin:0;font-family:'Courier New',monospace;font-size:13px;
-                        color:#BBF7D0;letter-spacing:0.3px;line-height:1.6;">
-                Hey ${firstName} &mdash; riders can now book and pay in cash.<br/>
-                You keep <strong>100% of every cash fare</strong> collected at pickup.<br/>
-                UaTob&apos;s platform fee is settled automatically from your card ride earnings.
+              <p style="margin:0;font-family:Georgia,serif;font-size:16px;
+                        color:#BBF7D0;line-height:1.65;">
+                When a rider books a cash ride, you collect the full fare at pickup and
+                keep every dollar. No split at the door. UaTob&apos;s cut comes out
+                of your card and Cash App ride earnings automatically &mdash; nothing
+                changes on your end.
               </p>
             </td>
           </tr></table>
 
-          <!-- SPLIT CALLOUT -->
+          <!-- BIG STAT -->
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
-            <td align="center" style="padding:36px 36px 28px;border-bottom:1px solid #1f1f1f;">
-              <p style="margin:0 0 6px;font-family:'Courier New',monospace;font-size:11px;
-                        font-weight:700;color:#4ADE80;letter-spacing:2.5px;">CASH FARE SPLIT</p>
-              <p style="margin:0;font-family:Georgia,serif;font-size:58px;font-weight:700;
-                        color:#ffffff;line-height:1;letter-spacing:-2px;">100%</p>
-              <p style="margin:8px 0 0;font-family:'Courier New',monospace;font-size:12px;
-                        color:#6B7280;letter-spacing:0.5px;">
-                you collect the full amount &nbsp;&#183;&nbsp;
-                <span style="color:#4ADE80;">platform fee auto-deducted from card/Cash App rides</span>
+            <td align="center"
+                style="padding:40px 40px 32px;border-bottom:1px solid #1f1f1f;">
+              <p style="margin:0;font-family:Georgia,serif;font-size:72px;font-weight:700;
+                        color:#ffffff;line-height:1;letter-spacing:-3px;">100%</p>
+              <p style="margin:10px 0 0;font-family:'Courier New',monospace;font-size:12px;
+                        color:#6B7280;letter-spacing:1px;text-transform:uppercase;">
+                of every cash fare goes straight into your pocket
               </p>
             </td>
           </tr></table>
 
           <!-- HOW IT WORKS HEADER -->
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
-            <td style="padding:28px 36px 20px;">
+            <td style="padding:32px 40px 8px;">
               <p style="margin:0;font-family:'Courier New',monospace;font-size:11px;
-                        font-weight:700;color:#4ADE80;letter-spacing:2px;">HOW IT WORKS</p>
+                        font-weight:700;color:#4ADE80;letter-spacing:2.5px;">HOW IT WORKS</p>
             </td>
           </tr></table>
 
           <!-- 3 STEPS -->
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
             <td width="33%" align="center" class="step-td"
-                style="padding:20px 16px 28px;border-right:1px solid #1f1f1f;vertical-align:top;">
+                style="padding:20px 18px 28px;border-right:1px solid #1f1f1f;vertical-align:top;">
               <div style="width:44px;height:44px;border-radius:50%;background-color:#052e16;
                           border:2px solid #166534;text-align:center;line-height:44px;
                           font-family:Georgia,serif;font-size:20px;font-weight:700;
                           color:#4ADE80;margin:0 auto 14px;">1</div>
               <p style="margin:0 0 6px;font-family:'Courier New',monospace;font-size:10px;
-                        font-weight:700;color:#4ADE80;letter-spacing:1.5px;">RIDE REQUEST</p>
+                        font-weight:700;color:#4ADE80;letter-spacing:1.5px;">ACCEPT</p>
               <p style="margin:0;font-family:Georgia,serif;font-size:14px;
-                        color:#d1d5db;line-height:1.5;">
-                A cash ride pops up in your app just like any other request.
+                        color:#d1d5db;line-height:1.55;">
+                Cash rides show up in your queue like any other request &mdash; just
+                with a <span style="color:#FBBF24;font-weight:700;">CASH</span> label
+                so you always know before you confirm.
               </p>
             </td>
             <td width="33%" align="center" class="step-td"
-                style="padding:20px 16px 28px;border-right:1px solid #1f1f1f;vertical-align:top;">
+                style="padding:20px 18px 28px;border-right:1px solid #1f1f1f;vertical-align:top;">
               <div style="width:44px;height:44px;border-radius:50%;background-color:#052e16;
                           border:2px solid #166534;text-align:center;line-height:44px;
                           font-family:Georgia,serif;font-size:20px;font-weight:700;
                           color:#4ADE80;margin:0 auto 14px;">2</div>
               <p style="margin:0 0 6px;font-family:'Courier New',monospace;font-size:10px;
-                        font-weight:700;color:#4ADE80;letter-spacing:1.5px;">COLLECT CASH</p>
+                        font-weight:700;color:#4ADE80;letter-spacing:1.5px;">COLLECT</p>
               <p style="margin:0;font-family:Georgia,serif;font-size:14px;
-                        color:#d1d5db;line-height:1.5;">
-                The app shows the exact fare. Collect the full amount from the rider at pickup.
+                        color:#d1d5db;line-height:1.55;">
+                The app shows the exact fare. Collect the full amount from
+                the rider before the trip starts.
               </p>
             </td>
             <td width="33%" align="center" class="step-td"
-                style="padding:20px 16px 28px;vertical-align:top;">
+                style="padding:20px 18px 28px;vertical-align:top;">
               <div style="width:44px;height:44px;border-radius:50%;background-color:#052e16;
                           border:2px solid #166534;text-align:center;line-height:44px;
                           font-family:Georgia,serif;font-size:20px;font-weight:700;
                           color:#4ADE80;margin:0 auto 14px;">3</div>
               <p style="margin:0 0 6px;font-family:'Courier New',monospace;font-size:10px;
-                        font-weight:700;color:#4ADE80;letter-spacing:1.5px;">KEEP IT ALL</p>
+                        font-weight:700;color:#4ADE80;letter-spacing:1.5px;">KEEP IT</p>
               <p style="margin:0;font-family:Georgia,serif;font-size:14px;
-                        color:#d1d5db;line-height:1.5;">
-                100% yours immediately. UaTob&apos;s cut is handled through your other ride earnings.
+                        color:#d1d5db;line-height:1.55;">
+                The cash is yours immediately. UaTob&apos;s platform fee is settled
+                quietly from your other ride earnings &mdash; nothing to track,
+                nothing to send.
               </p>
             </td>
           </tr></table>
 
-          <!-- FEE MODEL CALLOUT -->
+          <!-- ONE RULE BOX -->
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
-            <td style="padding:0 36px 28px;">
+            <td style="padding:8px 40px 36px;">
               <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
-                <td style="background-color:#0d1117;border:1.5px solid #1e3a5f;
-                           border-radius:14px;padding:18px 22px;">
-                  <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
-                    <td width="40" valign="middle" style="padding-right:14px;">
-                      <div style="width:38px;height:38px;border-radius:50%;
-                                  background-color:#1e3a5f;text-align:center;line-height:38px;
-                                  font-family:'Courier New',monospace;font-size:18px;
-                                  font-weight:900;color:#60A5FA;">&#128274;</div>
-                    </td>
-                    <td valign="middle">
-                      <p style="margin:0 0 3px;font-family:'Courier New',monospace;font-size:11px;
-                                font-weight:700;color:#60A5FA;letter-spacing:1.5px;">
-                        HOW THE PLATFORM FEE WORKS
-                      </p>
-                      <p style="margin:0;font-family:Georgia,serif;font-size:14px;
-                                color:#d1d5db;line-height:1.6;">
-                        You keep <strong style="color:#ffffff;">100% of every cash fare</strong> at pickup.
-                        UaTob&apos;s platform fee for cash rides will be automatically deducted
-                        from your <span style="color:#4ADE80;">card ride</span> and
-                        <span style="color:#4ADE80;">Cash App ride</span> payouts on a rolling basis —
-                        so there&apos;s no out-of-pocket cost and no manual transfers.
-                      </p>
-                    </td>
-                  </tr></table>
+                <td style="background-color:#18120a;border:1.5px solid #78350f;
+                           border-radius:14px;padding:20px 24px;">
+                  <p style="margin:0 0 8px;font-family:'Courier New',monospace;font-size:11px;
+                            font-weight:700;color:#FBBF24;letter-spacing:1.5px;">
+                    &#9888;&nbsp; ONE RULE
+                  </p>
+                  <p style="margin:0;font-family:Georgia,serif;font-size:14px;
+                            color:#d1d5db;line-height:1.65;">
+                    Always collect the fare <strong style="color:#ffffff;">before</strong>
+                    the trip starts. If a rider won&apos;t pay upfront, you&apos;re not
+                    obligated to take the ride. Your call, every time.
+                  </p>
                 </td>
               </tr></table>
-            </td>
-          </tr></table>
-
-          <!-- CASH BADGE CALLOUT -->
-          <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
-            <td style="padding:0 36px 28px;">
-              <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
-                <td style="background-color:#0d1f0d;border:1.5px solid #166534;
-                           border-radius:14px;padding:18px 22px;">
-                  <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
-                    <td width="40" valign="middle" style="padding-right:14px;">
-                      <div style="width:38px;height:38px;border-radius:50%;
-                                  background-color:#166534;text-align:center;line-height:38px;
-                                  font-family:'Courier New',monospace;font-size:22px;
-                                  font-weight:900;color:#4ADE80;">$</div>
-                    </td>
-                    <td valign="middle">
-                      <p style="margin:0 0 3px;font-family:'Courier New',monospace;font-size:11px;
-                                font-weight:700;color:#4ADE80;letter-spacing:1.5px;">
-                        LOOK FOR THE CASH BADGE
-                      </p>
-                      <p style="margin:0;font-family:Georgia,serif;font-size:14px;
-                                color:#d1d5db;line-height:1.5;">
-                        Cash ride requests are clearly marked with a
-                        <span style="color:#FBBF24;font-weight:700;">CASH</span> label
-                        so you always know what you&apos;re accepting before you confirm.
-                      </p>
-                    </td>
-                  </tr></table>
-                </td>
-              </tr></table>
-            </td>
-          </tr></table>
-
-          <!-- IMPORTANT NOTE -->
-          <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
-            <td style="padding:24px 36px;border-top:1px solid #1f1f1f;">
-              <p style="margin:0 0 10px;font-family:'Courier New',monospace;font-size:11px;
-                        font-weight:700;color:#FBBF24;letter-spacing:2px;">
-                &#9888;&nbsp; IMPORTANT
-              </p>
-              <p style="margin:0;font-family:Georgia,serif;font-size:14px;
-                        color:#9ca3af;line-height:1.7;">
-                Always collect the <strong style="color:#ffffff;">full fare shown in the app</strong>
-                before starting the trip. If a rider won&apos;t pay upfront, you are not required to
-                accept the ride. Your safety and earnings come first.
-              </p>
             </td>
           </tr></table>
 
           <!-- CTA -->
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
-            <td style="padding:8px 36px 36px;border-top:1px solid #1f1f1f;">
+            <td style="padding:8px 40px 40px;border-top:1px solid #1f1f1f;">
               <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
                      style="margin-top:24px;"><tr>
                 <td align="center">
-                  <a href="https://uatob.com/driver/signup" class="cta-btn"
+                  <a href="https://uatob.com/driver/app" class="cta-btn"
                      style="display:block;background-color:#16A34A;color:#ffffff;
                             font-family:'Courier New',monospace;font-size:15px;font-weight:700;
                             text-decoration:none;padding:20px 32px;border-radius:12px;
                             letter-spacing:1px;text-align:center;border:1px solid #4ADE80;">
-                    OPEN THE DRIVER APP &#8594;
+                    OPEN THE DRIVER APP &rarr;
                   </a>
                 </td>
               </tr></table>
@@ -329,7 +266,7 @@ function buildCashAnnouncementEmail({ driver, sendCount }) {
 
           <!-- SEND COUNT STRIP -->
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
-            <td style="padding:16px 36px;background-color:#0d0d0d;border-top:1px solid #1f1f1f;">
+            <td style="padding:14px 40px;background-color:#0d0d0d;border-top:1px solid #1f1f1f;">
               <p style="margin:0;font-family:'Courier New',monospace;font-size:11px;
                         color:#374151;letter-spacing:0.5px;">
                 ANNOUNCEMENT &nbsp;<span style="color:#4ADE80;">BLAST #${sendCount}</span>
@@ -345,7 +282,7 @@ function buildCashAnnouncementEmail({ driver, sendCount }) {
         <td align="center" style="padding:28px 20px 0;">
           <p style="margin:0 0 6px;font-family:'Courier New',monospace;font-size:11px;
                     color:#374151;letter-spacing:0.5px;">
-            &#169; ${year} UaTob &nbsp;&#183;&nbsp; Orlando, FL
+            &copy; ${year} UaTob &nbsp;&middot;&nbsp; Orlando, FL
           </p>
           <p style="margin:0;font-family:'Courier New',monospace;font-size:10px;
                     color:#1f2937;letter-spacing:0.3px;">
@@ -361,14 +298,15 @@ function buildCashAnnouncementEmail({ driver, sendCount }) {
 </html>`.trim();
 
   const text =
-    `Hey ${driver.firstName || "Driver"} — UaTob now accepts cash from riders.\n\n` +
+    `Hey ${driver.firstName || "Driver"} — riders can now pay with cash on UaTob.\n\n` +
     `What this means for you:\n` +
-    `- Cash ride requests show up in your app just like card rides\n` +
-    `- Collect the full fare shown in the app from the rider at pickup\n` +
+    `- Cash rides appear in your queue just like card rides, with a CASH label\n` +
+    `- Collect the full fare shown in the app from the rider before the trip starts\n` +
     `- Keep 100% of every cash fare — no split at pickup\n` +
-    `- UaTob's platform fee is auto-deducted from your card & Cash App ride payouts\n` +
-    `- Cash rides are clearly labeled so you always know before accepting\n\n` +
-    `Important: Always collect the full fare before starting the trip.\n\n` +
+    `- UaTob's platform fee is auto-deducted from your card & Cash App ride earnings\n` +
+    `- Nothing changes on your end — it's all handled automatically\n\n` +
+    `One rule: always collect the full fare before starting the trip.\n` +
+    `If a rider won't pay upfront, you're not obligated to take the ride.\n\n` +
     `Open the driver app: https://uatob.com/driver/app\n\n` +
     `Announcement Blast #${sendCount}\n\n` +
     `— The UaTob Team`;
@@ -448,8 +386,8 @@ exports.announceCashRides = onSchedule(
         const nextDate = randomFutureDate(7, 21);
         await ANNOUNCE_REF.set(
           {
-            initialBlastDone: true,
-            nextBlastDate:    nextDate,
+            initialBlastDone:   true,
+            nextBlastDate:      nextDate,
             cashRidesSentCount: sendCount,
           },
           { merge: true }
@@ -499,20 +437,20 @@ exports.announceCashRides = onSchedule(
     const updatedUids = [...emailedUids, ...newlyEmailed];
 
     // Check if all drivers are now covered
-    const allUids        = allDrivers.map((d) => d.uid);
-    const allCovered     = allUids.every((uid) => updatedUids.includes(uid));
-    const blastNowDone   = initialBlastDone || allCovered;
-    const nextDate       = blastNowDone ? randomFutureDate(7, 21) : (nextBlastDate ?? null);
+    const allUids      = allDrivers.map((d) => d.uid);
+    const allCovered   = allUids.every((uid) => updatedUids.includes(uid));
+    const blastNowDone = initialBlastDone || allCovered;
+    const nextDate     = blastNowDone ? randomFutureDate(7, 21) : (nextBlastDate ?? null);
 
     await ANNOUNCE_REF.set(
       {
-        cashRidesSentCount:          newCount,
-        cashRidesLastSentAt:         admin.firestore.FieldValue.serverTimestamp(),
+        cashRidesSentCount:           newCount,
+        cashRidesLastSentAt:          admin.firestore.FieldValue.serverTimestamp(),
         cashRidesLastSentDriverCount: targets.length,
-        cashRidesLastSentSuccess:    sent,
-        cashRidesLastSentFailed:     failed,
-        emailedUids:                 updatedUids,
-        initialBlastDone:            blastNowDone,
+        cashRidesLastSentSuccess:     sent,
+        cashRidesLastSentFailed:      failed,
+        emailedUids:                  updatedUids,
+        initialBlastDone:             blastNowDone,
         ...(nextDate ? { nextBlastDate: nextDate } : {}),
       },
       { merge: true }
@@ -520,7 +458,9 @@ exports.announceCashRides = onSchedule(
 
     console.log(
       `[announceCashRides] Blast #${newCount} done | ${sent} sent, ${failed} failed` +
-      (blastNowDone ? ` | All drivers covered. Next re-blast: ${nextDate}` : " | More drivers pending.")
+      (blastNowDone
+        ? ` | All drivers covered. Next re-blast: ${nextDate}`
+        : " | More drivers pending.")
     );
   }
 );
