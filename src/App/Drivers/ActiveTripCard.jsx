@@ -23,6 +23,66 @@ const STAGES = {
   in_progress:     { label: "Trip in Progress",    color: "#34D399", dot: true  },
 };
 
+// ─── Payment config ───────────────────────────────────────────────────────────
+const PAYMENT_CONFIG = {
+  cash: {
+    label:  "CASH",
+    color:  "#F59E0B",
+    bg:     "rgba(245,158,11,.13)",
+    border: "rgba(245,158,11,.32)",
+    icon:   "💵",
+  },
+  card: {
+    label:  "CARD",
+    color:  "#60A5FA",
+    bg:     "rgba(96,165,250,.12)",
+    border: "rgba(96,165,250,.28)",
+    icon:   "💳",
+  },
+  cashapp: {
+    label:  "CASH APP",
+    color:  "#34D399",
+    bg:     "rgba(52,211,153,.12)",
+    border: "rgba(52,211,153,.28)",
+    icon:   "$",
+  },
+};
+
+function PaymentBadge({ paymentMethod }) {
+  const cfg       = PAYMENT_CONFIG[paymentMethod] ?? PAYMENT_CONFIG.card;
+  const isCashApp = paymentMethod === "cashapp";
+  return (
+    <div style={{
+      display: "inline-flex", alignItems: "center", gap: 5,
+      background: cfg.bg,
+      border: `1px solid ${cfg.border}`,
+      borderRadius: 8, padding: "4px 9px",
+      position: "relative", overflow: "hidden", flexShrink: 0,
+    }}>
+      <div style={{
+        position: "absolute", inset: 0,
+        background: `linear-gradient(135deg, ${cfg.color}18 0%, transparent 60%)`,
+        pointerEvents: "none",
+      }} />
+      <span style={{
+        fontSize: isCashApp ? 10 : 11, lineHeight: 1,
+        fontFamily: isCashApp ? "'IBM Plex Mono', monospace" : "inherit",
+        fontWeight: isCashApp ? 800 : "normal",
+        color: cfg.color, position: "relative",
+      }}>
+        {cfg.icon}
+      </span>
+      <span style={{
+        fontFamily: "'IBM Plex Mono', monospace",
+        fontSize: 10, fontWeight: 700, letterSpacing: ".1em",
+        color: cfg.color, position: "relative",
+      }}>
+        {cfg.label}
+      </span>
+    </div>
+  );
+}
+
 const MAPBOX_TOKEN = "pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA";
 
 function loadMapboxGL(cb) {
@@ -339,17 +399,12 @@ function PortalOverlay({ children, onClick }) {
     <div
       onClick={onClick}
       style={{
-        position:        "fixed",
-        inset:           0,
-        zIndex:          99999,
-        background:      "rgba(0,0,0,.75)",
-        backdropFilter:  "blur(8px)",
+        position: "fixed", inset: 0, zIndex: 99999,
+        background: "rgba(0,0,0,.75)", backdropFilter: "blur(8px)",
         WebkitBackdropFilter: "blur(8px)",
-        display:         "flex",
-        alignItems:      "center",
-        justifyContent:  "center",
-        padding:         "20px",
-        animation:       "atc-in .18s ease-out both",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: "20px",
+        animation: "atc-in .18s ease-out both",
       }}
     >
       {children}
@@ -374,7 +429,6 @@ export default function ActiveTripCard({
 
   useEffect(() => { onUnreadChange?.(unreadCount); }, [unreadCount, onUnreadChange]);
 
-  // Auto-show cash modal when driver arrives on a pending cash ride
   useEffect(() => {
     if (
       tripStage === "arrived" &&
@@ -392,6 +446,7 @@ export default function ActiveTripCard({
   const accent      = tripStageColor ?? stageData.color;
   const isProgress  = tripStage === "in_progress";
   const canReassign = tripStage === "driver_assigned";
+  const payMethod   = activeTrip.paymentMethod ?? "card";
 
   const openInMaps = (addr) =>
     addr && window.open(`https://maps.google.com/?q=${encodeURIComponent(addr)}`, "_blank");
@@ -415,8 +470,7 @@ export default function ActiveTripCard({
     try {
       const auth = getAuth();
       const { data } = await callConfirmCashCollection({
-        rideId,
-        driverUid: auth.currentUser?.uid,
+        rideId, driverUid: auth.currentUser?.uid,
       });
       if (!data?.success) throw new Error("Confirmation failed. Try again.");
       setShowCashModal(false);
@@ -453,6 +507,7 @@ export default function ActiveTripCard({
           opacity:.6; transition:background .4s;
         }
 
+        /* ── Stage row: space-between so badge sits on the right ── */
         .atc-stage-row {
           display:flex; align-items:center; justify-content:space-between;
           padding:13px 18px 10px;
@@ -556,26 +611,19 @@ export default function ActiveTripCard({
         }
         .atc-reassign-btn:hover { background:rgba(239,68,68,.07); border-color:rgba(239,68,68,.5); color:#EF4444; }
 
-        /* ── Portal modal shared ── */
         .atc-portal-modal {
-          border-radius:24px;
-          width:100%; max-width:340px;
-          max-height:90dvh; overflow-y:auto;
-          padding:28px 24px 22px;
+          border-radius:24px; width:100%; max-width:340px;
+          max-height:90dvh; overflow-y:auto; padding:28px 24px 22px;
           font-family:'Outfit',sans-serif;
           animation:atc-modal-in .28s cubic-bezier(.34,1.56,.64,1) both;
-          /* prevent scroll chaining */
           overscroll-behavior:contain;
         }
         .atc-portal-modal::-webkit-scrollbar { display:none; }
-
-        /* Reassign modal */
         .atc-reassign-modal {
           background:#131620;
           border:1px solid rgba(239,68,68,.22);
           box-shadow:0 32px 80px rgba(0,0,0,.65),0 0 0 1px rgba(239,68,68,.08);
         }
-        /* Cash modal */
         .atc-cash-modal {
           background:#12110D;
           border:1px solid rgba(217,119,6,.28);
@@ -596,7 +644,6 @@ export default function ActiveTripCard({
         .atc-modal-btn.cash:hover   { filter:brightness(1.1); }
         .atc-modal-btn:disabled { opacity:.55; cursor:not-allowed; filter:none !important; }
 
-        /* Cash modal specifics */
         .atc-cash-icon { background:rgba(217,119,6,.12); border:1.5px solid rgba(217,119,6,.4); animation:atc-cash-pulse 2s ease-out infinite; }
         .atc-cash-amount { font-family:'IBM Plex Mono',monospace; font-size:36px; font-weight:700; color:#F59E0B; letter-spacing:-1.5px; text-align:center; margin:10px 0 4px; line-height:1; }
         .atc-cash-subtitle { font-size:11.5px; color:rgba(255,255,255,.28); text-align:center; margin-bottom:18px; font-weight:500; }
@@ -607,51 +654,32 @@ export default function ActiveTripCard({
         .atc-cash-step-text strong { color:rgba(255,255,255,.85); font-weight:700; }
       `}</style>
 
-      {/* ── Cash Collection Modal (portal) ────────────────────────────────── */}
+      {/* ── Cash Collection Modal ─────────────────────────────────────────── */}
       {showCashModal && (
         <PortalOverlay>
           <div className="atc-portal-modal atc-cash-modal">
             <div className="atc-modal-icon atc-cash-icon">
               <Banknote size={26} color="#F59E0B" />
             </div>
-
             <div className="atc-modal-title">Collect Cash Payment</div>
-
-            <div className="atc-cash-amount">
-              ${activeTrip.fareTotal?.toFixed(2) ?? "--"}
-            </div>
+            <div className="atc-cash-amount">${activeTrip.fareTotal?.toFixed(2) ?? "--"}</div>
             <div className="atc-cash-subtitle">Total fare from rider</div>
-
             <div className="atc-cash-steps">
               <div className="atc-cash-step">
                 <div className="atc-cash-step-num">1</div>
-                <div className="atc-cash-step-text">
-                  Ask the rider for <strong>${activeTrip.fareTotal?.toFixed(2) ?? "--"}</strong>
-                </div>
+                <div className="atc-cash-step-text">Ask the rider for <strong>${activeTrip.fareTotal?.toFixed(2) ?? "--"}</strong></div>
               </div>
               <div className="atc-cash-step">
                 <div className="atc-cash-step-num">2</div>
-                <div className="atc-cash-step-text">
-                  Count the bills and confirm it's the <strong>exact amount</strong>.
-                </div>
+                <div className="atc-cash-step-text">Count the bills and confirm it's the <strong>exact amount</strong>.</div>
               </div>
               <div className="atc-cash-step">
                 <div className="atc-cash-step-num">3</div>
-                <div className="atc-cash-step-text">
-                  Tap <strong>Got it, collected</strong> to log the payment and continue the trip.
-                </div>
+                <div className="atc-cash-step-text">Tap <strong>Got it, collected</strong> to log the payment and continue the trip.</div>
               </div>
             </div>
-
-            {cashModalError && (
-              <div className="atc-modal-err">⚠ {cashModalError}</div>
-            )}
-
-            <button
-              className="atc-modal-btn cash"
-              onClick={handleConfirmCashCollection}
-              disabled={cashConfirming}
-            >
+            {cashModalError && <div className="atc-modal-err">⚠ {cashModalError}</div>}
+            <button className="atc-modal-btn cash" onClick={handleConfirmCashCollection} disabled={cashConfirming}>
               {cashConfirming
                 ? <><Loader2 size={15} style={{ animation: "atc-spin 1s linear infinite" }} /> Confirming…</>
                 : <><Check size={15} strokeWidth={3} /> Got it, collected</>
@@ -661,7 +689,7 @@ export default function ActiveTripCard({
         </PortalOverlay>
       )}
 
-      {/* ── Reassign Modal (portal) ───────────────────────────────────────── */}
+      {/* ── Reassign Modal ────────────────────────────────────────────────── */}
       {showReassign && (
         <PortalOverlay onClick={(e) => { if (e.target === e.currentTarget && !reassigning) setShowReassign(false); }}>
           <div className="atc-portal-modal atc-reassign-modal" onClick={e => e.stopPropagation()}>
@@ -674,9 +702,7 @@ export default function ActiveTripCard({
             </div>
             {reassignError && <div className="atc-modal-err">⚠ {reassignError}</div>}
             <div className="atc-modal-btns">
-              <button className="atc-modal-btn ghost" onClick={() => setShowReassign(false)} disabled={reassigning}>
-                Keep ride
-              </button>
+              <button className="atc-modal-btn ghost" onClick={() => setShowReassign(false)} disabled={reassigning}>Keep ride</button>
               <button className="atc-modal-btn danger" onClick={handleReassign} disabled={reassigning}>
                 {reassigning
                   ? <><Loader2 size={13} style={{ animation: "atc-spin 1s linear infinite" }} /> Reassigning…</>
@@ -695,11 +721,13 @@ export default function ActiveTripCard({
         <div className="atc-wrap">
           <div className="atc-glow-bar" />
 
+          {/* Stage row — status label left, payment badge right */}
           <div className="atc-stage-row">
             <div className="atc-stage-left">
               <div className="atc-stage-dot" />
               <span className="atc-stage-label">{stageData.label}</span>
             </div>
+            <PaymentBadge paymentMethod={payMethod} />
           </div>
 
           <div className="atc-route">
