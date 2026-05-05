@@ -1493,7 +1493,7 @@ export function HomeTab({
       delay: 100,
     },
     {
-      label: "Pending Apps",
+      label: "Pending",
       val:   allApprovals.length,
       accent:"#E8383A",
       Icon:  Shield,
