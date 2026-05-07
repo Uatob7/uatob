@@ -3,6 +3,7 @@ import { Star, LocateFixed, Loader2, X, AlertCircle, CheckCircle2, Info,
          HeadphonesIcon, MessageSquare, Phone, Mail, ChevronRight, ExternalLink } from "lucide-react";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
+import { getFirestore, doc, onSnapshot } from "firebase/firestore";
 
 import CSS              from '@/App/Drivers/styles.js';
 import { C }            from '@/App/Drivers/constants.js';
@@ -30,6 +31,9 @@ const callAcceptRide     = httpsCallable(functions, "acceptRide");
 const callDeclineRide    = httpsCallable(functions, "declineRide");
 const callUpdateTrip     = httpsCallable(functions, "updateTripStatus");
 const callSaveFcmToken   = httpsCallable(functions, "saveDriverFcmToken");
+
+// ── Firestore ─────────────────────────────────────────────────────────
+const db = getFirestore(firebase_app);
 
 // ── Trip button labels ────────────────────────────────────────────────
 const TRIP_BUTTON_LABELS = {
@@ -60,7 +64,7 @@ async function registerFcmToken(uid) {
   }
 }
 
-// ── Audio helpers (unchanged) ─────────────────────────────────────────
+// ── Audio helpers ─────────────────────────────────────────────────────
 function playRequestChime() {
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -137,23 +141,10 @@ function playDeclineSound() {
 function SupportIcon({ size = 20, color = "currentColor" }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Headset arc */}
-      <path
-        d="M4 14v-3a8 8 0 0 1 16 0v3"
-        stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
-      />
-      {/* Left ear cup */}
-      <rect x="2" y="13" width="4" height="6" rx="2"
-        stroke={color} strokeWidth="1.8" fill="none"/>
-      {/* Right ear cup */}
-      <rect x="18" y="13" width="4" height="6" rx="2"
-        stroke={color} strokeWidth="1.8" fill="none"/>
-      {/* Mic arm */}
-      <path
-        d="M22 19v1a4 4 0 0 1-4 4h-3"
-        stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
-      />
-      {/* Mic dot */}
+      <path d="M4 14v-3a8 8 0 0 1 16 0v3" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="2" y="13" width="4" height="6" rx="2" stroke={color} strokeWidth="1.8" fill="none"/>
+      <rect x="18" y="13" width="4" height="6" rx="2" stroke={color} strokeWidth="1.8" fill="none"/>
+      <path d="M22 19v1a4 4 0 0 1-4 4h-3" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
       <circle cx="14" cy="24" r="1" fill={color}/>
     </svg>
   );
@@ -182,14 +173,12 @@ const SUPPORT_CSS = `
   }
   .sup-overlay.entering { animation: sup-slideIn .38s cubic-bezier(.22,1,.36,1) forwards; }
   .sup-overlay.leaving  { animation: sup-slideOut .28s cubic-bezier(.4,0,.6,1) forwards; }
-
   .sup-header {
     background: #fff;
     border-bottom: 1px solid #E5E7EB;
     padding: 0 20px;
     display: flex; align-items: center; justify-content: space-between;
     flex-shrink: 0;
-    /* Safe area top */
     padding-top: max(20px, env(safe-area-inset-top));
     padding-bottom: 16px;
   }
@@ -202,14 +191,12 @@ const SUPPORT_CSS = `
   }
   .sup-close-btn:hover  { background: #E5E7EB; }
   .sup-close-btn:active { transform: scale(.93); }
-
   .sup-body {
     flex: 1; overflow-y: auto;
     padding: 24px 20px 32px;
     display: flex; flex-direction: column; gap: 24px;
     overscroll-behavior: contain;
   }
-
   .sup-hero {
     display: flex; flex-direction: column; align-items: center;
     text-align: center; gap: 12px;
@@ -222,36 +209,18 @@ const SUPPORT_CSS = `
     display: flex; align-items: center; justify-content: center;
     box-shadow: 0 0 0 8px rgba(59,130,246,.06);
   }
-  .sup-hero-title {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 26px; font-weight: 900; color: #111827; letter-spacing: -.3px;
-  }
-  .sup-hero-sub {
-    font-size: 14px; color: #6B7280; font-weight: 500; line-height: 1.55; max-width: 300px;
-  }
-
-  /* Status chip */
+  .sup-hero-title { font-family: 'Barlow Condensed', sans-serif; font-size: 26px; font-weight: 900; color: #111827; letter-spacing: -.3px; }
+  .sup-hero-sub   { font-size: 14px; color: #6B7280; font-weight: 500; line-height: 1.55; max-width: 300px; }
   .sup-status-chip {
     display: inline-flex; align-items: center; gap: 6px;
     background: #F0FDF4; border: 1px solid #BBF7D0;
     border-radius: 99px; padding: 5px 12px;
     font-size: 12px; font-weight: 700; color: #16A34A; letter-spacing: .04em;
   }
-  .sup-status-dot {
-    width: 7px; height: 7px; border-radius: 50%; background: #22C55E;
-    box-shadow: 0 0 0 3px rgba(34,197,94,.2);
-  }
-
-  /* Section */
+  .sup-status-dot { width: 7px; height: 7px; border-radius: 50%; background: #22C55E; box-shadow: 0 0 0 3px rgba(34,197,94,.2); }
   .sup-section { animation: sup-fadeIn .4s ease both; }
-  .sup-section-title {
-    font-size: 10px; font-weight: 800; letter-spacing: .12em;
-    text-transform: uppercase; color: #9CA3AF;
-    margin-bottom: 10px; padding-left: 2px;
-  }
+  .sup-section-title { font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #9CA3AF; margin-bottom: 10px; padding-left: 2px; }
   .sup-cards { display: flex; flex-direction: column; gap: 10px; }
-
-  /* Contact card */
   .sup-card {
     background: #fff; border: 1px solid #E5E7EB;
     border-radius: 16px; padding: 16px;
@@ -262,83 +231,32 @@ const SUPPORT_CSS = `
   }
   .sup-card:hover  { border-color: #D1D5DB; box-shadow: 0 4px 16px rgba(0,0,0,.06); }
   .sup-card:active { transform: scale(.985); }
-
-  .sup-card-icon {
-    width: 44px; height: 44px; border-radius: 12px;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-  }
+  .sup-card-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .sup-card-body { flex: 1; min-width: 0; }
-  .sup-card-label {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 16px; font-weight: 800; color: #111827;
-    letter-spacing: -.1px; margin-bottom: 2px;
-  }
-  .sup-card-sub { font-size: 12.5px; color: #6B7280; font-weight: 500; }
-  .sup-card-badge {
-    font-size: 10px; font-weight: 700; letter-spacing: .04em;
-    background: #FEF3C7; color: #D97706; border: 1px solid #FDE68A;
-    border-radius: 6px; padding: 2px 7px; flex-shrink: 0;
-  }
-
-  /* FAQ items */
-  .sup-faq-item {
-    background: #fff; border: 1px solid #E5E7EB;
-    border-radius: 14px; padding: 14px 16px;
-    cursor: pointer; transition: border-color .15s;
-    -webkit-tap-highlight-color: transparent;
-  }
+  .sup-card-label { font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 800; color: #111827; letter-spacing: -.1px; margin-bottom: 2px; }
+  .sup-card-sub   { font-size: 12.5px; color: #6B7280; font-weight: 500; }
+  .sup-card-badge { font-size: 10px; font-weight: 700; letter-spacing: .04em; background: #FEF3C7; color: #D97706; border: 1px solid #FDE68A; border-radius: 6px; padding: 2px 7px; flex-shrink: 0; }
+  .sup-faq-item { background: #fff; border: 1px solid #E5E7EB; border-radius: 14px; padding: 14px 16px; cursor: pointer; transition: border-color .15s; -webkit-tap-highlight-color: transparent; }
   .sup-faq-item:hover { border-color: #D1D5DB; }
-  .sup-faq-q {
-    font-size: 13.5px; font-weight: 700; color: #111827;
-    display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  }
-  .sup-faq-a {
-    font-size: 13px; color: #6B7280; font-weight: 500;
-    line-height: 1.55; margin-top: 8px;
-    border-top: 1px solid #F3F4F6; padding-top: 8px;
-  }
-
-  /* Footer note */
-  .sup-footer-note {
-    text-align: center; font-size: 12px; color: #9CA3AF; font-weight: 500;
-    line-height: 1.6; animation: sup-fadeIn .4s ease .3s both;
-  }
+  .sup-faq-q { font-size: 13.5px; font-weight: 700; color: #111827; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .sup-faq-a { font-size: 13px; color: #6B7280; font-weight: 500; line-height: 1.55; margin-top: 8px; border-top: 1px solid #F3F4F6; padding-top: 8px; }
+  .sup-footer-note { text-align: center; font-size: 12px; color: #9CA3AF; font-weight: 500; line-height: 1.6; animation: sup-fadeIn .4s ease .3s both; }
 `;
 
 const FAQ_ITEMS = [
-  {
-    q: "How do I update my vehicle information?",
-    a: "Go to Profile → Vehicle Details. Changes may take up to 24 hours to reflect on the rider side.",
-  },
-  {
-    q: "When do I get paid?",
-    a: "Payouts are processed daily. Funds typically arrive within 1–2 business days depending on your bank.",
-  },
-  {
-    q: "What happens if a rider doesn't show up?",
-    a: "After 5 minutes at the pickup location, you can mark the rider as a no-show and you'll still receive a wait-time fee.",
-  },
-  {
-    q: "How is my rating calculated?",
-    a: "Your rating is the average of your last 100 rider ratings. Ratings below 4.5 may affect your ability to receive premium rides.",
-  },
-  {
-    q: "How do I dispute a fare or report an issue?",
-    a: "Use the 'Chat with us' option below or email support@uatob.com. Include the ride ID for faster resolution.",
-  },
+  { q: "How do I update my vehicle information?", a: "Go to Profile → Vehicle Details. Changes may take up to 24 hours to reflect on the rider side." },
+  { q: "When do I get paid?", a: "Payouts are processed daily. Funds typically arrive within 1–2 business days depending on your bank." },
+  { q: "What happens if a rider doesn't show up?", a: "After 5 minutes at the pickup location, you can mark the rider as a no-show and you'll still receive a wait-time fee." },
+  { q: "How is my rating calculated?", a: "Your rating is the average of your last 100 rider ratings. Ratings below 4.5 may affect your ability to receive premium rides." },
+  { q: "How do I dispute a fare or report an issue?", a: "Use the 'Chat with us' option below or email support@uatob.com. Include the ride ID for faster resolution." },
 ];
 
 function SupportOverlay({ onClose, driver }) {
-  const [leaving,      setLeaving]      = useState(false);
-  const [expandedFaq,  setExpandedFaq]  = useState(null);
+  const [leaving,     setLeaving]     = useState(false);
+  const [expandedFaq, setExpandedFaq] = useState(null);
 
-  const handleClose = () => {
-    setLeaving(true);
-    setTimeout(onClose, 260);
-  };
+  const handleClose = () => { setLeaving(true); setTimeout(onClose, 260); };
 
-  // Close on back gesture (popstate)
   useEffect(() => {
     window.history.pushState({ support: true }, "");
     const handler = () => handleClose();
@@ -350,20 +268,14 @@ function SupportOverlay({ onClose, driver }) {
     <>
       <style>{SUPPORT_CSS}</style>
       <div className={`sup-overlay ${leaving ? "leaving" : "entering"}`}>
-
-        {/* ── Header ── */}
         <div className="sup-header">
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div className="sup-hero-icon" style={{ width: 38, height: 38, borderRadius: 10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <div className="sup-hero-icon" style={{ width:38, height:38, borderRadius:10 }}>
               <SupportIcon size={20} color="#2563EB" />
             </div>
             <div>
-              <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 20, fontWeight: 900, color: "#111827", letterSpacing: "-.2px", lineHeight: 1 }}>
-                Support
-              </div>
-              <div style={{ fontSize: 12, color: "#6B7280", fontWeight: 500 }}>
-                We're here to help
-              </div>
+              <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:20, fontWeight:900, color:"#111827", letterSpacing:"-.2px", lineHeight:1 }}>Support</div>
+              <div style={{ fontSize:12, color:"#6B7280", fontWeight:500 }}>We're here to help</div>
             </div>
           </div>
           <button className="sup-close-btn" onClick={handleClose} aria-label="Close support">
@@ -371,18 +283,10 @@ function SupportOverlay({ onClose, driver }) {
           </button>
         </div>
 
-        {/* ── Body ── */}
         <div className="sup-body">
-
-          {/* Hero */}
           <div className="sup-hero">
-            <div className="sup-hero-icon">
-              <SupportIcon size={32} color="#2563EB" />
-            </div>
-            <div className="sup-status-chip">
-              <span className="sup-status-dot" />
-              Support team online
-            </div>
+            <div className="sup-hero-icon"><SupportIcon size={32} color="#2563EB" /></div>
+            <div className="sup-status-chip"><span className="sup-status-dot" />Support team online</div>
             <div className="sup-hero-title">How can we help?</div>
             <div className="sup-hero-sub">
               {driver?.firstName ? `Hi ${driver.firstName}! ` : ""}
@@ -390,17 +294,11 @@ function SupportOverlay({ onClose, driver }) {
             </div>
           </div>
 
-          {/* Contact options */}
-          <div className="sup-section" style={{ animationDelay: ".08s" }}>
+          <div className="sup-section" style={{ animationDelay:".08s" }}>
             <div className="sup-section-title">Contact us</div>
             <div className="sup-cards">
-
-              {/* Live chat */}
-              <a
-                href="sms:+14079426078"
-                className="sup-card"
-              >
-                <div className="sup-card-icon" style={{ background: "linear-gradient(135deg,#EFF6FF,#DBEAFE)", border: "1px solid #BFDBFE" }}>
+              <a href="sms:+14079426078" className="sup-card">
+                <div className="sup-card-icon" style={{ background:"linear-gradient(135deg,#EFF6FF,#DBEAFE)", border:"1px solid #BFDBFE" }}>
                   <MessageSquare size={20} color="#2563EB" strokeWidth={2} />
                 </div>
                 <div className="sup-card-body">
@@ -410,13 +308,8 @@ function SupportOverlay({ onClose, driver }) {
                 <span className="sup-card-badge">LIVE</span>
                 <ChevronRight size={16} color="#9CA3AF" />
               </a>
-
-              {/* Phone */}
-              <a
-                href="tel:+14079426078"
-                className="sup-card"
-              >
-                <div className="sup-card-icon" style={{ background: "linear-gradient(135deg,#F0FDF4,#DCFCE7)", border: "1px solid #BBF7D0" }}>
+              <a href="tel:+14079426078" className="sup-card">
+                <div className="sup-card-icon" style={{ background:"linear-gradient(135deg,#F0FDF4,#DCFCE7)", border:"1px solid #BBF7D0" }}>
                   <Phone size={20} color="#16A34A" strokeWidth={2} />
                 </div>
                 <div className="sup-card-body">
@@ -425,13 +318,8 @@ function SupportOverlay({ onClose, driver }) {
                 </div>
                 <ChevronRight size={16} color="#9CA3AF" />
               </a>
-
-              {/* Email */}
-              <a
-                href="mailto:support@uatob.com"
-                className="sup-card"
-              >
-                <div className="sup-card-icon" style={{ background: "linear-gradient(135deg,#FFF7ED,#FED7AA)", border: "1px solid #FDC97A" }}>
+              <a href="mailto:support@uatob.com" className="sup-card">
+                <div className="sup-card-icon" style={{ background:"linear-gradient(135deg,#FFF7ED,#FED7AA)", border:"1px solid #FDC97A" }}>
                   <Mail size={20} color="#EA580C" strokeWidth={2} />
                 </div>
                 <div className="sup-card-body">
@@ -440,37 +328,26 @@ function SupportOverlay({ onClose, driver }) {
                 </div>
                 <ChevronRight size={16} color="#9CA3AF" />
               </a>
-
             </div>
           </div>
 
-          {/* Driver info chip — makes it easy to reference when emailing */}
           {driver?.firstName && (
-            <div style={{
-              background: "#fff", border: "1px solid #E5E7EB",
-              borderRadius: 14, padding: "14px 16px",
-              display: "flex", alignItems: "center", gap: 12,
-              animation: "sup-fadeIn .4s ease .14s both",
-            }}>
-              <div style={{ width: 38, height: 38, borderRadius: "50%", background: "#F3F4F6", border: "1.5px solid #E5E7EB", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 900, fontSize: 15, color: "#374151" }}>
+            <div style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:14, padding:"14px 16px", display:"flex", alignItems:"center", gap:12, animation:"sup-fadeIn .4s ease .14s both" }}>
+              <div style={{ width:38, height:38, borderRadius:"50%", background:"#F3F4F6", border:"1.5px solid #E5E7EB", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:900, fontSize:15, color:"#374151" }}>
                   {(driver.firstName?.[0] ?? "") + (driver.lastName?.[0] ?? "")}
                 </span>
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, color: "#9CA3AF", fontWeight: 600, marginBottom: 2, letterSpacing: ".04em", textTransform: "uppercase" }}>
-                  Your account
-                </div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>
-                  {driver.firstName} {driver.lastName}
-                </div>
-                <div style={{ fontSize: 12, color: "#6B7280" }}>{driver.email ?? ""}</div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:12, color:"#9CA3AF", fontWeight:600, marginBottom:2, letterSpacing:".04em", textTransform:"uppercase" }}>Your account</div>
+                <div style={{ fontSize:14, fontWeight:700, color:"#111827" }}>{driver.firstName} {driver.lastName}</div>
+                <div style={{ fontSize:12, color:"#6B7280" }}>{driver.email ?? ""}</div>
               </div>
-              <div style={{ textAlign: "right", flexShrink: 0 }}>
-                <div style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 2 }}>Rating</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <div style={{ textAlign:"right", flexShrink:0 }}>
+                <div style={{ fontSize:11, color:"#9CA3AF", marginBottom:2 }}>Rating</div>
+                <div style={{ display:"flex", alignItems:"center", gap:4 }}>
                   <Star size={12} fill="#F59E0B" color="#F59E0B" />
-                  <span style={{ fontSize: 14, fontWeight: 800, color: "#111827", fontFamily: "'Barlow Condensed', sans-serif" }}>
+                  <span style={{ fontSize:14, fontWeight:800, color:"#111827", fontFamily:"'Barlow Condensed',sans-serif" }}>
                     {driver.averageRating != null ? driver.averageRating.toFixed(2) : "—"}
                   </span>
                 </div>
@@ -478,38 +355,25 @@ function SupportOverlay({ onClose, driver }) {
             </div>
           )}
 
-          {/* FAQ */}
-          <div className="sup-section" style={{ animationDelay: ".16s" }}>
+          <div className="sup-section" style={{ animationDelay:".16s" }}>
             <div className="sup-section-title">Frequently asked questions</div>
             <div className="sup-cards">
               {FAQ_ITEMS.map((item, idx) => (
-                <div
-                  key={idx}
-                  className="sup-faq-item"
-                  onClick={() => setExpandedFaq(expandedFaq === idx ? null : idx)}
-                  style={{ animationDelay: `${.18 + idx * .04}s` }}
-                >
+                <div key={idx} className="sup-faq-item" onClick={() => setExpandedFaq(expandedFaq === idx ? null : idx)} style={{ animationDelay:`${.18 + idx * .04}s` }}>
                   <div className="sup-faq-q">
                     <span>{item.q}</span>
-                    <ChevronRight
-                      size={15} color="#9CA3AF"
-                      style={{ transform: expandedFaq === idx ? "rotate(90deg)" : "rotate(0deg)", transition: "transform .2s", flexShrink: 0 }}
-                    />
+                    <ChevronRight size={15} color="#9CA3AF" style={{ transform:expandedFaq === idx ? "rotate(90deg)" : "rotate(0deg)", transition:"transform .2s", flexShrink:0 }} />
                   </div>
-                  {expandedFaq === idx && (
-                    <div className="sup-faq-a">{item.a}</div>
-                  )}
+                  {expandedFaq === idx && <div className="sup-faq-a">{item.a}</div>}
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Footer */}
           <div className="sup-footer-note">
             UaTob Driver Support · Available 7 days a week<br />
             6 AM – 11 PM ET · support@uatob.com
           </div>
-
         </div>
       </div>
     </>
@@ -684,6 +548,45 @@ function LocationPopup({ onAllow, onDeny, loading, error }) {
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────
 export default function UaTobDriverApp({ uid }) {
+
+  // ── Driver existence gate (onSnapshot) ───────────────────────────
+  // null = loading, true = exists, false = not found (redirecting)
+  const [driverExists, setDriverExists] = useState(null);
+
+  useEffect(() => {
+    if (!uid) {
+      window.location.replace("https://uatob.com");
+      return;
+    }
+    const ref  = doc(db, "Drivers", uid);
+    const unsub = onSnapshot(
+      ref,
+      (snap) => {
+        if (!snap.exists()) {
+          setDriverExists(false);
+          window.location.replace("https://uatob.com");
+        } else {
+          setDriverExists(true);
+        }
+      },
+      (_err) => {
+        // On permission error or network failure, redirect
+        setDriverExists(false);
+        window.location.replace("https://uatob.com");
+      }
+    );
+    return () => unsub();
+  }, [uid]);
+
+  // Block rendering until we confirm the doc exists
+  if (driverExists !== true) return null;
+
+  // ── All hooks below only run when driver doc confirmed ────────────
+  return <DriverAppInner uid={uid} />;
+}
+
+// ── Inner component — all hooks live here ─────────────────────────────
+function DriverAppInner({ uid }) {
   const { driver }                        = useDriverAccount(uid);
   const { earnings, refetch }             = useDriverEarnings(uid);
   const { rides, loading: ridesLoading }  = useDriverRides(uid);
@@ -692,8 +595,8 @@ export default function UaTobDriverApp({ uid }) {
   const { completedRides }                = useCompletedRides(uid);
   const { reviews }                       = useDriverReviews(uid);
 
-  const isRejected   = driver?.status === "rejected";
-  const driverOnTrip = driver?.trip === true;
+  const isRejected    = driver?.status === "rejected";
+  const driverOnTrip  = driver?.trip === true;
   const sourceLoading = driverOnTrip ? reqLoading  : ridesLoading;
   const sourceRides   = driverOnTrip ? requests    : rides;
 
@@ -716,7 +619,6 @@ export default function UaTobDriverApp({ uid }) {
   const [notifLoading,      setNotifLoading]      = useState(false);
   const [seenReviewIds,     setSeenReviewIds]     = useState(() => loadSeenReviews());
   const [pendingReview,     setPendingReview]     = useState(null);
-  // ── NEW: Support overlay ──────────────────────────────────────────
   const [showSupport,       setShowSupport]       = useState(false);
 
   const timerRef          = useRef(null);
@@ -920,37 +822,25 @@ export default function UaTobDriverApp({ uid }) {
   const tripStage      = activeTrip?.status;
   const tripStageColor = { driver_assigned:C.blue, arrived:C.onlineGreen, in_progress:C.green }[tripStage] || C.green;
 
-  // ── Support icon button ───────────────────────────────────────────
   const SupportBtn = () => (
     <button
       onClick={() => setShowSupport(true)}
-      style={{
-        width: 36, height: 36, borderRadius: 10,
-        background: C.surface,
-        border: `1.5px solid ${C.border}`,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        cursor: "pointer", transition: "background .15s, border-color .15s, transform .12s",
-        flexShrink: 0,
-      }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = "#93C5FD"; e.currentTarget.style.background = "#EFF6FF"; }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = C.border;  e.currentTarget.style.background = C.surface;  }}
-      onMouseDown={e  => { e.currentTarget.style.transform = "scale(.92)"; }}
-      onMouseUp={e    => { e.currentTarget.style.transform = "scale(1)"; }}
+      style={{ width:36, height:36, borderRadius:10, background:C.surface, border:`1.5px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", transition:"background .15s, border-color .15s, transform .12s", flexShrink:0 }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor="#93C5FD"; e.currentTarget.style.background="#EFF6FF"; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor=C.border;  e.currentTarget.style.background=C.surface; }}
+      onMouseDown={e  => { e.currentTarget.style.transform="scale(.92)"; }}
+      onMouseUp={e    => { e.currentTarget.style.transform="scale(1)"; }}
       aria-label="Open support"
     >
       <SupportIcon size={18} color="#2563EB" />
     </button>
   );
 
-  // ── Render ────────────────────────────────────────────────────────
   return (
     <div style={{ minHeight:"100vh", background:C.bg, fontFamily:'"Barlow",system-ui,sans-serif', color:C.text, position:"relative" }}>
       <style>{CSS}</style>
 
-      {/* Support full-screen overlay */}
-      {showSupport && (
-        <SupportOverlay onClose={() => setShowSupport(false)} driver={driver} />
-      )}
+      {showSupport && <SupportOverlay onClose={() => setShowSupport(false)} driver={driver} />}
 
       {driver?.status === "suspended" && <SuspendedModal />}
 
@@ -976,8 +866,6 @@ export default function UaTobDriverApp({ uid }) {
       )}
 
       <div style={{ maxWidth:680, margin:"0 auto", paddingBottom:90 }}>
-
-        {/* ── Header ── */}
         <div style={{ padding:"20px 20px 0", display:"flex", justifyContent:"space-between", alignItems:"center", animation:mounted?"slideUp .5s ease-out forwards":"none", opacity:0 }}>
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
             <UaTobIcon size={40} online={online} />
@@ -986,8 +874,6 @@ export default function UaTobDriverApp({ uid }) {
               <div style={{ fontSize:20, fontWeight:800 }}>{driver?.firstName ?? ""}</div>
             </div>
           </div>
-
-          {/* Right side: rating + support button */}
           <div style={{ display:"flex", gap:8, alignItems:"center" }}>
             <div style={{ display:"flex", alignItems:"center", gap:5, background:C.surface, borderRadius:100, padding:"6px 12px", border:`1px solid ${C.border}` }}>
               <Star size={11} fill="#F59E0B" color="#F59E0B" />
@@ -995,7 +881,6 @@ export default function UaTobDriverApp({ uid }) {
                 {driver?.averageRating != null ? driver.averageRating.toFixed(2) : "—"}
               </span>
             </div>
-            {/* Support icon button — replaces the old Bell */}
             <SupportBtn />
           </div>
         </div>

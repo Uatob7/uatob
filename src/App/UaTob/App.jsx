@@ -194,7 +194,7 @@ function UaTobFooter({ onBookRideClick }) {
             Orlando, FL
           </div>
           <div style={{ marginTop:14 }}>
-            <a className="footer-driver-cta" href="https://uatob.com/driver/signup" target="_blank" rel="noopener noreferrer">
+            <a className="footer-driver-cta" href="https://uatob.com/driver" target="_blank" rel="noopener noreferrer">
               <Route size={12} />
               Drive with UaTob
             </a>
