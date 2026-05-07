@@ -69,8 +69,9 @@ async function fetchTripData(pickup, dropoff) {
   };
 }
 
-async function fetchQuotesData(tripData) {
-  const { data } = await callPrice(tripData);
+// ── uid is now accepted and forwarded to the Price function ──────────
+async function fetchQuotesData(tripData, uid) {
+  const { data } = await callPrice({ ...tripData, uid });
   if (!data.ok) throw new Error(data.error || 'Pricing error');
   if (data.rides)
     Object.values(data.rides).forEach(r => { r.total = Number(r.total).toFixed(2); });
@@ -455,10 +456,12 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
   const onPayloadChangeRef = useRef(onPayloadChange);
   const onPriceReadyRef    = useRef(onPriceReady);
   const selectedRideRef    = useRef(selectedRide);
+  const uidRef             = useRef(uid);
 
   useEffect(() => { onPayloadChangeRef.current = onPayloadChange; }, [onPayloadChange]);
   useEffect(() => { onPriceReadyRef.current    = onPriceReady;    }, [onPriceReady]);
   useEffect(() => { selectedRideRef.current    = selectedRide;    }, [selectedRide]);
+  useEffect(() => { uidRef.current             = uid;             }, [uid]);
 
   function setPickup(val)  { setPickupRaw(val);  saveBookingForm({ pickup: val, dropoff,      selectedRide, tripData, quotesData }); }
   function setDropoff(val) { setDropoffRaw(val); saveBookingForm({ pickup,      dropoff: val, selectedRide, tripData, quotesData }); }
@@ -551,14 +554,14 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
     return () => clearTimeout(t);
   }, [pickup, dropoff]);
 
-  // ── Step 2: quotes ────────────────────────────────────────────────
+  // ── Step 2: quotes (uid forwarded to Price function) ──────────────
   useEffect(() => {
     if (!tripData || quotesData) return;
     const requestId = ++quoteRequestRef.current;
     async function loadQuotes() {
       try {
         setLoadingQuotes(true); setError('');
-        const quotes = await fetchQuotesData(tripData);
+        const quotes = await fetchQuotesData(tripData, uidRef.current);
         if (quoteRequestRef.current !== requestId) return;
 
         const keys           = Object.keys(quotes?.rides || {});
