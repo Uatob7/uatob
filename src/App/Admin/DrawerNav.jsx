@@ -13,10 +13,10 @@ import { useCallback } from "react";
 
 const NAV_LINKS = [
   { icon: Home, label: "Dashboard", tab: "home" },
+{ icon: MessageSquare, label: "Support", tab: "chat" },
   { icon: Search, label: "Search", tab: "search" },
   { icon: Car, label: "Drivers", tab: "drivers" },
   { icon: UserSearch, label: "Accounts", tab: "riders" }, // fixed label
-  { icon: MessageSquare, label: "Chat", tab: "chat" },
   { icon: BarChart2, label: "Analytics", tab: "analytics" },
   { icon: Shield, label: "Compliance", tab: "compliance" },
   { icon: Settings, label: "Settings", tab: "settings" },
