@@ -325,7 +325,7 @@ function SearchMapView({
             <Route size={13} color="#0D9488" strokeWidth={2.5} />
           </div>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 800, color: C.text, letterSpacing: "-0.1px" }}>Route Heatmap</div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: C.text, letterSpacing: "-0.1px" }}>Searches</div>
             <div style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 600, marginTop: 1 }}>
               {searches.length} searches · {routeCount} mapped routes
             </div>
