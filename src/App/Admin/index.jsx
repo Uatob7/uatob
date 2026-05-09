@@ -1,3 +1,4 @@
+// src/App/Admin/index.js (or UaTobAdminDashboard.js)
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Bell, Loader2, AlertCircle } from "lucide-react";
 import { getFunctions, httpsCallable } from "firebase/functions";
@@ -18,6 +19,7 @@ import { RidersTab }     from '@/App/Admin/RidersTab';
 import { SearchTab }     from '@/App/Admin/SearchTab';
 import { ComplianceTab } from '@/App/Admin/ComplianceTab';
 import { SettingsTab }   from '@/App/Admin/SettingsTab';
+import { ChatTab }       from '@/App/Admin/ChatTab'; // Import ChatTab
 
 import { useTotalAccounts }   from "@/App/Admin/useTotalAccounts";
 import { useDriverPresence }  from "@/App/Admin/useDriverPresence";
@@ -180,6 +182,7 @@ const TAB_TITLES = {
   search:     "Search",
   compliance: "Compliance",
   settings:   "Settings",
+  chat:       "Chat", // Add chat tab title
 };
 
 // ── MAIN COMPONENT ─────────────────────────────────────────────────────────
@@ -323,6 +326,8 @@ export default function UaTobAdminDashboard() {
         return <ComplianceTab onBack={() => setActiveTab("home")} />;
       case "settings":
         return <SettingsTab onBack={() => setActiveTab("home")} />;
+      case "chat": // Add chat case
+        return <ChatTab onBack={() => setActiveTab("home")} onToast={showToast} />;
       default:
         return null;
     }
@@ -357,7 +362,7 @@ export default function UaTobAdminDashboard() {
         {CurrentTab}
       </div>
 
-      {["home", "drivers", "approvals", "analytics"].includes(activeTab) && (
+      {["home", "drivers", "approvals", "analytics", "chat"].includes(activeTab) && (
         <TabBar activeTab={activeTab} setActiveTab={setActiveTab} />
       )}
     </div>
