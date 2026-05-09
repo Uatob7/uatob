@@ -1,660 +1,897 @@
-// src/App/Admin/ChatTab.js
-import { useState, useEffect, useRef, useCallback } from "react";
-import { 
-  Send, 
-  Users, 
-  Search, 
-  MessageCircle, 
-  Phone, 
-  Video, 
-  MoreVertical,
-  Check,
+// src/App/Admin/AdminChat.js
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import {
+  Send,
+  MessageCircle,
+  Search,
   CheckCheck,
-  Image as ImageIcon,
-  Paperclip,
-  X
+  Clock,
+  User,
+  Mail,
+  Star,
+  ChevronRight,
+  Phone,
+  AlertCircle,
+  Check,
+  Filter,
+  MoreVertical,
+  Reply,
+  Copy,
+  Trash2,
+  Flag
 } from "lucide-react";
-import { C } from "@/App/Admin/Tokens";
+import {
+  getFirestore,
+  collection,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+  addDoc,
+  serverTimestamp,
+  doc,
+  updateDoc,
+  getDoc,
+  limit,
+  writeBatch
+} from "firebase/firestore";
+import { firebase_app } from "@/firebase/config";
 
-// Mock data - replace with your actual Firebase/Firestore calls
-const MOCK_CONVERSATIONS = [
-  { id: "conv1", userId: "user123", name: "John Driver", role: "driver", avatar: "JD", lastMessage: "I'm on my way to pickup", timestamp: "2 min ago", unread: 2, online: true },
-  { id: "conv2", userId: "user456", name: "Sarah Rider", role: "rider", avatar: "SR", lastMessage: "Thanks for the ride!", timestamp: "1 hour ago", unread: 0, online: false },
-  { id: "conv3", userId: "user789", name: "Mike Fleet", role: "fleet_owner", avatar: "MF", lastMessage: "When will the new driver be approved?", timestamp: "3 hours ago", unread: 1, online: true },
-  { id: "conv4", userId: "user101", name: "Emma Support", role: "support", avatar: "ES", lastMessage: "Customer issue resolved", timestamp: "1 day ago", unread: 0, online: false },
-];
+const db = getFirestore(firebase_app);
 
-const MOCK_MESSAGES = {
-  conv1: [
-    { id: "m1", senderId: "user123", text: "Hello admin, I have a question about my earnings", timestamp: "10:30 AM", status: "read" },
-    { id: "m2", senderId: "admin", text: "Sure, let me check the system for you", timestamp: "10:32 AM", status: "read" },
-    { id: "m3", senderId: "user123", text: "I'm on my way to pickup", timestamp: "10:35 AM", status: "delivered" },
-  ],
-  conv2: [
-    { id: "m1", senderId: "user456", text: "Great service!", timestamp: "9:00 AM", status: "read" },
-    { id: "m2", senderId: "admin", text: "Glad to hear that! ⭐", timestamp: "9:05 AM", status: "read" },
-    { id: "m3", senderId: "user456", text: "Thanks for the ride!", timestamp: "9:10 AM", status: "read" },
-  ],
+// ─────────────────────────────────────────────────────────────
+// STYLES
+// ─────────────────────────────────────────────────────────────
+const styles = {
+  container: {
+    height: "100%",
+    display: "flex",
+    flexDirection: "column",
+    background: "#F9FAFB",
+    fontFamily: "'Inter', system-ui, -apple-system, sans-serif"
+  },
+  header: {
+    background: "#FFFFFF",
+    borderBottom: "1px solid #E5E7EB",
+    padding: "16px 24px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexShrink: 0
+  },
+  headerLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: 16
+  },
+  backButton: {
+    border: "none",
+    background: "#F3F4F6",
+    borderRadius: 8,
+    width: 36,
+    height: 36,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    fontSize: 18,
+    transition: "all 0.2s"
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: 600,
+    color: "#111827"
+  },
+  stats: {
+    display: "flex",
+    gap: 16,
+    alignItems: "center"
+  },
+  statBadge: {
+    background: "#EFF6FF",
+    padding: "6px 12px",
+    borderRadius: 20,
+    fontSize: 13,
+    fontWeight: 500,
+    color: "#2563EB",
+    display: "flex",
+    alignItems: "center",
+    gap: 6
+  },
+  body: {
+    display: "flex",
+    flex: 1,
+    overflow: "hidden",
+    gap: 1,
+    background: "#E5E7EB"
+  },
+  sidebar: {
+    width: 360,
+    background: "#FFFFFF",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden"
+  },
+  searchBar: {
+    padding: 16,
+    borderBottom: "1px solid #E5E7EB"
+  },
+  searchInput: {
+    width: "100%",
+    padding: "10px 36px 10px 12px",
+    borderRadius: 10,
+    border: "1px solid #E5E7EB",
+    fontSize: 14,
+    background: "#F9FAFB",
+    outline: "none"
+  },
+  filterBar: {
+    padding: "12px 16px",
+    borderBottom: "1px solid #E5E7EB",
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap"
+  },
+  filterChip: {
+    padding: "6px 12px",
+    borderRadius: 20,
+    fontSize: 12,
+    fontWeight: 500,
+    cursor: "pointer",
+    transition: "all 0.2s"
+  },
+  convList: {
+    flex: 1,
+    overflowY: "auto"
+  },
+  convItem: {
+    padding: 16,
+    borderBottom: "1px solid #F3F4F6",
+    cursor: "pointer",
+    transition: "all 0.2s",
+    position: "relative"
+  },
+  convHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6
+  },
+  convName: {
+    fontWeight: 600,
+    fontSize: 14,
+    color: "#111827"
+  },
+  convTime: {
+    fontSize: 11,
+    color: "#9CA3AF"
+  },
+  convPreview: {
+    fontSize: 13,
+    color: "#6B7280",
+    marginBottom: 8,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis"
+  },
+  convMeta: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    fontSize: 11
+  },
+  unreadBadge: {
+    background: "#DC2626",
+    color: "white",
+    borderRadius: 12,
+    padding: "2px 8px",
+    fontSize: 11,
+    fontWeight: 600
+  },
+  chatArea: {
+    flex: 1,
+    background: "#FFFFFF",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden"
+  },
+  chatHeader: {
+    padding: "16px 24px",
+    borderBottom: "1px solid #E5E7EB",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    background: "#FFFFFF"
+  },
+  driverInfo: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12
+  },
+  driverAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: "50%",
+    background: "linear-gradient(135deg, #EFF6FF, #DBEAFE)",
+    border: "2px solid #BFDBFE",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 600,
+    fontSize: 18,
+    color: "#2563EB"
+  },
+  driverDetails: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4
+  },
+  driverName: {
+    fontWeight: 700,
+    fontSize: 16,
+    color: "#111827"
+  },
+  driverRating: {
+    display: "flex",
+    alignItems: "center",
+    gap: 4,
+    fontSize: 12,
+    color: "#6B7280"
+  },
+  actionButtons: {
+    display: "flex",
+    gap: 8
+  },
+  actionBtn: {
+    padding: "8px 12px",
+    borderRadius: 8,
+    border: "1px solid #E5E7EB",
+    background: "#FFFFFF",
+    cursor: "pointer",
+    fontSize: 12,
+    fontWeight: 500,
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    transition: "all 0.2s"
+  },
+  messages: {
+    flex: 1,
+    overflowY: "auto",
+    padding: "24px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 16,
+    background: "#F9FAFB"
+  },
+  messageGroup: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4
+  },
+  messageBubble: {
+    maxWidth: "65%",
+    padding: "10px 14px",
+    borderRadius: 12,
+    fontSize: 14,
+    lineHeight: 1.5,
+    position: "relative"
+  },
+  messageOutgoing: {
+    background: "#2563EB",
+    color: "white",
+    alignSelf: "flex-end",
+    borderBottomRightRadius: 4
+  },
+  messageIncoming: {
+    background: "#FFFFFF",
+    color: "#111827",
+    border: "1px solid #E5E7EB",
+    alignSelf: "flex-start",
+    borderBottomLeftRadius: 4
+  },
+  messageMeta: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 4,
+    fontSize: 11,
+    color: "#9CA3AF"
+  },
+  typingIndicator: {
+    display: "flex",
+    alignItems: "center",
+    gap: 4,
+    padding: "10px 14px",
+    background: "#FFFFFF",
+    border: "1px solid #E5E7EB",
+    borderRadius: 12,
+    borderBottomLeftRadius: 4,
+    width: "fit-content",
+    gap: 6
+  },
+  typingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: "50%",
+    background: "#9CA3AF",
+    animation: "bounce 1.4s infinite"
+  },
+  inputBar: {
+    padding: "16px 24px",
+    borderTop: "1px solid #E5E7EB",
+    background: "#FFFFFF",
+    display: "flex",
+    gap: 12,
+    alignItems: "flex-end"
+  },
+  textarea: {
+    flex: 1,
+    padding: "10px 16px",
+    borderRadius: 20,
+    border: "1px solid #E5E7EB",
+    fontSize: 14,
+    fontFamily: "inherit",
+    resize: "none",
+    outline: "none",
+    maxHeight: 120,
+    background: "#F9FAFB"
+  },
+  sendButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    background: "#2563EB",
+    border: "none",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    transition: "all 0.2s",
+    flexShrink: 0
+  },
+  emptyState: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    color: "#9CA3AF"
+  },
+  quickReplies: {
+    padding: "12px 24px",
+    borderTop: "1px solid #E5E7EB",
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    background: "#FFFFFF"
+  },
+  quickReplyBtn: {
+    padding: "6px 12px",
+    borderRadius: 16,
+    background: "#F3F4F6",
+    border: "none",
+    fontSize: 12,
+    cursor: "pointer",
+    transition: "all 0.2s"
+  }
 };
 
+// Quick reply templates
+const QUICK_REPLIES = [
+  "Thanks for reaching out! I'll look into this right away.",
+  "I've escalated this to our technical team. They'll get back to you within 24 hours.",
+  "Could you please provide more details about the issue?",
+  "Your payment has been processed successfully.",
+  "I've updated your vehicle information. It should reflect within 24 hours.",
+  "I'm marking this ride as a no-show for you. The fee will be added to your next payout."
+];
+
+// ─────────────────────────────────────────────────────────────
+// MAIN COMPONENT
+// ─────────────────────────────────────────────────────────────
 export function ChatTab({ onBack, onToast }) {
-  const [conversations, setConversations] = useState(MOCK_CONVERSATIONS);
+  const [conversations, setConversations] = useState([]);
   const [selectedConv, setSelectedConv] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filter, setFilter] = useState("all"); // all, unread, active
+  const [typing, setTyping] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [driverDetails, setDriverDetails] = useState(null);
+  
   const messagesEndRef = useRef(null);
-  const inputRef = useRef(null);
+  const textareaRef = useRef(null);
 
-  // Auto-scroll to bottom when messages change
+  // ─────────────────────────────────────────────────────────
+  // LOAD CONVERSATIONS (SupportThreads)
+  // ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    const q = query(
+      collection(db, "SupportThreads"),
+      orderBy("updatedAt", "desc")
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const convs = snap.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setConversations(convs);
+        
+        // If selected conversation still exists, update it
+        if (selectedConv) {
+          const updated = convs.find(c => c.id === selectedConv.id);
+          if (updated) setSelectedConv(updated);
+        }
+      },
+      (err) => {
+        console.error("Conversations error:", err);
+        onToast?.("Failed to load conversations", "error");
+      }
+    );
+
+    return () => unsub();
+  }, []);
+
+  // ─────────────────────────────────────────────────────────
+  // LOAD MESSAGES FOR SELECTED CONVERSATION
+  // ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!selectedConv) return;
+
+    const messagesRef = collection(db, "Support");
+    const q = query(
+      messagesRef,
+      where("threadId", "==", selectedConv.id),
+      orderBy("createdAt", "asc")
+    );
+
+    const unsub = onSnapshot(
+      q,
+      async (snap) => {
+        const msgs = snap.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setMessages(msgs);
+
+        // Mark unread messages as read
+        const unreadMessages = msgs.filter(
+          m => m.status === "unread" && m.sender !== "admin"
+        );
+        
+        if (unreadMessages.length > 0) {
+          const batch = writeBatch(db);
+          unreadMessages.forEach(msg => {
+            const msgRef = doc(db, "Support", msg.id);
+            batch.update(msgRef, { status: "read" });
+          });
+          
+          // Also update thread unread count
+          const threadRef = doc(db, "SupportThreads", selectedConv.id);
+          batch.update(threadRef, { 
+            unreadByAdmin: 0,
+            lastReadAt: serverTimestamp()
+          });
+          
+          await batch.commit();
+        }
+
+        // Fetch driver details if not already loaded
+        if (selectedConv.driverId && !driverDetails) {
+          const driverRef = doc(db, "Drivers", selectedConv.driverId);
+          const driverSnap = await getDoc(driverRef);
+          if (driverSnap.exists()) {
+            setDriverDetails(driverSnap.data());
+          }
+        }
+      },
+      (err) => {
+        console.error("Messages error:", err);
+        onToast?.("Failed to load messages", "error");
+      }
+    );
+
+    return () => unsub();
+  }, [selectedConv]);
+
+  // ─────────────────────────────────────────────────────────
+  // AUTO SCROLL
+  // ─────────────────────────────────────────────────────────
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Load messages when conversation is selected
-  useEffect(() => {
-    if (selectedConv) {
-      setMessages(MOCK_MESSAGES[selectedConv.id] || []);
-    }
-  }, [selectedConv]);
+  // ─────────────────────────────────────────────────────────
+  // SEND MESSAGE
+  // ─────────────────────────────────────────────────────────
+  const sendMessage = useCallback(async (customMessage = null) => {
+    const messageToSend = customMessage || newMessage.trim();
+    if (!messageToSend || !selectedConv || sending) return;
 
-  // Simulate typing indicator
-  useEffect(() => {
-    if (selectedConv && selectedConv.online) {
-      const timeout = setTimeout(() => setIsTyping(true), 2000);
-      const hideTyping = setTimeout(() => setIsTyping(false), 5000);
-      return () => {
-        clearTimeout(timeout);
-        clearTimeout(hideTyping);
-      };
-    }
-  }, [selectedConv, messages]);
-
-  const handleSendMessage = useCallback(async () => {
-    if (!newMessage.trim() || !selectedConv) return;
-
-    const tempMessage = {
-      id: `temp-${Date.now()}`,
-      senderId: "admin",
-      text: newMessage,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: "sending"
-    };
-
-    setMessages(prev => [...prev, tempMessage]);
-    setNewMessage("");
+    setSending(true);
     
-    // Simulate API call
     try {
-      // await sendMessageToFirebase(selectedConv.id, newMessage);
-      setTimeout(() => {
-        setMessages(prev => prev.map(msg => 
-          msg.id === tempMessage.id ? { ...msg, status: "delivered" } : msg
-        ));
-        setTimeout(() => {
-          setMessages(prev => prev.map(msg => 
-            msg.id === tempMessage.id ? { ...msg, status: "read" } : msg
-          ));
-        }, 1000);
-      }, 500);
-    } catch (error) {
-      onToast?.("Failed to send message");
-      setMessages(prev => prev.filter(msg => msg.id !== tempMessage.id));
-    }
-  }, [newMessage, selectedConv, onToast]);
+      // Add message to Support collection
+      const msgRef = collection(db, "Support");
+      await addDoc(msgRef, {
+        threadId: selectedConv.id,
+        driverId: selectedConv.driverId,
+        message: messageToSend,
+        sender: "admin",
+        status: "read",
+        createdAt: serverTimestamp(),
+        readAt: serverTimestamp()
+      });
 
+      // Update thread
+      const threadRef = doc(db, "SupportThreads", selectedConv.id);
+      await updateDoc(threadRef, {
+        lastMessage: messageToSend,
+        lastSender: "admin",
+        updatedAt: serverTimestamp(),
+        unreadByDriver: (selectedConv.unreadByDriver || 0) + 1
+      });
+
+      setNewMessage("");
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "auto";
+      }
+      
+      onToast?.("Message sent successfully", "success");
+    } catch (err) {
+      console.error("Send error:", err);
+      onToast?.("Failed to send message", "error");
+    } finally {
+      setSending(false);
+    }
+  }, [newMessage, selectedConv, sending]);
+
+  // ─────────────────────────────────────────────────────────
+  // HANDLE KEY PRESS
+  // ─────────────────────────────────────────────────────────
   const handleKeyPress = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      sendMessage();
     }
   };
 
-  const filteredConversations = conversations.filter(conv =>
-    conv.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    conv.role.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // ─────────────────────────────────────────────────────────
+  // AUTO-RESIZE TEXTAREA
+  // ─────────────────────────────────────────────────────────
+  const handleTextareaChange = (e) => {
+    setNewMessage(e.target.value);
+    e.target.style.height = "auto";
+    e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
+  };
 
-  const getStatusIcon = (status) => {
-    switch(status) {
-      case "sending": return <div className="status-sending" />;
-      case "delivered": return <Check size={12} />;
-      case "read": return <CheckCheck size={12} />;
-      default: return null;
+  // ─────────────────────────────────────────────────────────
+  // FILTER CONVERSATIONS
+  // ─────────────────────────────────────────────────────────
+  const filteredConversations = useMemo(() => {
+    let filtered = conversations;
+    
+    if (filter === "unread") {
+      filtered = filtered.filter(c => (c.unreadByAdmin || 0) > 0);
+    } else if (filter === "active") {
+      const oneDayAgo = new Date();
+      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+      filtered = filtered.filter(c => {
+        const updatedAt = c.updatedAt?.toDate?.() || new Date(c.updatedAt);
+        return updatedAt > oneDayAgo;
+      });
     }
+    
+    if (searchTerm) {
+      filtered = filtered.filter(c => 
+        c.driverName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        c.driverEmail?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        c.id?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    return filtered;
+  }, [conversations, filter, searchTerm]);
+
+  // ─────────────────────────────────────────────────────────
+  // FORMAT TIME
+  // ─────────────────────────────────────────────────────────
+  const formatTime = (timestamp) => {
+    if (!timestamp) return "";
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const now = new Date();
+    const diff = now - date;
+    
+    if (diff < 60000) return "Just now";
+    if (diff < 3600000) return `${Math.floor(diff / 60000)} min ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)} hours ago`;
+    if (diff < 604800000) return date.toLocaleDateString(undefined, { weekday: "short" });
+    return date.toLocaleDateString();
   };
 
   return (
     <div style={styles.container}>
       {/* Header */}
       <div style={styles.header}>
-        <button onClick={onBack} style={styles.backButton}>
-          ←
-        </button>
-        <MessageCircle size={20} color={C.green} />
-        <span style={styles.headerTitle}>Admin Chat</span>
+        <div style={styles.headerLeft}>
+          <button 
+            onClick={onBack} 
+            style={styles.backButton}
+            onMouseEnter={(e) => e.target.style.background = "#E5E7EB"}
+            onMouseLeave={(e) => e.target.style.background = "#F3F4F6"}
+          >
+            ←
+          </button>
+          <MessageCircle size={20} color="#2563EB" />
+          <span style={styles.headerTitle}>Support Chat</span>
+        </div>
+        
+        <div style={styles.stats}>
+          <div style={styles.statBadge}>
+            <Clock size={14} />
+            <span>Response time: &lt;5 min</span>
+          </div>
+          <div style={styles.statBadge}>
+            <MessageCircle size={14} />
+            <span>{conversations.length} active chats</span>
+          </div>
+        </div>
       </div>
 
-      <div style={styles.chatContainer}>
-        {/* Conversations Sidebar */}
-        <div style={{ ...styles.sidebar, display: selectedConv ? 'none' : 'flex' }}>
+      <div style={styles.body}>
+        {/* Sidebar */}
+        <div style={styles.sidebar}>
           <div style={styles.searchBar}>
-            <Search size={18} color={C.textMuted} />
             <input
               type="text"
-              placeholder="Search conversations..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by name or email..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               style={styles.searchInput}
             />
           </div>
-
-          <div style={styles.conversationsList}>
-            {filteredConversations.map(conv => (
+          
+          <div style={styles.filterBar}>
+            {[
+              { key: "all", label: "All" },
+              { key: "unread", label: "Unread" },
+              { key: "active", label: "Active (24h)" }
+            ].map(f => (
+              <button
+                key={f.key}
+                onClick={() => setFilter(f.key)}
+                style={{
+                  ...styles.filterChip,
+                  background: filter === f.key ? "#2563EB" : "#F3F4F6",
+                  color: filter === f.key ? "white" : "#6B7280"
+                }}
+              >
+                {f.label}
+                {f.key === "unread" && conversations.filter(c => (c.unreadByAdmin || 0) > 0).length > 0 && (
+                  <span style={{ marginLeft: 4, fontWeight: 600 }}>
+                    ({conversations.filter(c => (c.unreadByAdmin || 0) > 0).length})
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+          
+          <div style={styles.convList}>
+            {filteredConversations.map((conv) => (
               <div
                 key={conv.id}
-                onClick={() => setSelectedConv(conv)}
-                style={styles.conversationItem}
+                onClick={() => {
+                  setSelectedConv(conv);
+                  setDriverDetails(null);
+                }}
+                style={{
+                  ...styles.convItem,
+                  background: selectedConv?.id === conv.id ? "#F3F4F6" : "transparent"
+                }}
               >
-                <div style={styles.avatarContainer}>
-                  <div style={styles.avatar}>
-                    {conv.avatar}
-                  </div>
-                  {conv.online && <div style={styles.onlineDot} />}
+                <div style={styles.convHeader}>
+                  <span style={styles.convName}>
+                    {conv.driverName || conv.driverId?.slice(0, 8) || "Unknown Driver"}
+                  </span>
+                  <span style={styles.convTime}>
+                    {formatTime(conv.updatedAt)}
+                  </span>
                 </div>
-                <div style={styles.conversationInfo}>
-                  <div style={styles.conversationHeader}>
-                    <span style={styles.conversationName}>{conv.name}</span>
-                    <span style={styles.timestamp}>{conv.timestamp}</span>
-                  </div>
-                  <div style={styles.conversationPreview}>
-                    <span style={styles.roleBadge}>{conv.role}</span>
-                    <span style={styles.lastMessage}>{conv.lastMessage}</span>
-                  </div>
+                <div style={styles.convPreview}>
+                  {conv.lastMessage || "No messages yet"}
                 </div>
-                {conv.unread > 0 && (
-                  <div style={styles.unreadBadge}>{conv.unread}</div>
-                )}
+                <div style={styles.convMeta}>
+                  {conv.unreadByAdmin > 0 && (
+                    <span style={styles.unreadBadge}>
+                      {conv.unreadByAdmin} new
+                    </span>
+                  )}
+                  {conv.lastSender === "driver" && (
+                    <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <Reply size={12} />
+                      Driver
+                    </span>
+                  )}
+                </div>
               </div>
             ))}
+            
+            {filteredConversations.length === 0 && (
+              <div style={{ padding: 40, textAlign: "center", color: "#9CA3AF" }}>
+                No conversations found
+              </div>
+            )}
           </div>
         </div>
 
         {/* Chat Area */}
-        {selectedConv && (
-          <div style={styles.chatArea}>
-            {/* Chat Header */}
-            <div style={styles.chatHeader}>
-              <div style={styles.chatHeaderInfo}>
-                <button 
-                  onClick={() => setSelectedConv(null)}
-                  style={styles.mobileBackButton}
-                >
-                  ←
-                </button>
-                <div style={styles.chatAvatar}>
-                  {selectedConv.avatar}
-                </div>
-                <div>
-                  <div style={styles.chatName}>{selectedConv.name}</div>
-                  <div style={styles.chatStatus}>
-                    {selectedConv.online ? "Online" : "Offline"}
-                    {isTyping && <span style={styles.typingIndicator}> • typing...</span>}
-                  </div>
-                </div>
-              </div>
-              <div style={styles.chatActions}>
-                <button style={styles.actionButton}>
-                  <Phone size={18} />
-                </button>
-                <button style={styles.actionButton}>
-                  <Video size={18} />
-                </button>
-                <button style={styles.actionButton}>
-                  <MoreVertical size={18} />
-                </button>
-              </div>
+        <div style={styles.chatArea}>
+          {!selectedConv ? (
+            <div style={styles.emptyState}>
+              <MessageCircle size={48} strokeWidth={1.5} />
+              <div>Select a conversation to start replying</div>
             </div>
-
-            {/* Messages */}
-            <div style={styles.messagesArea}>
-              {messages.map((message, idx) => {
-                const isAdmin = message.senderId === "admin";
-                return (
-                  <div
-                    key={message.id}
-                    style={{
-                      ...styles.messageWrapper,
-                      justifyContent: isAdmin ? "flex-end" : "flex-start"
-                    }}
-                  >
-                    <div
-                      style={{
-                        ...styles.message,
-                        ...(isAdmin ? styles.adminMessage : styles.userMessage)
-                      }}
-                    >
-                      <div style={styles.messageText}>{message.text}</div>
-                      <div style={styles.messageMeta}>
-                        <span style={styles.messageTime}>{message.timestamp}</span>
-                        {isAdmin && getStatusIcon(message.status)}
-                      </div>
+          ) : (
+            <>
+              {/* Chat Header with Driver Info */}
+              <div style={styles.chatHeader}>
+                <div style={styles.driverInfo}>
+                  <div style={styles.driverAvatar}>
+                    {driverDetails?.firstName?.[0]}
+                    {driverDetails?.lastName?.[0]}
+                  </div>
+                  <div style={styles.driverDetails}>
+                    <span style={styles.driverName}>
+                      {driverDetails?.firstName} {driverDetails?.lastName}
+                    </span>
+                    <div style={styles.driverRating}>
+                      <Star size={14} fill="#F59E0B" color="#F59E0B" />
+                      <span>{driverDetails?.averageRating?.toFixed(1) || "New"}</span>
+                      <span>•</span>
+                      <Mail size={12} />
+                      <span>{driverDetails?.email || selectedConv.driverEmail}</span>
                     </div>
                   </div>
-                );
-              })}
-              {isTyping && (
-                <div style={styles.typingContainer}>
-                  <div style={styles.typingBubble}>
-                    <div className="typing-dot" />
-                    <div className="typing-dot" />
-                    <div className="typing-dot" />
-                  </div>
                 </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
+                
+                <div style={styles.actionButtons}>
+                  <button style={styles.actionBtn}>
+                    <Copy size={14} />
+                    Copy ID
+                  </button>
+                  <button style={styles.actionBtn}>
+                    <Flag size={14} />
+                    Report
+                  </button>
+                </div>
+              </div>
 
-            {/* Input Area */}
-            <div style={styles.inputArea}>
-              <button style={styles.attachButton}>
-                <Paperclip size={18} />
-              </button>
-              <button style={styles.imageButton}>
-                <ImageIcon size={18} />
-              </button>
-              <textarea
-                ref={inputRef}
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Type a message..."
-                style={styles.messageInput}
-                rows={1}
-              />
-              <button 
-                onClick={handleSendMessage}
-                disabled={!newMessage.trim()}
-                style={{
-                  ...styles.sendButton,
-                  opacity: newMessage.trim() ? 1 : 0.5,
-                  cursor: newMessage.trim() ? "pointer" : "not-allowed"
-                }}
-              >
-                <Send size={18} />
-              </button>
-            </div>
-          </div>
-        )}
+              {/* Messages */}
+              <div style={styles.messages}>
+                {messages.map((msg, idx) => {
+                  const isAdmin = msg.sender === "admin";
+                  const showAvatar = !isAdmin && (idx === 0 || messages[idx-1]?.sender !== "driver");
+                  
+                  return (
+                    <div key={msg.id} style={styles.messageGroup}>
+                      <div
+                        style={{
+                          ...styles.messageBubble,
+                          ...(isAdmin ? styles.messageOutgoing : styles.messageIncoming)
+                        }}
+                      >
+                        {msg.message}
+                      </div>
+                      <div
+                        style={{
+                          ...styles.messageMeta,
+                          justifyContent: isAdmin ? "flex-end" : "flex-start"
+                        }}
+                      >
+                        {isAdmin ? (
+                          <>
+                            <span>Admin</span>
+                            <span>•</span>
+                            <span>{formatTime(msg.createdAt)}</span>
+                            {msg.status === "read" ? (
+                              <CheckCheck size={12} color="#22C55E" />
+                            ) : (
+                              <Check size={12} color="#9CA3AF" />
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <span>{driverDetails?.firstName || "Driver"}</span>
+                            <span>•</span>
+                            <span>{formatTime(msg.createdAt)}</span>
+                            {msg.isAuto && <span>• Auto-reply</span>}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                
+                {typing && (
+                  <div style={styles.typingIndicator}>
+                    <span style={{ fontSize: 12, color: "#6B7280" }}>Driver is typing</span>
+                    {[0, 0.2, 0.4].map(delay => (
+                      <div
+                        key={delay}
+                        style={{
+                          ...styles.typingDot,
+                          animationDelay: `${delay}s`
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+                
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Quick Replies */}
+              <div style={styles.quickReplies}>
+                {QUICK_REPLIES.slice(0, 4).map((reply, idx) => (
+                  <button
+                    key={idx}
+                    style={styles.quickReplyBtn}
+                    onClick={() => sendMessage(reply)}
+                  >
+                    {reply.length > 30 ? reply.slice(0, 30) + "..." : reply}
+                  </button>
+                ))}
+              </div>
+
+              {/* Input Area */}
+              <div style={styles.inputBar}>
+                <textarea
+                  ref={textareaRef}
+                  value={newMessage}
+                  onChange={handleTextareaChange}
+                  onKeyDown={handleKeyPress}
+                  placeholder="Type your reply... (Shift+Enter for new line)"
+                  rows={1}
+                  style={styles.textarea}
+                />
+                <button
+                  onClick={() => sendMessage()}
+                  disabled={!newMessage.trim() || sending}
+                  style={{
+                    ...styles.sendButton,
+                    opacity: !newMessage.trim() || sending ? 0.5 : 1,
+                    cursor: !newMessage.trim() || sending ? "not-allowed" : "pointer"
+                  }}
+                >
+                  {sending ? (
+                    <div style={{ width: 16, height: 16, border: "2px solid white", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                  ) : (
+                    <Send size={16} color="white" />
+                  )}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
+      {/* Add keyframe animations */}
       <style>{`
-        .typing-dot {
-          width: 6px;
-          height: 6px;
-          background: ${C.textMuted};
-          border-radius: 50%;
-          display: inline-block;
-          margin: 0 2px;
-          animation: typingAnimation 1.4s infinite;
+        @keyframes bounce {
+          0%, 80%, 100% { transform: translateY(0); }
+          40% { transform: translateY(-4px); }
         }
-        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
-        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
-        
-        @keyframes typingAnimation {
-          0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-          30% { transform: translateY(-6px); opacity: 1; }
-        }
-        
-        .status-sending {
-          width: 12px;
-          height: 12px;
-          border: 1.5px solid ${C.textMuted};
-          border-top-color: transparent;
-          border-radius: 50%;
-          animation: spin 0.6s linear infinite;
-        }
-        
         @keyframes spin {
+          from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
       `}</style>
     </div>
   );
-}
-
-const styles = {
-  container: {
-    background: "#fff",
-    borderRadius: "24px",
-    overflow: "hidden",
-    boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
-    height: "calc(100vh - 140px)",
-    display: "flex",
-    flexDirection: "column"
-  },
-  header: {
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-    padding: "16px 20px",
-    borderBottom: `1px solid ${C.border}`,
-    background: "#fff"
-  },
-  backButton: {
-    background: "none",
-    border: "none",
-    fontSize: "20px",
-    cursor: "pointer",
-    color: C.text,
-    padding: "4px 8px",
-    borderRadius: "8px"
-  },
-  headerTitle: {
-    fontSize: "18px",
-    fontWeight: 700,
-    color: C.text,
-    flex: 1
-  },
-  chatContainer: {
-    flex: 1,
-    display: "flex",
-    overflow: "hidden"
-  },
-  sidebar: {
-    width: "320px",
-    borderRight: `1px solid ${C.border}`,
-    display: "flex",
-    flexDirection: "column",
-    background: "#FAFBFC"
-  },
-  searchBar: {
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-    padding: "12px 16px",
-    borderBottom: `1px solid ${C.border}`,
-    background: "#fff"
-  },
-  searchInput: {
-    flex: 1,
-    border: "none",
-    outline: "none",
-    fontSize: "14px",
-    background: "transparent",
-    fontFamily: "'Barlow', sans-serif"
-  },
-  conversationsList: {
-    flex: 1,
-    overflowY: "auto"
-  },
-  conversationItem: {
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-    padding: "12px 16px",
-    cursor: "pointer",
-    transition: "background 0.15s",
-    position: "relative",
-    borderBottom: `1px solid ${C.border}`,
-    background: "#fff"
-  },
-  avatarContainer: {
-    position: "relative"
-  },
-  avatar: {
-    width: "48px",
-    height: "48px",
-    borderRadius: "50%",
-    background: `linear-gradient(135deg, ${C.green}, ${C.greenDark})`,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: "#fff",
-    fontWeight: 700,
-    fontSize: "16px"
-  },
-  onlineDot: {
-    position: "absolute",
-    bottom: "2px",
-    right: "2px",
-    width: "12px",
-    height: "12px",
-    background: "#22c55e",
-    borderRadius: "50%",
-    border: "2px solid #fff"
-  },
-  conversationInfo: {
-    flex: 1,
-    minWidth: 0
-  },
-  conversationHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "4px"
-  },
-  conversationName: {
-    fontWeight: 600,
-    fontSize: "14px",
-    color: C.text
-  },
-  timestamp: {
-    fontSize: "11px",
-    color: C.textMuted
-  },
-  conversationPreview: {
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    fontSize: "12px",
-    color: C.textMuted,
-    whiteSpace: "nowrap",
-    overflow: "hidden"
-  },
-  roleBadge: {
-    background: C.surfaceHigh,
-    padding: "2px 6px",
-    borderRadius: "4px",
-    fontSize: "10px",
-    fontWeight: 600,
-    textTransform: "uppercase"
-  },
-  lastMessage: {
-    overflow: "hidden",
-    textOverflow: "ellipsis"
-  },
-  unreadBadge: {
-    background: C.green,
-    color: "#fff",
-    borderRadius: "12px",
-    padding: "2px 6px",
-    fontSize: "11px",
-    fontWeight: 700,
-    minWidth: "20px",
-    textAlign: "center"
-  },
-  chatArea: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    background: "#fff"
-  },
-  chatHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "12px 20px",
-    borderBottom: `1px solid ${C.border}`,
-    background: "#fff"
-  },
-  chatHeaderInfo: {
-    display: "flex",
-    alignItems: "center",
-    gap: "12px"
-  },
-  mobileBackButton: {
-    display: "none",
-    background: "none",
-    border: "none",
-    fontSize: "20px",
-    cursor: "pointer",
-    color: C.text,
-    "@media (max-width: 768px)": {
-      display: "block"
-    }
-  },
-  chatAvatar: {
-    width: "40px",
-    height: "40px",
-    borderRadius: "50%",
-    background: `linear-gradient(135deg, ${C.green}, ${C.greenDark})`,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: "#fff",
-    fontWeight: 700
-  },
-  chatName: {
-    fontWeight: 600,
-    fontSize: "15px",
-    color: C.text
-  },
-  chatStatus: {
-    fontSize: "12px",
-    color: C.textMuted
-  },
-  typingIndicator: {
-    color: C.green,
-    fontStyle: "italic"
-  },
-  chatActions: {
-    display: "flex",
-    gap: "8px"
-  },
-  actionButton: {
-    background: "none",
-    border: "none",
-    cursor: "pointer",
-    padding: "8px",
-    borderRadius: "8px",
-    color: C.textMuted
-  },
-  messagesArea: {
-    flex: 1,
-    overflowY: "auto",
-    padding: "20px",
-    display: "flex",
-    flexDirection: "column",
-    gap: "12px"
-  },
-  messageWrapper: {
-    display: "flex"
-  },
-  message: {
-    maxWidth: "70%",
-    padding: "10px 14px",
-    borderRadius: "12px",
-    position: "relative"
-  },
-  userMessage: {
-    background: C.surfaceHigh,
-    color: C.text,
-    borderBottomLeftRadius: "4px"
-  },
-  adminMessage: {
-    background: C.green,
-    color: "#fff",
-    borderBottomRightRadius: "4px"
-  },
-  messageText: {
-    fontSize: "14px",
-    lineHeight: "1.4",
-    wordWrap: "break-word"
-  },
-  messageMeta: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    gap: "4px",
-    marginTop: "4px",
-    fontSize: "10px",
-    opacity: 0.7
-  },
-  messageTime: {
-    fontSize: "10px"
-  },
-  typingContainer: {
-    display: "flex",
-    justifyContent: "flex-start"
-  },
-  typingBubble: {
-    background: C.surfaceHigh,
-    padding: "10px 14px",
-    borderRadius: "12px",
-    borderBottomLeftRadius: "4px"
-  },
-  inputArea: {
-    display: "flex",
-    alignItems: "flex-end",
-    gap: "8px",
-    padding: "16px 20px",
-    borderTop: `1px solid ${C.border}`,
-    background: "#fff"
-  },
-  attachButton: {
-    background: "none",
-    border: "none",
-    cursor: "pointer",
-    padding: "8px",
-    borderRadius: "8px",
-    color: C.textMuted
-  },
-  imageButton: {
-    background: "none",
-    border: "none",
-    cursor: "pointer",
-    padding: "8px",
-    borderRadius: "8px",
-    color: C.textMuted
-  },
-  messageInput: {
-    flex: 1,
-    border: `1px solid ${C.border}`,
-    borderRadius: "20px",
-    padding: "8px 16px",
-    fontSize: "14px",
-    fontFamily: "'Barlow', sans-serif",
-    resize: "none",
-    outline: "none",
-    maxHeight: "100px"
-  },
-  sendButton: {
-    background: C.green,
-    border: "none",
-    cursor: "pointer",
-    padding: "8px 12px",
-    borderRadius: "20px",
-    color: "#fff",
-    display: "flex",
-    alignItems: "center",
-    transition: "opacity 0.15s"
-  }
-};
-
-// Add responsive styles
-if (typeof window !== "undefined") {
-  const style = document.createElement('style');
-  style.textContent = `
-    @media (max-width: 768px) {
-      .sidebar-active {
-        width: 100% !important;
-      }
-      .chat-area-active {
-        width: 100% !important;
-      }
-    }
-  `;
-  document.head.appendChild(style);
 }
