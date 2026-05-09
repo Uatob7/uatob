@@ -1,17 +1,17 @@
-import { Home, Car, Search, BarChart2, Shield, Settings } from "lucide-react";
+import { Home, Car, Search, BarChart2, Shield, Settings, UserSearch } from "lucide-react";
 import { C } from '@/App/Admin/Tokens';
 
 const NAV_LINKS = [
-  { icon: Home,      label: "Dashboard", tab: "home" },
-  { icon: Car,       label: "Fleet", tab: "drivers" },
-  { icon: Search,    label: "Riders", tab: "riders" },
-  { icon: BarChart2, label: "Analytics", tab: "analytics" },
-  { icon: Shield,    label: "Compliance", tab: "compliance" },
-  { icon: Settings,  label: "Settings", tab: "settings" },
+  { icon: Home,       label: "Dashboard",  tab: "home" },
+  { icon: Search,     label: "Search",     tab: "search" },
+  { icon: Car,        label: "Drivers",    tab: "drivers" },
+  { icon: UserSearch, label: "Account",    tab: "riders" },
+  { icon: BarChart2,  label: "Analytics",  tab: "analytics" },
+  { icon: Shield,     label: "Compliance", tab: "compliance" },
+  { icon: Settings,   label: "Settings",   tab: "settings" },
 ];
 
-export function DrawerNav({useriders, onNavigate, onClose }) {
-
+export function DrawerNav({ onNavigate, onClose }) {
   return (
     <div style={{ padding: "10px 10px", flex: 1 }}>
       {NAV_LINKS.map(({ icon: Icon, label, tab }) => (

@@ -15,6 +15,7 @@ import { DriversTab }    from '@/App/Admin/Driverstab';
 import { ApprovalsTab }  from '@/App/Admin/Approvalstab';
 import { AnalyticsTab }  from '@/App/Admin/Analyticstab';
 import { RidersTab }     from '@/App/Admin/RidersTab';
+import { SearchTab }     from '@/App/Admin/SearchTab';
 import { ComplianceTab } from '@/App/Admin/ComplianceTab';
 import { SettingsTab }   from '@/App/Admin/SettingsTab';
 
@@ -31,7 +32,7 @@ import { useFleetDrivers }    from "@/App/Admin/useFleetDrivers";
 import { useApprovals }       from "@/App/Admin/useApprovals";
 import { useRideAnalytics }   from "@/App/Admin/useRideAnalytics";
 import { useRiders }          from "@/App/Admin/useRiders";
-import { useSearches } from "@/App/Admin/useSearches";
+import { useSearches }        from "@/App/Admin/useSearches";
 
 // ── Callables ──────────────────────────────────────────────────────────────
 const functions          = getFunctions(firebase_app, "us-east1");
@@ -116,7 +117,7 @@ function AdminNotificationPopup({ onEnable, onSkip, loading, error }) {
             {[
               { icon: "🚗", text: "New ride requests" },
               { icon: "✅", text: "Driver approval alerts" },
-              { icon: "⚠️", text: "Platform warnings" },
+              { icon: "⚠️",  text: "Platform warnings" },
             ].map(({ icon, text }) => (
               <div key={text} style={{
                 display: "flex", alignItems: "center", gap: "10px",
@@ -175,7 +176,8 @@ const TAB_TITLES = {
   drivers:    "Drivers",
   approvals:  "Approvals",
   analytics:  "Analytics",
-  riders:     "Riders",
+  riders:     "Account",
+  search:     "Search",
   compliance: "Compliance",
   settings:   "Settings",
 };
@@ -188,7 +190,7 @@ export default function UaTobAdminDashboard() {
   const [showNotifPopup, setShowNotifPopup] = useState(false);
   const [notifLoading,   setNotifLoading]   = useState(false);
   const [notifError,     setNotifError]     = useState("");
-  const { views } = useViews();
+  const { views }   = useViews();
   const { searches } = useSearches();
 
   const useriders = useRiders();
@@ -199,7 +201,7 @@ export default function UaTobAdminDashboard() {
   const { uatobdrivers }   = useDriverPresence();
   const { activeRides }    = useActiveRides();
   const { searchingRides } = useSearchingRides();
-  const { totalRides,rides }     = useTotalRides();
+  const { totalRides, rides } = useTotalRides();
   const { activeDrivers }  = useActiveDrivers();
   const { revenue }        = useRevenueToday();
   const { liveRides }      = useLiveRides();
@@ -315,6 +317,8 @@ export default function UaTobAdminDashboard() {
         );
       case "riders":
         return <RidersTab useriders={useriders} onBack={() => setActiveTab("home")} />;
+      case "search":
+        return <SearchTab searches={searches} onToast={showToast} />;
       case "compliance":
         return <ComplianceTab onBack={() => setActiveTab("home")} />;
       case "settings":
@@ -326,7 +330,7 @@ export default function UaTobAdminDashboard() {
     activeTab, liveRides, totalRides, activeDrivers, revenue,
     allApprovals, approvals, fleet, avgTripDuration, avgFare,
     acceptanceRate, cancellationRate, topDrivers, analyticsTotal,
-    ridesPerDay,
+    ridesPerDay, searches, useriders, uatobdrivers, rides, views,
   ]);
 
   // ── Render ─────────────────────────────────────────────────────────────
