@@ -18,7 +18,9 @@ import {
   Reply,
   Copy,
   Trash2,
-  Flag
+  Flag,
+  ArrowLeft,
+  Zap
 } from "lucide-react";
 import {
   getFirestore,
@@ -35,29 +37,31 @@ import {
   limit,
   writeBatch
 } from "firebase/firestore";
-import { firebase_app } from "@/firebase/config";
+import { onAuthStateChanged } from "firebase/auth";
+import { firebase_app, auth } from "@/firebase/config";
 
 const db = getFirestore(firebase_app);
 
 // ─────────────────────────────────────────────────────────────
-// STYLES
+// MODERN STYLES
 // ─────────────────────────────────────────────────────────────
 const styles = {
   container: {
     height: "100%",
     display: "flex",
     flexDirection: "column",
-    background: "#F9FAFB",
+    background: "#FFFFFF",
     fontFamily: "'Inter', system-ui, -apple-system, sans-serif"
   },
   header: {
     background: "#FFFFFF",
     borderBottom: "1px solid #E5E7EB",
-    padding: "16px 24px",
+    padding: "16px 28px",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    flexShrink: 0
+    flexShrink: 0,
+    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.08)"
   },
   headerLeft: {
     display: "flex",
@@ -67,50 +71,55 @@ const styles = {
   backButton: {
     border: "none",
     background: "#F3F4F6",
-    borderRadius: 8,
-    width: 36,
-    height: 36,
+    borderRadius: 10,
+    width: 40,
+    height: 40,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     cursor: "pointer",
     fontSize: 18,
-    transition: "all 0.2s"
+    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+    color: "#374151",
+    hover: "background 0.3s"
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: 600,
-    color: "#111827"
+    fontSize: 20,
+    fontWeight: 700,
+    color: "#111827",
+    letterSpacing: "-0.5px"
   },
   stats: {
     display: "flex",
-    gap: 16,
+    gap: 12,
     alignItems: "center"
   },
   statBadge: {
     background: "#EFF6FF",
-    padding: "6px 12px",
+    padding: "8px 14px",
     borderRadius: 20,
-    fontSize: 13,
-    fontWeight: 500,
-    color: "#2563EB",
+    fontSize: 12,
+    fontWeight: 600,
+    color: "#0369A1",
     display: "flex",
     alignItems: "center",
-    gap: 6
+    gap: 6,
+    border: "1px solid #BFE0F1"
   },
   body: {
     display: "flex",
     flex: 1,
     overflow: "hidden",
-    gap: 1,
-    background: "#E5E7EB"
+    gap: 0,
+    background: "#FFFFFF"
   },
   sidebar: {
     width: 360,
-    background: "#FFFFFF",
+    background: "#F9FAFB",
     display: "flex",
     flexDirection: "column",
-    overflow: "hidden"
+    overflow: "hidden",
+    borderRight: "1px solid #E5E7EB"
   },
   searchBar: {
     padding: 16,
@@ -118,12 +127,14 @@ const styles = {
   },
   searchInput: {
     width: "100%",
-    padding: "10px 36px 10px 12px",
-    borderRadius: 10,
-    border: "1px solid #E5E7EB",
+    padding: "12px 16px 12px 16px",
+    borderRadius: 12,
+    border: "1px solid #D1D5DB",
     fontSize: 14,
-    background: "#F9FAFB",
-    outline: "none"
+    background: "#FFFFFF",
+    color: "#111827",
+    outline: "none",
+    transition: "all 0.3s"
   },
   filterBar: {
     padding: "12px 16px",
@@ -133,32 +144,39 @@ const styles = {
     flexWrap: "wrap"
   },
   filterChip: {
-    padding: "6px 12px",
+    padding: "8px 14px",
     borderRadius: 20,
     fontSize: 12,
-    fontWeight: 500,
+    fontWeight: 600,
     cursor: "pointer",
-    transition: "all 0.2s"
+    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+    background: "#F3F4F6",
+    color: "#6B7280",
+    border: "1px solid #D1D5DB"
   },
   convList: {
     flex: 1,
     overflowY: "auto"
   },
   convItem: {
-    padding: 16,
-    borderBottom: "1px solid #F3F4F6",
+    padding: 14,
+    margin: "8px 8px",
+    borderBottom: "none",
     cursor: "pointer",
-    transition: "all 0.2s",
-    position: "relative"
+    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+    position: "relative",
+    borderRadius: 12,
+    background: "#FFFFFF",
+    border: "1px solid #E5E7EB"
   },
   convHeader: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 6
+    marginBottom: 8
   },
   convName: {
-    fontWeight: 600,
+    fontWeight: 700,
     fontSize: 14,
     color: "#111827"
   },
@@ -167,9 +185,9 @@ const styles = {
     color: "#9CA3AF"
   },
   convPreview: {
-    fontSize: 13,
+    fontSize: 12,
     color: "#6B7280",
-    marginBottom: 8,
+    marginBottom: 10,
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis"
@@ -181,12 +199,12 @@ const styles = {
     fontSize: 11
   },
   unreadBadge: {
-    background: "#DC2626",
-    color: "white",
+    background: "#FEE2E2",
+    color: "#DC2626",
     borderRadius: 12,
-    padding: "2px 8px",
+    padding: "4px 10px",
     fontSize: 11,
-    fontWeight: 600
+    fontWeight: 700
   },
   chatArea: {
     flex: 1,
@@ -196,7 +214,7 @@ const styles = {
     overflow: "hidden"
   },
   chatHeader: {
-    padding: "16px 24px",
+    padding: "20px 28px",
     borderBottom: "1px solid #E5E7EB",
     display: "flex",
     justifyContent: "space-between",
@@ -206,20 +224,21 @@ const styles = {
   driverInfo: {
     display: "flex",
     alignItems: "center",
-    gap: 12
+    gap: 14
   },
   driverAvatar: {
-    width: 48,
-    height: 48,
+    width: 56,
+    height: 56,
     borderRadius: "50%",
-    background: "linear-gradient(135deg, #EFF6FF, #DBEAFE)",
-    border: "2px solid #BFDBFE",
+    background: "linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%)",
+    border: "2px solid #DBEAFE",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontWeight: 600,
+    fontWeight: 700,
     fontSize: 18,
-    color: "#2563EB"
+    color: "#FFFFFF",
+    boxShadow: "0 4px 12px rgba(59, 130, 246, 0.15)"
   },
   driverDetails: {
     display: "flex",
@@ -234,35 +253,36 @@ const styles = {
   driverRating: {
     display: "flex",
     alignItems: "center",
-    gap: 4,
-    fontSize: 12,
+    gap: 6,
+    fontSize: 13,
     color: "#6B7280"
   },
   actionButtons: {
     display: "flex",
-    gap: 8
+    gap: 10
   },
   actionBtn: {
-    padding: "8px 12px",
-    borderRadius: 8,
-    border: "1px solid #E5E7EB",
-    background: "#FFFFFF",
+    padding: "10px 14px",
+    borderRadius: 10,
+    border: "1px solid #D1D5DB",
+    background: "#F3F4F6",
     cursor: "pointer",
     fontSize: 12,
-    fontWeight: 500,
+    fontWeight: 600,
     display: "flex",
     alignItems: "center",
     gap: 6,
-    transition: "all 0.2s"
+    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+    color: "#374151"
   },
   messages: {
     flex: 1,
     overflowY: "auto",
-    padding: "24px",
+    padding: "24px 28px",
     display: "flex",
     flexDirection: "column",
     gap: 16,
-    background: "#F9FAFB"
+    background: "#FFFFFF"
   },
   messageGroup: {
     display: "flex",
@@ -271,20 +291,23 @@ const styles = {
   },
   messageBubble: {
     maxWidth: "65%",
-    padding: "10px 14px",
-    borderRadius: 12,
+    padding: "12px 16px",
+    borderRadius: 14,
     fontSize: 14,
     lineHeight: 1.5,
-    position: "relative"
+    position: "relative",
+    wordWrap: "break-word",
+    wordBreak: "break-word"
   },
   messageOutgoing: {
-    background: "#2563EB",
+    background: "linear-gradient(135deg, #3B82F6 0%, #1E40AF 100%)",
     color: "white",
     alignSelf: "flex-end",
-    borderBottomRightRadius: 4
+    borderBottomRightRadius: 4,
+    boxShadow: "0 4px 12px rgba(59, 130, 246, 0.2)"
   },
   messageIncoming: {
-    background: "#FFFFFF",
+    background: "#F3F4F6",
     color: "#111827",
     border: "1px solid #E5E7EB",
     alignSelf: "flex-start",
@@ -294,7 +317,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: 6,
-    marginTop: 4,
+    marginTop: 6,
     fontSize: 11,
     color: "#9CA3AF"
   },
@@ -302,23 +325,22 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: 4,
-    padding: "10px 14px",
-    background: "#FFFFFF",
+    padding: "12px 16px",
+    background: "#F3F4F6",
     border: "1px solid #E5E7EB",
-    borderRadius: 12,
+    borderRadius: 14,
     borderBottomLeftRadius: 4,
-    width: "fit-content",
-    gap: 6
+    width: "fit-content"
   },
   typingDot: {
-    width: 6,
-    height: 6,
+    width: 8,
+    height: 8,
     borderRadius: "50%",
     background: "#9CA3AF",
     animation: "bounce 1.4s infinite"
   },
   inputBar: {
-    padding: "16px 24px",
+    padding: "16px 28px",
     borderTop: "1px solid #E5E7EB",
     background: "#FFFFFF",
     display: "flex",
@@ -327,28 +349,31 @@ const styles = {
   },
   textarea: {
     flex: 1,
-    padding: "10px 16px",
-    borderRadius: 20,
-    border: "1px solid #E5E7EB",
+    padding: "12px 16px",
+    borderRadius: 12,
+    border: "1px solid #D1D5DB",
     fontSize: 14,
     fontFamily: "inherit",
     resize: "none",
     outline: "none",
     maxHeight: 120,
-    background: "#F9FAFB"
+    background: "#F9FAFB",
+    color: "#111827",
+    transition: "all 0.3s"
   },
   sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    background: "#2563EB",
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    background: "linear-gradient(135deg, #3B82F6 0%, #1E40AF 100%)",
     border: "none",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     cursor: "pointer",
-    transition: "all 0.2s",
-    flexShrink: 0
+    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+    flexShrink: 0,
+    boxShadow: "0 4px 12px rgba(59, 130, 246, 0.2)"
   },
   emptyState: {
     flex: 1,
@@ -356,25 +381,30 @@ const styles = {
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    gap: 12,
+    gap: 16,
     color: "#9CA3AF"
   },
   quickReplies: {
-    padding: "12px 24px",
+    padding: "16px 28px",
     borderTop: "1px solid #E5E7EB",
     display: "flex",
     gap: 8,
     flexWrap: "wrap",
-    background: "#FFFFFF"
+    background: "#FFFFFF",
+    maxHeight: 80,
+    overflowY: "auto"
   },
   quickReplyBtn: {
-    padding: "6px 12px",
-    borderRadius: 16,
+    padding: "8px 12px",
+    borderRadius: 10,
     background: "#F3F4F6",
-    border: "none",
-    fontSize: 12,
+    border: "1px solid #D1D5DB",
+    fontSize: 11,
+    fontWeight: 600,
     cursor: "pointer",
-    transition: "all 0.2s"
+    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+    color: "#374151",
+    whiteSpace: "nowrap"
   }
 };
 
@@ -392,6 +422,7 @@ const QUICK_REPLIES = [
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────
 export function ChatTab({ onBack, onToast }) {
+  const [user, setUser] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [selectedConv, setSelectedConv] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -405,10 +436,20 @@ export function ChatTab({ onBack, onToast }) {
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
 
+  useEffect(() => {
+    const unsubAuth = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+    });
+
+    return () => unsubAuth();
+  }, []);
+
   // ─────────────────────────────────────────────────────────
   // LOAD CONVERSATIONS (SupportThreads)
   // ─────────────────────────────────────────────────────────
   useEffect(() => {
+    if (!user) return; // wait for authenticated user to avoid permission errors
+
     const q = query(
       collection(db, "SupportThreads"),
       orderBy("updatedAt", "desc")
@@ -422,8 +463,7 @@ export function ChatTab({ onBack, onToast }) {
           ...doc.data()
         }));
         setConversations(convs);
-        
-        // If selected conversation still exists, update it
+
         if (selectedConv) {
           const updated = convs.find(c => c.id === selectedConv.id);
           if (updated) setSelectedConv(updated);
@@ -436,13 +476,13 @@ export function ChatTab({ onBack, onToast }) {
     );
 
     return () => unsub();
-  }, []);
+  }, [user]);
 
   // ─────────────────────────────────────────────────────────
   // LOAD MESSAGES FOR SELECTED CONVERSATION
   // ─────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!selectedConv) return;
+    if (!selectedConv || !user) return;
 
     const messagesRef = collection(db, "Support");
     const q = query(
@@ -630,25 +670,31 @@ export function ChatTab({ onBack, onToast }) {
       <div style={styles.header}>
         <div style={styles.headerLeft}>
           <button 
-            onClick={onBack} 
+            onClick={onBack}
             style={styles.backButton}
             onMouseEnter={(e) => e.target.style.background = "#E5E7EB"}
             onMouseLeave={(e) => e.target.style.background = "#F3F4F6"}
+            title="Go back"
           >
-            ←
+            <ArrowLeft size={20} />
           </button>
-          <MessageCircle size={20} color="#2563EB" />
-          <span style={styles.headerTitle}>Support Chat</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <MessageCircle size={24} color="#3B82F6" />
+            <div>
+              <h1 style={styles.headerTitle}>Support Chat</h1>
+              <p style={{ fontSize: 12, color: "#9CA3AF", margin: 0 }}>Admin messaging hub</p>
+            </div>
+          </div>
         </div>
         
         <div style={styles.stats}>
           <div style={styles.statBadge}>
-            <Clock size={14} />
-            <span>Response time: &lt;5 min</span>
+            <Zap size={14} />
+            <span>Response: &lt;5 min</span>
           </div>
           <div style={styles.statBadge}>
             <MessageCircle size={14} />
-            <span>{conversations.length} active chats</span>
+            <span>{conversations.length} active</span>
           </div>
         </div>
       </div>
@@ -657,34 +703,40 @@ export function ChatTab({ onBack, onToast }) {
         {/* Sidebar */}
         <div style={styles.sidebar}>
           <div style={styles.searchBar}>
-            <input
-              type="text"
-              placeholder="Search by name or email..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={styles.searchInput}
-            />
+            <div style={{ position: "relative" }}>
+              <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#9CA3AF" }} />
+              <input
+                type="text"
+                placeholder="Search drivers..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                style={{ ...styles.searchInput, paddingLeft: 36 }}
+                onFocus={(e) => e.target.style.borderColor = "#3B82F6"}
+                onBlur={(e) => e.target.style.borderColor = "#D1D5DB"}
+              />
+            </div>
           </div>
           
           <div style={styles.filterBar}>
             {[
-              { key: "all", label: "All" },
-              { key: "unread", label: "Unread" },
-              { key: "active", label: "Active (24h)" }
+              { key: "all", label: "All", icon: MessageCircle },
+              { key: "unread", label: "Unread", icon: AlertCircle },
+              { key: "active", label: "24h Active", icon: Clock }
             ].map(f => (
               <button
                 key={f.key}
                 onClick={() => setFilter(f.key)}
                 style={{
                   ...styles.filterChip,
-                  background: filter === f.key ? "#2563EB" : "#F3F4F6",
-                  color: filter === f.key ? "white" : "#6B7280"
+                  background: filter === f.key ? "#EFF6FF" : "#F3F4F6",
+                  color: filter === f.key ? "#0369A1" : "#6B7280",
+                  border: filter === f.key ? "1px solid #BFE0F1" : "1px solid #D1D5DB"
                 }}
               >
                 {f.label}
                 {f.key === "unread" && conversations.filter(c => (c.unreadByAdmin || 0) > 0).length > 0 && (
-                  <span style={{ marginLeft: 4, fontWeight: 600 }}>
-                    ({conversations.filter(c => (c.unreadByAdmin || 0) > 0).length})
+                  <span style={{ marginLeft: 4, fontWeight: 700, color: "#DC2626" }}>
+                    •
                   </span>
                 )}
               </button>
@@ -692,48 +744,65 @@ export function ChatTab({ onBack, onToast }) {
           </div>
           
           <div style={styles.convList}>
-            {filteredConversations.map((conv) => (
-              <div
-                key={conv.id}
-                onClick={() => {
-                  setSelectedConv(conv);
-                  setDriverDetails(null);
-                }}
-                style={{
-                  ...styles.convItem,
-                  background: selectedConv?.id === conv.id ? "#F3F4F6" : "transparent"
-                }}
-              >
-                <div style={styles.convHeader}>
-                  <span style={styles.convName}>
-                    {conv.driverName || conv.driverId?.slice(0, 8) || "Unknown Driver"}
-                  </span>
-                  <span style={styles.convTime}>
-                    {formatTime(conv.updatedAt)}
-                  </span>
-                </div>
-                <div style={styles.convPreview}>
-                  {conv.lastMessage || "No messages yet"}
-                </div>
-                <div style={styles.convMeta}>
-                  {conv.unreadByAdmin > 0 && (
-                    <span style={styles.unreadBadge}>
-                      {conv.unreadByAdmin} new
+            {filteredConversations.length > 0 ? (
+              filteredConversations.map((conv) => (
+                <div
+                  key={conv.id}
+                  onClick={() => {
+                    setSelectedConv(conv);
+                    setDriverDetails(null);
+                  }}
+                  style={{
+                    ...styles.convItem,
+                    background: selectedConv?.id === conv.id 
+                      ? "#EFF6FF"
+                      : "#FFFFFF",
+                    borderColor: selectedConv?.id === conv.id ? "#BFE0F1" : "#E5E7EB"
+                  }}
+                  onMouseEnter={(e) => {
+                    if (selectedConv?.id !== conv.id) {
+                      e.currentTarget.style.background = "#F3F4F6";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (selectedConv?.id !== conv.id) {
+                      e.currentTarget.style.background = "#FFFFFF";
+                    }
+                  }}
+                >
+                  <div style={styles.convHeader}>
+                    <span style={styles.convName}>
+                      {conv.driverName || conv.driverId?.slice(0, 8) || "Unknown"}
                     </span>
-                  )}
-                  {conv.lastSender === "driver" && (
-                    <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <Reply size={12} />
-                      Driver
+                    <span style={styles.convTime}>
+                      {formatTime(conv.updatedAt)}
                     </span>
-                  )}
+                  </div>
+                  <div style={styles.convPreview}>
+                    {conv.lastMessage || "No messages yet"}
+                  </div>
+                  <div style={styles.convMeta}>
+                    {conv.unreadByAdmin > 0 && (
+                      <span style={styles.unreadBadge}>
+                        {conv.unreadByAdmin} new
+                      </span>
+                    )}
+                    {conv.lastSender === "driver" && (
+                      <span style={{ display: "flex", alignItems: "center", gap: 4, color: "#0369A1" }}>
+                        <Reply size={11} />
+                        Driver
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-            
-            {filteredConversations.length === 0 && (
-              <div style={{ padding: 40, textAlign: "center", color: "#9CA3AF" }}>
-                No conversations found
+              ))
+            ) : (
+              <div style={styles.emptyState}>
+                <MessageCircle size={40} strokeWidth={1} opacity={0.3} />
+                <div style={{ textAlign: "center" }}>
+                  <p style={{ margin: "0 0 4px 0", fontWeight: 600 }}>No conversations</p>
+                  <p style={{ margin: 0, fontSize: 12 }}>Try adjusting your filters</p>
+                </div>
               </div>
             )}
           </div>
@@ -743,8 +812,11 @@ export function ChatTab({ onBack, onToast }) {
         <div style={styles.chatArea}>
           {!selectedConv ? (
             <div style={styles.emptyState}>
-              <MessageCircle size={48} strokeWidth={1.5} />
-              <div>Select a conversation to start replying</div>
+              <MessageCircle size={56} strokeWidth={1} opacity={0.2} />
+              <div style={{ textAlign: "center" }}>
+                <p style={{ margin: "0 0 8px 0", fontSize: 16, fontWeight: 600 }}>No conversation selected</p>
+                <p style={{ margin: 0, fontSize: 13 }}>Choose a driver from the list to start messaging</p>
+              </div>
             </div>
           ) : (
             <>
@@ -760,9 +832,18 @@ export function ChatTab({ onBack, onToast }) {
                       {driverDetails?.firstName} {driverDetails?.lastName}
                     </span>
                     <div style={styles.driverRating}>
-                      <Star size={14} fill="#F59E0B" color="#F59E0B" />
-                      <span>{driverDetails?.averageRating?.toFixed(1) || "New"}</span>
-                      <span>•</span>
+                      {driverDetails?.averageRating ? (
+                        <>
+                          <Star size={14} fill="#FBBF24" color="#FBBF24" />
+                          <span>{driverDetails.averageRating.toFixed(1)}</span>
+                          <span>•</span>
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ color: "#94A3B8" }}>New Driver</span>
+                          <span>•</span>
+                        </>
+                      )}
                       <Mail size={12} />
                       <span>{driverDetails?.email || selectedConv.driverEmail}</span>
                     </div>
@@ -770,11 +851,18 @@ export function ChatTab({ onBack, onToast }) {
                 </div>
                 
                 <div style={styles.actionButtons}>
-                  <button style={styles.actionBtn}>
+                  <button 
+                    style={styles.actionBtn}
+                    onClick={() => navigator.clipboard.writeText(selectedConv.driverId)}
+                    title="Copy driver ID"
+                  >
                     <Copy size={14} />
                     Copy ID
                   </button>
-                  <button style={styles.actionBtn}>
+                  <button 
+                    style={styles.actionBtn}
+                    title="Report driver"
+                  >
                     <Flag size={14} />
                     Report
                   </button>
@@ -783,9 +871,14 @@ export function ChatTab({ onBack, onToast }) {
 
               {/* Messages */}
               <div style={styles.messages}>
+                {messages.length === 0 && (
+                  <div style={{ ...styles.emptyState, gap: 12 }}>
+                    <MessageCircle size={40} strokeWidth={1} opacity={0.3} />
+                    <span style={{ fontSize: 13 }}>No messages yet</span>
+                  </div>
+                )}
                 {messages.map((msg, idx) => {
                   const isAdmin = msg.sender === "admin";
-                  const showAvatar = !isAdmin && (idx === 0 || messages[idx-1]?.sender !== "driver");
                   
                   return (
                     <div key={msg.id} style={styles.messageGroup}>
@@ -805,13 +898,13 @@ export function ChatTab({ onBack, onToast }) {
                       >
                         {isAdmin ? (
                           <>
-                            <span>Admin</span>
+                            <span style={{ fontWeight: 600 }}>You</span>
                             <span>•</span>
                             <span>{formatTime(msg.createdAt)}</span>
                             {msg.status === "read" ? (
-                              <CheckCheck size={12} color="#22C55E" />
+                              <CheckCheck size={12} color="#10B981" />
                             ) : (
-                              <Check size={12} color="#9CA3AF" />
+                              <Check size={12} color="#94A3B8" />
                             )}
                           </>
                         ) : (
@@ -819,7 +912,6 @@ export function ChatTab({ onBack, onToast }) {
                             <span>{driverDetails?.firstName || "Driver"}</span>
                             <span>•</span>
                             <span>{formatTime(msg.createdAt)}</span>
-                            {msg.isAuto && <span>• Auto-reply</span>}
                           </>
                         )}
                       </div>
@@ -829,7 +921,7 @@ export function ChatTab({ onBack, onToast }) {
                 
                 {typing && (
                   <div style={styles.typingIndicator}>
-                    <span style={{ fontSize: 12, color: "#6B7280" }}>Driver is typing</span>
+                    <span style={{ fontSize: 12, color: "#94A3B8" }}>Driver is typing</span>
                     {[0, 0.2, 0.4].map(delay => (
                       <div
                         key={delay}
@@ -852,8 +944,19 @@ export function ChatTab({ onBack, onToast }) {
                     key={idx}
                     style={styles.quickReplyBtn}
                     onClick={() => sendMessage(reply)}
+                    onMouseEnter={(e) => {
+                      e.target.style.background = "#DBEAFE";
+                      e.target.style.borderColor = "#BFE0F1";
+                      e.target.style.color = "#0369A1";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.background = "#F3F4F6";
+                      e.target.style.borderColor = "#D1D5DB";
+                      e.target.style.color = "#374151";
+                    }}
+                    title={reply}
                   >
-                    {reply.length > 30 ? reply.slice(0, 30) + "..." : reply}
+                    {reply.length > 28 ? reply.slice(0, 28) + "..." : reply}
                   </button>
                 ))}
               </div>
@@ -865,9 +968,11 @@ export function ChatTab({ onBack, onToast }) {
                   value={newMessage}
                   onChange={handleTextareaChange}
                   onKeyDown={handleKeyPress}
-                  placeholder="Type your reply... (Shift+Enter for new line)"
+                  placeholder="Type a reply... (Shift+Enter for new line)"
                   rows={1}
                   style={styles.textarea}
+                  onFocus={(e) => e.target.style.borderColor = "#3B82F6"}
+                  onBlur={(e) => e.target.style.borderColor = "#D1D5DB"}
                 />
                 <button
                   onClick={() => sendMessage()}
@@ -877,11 +982,20 @@ export function ChatTab({ onBack, onToast }) {
                     opacity: !newMessage.trim() || sending ? 0.5 : 1,
                     cursor: !newMessage.trim() || sending ? "not-allowed" : "pointer"
                   }}
+                  onMouseEnter={(e) => {
+                    if (!sending && newMessage.trim()) {
+                      e.target.style.boxShadow = "0 8px 20px rgba(59, 130, 246, 0.25)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.boxShadow = "0 4px 12px rgba(59, 130, 246, 0.2)";
+                  }}
+                  title="Send message"
                 >
                   {sending ? (
-                    <div style={{ width: 16, height: 16, border: "2px solid white", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                    <div style={{ width: 18, height: 18, border: "2px solid transparent", borderTopColor: "white", borderRightColor: "white", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
                   ) : (
-                    <Send size={16} color="white" />
+                    <Send size={18} color="white" />
                   )}
                 </button>
               </div>
@@ -890,15 +1004,30 @@ export function ChatTab({ onBack, onToast }) {
         </div>
       </div>
 
-      {/* Add keyframe animations */}
+      {/* Animations */}
       <style>{`
         @keyframes bounce {
-          0%, 80%, 100% { transform: translateY(0); }
-          40% { transform: translateY(-4px); }
+          0%, 80%, 100% { transform: translateY(0); opacity: 1; }
+          40% { transform: translateY(-4px); opacity: 0.7; }
         }
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+        
+        /* Scrollbar styling */
+        div::-webkit-scrollbar {
+          width: 8px;
+        }
+        div::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        div::-webkit-scrollbar-thumb {
+          background: #D1D5DB;
+          border-radius: 4px;
+        }
+        div::-webkit-scrollbar-thumb:hover {
+          background: #9CA3AF;
         }
       `}</style>
     </div>

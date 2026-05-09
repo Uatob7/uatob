@@ -1,233 +1,156 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ═══════════════════════════════════════════════════════════
-    // 🔐 SECURITY HELPERS
-    // ═══════════════════════════════════════════════════════════
-
-    function isAdmin() {
-      return request.auth != null && 
-             request.auth.token.admin == true;
-    }
-
-    function isAuthenticated() {
+    function isSignedIn() {
       return request.auth != null;
     }
 
-    function isOwnData(userId) {
-      return request.auth != null && request.auth.uid == userId;
+    match /Admin/{docId} {
+      allow read:  if true;
+      allow write: if false;
+
+      match /{subcollection=**} {
+        allow read:  if isSignedIn();
+        allow write: if false;
+      }
     }
 
-    function rateLimitCheck(path, limit, period) {
-      return resource == null || 
-             request.time.toMillis() - 
-             timestamp.toMillis(resource.data.timestamp) > period || 
-             (resource.data.count < limit);
+    match /Admin/views/events/{eventId} {
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
     }
 
-    function validateEmail(email) {
-      return email.matches('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$');
-    }
-
-    function validatePhone(phone) {
-      return phone.size() >= 10 && phone.size() <= 15;
-    }
-
-    function validateZip(zip) {
-      return zip.matches('^\\d{5}(-\\d{4})?$');
-    }
-
-    // ═══════════════════════════════════════════════════════════
-    // 🚗 RIDES COLLECTION - Enhanced validation & rate limiting
-    // ═══════════════════════════════════════════════════════════
     match /Rides/{rideId} {
-      // ✅ READ: Users can only read rides they're part of
-      allow read: if isAuthenticated() && 
-                     (request.auth.uid == resource.data.riderId || 
-                      request.auth.uid == resource.data.driverId ||
-                      isAdmin());
-
-      // ✅ CREATE: Riders can create rides (not drivers)
-      allow create: if isAuthenticated() && 
-                       request.resource.data.riderId == request.auth.uid &&
-                       request.resource.data.keys().hasAll(['riderId', 'startLocation', 'endLocation', 'fare']) &&
-                       request.resource.data.fare > 0 &&
-                       request.resource.data.startLocation.lat != null &&
-                       request.resource.data.startLocation.lng != null &&
-                       request.resource.data.endLocation.lat != null &&
-                       request.resource.data.endLocation.lng != null;
-
-      // ✅ UPDATE: Only driver or owner can update
-      allow update: if isAuthenticated() && 
-                       (request.auth.uid == resource.data.riderId || 
-                        request.auth.uid == resource.data.driverId) &&
-                       request.resource.data.riderId == resource.data.riderId &&
-                       request.resource.data.fare == resource.data.fare;
-
-      // ❌ DELETE: Never allow deletion
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        request.auth.uid == resource.data.uid ||
+        request.auth.uid == resource.data.driverUid
+      );
       allow delete: if false;
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // 👨‍💼 DRIVERS COLLECTION - Restrict sensitive data & self-only writes
-    // ═══════════════════════════════════════════════════════════
+    match /Rides/{rideId}/Messages/{messageId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && (
+        request.auth.uid == get(/databases/$(database)/documents/Rides/$(rideId)).data.uid ||
+        request.auth.uid == get(/databases/$(database)/documents/Rides/$(rideId)).data.driverUid
+      );
+      allow update, delete: if false;
+    }
+
     match /Drivers/{driverId} {
-      // ✅ READ: Only own data or admin
-      allow read: if isOwnData(driverId) || isAdmin();
-
-      // ✅ WRITE: Only own profile
-      allow write: if isOwnData(driverId) && 
-                      // Prevent UID spoofing
-                      request.resource.data.uid == driverId &&
-                      // Validate required fields
-                      request.resource.data.keys().hasAll(['firstName', 'lastName', 'email']) &&
-                      // Validate email format
-                      validateEmail(request.resource.data.email) &&
-                      // Validate phone if present
-                      (!request.resource.data.keys().has('contact') || 
-                       !request.resource.data.contact.keys().has('phone') ||
-                       validatePhone(request.resource.data.contact.phone)) &&
-                      // Validate ZIP if present
-                      (!request.resource.data.keys().has('zip') ||
-                       validateZip(request.resource.data.zip)) &&
-                      // Validate document URLs are from Firebase Storage
-                      (!request.resource.data.keys().has('documents') ||
-                       checkDocumentUrls(request.resource.data.documents)) &&
-                      // Prevent negative earnings
-                      (!request.resource.data.keys().has('earnings') ||
-                       request.resource.data.earnings.today.earnings >= 0) &&
-                      // Prevent suspicious status changes
-                      (resource == null || resource.data.status == request.resource.data.status ||
-                       request.resource.data.status in ['online', 'offline', 'suspended']);
+      allow read:  if isSignedIn();
+      allow write: if isSignedIn() && request.auth.uid == driverId;
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // 👤 USERS COLLECTION - Own data only
-    // ═══════════════════════════════════════════════════════════
+    match /Riders/{userId} {
+      allow read:  if isSignedIn() && request.auth.uid == userId;
+      allow write: if isSignedIn() && request.auth.uid == userId;
+    }
+
     match /users/{userId} {
-      allow read, write: if isOwnData(userId);
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // 🏢 ACCOUNTS COLLECTION - Restrict to own account
-    // ═══════════════════════════════════════════════════════════
-    match /Accounts/{accountId} {
-      // ✅ READ: Only own account or admin
-      allow read: if isOwnData(accountId) || isAdmin();
-
-      // ✅ WRITE: Only own account with validation
-      allow write: if isOwnData(accountId) &&
-                      validateEmail(request.resource.data.email) &&
-                      (!request.resource.data.keys().has('phone') ||
-                       validatePhone(request.resource.data.phone));
+    match /Accounts/{userId} {
+      allow read:  if isSignedIn();
+      allow write: if isSignedIn() && request.auth.uid == userId;
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // 💳 PAYMENTS COLLECTION - Prevent fraud & validate amounts
-    // ═══════════════════════════════════════════════════════════
-    match /Payments/{paymentId} {
-      // Only read own payments or admin
-      allow read: if isOwnData(resource.data.userId) || isAdmin();
+    match /Search/{searchId} {
+      allow read:           if isSignedIn();
+      allow create:         if isSignedIn();
+      allow update, delete: if false;
+    }
 
-      // Create only for self
-      allow create: if isAuthenticated() &&
-                       request.resource.data.userId == request.auth.uid &&
-                       request.resource.data.amount > 0 &&
-                       request.resource.data.amount <= 10000 &&  // Max $100
-                       request.resource.data.keys().hasAll(['userId', 'amount', 'method']);
-
-      // No updates to prevent tampering
-      allow update: if false;
+    match /Reviews/{reviewId} {
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && request.auth.uid == resource.data.uid;
       allow delete: if false;
     }
+    
+    // ─────────────────────────────────────────
+    // SUPPORT MESSAGES (driver + admin safe)
+    // ─────────────────────────────────────────
+    match /Support/{messageId} {
 
-    // ═══════════════════════════════════════════════════════════
-    // 💰 WITHDRAWALS COLLECTION - Prevent fraud
-    // ═══════════════════════════════════════════════════════════
-    match /Withdrawals/{withdrawalId} {
-      allow read: if isOwnData(resource.data.driverId) || isAdmin();
+      // driver sees own thread OR admin sees all
+      allow read: if isSignedIn() &&
+        (isAdmin() ||
+        resource.data.threadId == "driver_" + request.auth.uid);
 
-      allow create: if isAuthenticated() &&
-                       request.resource.data.driverId == request.auth.uid &&
-                       request.resource.data.amount > 0 &&
-                       request.resource.data.amount <= 50000 &&  // Max $500
-                       request.resource.data.status == 'pending' &&
-                       request.resource.data.keys().hasAll(['driverId', 'amount', 'bankAccount']);
+      allow create: if isSignedIn() &&
+        (isAdmin() ||
+        request.resource.data.threadId == "driver_" + request.auth.uid);
+
+      allow update, delete: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────
+    // SUPPORT THREADS (FIXED FOR ADMIN CHAT)
+    // ─────────────────────────────────────────
+    match /SupportThreads/{threadId} {
+
+      // GET single document
+      allow get: if isSignedIn() &&
+        (isAdmin() || resource.data.driverId == request.auth.uid);
+
+      // LIST / SUBSCRIBE (THIS FIXES YOUR ERROR)
+      allow list: if isSignedIn() &&
+        (isAdmin() || resource.data.driverId == request.auth.uid);
+
+      allow create: if isSignedIn() &&
+        (isAdmin() || request.resource.data.driverId == request.auth.uid);
+
+      allow update: if isSignedIn() &&
+        (isAdmin() || resource.data.driverId == request.auth.uid);
+
+      allow delete: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────
+    // 🔥 NEW: ADMIN CHAT / CONVERSATIONS
+    // ─────────────────────────────────────────
+    match /Conversations/{convId} {
+
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn();
+
+      allow update: if isSignedIn() &&
+        (isAdmin() || request.auth.uid in resource.data.participants);
+
+      allow delete: if isAdmin();
+    }
+
+    match /Conversations/{convId}/Messages/{messageId} {
+
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn() &&
+        (isAdmin() || request.auth.uid in get(/databases/$(database)/documents/Conversations/$(convId)).data.participants);
 
       allow update: if isAdmin();
-      allow delete: if false;
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // 💬 SUPPORT THREADS COLLECTION - Admin messaging system
-    // ═══════════════════════════════════════════════════════════
-    match /SupportThreads/{threadId} {
-      // ✅ READ: Drivers can read their own threads, admins can read all
-      allow read: if isOwnData(resource.data.driverId) || isAdmin();
-
-      // ✅ CREATE: Drivers can create their own support threads
-      allow create: if isAuthenticated() &&
-                       request.resource.data.driverId == request.auth.uid &&
-                       request.resource.data.keys().hasAll(['driverId', 'driverEmail', 'driverName']) &&
-                       validateEmail(request.resource.data.driverEmail);
-
-      // ✅ UPDATE: Drivers can update their own threads (limited fields), admins can update all
-      allow update: if isAdmin() ||
-                       (isOwnData(resource.data.driverId) &&
-                        request.resource.data.driverId == resource.data.driverId);
-
-      allow delete: if false;
+    // ─────────────────────────────────────────
+    // COUNTS
+    // ─────────────────────────────────────────
+    match /counts/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // 💬 SUPPORT MESSAGES COLLECTION - Admin messaging
-    // ═══════════════════════════════════════════════════════════
-    match /Support/{messageId} {
-      // ✅ READ: Drivers can read their own thread messages, admins can read all
-      allow read: if isAdmin() ||
-                     (isAuthenticated() &&
-                      resource.data.driverId == request.auth.uid);
-
-      // ✅ CREATE: Both admins and drivers can create messages
-      allow create: if isAuthenticated() &&
-                       (isAdmin() || request.auth.uid == request.resource.data.driverId) &&
-                       request.resource.data.keys().hasAll(['threadId', 'driverId', 'message', 'sender']) &&
-                       request.resource.data.sender in ['admin', 'driver'];
-
-      // ✅ UPDATE: Only admins can mark messages as read
-      allow update: if isAdmin() &&
-                       // Only allow updating status field
-                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'readAt']) &&
-                       request.resource.data.status in ['read', 'unread'];
-
-      allow delete: if false;
-    }
-
-    // ❌ BLOCK EVERYTHING ELSE
+    // ─────────────────────────────────────────
+    // DEFAULT DENY
+    // ─────────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;
     }
-  }
-
-  // ═══════════════════════════════════════════════════════════
-  // 🛡️ HELPER FUNCTION - Validate document URLs
-  // ═══════════════════════════════════════════════════════════
-  function checkDocumentUrls(documents) {
-    return (!documents.keys().has('licenseFrontUrl') || 
-            documents.licenseFrontUrl == null ||
-            documents.licenseFrontUrl.matches('^https://firebasestorage\\.googleapis\\.com/.*')) &&
-           (!documents.keys().has('licenseBackUrl') ||
-            documents.licenseBackUrl == null ||
-            documents.licenseBackUrl.matches('^https://firebasestorage\\.googleapis\\.com/.*')) &&
-           (!documents.keys().has('registrationUrl') ||
-            documents.registrationUrl == null ||
-            documents.registrationUrl.matches('^https://firebasestorage\\.googleapis\\.com/.*')) &&
-           (!documents.keys().has('insuranceUrl') ||
-            documents.insuranceUrl == null ||
-            documents.insuranceUrl.matches('^https://firebasestorage\\.googleapis\\.com/.*')) &&
-           (!documents.keys().has('profilePhotoUrl') ||
-            documents.profilePhotoUrl == null ||
-            documents.profilePhotoUrl.matches('^https://firebasestorage\\.googleapis\\.com/.*'));
   }
 }
