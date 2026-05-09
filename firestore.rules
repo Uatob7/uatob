@@ -159,6 +159,51 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ═══════════════════════════════════════════════════════════
+    // 💬 SUPPORT THREADS COLLECTION - Admin messaging system
+    // ═══════════════════════════════════════════════════════════
+    match /SupportThreads/{threadId} {
+      // ✅ READ: Drivers can read their own threads, admins can read all
+      allow read: if isOwnData(resource.data.driverId) || isAdmin();
+
+      // ✅ CREATE: Drivers can create their own support threads
+      allow create: if isAuthenticated() &&
+                       request.resource.data.driverId == request.auth.uid &&
+                       request.resource.data.keys().hasAll(['driverId', 'driverEmail', 'driverName']) &&
+                       validateEmail(request.resource.data.driverEmail);
+
+      // ✅ UPDATE: Drivers can update their own threads (limited fields), admins can update all
+      allow update: if isAdmin() ||
+                       (isOwnData(resource.data.driverId) &&
+                        request.resource.data.driverId == resource.data.driverId);
+
+      allow delete: if false;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // 💬 SUPPORT MESSAGES COLLECTION - Admin messaging
+    // ═══════════════════════════════════════════════════════════
+    match /Support/{messageId} {
+      // ✅ READ: Drivers can read their own thread messages, admins can read all
+      allow read: if isAdmin() ||
+                     (isAuthenticated() &&
+                      resource.data.driverId == request.auth.uid);
+
+      // ✅ CREATE: Both admins and drivers can create messages
+      allow create: if isAuthenticated() &&
+                       (isAdmin() || request.auth.uid == request.resource.data.driverId) &&
+                       request.resource.data.keys().hasAll(['threadId', 'driverId', 'message', 'sender']) &&
+                       request.resource.data.sender in ['admin', 'driver'];
+
+      // ✅ UPDATE: Only admins can mark messages as read
+      allow update: if isAdmin() &&
+                       // Only allow updating status field
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'readAt']) &&
+                       request.resource.data.status in ['read', 'unread'];
+
+      allow delete: if false;
+    }
+
     // ❌ BLOCK EVERYTHING ELSE
     match /{document=**} {
       allow read, write: if false;

@@ -466,28 +466,37 @@ export function ChatTab({ onBack, onToast }) {
         );
         
         if (unreadMessages.length > 0) {
-          const batch = writeBatch(db);
-          unreadMessages.forEach(msg => {
-            const msgRef = doc(db, "Support", msg.id);
-            batch.update(msgRef, { status: "read" });
-          });
-          
-          // Also update thread unread count
-          const threadRef = doc(db, "SupportThreads", selectedConv.id);
-          batch.update(threadRef, { 
-            unreadByAdmin: 0,
-            lastReadAt: serverTimestamp()
-          });
-          
-          await batch.commit();
+          try {
+            const batch = writeBatch(db);
+            unreadMessages.forEach(msg => {
+              const msgRef = doc(db, "Support", msg.id);
+              batch.update(msgRef, { status: "read" });
+            });
+            
+            // Also update thread unread count
+            const threadRef = doc(db, "SupportThreads", selectedConv.id);
+            batch.update(threadRef, { 
+              unreadByAdmin: 0,
+              lastReadAt: serverTimestamp()
+            });
+            
+            await batch.commit();
+          } catch (err) {
+            console.error("Error marking messages as read:", err);
+            // Silently fail - don't show error to user as this is a non-critical operation
+          }
         }
 
         // Fetch driver details if not already loaded
         if (selectedConv.driverId && !driverDetails) {
-          const driverRef = doc(db, "Drivers", selectedConv.driverId);
-          const driverSnap = await getDoc(driverRef);
-          if (driverSnap.exists()) {
-            setDriverDetails(driverSnap.data());
+          try {
+            const driverRef = doc(db, "Drivers", selectedConv.driverId);
+            const driverSnap = await getDoc(driverRef);
+            if (driverSnap.exists()) {
+              setDriverDetails(driverSnap.data());
+            }
+          } catch (err) {
+            console.error("Error fetching driver details:", err);
           }
         }
       },
