@@ -609,3 +609,10 @@ service cloud.firestore {
   }
 }
 
+
+
+match /Support/{messageId} {
+  allow read:   if isSignedIn();
+  allow create: if isSignedIn() && request.auth.uid == request.resource.data.driverId;
+  allow update, delete: if false;
+}
