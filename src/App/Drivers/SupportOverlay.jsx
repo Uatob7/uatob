@@ -187,6 +187,8 @@ function formatTime(ts) {
 
 // ── Chat Screen ───────────────────────────────────────────────────────
 function ChatScreen({ driver, onClose }) {
+
+  console.log("[UaTob] SupportOverlay mounted for driver:", driver);
   const [leaving,  setLeaving]  = useState(false);
   const [messages, setMessages] = useState([]);
   const [text,     setText]     = useState("");
@@ -515,3 +517,95 @@ export default function SupportOverlay({ onClose, driver }) {
     </>
   );
 }
+
+
+
+SupportOverlay.jsx:266 [UaTob] Support send failed: FirebaseError: Missing or insufficient permissions.
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    match /Admin/{docId} {
+      allow read:  if true;
+      allow write: if false;
+
+      match /{subcollection=**} {
+        allow read:  if isSignedIn();
+        allow write: if false;
+      }
+    }
+
+    match /Admin/views/events/{eventId} {
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    match /Rides/{rideId} {
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        request.auth.uid == resource.data.uid ||
+        request.auth.uid == resource.data.driverUid
+      );
+      allow delete: if false;
+    }
+
+    match /Rides/{rideId}/Messages/{messageId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && (
+        request.auth.uid == get(/databases/$(database)/documents/Rides/$(rideId)).data.uid ||
+        request.auth.uid == get(/databases/$(database)/documents/Rides/$(rideId)).data.driverUid
+      );
+      allow update, delete: if false;
+    }
+
+    match /Drivers/{driverId} {
+      allow read:  if isSignedIn();
+      allow write: if isSignedIn() && request.auth.uid == driverId;
+    }
+
+    match /Riders/{userId} {
+      allow read:  if isSignedIn() && request.auth.uid == userId;
+      allow write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /users/{userId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /Accounts/{userId} {
+      allow read:  if isSignedIn();
+      allow write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /Search/{searchId} {
+      allow read:           if isSignedIn();
+      allow create:         if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    match /Reviews/{reviewId} {
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && request.auth.uid == resource.data.uid;
+      allow delete: if false;
+    }
+
+    match /counts/{docId} {
+      allow read:  if isSignedIn();
+      allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
