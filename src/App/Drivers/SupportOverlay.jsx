@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Star, X, Mail, ChevronRight, Send, ArrowLeft, CheckCheck, AlertCircle } from "lucide-react";
+import { Star, X, Mail, ChevronRight, Send, ArrowLeft, CheckCheck } from "lucide-react";
 import {
   getFirestore, collection, addDoc, query, where, orderBy,
   onSnapshot, serverTimestamp, doc, setDoc, getDoc, updateDoc,
@@ -31,6 +31,7 @@ const CSS = `
   @keyframes dot-bounce   { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }
   @keyframes sup-spin     { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
 
+  /* ── Support overlay ── */
   .sup-overlay {
     position:fixed;inset:0;z-index:1300;
     background:#F8FAFC;display:flex;flex-direction:column;
@@ -95,6 +96,7 @@ const CSS = `
   .sup-faq-a{font-size:13px;color:#6B7280;font-weight:500;line-height:1.55;margin-top:8px;border-top:1px solid #F3F4F6;padding-top:8px}
   .sup-footer-note{text-align:center;font-size:12px;color:#9CA3AF;font-weight:500;line-height:1.6;animation:sup-fadeIn .4s ease .3s both}
 
+  /* ── Chat overlay ── */
   .chat-overlay {
     position:fixed;inset:0;z-index:1400;
     background:#F0F4F8;display:flex;flex-direction:column;
@@ -175,19 +177,6 @@ const CSS = `
   .chat-load-spinner{display:flex;justify-content:center;padding:40px 0}
   .chat-empty{text-align:center;padding:40px 20px;color:#9CA3AF;font-size:13px;font-weight:500}
 
-  .chat-error{
-    margin:14px 12px;padding:14px 16px;border-radius:14px;
-    background:rgba(239,68,68,.06);border:1.5px solid rgba(239,68,68,.20);
-    display:flex;align-items:flex-start;gap:10px;
-  }
-  .chat-error-icon{
-    width:30px;height:30px;border-radius:50%;flex-shrink:0;
-    background:rgba(239,68,68,.10);border:1.5px solid rgba(239,68,68,.25);
-    display:flex;align-items:center;justify-content:center;
-  }
-  .chat-error-title{font-size:13px;font-weight:800;color:#DC2626;margin-bottom:3px}
-  .chat-error-sub{font-size:12px;color:#6B7280;font-weight:500;line-height:1.5}
-
   .day-divider{display:flex;justify-content:center;margin:8px 0 4px}
   .day-divider span{
     background:#E5E7EB;border-radius:99px;padding:4px 14px;
@@ -237,6 +226,7 @@ function dayLabel(date) {
   return date.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
 }
 
+// ─── Group messages by day ───────────────────────────────────────────
 function groupByDay(messages) {
   const groups = [];
   let currentDay = null;
@@ -256,13 +246,6 @@ function groupByDay(messages) {
   return groups;
 }
 
-// Detect missing-index error from Firestore so we can fall back gracefully
-function isMissingIndexError(err) {
-  const code = err?.code ?? "";
-  const msg  = (err?.message ?? "").toLowerCase();
-  return code === "failed-precondition" || msg.includes("requires an index");
-}
-
 // ═════════════════════════════════════════════════════════════════════
 // CHAT SCREEN
 // ═════════════════════════════════════════════════════════════════════
@@ -273,113 +256,37 @@ function ChatScreen({ driver, onClose }) {
   const [sending,  setSending]  = useState(false);
   const [typing,   setTyping]   = useState(false);
   const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState(null);
   const bottomRef = useRef(null);
   const textaRef  = useRef(null);
-  const initRef   = useRef(false);
+  const initRef   = useRef(false); // ensures we only run welcome init once per mount
 
   const driverId   = driver?.uid ?? driver?.id ?? null;
   const threadId   = `driver_${driverId ?? "unknown"}`;
   const threadRef  = useMemo(() => doc(db, "SupportThreads", threadId), [threadId]);
 
-  // ── Subscribe to messages (with defensive cleanup + fallback for missing index) ──
+  // ── Subscribe to messages ──
   useEffect(() => {
     if (!driverId) {
       setLoading(false);
       return;
     }
-
-    let unsub = null;
-    setError(null);
-
-    // Helper that subscribes WITHOUT orderBy and sorts client-side
-    const subscribeFallback = () => {
-      try {
-        const fallbackQ = query(
-          collection(db, "Support"),
-          where("threadId", "==", threadId)
-        );
-        unsub = onSnapshot(
-          fallbackQ,
-          (snap) => {
-            const msgs = snap.docs
-              .map(d => ({ id: d.id, ...d.data() }))
-              .sort((a, b) => {
-                const ta = a.createdAt?.seconds ?? 0;
-                const tb = b.createdAt?.seconds ?? 0;
-                return ta - tb;
-              });
-            setMessages(msgs);
-            setLoading(false);
-            setError(null);
-          },
-          (err) => {
-            console.error("[UaTob] Support fallback subscribe failed:", err);
-            setError({
-              title: "Couldn't load messages",
-              detail: err?.message || "Please try again.",
-            });
-            setLoading(false);
-          }
-        );
-      } catch (err) {
-        console.error("[UaTob] Support fallback subscribe threw:", err);
-        setError({
-          title: "Couldn't load messages",
-          detail: err?.message || "Please try again.",
-        });
-        setLoading(false);
-      }
-    };
-
-    // Primary attempt: with orderBy
-    try {
-      const q = query(
-        collection(db, "Support"),
-        where("threadId", "==", threadId),
-        orderBy("createdAt", "asc")
-      );
-      unsub = onSnapshot(
-        q,
-        (snap) => {
-          const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-          setMessages(msgs);
-          setLoading(false);
-          setError(null);
-        },
-        (err) => {
-          console.error("[UaTob] Support subscribe failed:", err);
-          // If it's a missing-index error, fall back to no-orderBy + client sort
-          if (isMissingIndexError(err)) {
-            console.warn("[UaTob] Falling back to client-side sort while index builds.");
-            try { if (typeof unsub === "function") unsub(); } catch {}
-            unsub = null;
-            subscribeFallback();
-          } else {
-            setError({
-              title: "Couldn't load messages",
-              detail: err?.message || "Please try again.",
-            });
-            setLoading(false);
-          }
-        }
-      );
-    } catch (err) {
-      console.error("[UaTob] Support subscribe threw synchronously:", err);
-      // The constructor itself threw — try the fallback
-      subscribeFallback();
-    }
-
-    return () => {
-      try {
-        if (typeof unsub === "function") unsub();
-      } catch (err) {
-        console.warn("[UaTob] Support unsub cleanup threw:", err);
-      }
-    };
+    const q = query(
+      collection(db, "Support"),
+      where("threadId", "==", threadId),
+      orderBy("createdAt", "asc")
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setMessages(msgs);
+      setLoading(false);
+    }, (err) => {
+      console.error("[UaTob] Support subscribe failed:", err);
+      setLoading(false);
+    });
+    return unsub;
   }, [threadId, driverId]);
 
-  // ── First-mount init: ensure thread doc exists + send welcome message ──
+  // ── First-mount init: ensure thread doc exists + send welcome message if first time ──
   useEffect(() => {
     if (!driverId || initRef.current) return;
     initRef.current = true;
@@ -388,6 +295,7 @@ function ChatScreen({ driver, onClose }) {
       try {
         const snap = await getDoc(threadRef);
         if (!snap.exists()) {
+          // First time this driver opens chat — create thread + welcome message
           await setDoc(threadRef, {
             driverId,
             driverName:  `${driver?.firstName ?? ""} ${driver?.lastName ?? ""}`.trim(),
@@ -402,6 +310,7 @@ function ChatScreen({ driver, onClose }) {
             autoReplySent:    false,
           });
 
+          // Save the welcome bubble as a real message so it persists across refreshes
           await addDoc(collection(db, "Support"), {
             threadId,
             driverId,
@@ -414,6 +323,7 @@ function ChatScreen({ driver, onClose }) {
             createdAt:   serverTimestamp(),
           });
         } else {
+          // Mark any unread support messages as read since driver is now viewing
           const data = snap.data();
           if ((data?.unreadByDriver ?? 0) > 0) {
             await updateDoc(threadRef, { unreadByDriver: 0 });
@@ -426,6 +336,7 @@ function ChatScreen({ driver, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [driverId]);
 
+  // ── Auto-scroll on new messages ──
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, typing]);
@@ -446,6 +357,7 @@ function ChatScreen({ driver, onClose }) {
     if (textaRef.current) textaRef.current.style.height = "auto";
 
     try {
+      // ── Save the driver message ──
       await addDoc(collection(db, "Support"), {
         threadId,
         driverId,
@@ -457,6 +369,7 @@ function ChatScreen({ driver, onClose }) {
         createdAt:   serverTimestamp(),
       });
 
+      // ── Update thread metadata ──
       const threadSnap = await getDoc(threadRef);
       const threadData = threadSnap.exists() ? threadSnap.data() : {};
 
@@ -470,6 +383,7 @@ function ChatScreen({ driver, onClose }) {
         unreadBySupport: (threadData.unreadBySupport ?? 0) + 1,
       }, { merge: true });
 
+      // ── Send auto-reply ONCE per thread (uses Firestore flag, not local state) ──
       if (!threadData.autoReplySent) {
         setTyping(true);
         setTimeout(async () => {
@@ -534,25 +448,13 @@ function ChatScreen({ driver, onClose }) {
         {/* Messages */}
         <div className="chat-messages">
 
-          {error && (
-            <div className="chat-error">
-              <div className="chat-error-icon">
-                <AlertCircle size={14} color="#DC2626"/>
-              </div>
-              <div style={{ flex:1, minWidth:0 }}>
-                <div className="chat-error-title">{error.title}</div>
-                <div className="chat-error-sub">{error.detail}</div>
-              </div>
-            </div>
-          )}
-
-          {loading && !error && (
+          {loading && (
             <div className="chat-load-spinner">
               <div style={{ width:24, height:24, border:"2.5px solid #E5E7EB", borderTopColor:"#3B82F6", borderRadius:"50%", animation:"sup-spin .8s linear infinite" }} />
             </div>
           )}
 
-          {!loading && !error && messages.length === 0 && (
+          {!loading && messages.length === 0 && (
             <div className="chat-empty">
               No messages yet. Start a conversation below — we'll get back to you within a few minutes.
             </div>
@@ -644,42 +546,24 @@ export default function SupportOverlay({ onClose, driver }) {
   const [hasThread,   setHasThread]   = useState(false);
 
   const driverId = driver?.uid ?? driver?.id ?? null;
-
   const threadId = driverId ? `driver_${driverId}` : null;
 
-  // Subscribe to thread doc — defensive cleanup + try/catch
+  // Subscribe to thread doc to show unread count + "Continue conversation" affordance
   useEffect(() => {
     if (!threadId) return;
-
-    let unsub = null;
-    try {
-      unsub = onSnapshot(
-        doc(db, "SupportThreads", threadId),
-        (snap) => {
-          if (snap.exists()) {
-            const data = snap.data();
-            setHasThread(true);
-            setUnreadCount(data?.unreadByDriver ?? 0);
-          } else {
-            setHasThread(false);
-            setUnreadCount(0);
-          }
-        },
-        (err) => {
-          console.error("[UaTob] Thread subscribe failed:", err);
-        }
-      );
-    } catch (err) {
-      console.error("[UaTob] Thread subscribe threw:", err);
-    }
-
-    return () => {
-      try {
-        if (typeof unsub === "function") unsub();
-      } catch (err) {
-        console.warn("[UaTob] Thread unsub cleanup threw:", err);
+    const unsub = onSnapshot(doc(db, "SupportThreads", threadId), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setHasThread(true);
+        setUnreadCount(data?.unreadByDriver ?? 0);
+      } else {
+        setHasThread(false);
+        setUnreadCount(0);
       }
-    };
+    }, (err) => {
+      console.error("[UaTob] Thread subscribe failed:", err);
+    });
+    return unsub;
   }, [threadId]);
 
   const handleClose = () => { setLeaving(true); setTimeout(onClose, 260); };
@@ -697,6 +581,7 @@ export default function SupportOverlay({ onClose, driver }) {
       <style>{CSS}</style>
       <div className={`sup-overlay ${leaving ? "leaving" : "entering"}`}>
 
+        {/* Chat mounts on top when open */}
         {showChat && <ChatScreen driver={driver} onClose={() => setShowChat(false)} />}
 
         {/* Header */}
@@ -715,8 +600,10 @@ export default function SupportOverlay({ onClose, driver }) {
           </button>
         </div>
 
+        {/* Body */}
         <div className="sup-body">
 
+          {/* Hero */}
           <div className="sup-hero">
             <div className="sup-hero-icon"><SupportIcon size={32} color="#2563EB" /></div>
             <div className="sup-status-chip"><span className="sup-status-dot" />Support team online</div>
@@ -727,10 +614,12 @@ export default function SupportOverlay({ onClose, driver }) {
             </div>
           </div>
 
+          {/* Contact cards */}
           <div className="sup-section" style={{ animationDelay:".08s" }}>
             <div className="sup-section-title">Contact us</div>
             <div className="sup-cards">
 
+              {/* Chat card */}
               <div className="sup-card" onClick={() => setShowChat(true)}>
                 <div className="sup-card-icon" style={{ background:"linear-gradient(135deg,#EFF6FF,#DBEAFE)", border:"1px solid #BFDBFE", position:"relative" }}>
                   <SupportIcon size={20} color="#2563EB" />
@@ -767,6 +656,7 @@ export default function SupportOverlay({ onClose, driver }) {
                 <ChevronRight size={16} color="#9CA3AF" />
               </div>
 
+              {/* Email card */}
               <a href="mailto:support@uatob.com" className="sup-card">
                 <div className="sup-card-icon" style={{ background:"linear-gradient(135deg,#FFF7ED,#FED7AA)", border:"1px solid #FDC97A" }}>
                   <Mail size={20} color="#EA580C" strokeWidth={2} />
@@ -781,6 +671,7 @@ export default function SupportOverlay({ onClose, driver }) {
             </div>
           </div>
 
+          {/* Driver account card */}
           {driver?.firstName && (
             <div style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:14, padding:"14px 16px", display:"flex", alignItems:"center", gap:12, animation:"sup-fadeIn .4s ease .14s both" }}>
               <div style={{ width:38, height:38, borderRadius:"50%", background:"#F3F4F6", border:"1.5px solid #E5E7EB", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
@@ -805,6 +696,7 @@ export default function SupportOverlay({ onClose, driver }) {
             </div>
           )}
 
+          {/* FAQ */}
           <div className="sup-section" style={{ animationDelay:".16s" }}>
             <div className="sup-section-title">Frequently asked questions</div>
             <div className="sup-cards">
