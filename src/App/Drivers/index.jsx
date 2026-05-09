@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Star, LocateFixed, Loader2, X, AlertCircle, CheckCircle2, Info } from "lucide-react";
+import { Star, LocateFixed, Loader2, X, AlertCircle, CheckCircle2, Info, Bell } from "lucide-react";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import { getFirestore, doc, onSnapshot } from "firebase/firestore";
@@ -42,6 +42,9 @@ const TRIP_BUTTON_LABELS = {
   in_progress:     "Complete Trip",
 };
 
+// Maximum size for dismissed-requests memory (LRU-ish cap)
+const MAX_DISMISSED = 100;
+
 // ── localStorage helpers ──────────────────────────────────────────────
 const LS_SEEN_REVIEWS_KEY = 'uatob_driver_seen_reviews';
 function loadSeenReviews()    { try { return new Set(JSON.parse(localStorage.getItem(LS_SEEN_REVIEWS_KEY) || '[]')); } catch { return new Set(); } }
@@ -64,11 +67,23 @@ async function registerFcmToken(uid) {
   }
 }
 
-// ── Audio helpers ─────────────────────────────────────────────────────
+// ── Audio helpers (with shared singleton context) ─────────────────────
+let _audioCtx = null;
+function getAudioCtx() {
+  try {
+    if (_audioCtx && _audioCtx.state !== "closed") return _audioCtx;
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return null;
+    _audioCtx = new AudioCtx();
+    return _audioCtx;
+  } catch { return null; }
+}
+
 function playRequestChime() {
   try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    const ctx = new AudioCtx();
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    if (ctx.state === "suspended") ctx.resume().catch(()=>{});
     const master = ctx.createGain();
     master.gain.value = 0.18;
     master.connect(ctx.destination);
@@ -89,14 +104,15 @@ function playRequestChime() {
         playTone({freq:f1,type:"sine",    start:now+t,duration:d,volume:0.22});
         playTone({freq:f2,type:"triangle",start:now+t,duration:d,volume:0.12});
       });
-    setTimeout(() => ctx.close().catch(()=>{}), 3000);
   } catch(e) {}
 }
 
 function playAcceptSound() {
   try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    const ctx = new AudioCtx(), master = ctx.createGain();
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    if (ctx.state === "suspended") ctx.resume().catch(()=>{});
+    const master = ctx.createGain();
     master.gain.value = 0.22; master.connect(ctx.destination);
     const playTone = ({freq,type="sine",start,duration,volume}) => {
       const osc=ctx.createOscillator(), gain=ctx.createGain();
@@ -112,14 +128,15 @@ function playAcceptSound() {
     playTone({freq:1568,type:"triangle",start:now,       duration:0.14,volume:0.10});
     playTone({freq:1047,type:"sine",    start:now+0.13,  duration:0.22,volume:0.32});
     playTone({freq:2093,type:"triangle",start:now+0.13,  duration:0.22,volume:0.08});
-    setTimeout(() => ctx.close().catch(()=>{}), 2000);
   } catch(e) {}
 }
 
 function playDeclineSound() {
   try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    const ctx = new AudioCtx(), master = ctx.createGain();
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    if (ctx.state === "suspended") ctx.resume().catch(()=>{});
+    const master = ctx.createGain();
     master.gain.value = 0.20; master.connect(ctx.destination);
     const playTone = ({freq,type="sine",start,duration,volume}) => {
       const osc=ctx.createOscillator(), gain=ctx.createGain();
@@ -133,7 +150,6 @@ function playDeclineSound() {
     const now = ctx.currentTime+0.02;
     playTone({freq:330,type:"sine",  start:now,     duration:0.16,volume:0.22});
     playTone({freq:247,type:"sine",  start:now+0.13,duration:0.20,volume:0.18});
-    setTimeout(() => ctx.close().catch(()=>{}), 2000);
   } catch(e) {}
 }
 
@@ -201,7 +217,7 @@ function NotificationPopup({ onEnable, onSkip, loading }) {
       <div style={{ background:"#fff",borderRadius:24,padding:"28px 24px 24px",width:"100%",maxWidth:360,boxShadow:"0 24px 60px rgba(0,0,0,.18)",animation:"locSlideUp .28s cubic-bezier(.34,1.56,.64,1)" }}>
         <div style={{ display:"flex",justifyContent:"center",marginBottom:20 }}>
           <div style={{ width:68,height:68,borderRadius:"50%",background:"rgba(37,99,235,.09)",border:"2px solid rgba(37,99,235,.25)",display:"flex",alignItems:"center",justifyContent:"center" }}>
-            {loading ? <Loader2 size={28} color="#2563EB" style={{ animation:"locSpin 1s linear infinite" }}/> : <SupportIcon size={28} color="#2563EB"/>}
+            {loading ? <Loader2 size={28} color="#2563EB" style={{ animation:"locSpin 1s linear infinite" }}/> : <Bell size={28} color="#2563EB"/>}
           </div>
         </div>
         <div style={{ textAlign:"center",marginBottom:8 }}>
@@ -222,7 +238,7 @@ function NotificationPopup({ onEnable, onSkip, loading }) {
         {!loading && (
           <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
             <button onClick={onEnable} style={{ width:"100%",padding:15,borderRadius:14,border:"none",background:"linear-gradient(135deg,#3B82F6,#2563EB 55%,#1D4ED8)",color:"#fff",fontSize:15,fontWeight:800,fontFamily:"'Barlow',sans-serif",cursor:"pointer",boxShadow:"0 4px 14px rgba(37,99,235,.35)",display:"flex",alignItems:"center",justifyContent:"center",gap:8 }}>
-              <SupportIcon size={16} color="#fff"/> Enable notifications
+              <Bell size={16} color="#fff"/> Enable notifications
             </button>
             <button onClick={onSkip} style={{ width:"100%",padding:14,borderRadius:14,border:"1.5px solid #E5E7EB",background:"#fff",color:"#6B7280",fontSize:14,fontWeight:700,cursor:"pointer" }}>
               Not now
@@ -314,23 +330,39 @@ export default function UaTobDriverApp({ uid }) {
       window.location.replace("https://uatob.com");
       return;
     }
-    const ref   = doc(db, "Drivers", uid);
-    const unsub = onSnapshot(
-      ref,
-      (snap) => {
-        if (!snap.exists()) {
+
+    let unsub = null;
+    try {
+      const ref = doc(db, "Drivers", uid);
+      unsub = onSnapshot(
+        ref,
+        (snap) => {
+          if (!snap.exists()) {
+            setDriverExists(false);
+            window.location.replace("https://uatob.com");
+          } else {
+            setDriverExists(true);
+          }
+        },
+        (err) => {
+          console.error("[UaTob] Driver doc subscribe failed:", err);
           setDriverExists(false);
           window.location.replace("https://uatob.com");
-        } else {
-          setDriverExists(true);
         }
-      },
-      (_err) => {
-        setDriverExists(false);
-        window.location.replace("https://uatob.com");
+      );
+    } catch (err) {
+      console.error("[UaTob] Failed to subscribe to driver doc:", err);
+      setDriverExists(false);
+      window.location.replace("https://uatob.com");
+    }
+
+    return () => {
+      try {
+        if (typeof unsub === "function") unsub();
+      } catch (err) {
+        console.warn("[UaTob] unsub cleanup threw:", err);
       }
-    );
-    return () => unsub();
+    };
   }, [uid]);
 
   if (driverExists !== true) return null;
@@ -378,14 +410,28 @@ function DriverAppInner({ uid }) {
   const prevRequestId     = useRef(null);
   const locationPingRef   = useRef(null);
   const onlineInitialized = useRef(false);
+  const notifTimerRef     = useRef(null);
 
   useEffect(() => { if (isRejected) setActiveTab("profile"); }, [isRejected]);
 
+  // Initialize online state ONCE from server. After that, server status is informational only —
+  // the user's local toggle controls UI state.
   useEffect(() => {
     if (!driver || onlineInitialized.current) return;
     onlineInitialized.current = true;
     setOnline(driver.status === "online");
   }, [driver]);
+
+  // Sync DOWN: if server force-offlines the driver (admin action), reflect locally
+  useEffect(() => {
+    if (!onlineInitialized.current || !driver) return;
+    if (online && driver.status !== "online" && driver.status !== "in_progress") {
+      setOnline(false);
+      setActiveTrip(null);
+      setDismissedRequests(new Set());
+      setAcceptedRequestId(null);
+    }
+  }, [driver?.status, online]);
 
   useEffect(() => {
     if (!uid) return;
@@ -404,7 +450,9 @@ function DriverAppInner({ uid }) {
         }
       });
     } catch(e) {}
-    return unsub;
+    return () => {
+      try { if (typeof unsub === "function") unsub(); } catch (e) {}
+    };
   }, [uid]);
 
   const tripRequest = online && !isRejected && !sourceLoading
@@ -432,38 +480,59 @@ function DriverAppInner({ uid }) {
     if (!reviews.length || pendingReview || activeTrip || tripRequest) return;
     const unseen = reviews.find(r => !seenReviewIds.has(r.id));
     if (unseen) setPendingReview(unseen);
-  }, [reviews, activeTrip, tripRequest]);
+  }, [reviews, activeTrip, tripRequest, pendingReview, seenReviewIds]);
 
-  const handleDismissReview = () => {
+  const handleDismissReview = useCallback(() => {
     if (!pendingReview) return;
-    const updated = new Set(seenReviewIds);
-    updated.add(pendingReview.id);
-    setSeenReviewIds(updated);
-    saveSeenReviews(updated);
+    setSeenReviewIds(prev => {
+      const updated = new Set(prev);
+      updated.add(pendingReview.id);
+      saveSeenReviews(updated);
+      return updated;
+    });
     setPendingReview(null);
-  };
+  }, [pendingReview]);
 
   useEffect(() => { setTripBtnLabel(TRIP_BUTTON_LABELS[activeTrip?.status] ?? ""); }, [activeTrip?.status]);
 
   useEffect(() => {
-    if (!tripRequest) { clearInterval(timerRef.current); setRequestTimer(15); return; }
+    if (!tripRequest) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+      setRequestTimer(15);
+      return;
+    }
     setRequestTimer(15);
     timerRef.current = setInterval(() => {
       setRequestTimer(t => {
         if (t <= 1) {
           clearInterval(timerRef.current);
-          setDismissedRequests(prev => { const next = new Set(prev); if (tripRequest?.id) next.add(tripRequest.id); return next; });
+          timerRef.current = null;
+          setDismissedRequests(prev => {
+            const next = new Set(prev);
+            if (tripRequest?.id) next.add(tripRequest.id);
+            // Cap memory: if too many, drop oldest by recreating from last N entries
+            if (next.size > MAX_DISMISSED) {
+              const arr = Array.from(next);
+              return new Set(arr.slice(arr.length - MAX_DISMISSED));
+            }
+            return next;
+          });
           showNotif("Request expired","Looking for next...");
           return 15;
         }
         return t - 1;
       });
     }, 1000);
-    return () => clearInterval(timerRef.current);
+    return () => {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    };
   }, [tripRequest?.id]);
 
   useEffect(() => {
     clearInterval(locationPingRef.current);
+    locationPingRef.current = null;
     if (!online || isRejected) return;
     locationPingRef.current = setInterval(async () => {
       try {
@@ -472,13 +541,24 @@ function DriverAppInner({ uid }) {
         await callDriverStatus({ uid, status:"location_ping", lat, lng });
       } catch(e) {}
     }, 60_000);
-    return () => clearInterval(locationPingRef.current);
+    return () => {
+      clearInterval(locationPingRef.current);
+      locationPingRef.current = null;
+    };
   }, [online, uid, isRejected]);
 
-  const showNotif = (title, msg) => {
+  // Cleanup notification timer on unmount
+  useEffect(() => {
+    return () => {
+      if (notifTimerRef.current) clearTimeout(notifTimerRef.current);
+    };
+  }, []);
+
+  const showNotif = useCallback((title, msg) => {
     setNotification({ title, msg });
-    setTimeout(() => setNotification(null), 3200);
-  };
+    if (notifTimerRef.current) clearTimeout(notifTimerRef.current);
+    notifTimerRef.current = setTimeout(() => setNotification(null), 3200);
+  }, []);
 
   const callDriverStatusFn = useCallback(async (status, lat=null, lng=null) => {
     const payload = { uid, status };
@@ -491,6 +571,9 @@ function DriverAppInner({ uid }) {
   const requestLocationAndGoOnline = useCallback(async () => {
     setLocationError(""); setLocationLoading(true);
     try {
+      if (!("geolocation" in navigator)) {
+        throw new Error("Geolocation is not supported in this browser.");
+      }
       const position = await new Promise((res,rej) => navigator.geolocation.getCurrentPosition(res,rej,{ enableHighAccuracy:true,timeout:10000,maximumAge:0 }));
       const { latitude:lat, longitude:lng } = position.coords;
       await callDriverStatusFn("online", lat, lng);
@@ -499,12 +582,12 @@ function DriverAppInner({ uid }) {
       if ("Notification" in window && window.Notification.permission === "default") setShowNotifPopup(true);
       else if ("Notification" in window && window.Notification.permission === "granted") registerFcmToken(uid);
     } catch(err) {
-      if      (err.code===1) setLocationError("Location access was denied. Allow location in your browser settings.");
-      else if (err.code===2) setLocationError("Could not detect your location. Check your device settings.");
-      else if (err.code===3) setLocationError("Location request timed out. Please try again.");
-      else                   setLocationError(err.message || "Could not get your location.");
+      if      (err?.code===1) setLocationError("Location access was denied. Allow location in your browser settings.");
+      else if (err?.code===2) setLocationError("Could not detect your location. Check your device settings.");
+      else if (err?.code===3) setLocationError("Location request timed out. Please try again.");
+      else                    setLocationError(err?.message || "Could not get your location.");
     } finally { setLocationLoading(false); }
-  }, [callDriverStatusFn, uid]);
+  }, [callDriverStatusFn, uid, showNotif]);
 
   const handleEnableNotifications = useCallback(async () => {
     setNotifLoading(true);
@@ -523,7 +606,7 @@ function DriverAppInner({ uid }) {
     } else {
       setLocationError(""); setShowLocationPopup(true);
     }
-  }, [online, callDriverStatusFn, isRejected]);
+  }, [online, callDriverStatusFn, isRejected, showNotif]);
 
   const handleLocationDeny = useCallback(() => {
     if (locationLoading) return;
@@ -566,7 +649,13 @@ function DriverAppInner({ uid }) {
     try {
       const { data } = await callUpdateTrip({ rideId:activeTrip.id, driverUid:uid, action });
       if (data?.error) throw new Error(data.error);
-      if (action === "complete") { await refetch(); showNotif("Trip complete",`+$${activeTrip.fareTotal||0}`); }
+      if (action === "complete") {
+        await refetch();
+        // Show driver's actual cut (75/25 split), not the gross fare
+        const driverCut = activeTrip.driverPayout
+                       ?? (activeTrip.fareTotal != null ? activeTrip.fareTotal * 0.75 : 0);
+        showNotif("Trip complete", `+$${driverCut.toFixed(2)}`);
+      }
       else showNotif("Updating trip…","Please wait");
     } catch(e) { showNotif("Error","Update failed"); }
     finally { setAdvancePending(false); }
