@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
-import { Car } from 'lucide-react';
+import { Car, Sparkles, Activity } from 'lucide-react';
 import { useAllDrivers } from "@/App/UaTob/useAllDrivers";
 
+// ─── BOUNDS / coords ──────────────────────────────────────────────────
 const BOUNDS = { minLat: 28.30, maxLat: 28.78, minLng: -81.62, maxLng: -81.10 };
 
 function latLngToPct(lat, lng) {
@@ -23,26 +24,15 @@ function addressToCoords(address) {
   };
 }
 
-function statusColor(status) {
-  if (!status) return '#9CA3AF';
-  const s = status.toLowerCase();
-  if (s === 'online' || s === 'available') return '#16A34A';
-  if (s === 'offline') return '#6B7280';
-  return '#2563EB';
+function statusInfo(status) {
+  const s = (status || '').toLowerCase();
+  if (s === 'online' || s === 'available') return { label: 'Online', color: '#22D3A5' };
+  if (s === 'offline')                      return { label: 'Offline', color: '#475569' };
+  return { label: 'Busy', color: '#60A5FA' };
 }
 
-function statusLabel(status) {
-  if (!status) return 'Offline';
-  const s = status.toLowerCase();
-  if (s === 'online' || s === 'available') return 'Online';
-  if (s === 'offline') return 'Offline';
-  return 'Busy';
-}
-
-// ── UATOB letter dot-matrix positions (x%, y%) ──────────────────────
-// Each letter is 5 rows × 3 cols, letters spaced across the map
+// ── UATOB letter dot-matrix positions (x%, y%) ──
 const LETTER_SLOTS = (() => {
-  // dot matrix for each letter: 1 = filled dot
   const letters = {
     U: [
       [1,0,1],
@@ -83,11 +73,11 @@ const LETTER_SLOTS = (() => {
 
   const slots = [];
   const letterKeys = ['U', 'A', 'T', 'O', 'B'];
-  const startX  = 8;   // % from left
-  const colStep = 7;   // % between columns
-  const letterW = 22;  // % width per letter
-  const startY  = 12;  // % from top
-  const rowStep = 14;  // % between rows
+  const startX  = 8;
+  const colStep = 6;
+  const letterW = 19;
+  const startY  = 18;
+  const rowStep = 12;
 
   letterKeys.forEach((key, li) => {
     const matrix = letters[key];
@@ -107,21 +97,59 @@ const LETTER_SLOTS = (() => {
   return slots;
 })();
 
-const STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap');
+// Constellation lines between consecutive online dots
+function buildConstellationLines(onlineCount) {
+  if (onlineCount < 2) return [];
+  const lines = [];
+  const slots = LETTER_SLOTS.slice(0, Math.min(onlineCount, LETTER_SLOTS.length));
+  for (let i = 0; i < slots.length - 1; i++) {
+    lines.push({
+      x1: slots[i].x,     y1: slots[i].y,
+      x2: slots[i + 1].x, y2: slots[i + 1].y,
+    });
+  }
+  return lines;
+}
 
-  @keyframes pinPulse {
-    0%, 100% { transform: translate(-50%,-50%) scale(1);     opacity: 1;    }
-    50%       { transform: translate(-50%,-50%) scale(1.22); opacity: 0.72; }
+const STYLES = `
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap');
+
+  @keyframes pinBreathe {
+    0%, 100% { transform: translate(-50%,-50%) scale(1);    filter: brightness(1); }
+    50%       { transform: translate(-50%,-50%) scale(1.12); filter: brightness(1.3); }
+  }
+  @keyframes haloRipple {
+    0%   { transform: translate(-50%,-50%) scale(0.6); opacity: 0.7; }
+    80%  { transform: translate(-50%,-50%) scale(2.2); opacity: 0;   }
+    100% { transform: translate(-50%,-50%) scale(2.2); opacity: 0;   }
   }
   @keyframes pinDrop {
-    0%   { transform: translate(-50%,-50%) scale(0) rotate(-20deg); opacity: 0; }
-    60%  { transform: translate(-50%,-50%) scale(1.15) rotate(4deg); opacity: 1; }
-    100% { transform: translate(-50%,-50%) scale(1) rotate(0deg);   opacity: 1; }
+    0%   { transform: translate(-50%,-50%) scale(0);    opacity: 0; }
+    60%  { transform: translate(-50%,-50%) scale(1.18); opacity: 1; }
+    100% { transform: translate(-50%,-50%) scale(1);    opacity: 1; }
+  }
+  @keyframes radarSweep {
+    0%   { transform: translateX(-100%); opacity: 0;   }
+    8%   { opacity: 0.55; }
+    50%  { opacity: 0.55; }
+    100% { transform: translateX(100%);  opacity: 0;   }
   }
   @keyframes liveDot {
-    0%, 100% { opacity: 1; }
-    50%       { opacity: 0.3; }
+    0%, 100% { opacity: 1; transform: scale(1);     }
+    50%       { opacity: 0.4; transform: scale(.85); }
+  }
+  @keyframes constellationDraw {
+    0%   { stroke-dashoffset: 100; opacity: 0;   }
+    50%  { opacity: .4;                         }
+    100% { stroke-dashoffset: 0;   opacity: .4; }
+  }
+  @keyframes bgFloat {
+    0%, 100% { transform: translate(0, 0)     scale(1);    }
+    50%       { transform: translate(20px, -15px) scale(1.08); }
+  }
+  @keyframes badgePulse {
+    0%, 100% { box-shadow: 0 0 0 0    rgba(34,211,165,0);   }
+    50%       { box-shadow: 0 0 0 10px rgba(34,211,165,.18); }
   }
 `;
 
@@ -133,17 +161,17 @@ export default function MapView() {
     const pos = hasGps
       ? latLngToPct(Number(d.lat), Number(d.lng))
       : addressToCoords(d.city || d.email || d.id);
+    const info = statusInfo(d.status);
     return {
       id:     d.id,
       name:   d.firstName ? `${d.firstName} ${d.lastName}` : 'Driver',
       status: d.status || 'offline',
       pos,
-      color:  statusColor(d.status),
-      label:  statusLabel(d.status),
+      color:  info.color,
+      label:  info.label,
     };
   }), [drivers]);
 
-  // Online drivers snap into UATOB letter slots in order
   const onlinePins  = useMemo(() => driverPins.filter(d => d.label === 'Online'),  [driverPins]);
   const offlinePins = useMemo(() => driverPins.filter(d => d.label !== 'Online'),  [driverPins]);
 
@@ -154,66 +182,166 @@ export default function MapView() {
     return { total: driverPins.length, online, offline, busy };
   }, [driverPins, onlinePins]);
 
+  const constellationLines = useMemo(
+    () => buildConstellationLines(onlinePins.length),
+    [onlinePins.length]
+  );
+
+  const hasOnline = counts.online > 0;
+
   return (
     <>
       <style>{STYLES}</style>
       <div style={{
         position:     'relative',
-        height:       'clamp(240px, 38vh, 300px)',
-        borderRadius: '20px',
+        height:       'clamp(260px, 40vh, 320px)',
+        borderRadius: '24px',
         overflow:     'hidden',
-        background:   '#F9FAFB',
-        border:       '1.5px solid #E5E7EB',
+        background:   'linear-gradient(155deg, #0A1628 0%, #0E2540 35%, #103848 75%, #0F4C45 100%)',
+        boxShadow:    '0 16px 48px rgba(10,22,40,.22), 0 2px 6px rgba(10,22,40,.08)',
+        fontFamily:   'Outfit, system-ui, sans-serif',
       }}>
 
-        {/* Grid */}
-        <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 1 }}>
-          <defs>
-            <pattern id="mv-g1" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M40 0H0V40" fill="none" stroke="#E5E7EB" strokeWidth="0.6"/>
-            </pattern>
-            <pattern id="mv-g2" width="120" height="120" patternUnits="userSpaceOnUse">
-              <path d="M120 0H0V120" fill="none" stroke="#D1D5DB" strokeWidth="1"/>
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#mv-g1)"/>
-          <rect width="100%" height="100%" fill="url(#mv-g2)"/>
-        </svg>
-
-        {/* Roads */}
-        <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 2, pointerEvents: 'none' }}>
-          <path d="M0,55 Q80,48 160,60 T340,52 T520,58"  fill="none" stroke="#E5E7EB" strokeWidth="14" strokeLinecap="round"/>
-          <path d="M0,55 Q80,48 160,60 T340,52 T520,58"  fill="none" stroke="#D1D5DB" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="18 10"/>
-          <path d="M60,0 Q70,60 64,120 T80,240 T100,360" fill="none" stroke="#E5E7EB" strokeWidth="10" strokeLinecap="round"/>
-          <path d="M60,0 Q70,60 64,120 T80,240 T100,360" fill="none" stroke="#D1D5DB" strokeWidth="1"   strokeLinecap="round" strokeDasharray="14 8"/>
-          <path d="M280,0 Q275,80 290,160 T310,300"      fill="none" stroke="#E5E7EB" strokeWidth="8"  strokeLinecap="round"/>
-          <path d="M120,180 Q200,172 300,178 T500,170"   fill="none" stroke="#EFEFEF" strokeWidth="6"  strokeLinecap="round"/>
-        </svg>
-
-        {/* Green ambient glow */}
+        {/* ── Ambient color blobs ── */}
         <div style={{
-          position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1,
-          background: 'radial-gradient(circle at 18% 18%, rgba(22,163,74,.07) 0%, transparent 38%)',
+          position: 'absolute', top: -80, right: -80,
+          width: 280, height: 280, borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(34,211,165,.32) 0%, transparent 70%)',
+          filter: 'blur(40px)',
+          animation: 'bgFloat 8s ease-in-out infinite',
+          pointerEvents: 'none', zIndex: 1,
+        }}/>
+        <div style={{
+          position: 'absolute', bottom: -60, left: -60,
+          width: 240, height: 240, borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(96,165,250,.22) 0%, transparent 70%)',
+          filter: 'blur(36px)',
+          animation: 'bgFloat 10s ease-in-out infinite reverse',
+          pointerEvents: 'none', zIndex: 1,
         }}/>
 
-        {/* Loading */}
-        {loading && (
-          <div style={{
-            position: 'absolute', inset: 0, zIndex: 20,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(249,250,251,0.8)', backdropFilter: 'blur(4px)',
+        {/* ── Subtle grid pattern (very low opacity) ── */}
+        <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 2, opacity: .15 }}>
+          <defs>
+            <pattern id="mv-dotgrid" width="36" height="36" patternUnits="userSpaceOnUse">
+              <circle cx="2" cy="2" r=".8" fill="rgba(255,255,255,.5)"/>
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#mv-dotgrid)"/>
+        </svg>
+
+        {/* ── Constellation lines between online dots ── */}
+        {constellationLines.length > 0 && (
+          <svg style={{
+            position: 'absolute', inset: 0, width: '100%', height: '100%',
+            zIndex: 3, pointerEvents: 'none',
           }}>
+            {constellationLines.map((ln, i) => (
+              <line
+                key={i}
+                x1={`${ln.x1}%`} y1={`${ln.y1}%`}
+                x2={`${ln.x2}%`} y2={`${ln.y2}%`}
+                stroke="rgba(34,211,165,.5)"
+                strokeWidth="1"
+                strokeDasharray="3 4"
+                style={{
+                  strokeDashoffset: 100,
+                  animation: `constellationDraw 1.6s ease-out ${0.4 + i * 0.06}s forwards`,
+                }}
+              />
+            ))}
+          </svg>
+        )}
+
+        {/* ── Radar sweep overlay ── */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          zIndex: 4, pointerEvents: 'none', overflow: 'hidden',
+        }}>
+          <div style={{
+            position: 'absolute', top: 0, bottom: 0,
+            width: '40%',
+            background: 'linear-gradient(90deg, transparent 0%, rgba(34,211,165,.16) 50%, transparent 100%)',
+            animation: 'radarSweep 6s ease-in-out infinite',
+            animationDelay: '1.5s',
+          }}/>
+        </div>
+
+        {/* ── Top trust badge ── */}
+        {!loading && (
+          <div style={{
+            position: 'absolute', top: 14, left: 14, zIndex: 20,
+            display: 'flex', alignItems: 'center', gap: 7,
+            padding: '7px 12px',
+            background: hasOnline ? 'rgba(34,211,165,.14)' : 'rgba(148,163,184,.14)',
+            border: `1px solid ${hasOnline ? 'rgba(34,211,165,.4)' : 'rgba(148,163,184,.3)'}`,
+            borderRadius: 99,
+            backdropFilter: 'blur(12px)',
+            animation: hasOnline ? 'badgePulse 2.4s ease-in-out infinite' : 'none',
+          }}>
+            <div style={{
+              width: 7, height: 7, borderRadius: '50%',
+              background: hasOnline ? '#22D3A5' : '#94A3B8',
+              boxShadow: hasOnline ? '0 0 8px #22D3A5' : 'none',
+              animation: hasOnline ? 'liveDot 1.6s ease-in-out infinite' : 'none',
+            }}/>
             <span style={{
-              fontSize: '11px', fontWeight: 800, color: '#9CA3AF',
-              letterSpacing: '1.2px', textTransform: 'uppercase',
-              fontFamily: 'Outfit, system-ui, sans-serif',
+              fontSize: 11, fontWeight: 800, letterSpacing: '.06em',
+              color: hasOnline ? '#5EEAD4' : '#CBD5E1',
+              textTransform: 'uppercase',
             }}>
-              Loading drivers…
+              {hasOnline ? `${counts.online} ready nearby` : 'Drivers offline'}
             </span>
           </div>
         )}
 
-        {/* ── Offline / busy pins — use GPS/hash position ── */}
+        {/* ── Top-right: brand mark ── */}
+        <div style={{
+          position: 'absolute', top: 14, right: 14, zIndex: 20,
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '6px 10px',
+          background: 'rgba(255,255,255,.06)',
+          border: '1px solid rgba(255,255,255,.1)',
+          borderRadius: 10,
+          backdropFilter: 'blur(12px)',
+        }}>
+          <Activity size={11} color="#5EEAD4" />
+          <span style={{
+            fontFamily: '"JetBrains Mono", monospace',
+            fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,.7)',
+            letterSpacing: '.05em',
+          }}>LIVE</span>
+        </div>
+
+        {/* Loading */}
+        {loading && (
+          <div style={{
+            position: 'absolute', inset: 0, zIndex: 30,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(10,22,40,.6)', backdropFilter: 'blur(8px)',
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '10px 18px', borderRadius: 99,
+              background: 'rgba(255,255,255,.08)',
+              border: '1px solid rgba(255,255,255,.14)',
+            }}>
+              <div style={{
+                width: 8, height: 8, borderRadius: '50%',
+                background: '#22D3A5',
+                animation: 'liveDot 1.2s ease-in-out infinite',
+              }}/>
+              <span style={{
+                fontSize: 11, fontWeight: 800, color: '#fff',
+                letterSpacing: '.1em', textTransform: 'uppercase',
+              }}>
+                Scanning your area…
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* ── Offline / busy pins — ghost-quiet, scattered ── */}
         {offlinePins.map(d => (
           <div
             key={d.id}
@@ -223,106 +351,120 @@ export default function MapView() {
               left:      `${d.pos.x}%`,
               top:       `${d.pos.y}%`,
               transform: 'translate(-50%,-50%)',
-              zIndex:    4,
+              zIndex:    5,
+              opacity:   d.label === 'Busy' ? 0.7 : 0.28,
             }}
           >
             <div style={{
-              width:          '16px',
-              height:         '16px',
+              width:          '11px',
+              height:         '11px',
               background:     d.color,
               borderRadius:   '50%',
-              border:         '2px solid #fff',
-              boxShadow:      '0 2px 6px rgba(0,0,0,0.12)',
-              display:        'flex',
-              alignItems:     'center',
-              justifyContent: 'center',
-              opacity:        0.5,
-            }}>
-              <Car size={7} color="#fff" strokeWidth={2.5}/>
-            </div>
+              border:         '1.5px solid rgba(255,255,255,.5)',
+              boxShadow:      d.label === 'Busy' ? `0 0 8px ${d.color}aa` : 'none',
+            }}/>
           </div>
         ))}
 
-        {/* ── Online pins — snap into UATOB letter slots ── */}
+        {/* ── Online pins — letter slots, glowing, breathing ── */}
         {onlinePins.map((d, i) => {
           const slot = LETTER_SLOTS[i % LETTER_SLOTS.length];
           return (
-            <div
-              key={d.id}
-              title={`${d.name} · Online`}
-              style={{
-                position:        'absolute',
-                left:            `${slot.x}%`,
-                top:             `${slot.y}%`,
-                transform:       'translate(-50%,-50%)',
-                zIndex:          5,
-                animation:       `pinDrop .5s cubic-bezier(.34,1.56,.64,1) ${i * 0.08}s both, pinPulse 2.6s ease-in-out ${i * 0.2}s infinite`,
-              }}
-            >
-              <div style={{
-                position:     'absolute',
-                inset:        '-5px',
-                borderRadius: '50%',
-                border:       '1.5px solid #86EFAC',
-                opacity:      0.6,
-              }}/>
-              <div style={{
-                width:          '20px',
-                height:         '20px',
-                background:     '#16A34A',
-                borderRadius:   '50%',
-                border:         '2px solid #fff',
-                boxShadow:      '0 2px 10px rgba(22,163,74,0.35)',
-                display:        'flex',
-                alignItems:     'center',
-                justifyContent: 'center',
-                position:       'relative',
-              }}>
-                <Car size={9} color="#fff" strokeWidth={2.5}/>
+            <React.Fragment key={d.id}>
+              {/* Outer ripple halo */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: `${slot.x}%`,
+                  top:  `${slot.y}%`,
+                  width: 24, height: 24,
+                  borderRadius: '50%',
+                  border: '1.5px solid rgba(94,234,212,.5)',
+                  pointerEvents: 'none',
+                  zIndex: 6,
+                  animation: `haloRipple 2.4s ease-out ${i * 0.15}s infinite`,
+                }}
+              />
+              {/* Inner pin */}
+              <div
+                title={`${d.name} · Online`}
+                style={{
+                  position:  'absolute',
+                  left:      `${slot.x}%`,
+                  top:       `${slot.y}%`,
+                  zIndex:    7,
+                  animation: `pinDrop .55s cubic-bezier(.34,1.56,.64,1) ${i * 0.06}s both, pinBreathe 3.2s ease-in-out ${0.6 + i * 0.12}s infinite`,
+                }}
+              >
+                <div style={{
+                  width:          14,
+                  height:         14,
+                  background:     'radial-gradient(circle, #5EEAD4 0%, #14B8A6 100%)',
+                  borderRadius:   '50%',
+                  border:         '2px solid #ECFDF5',
+                  boxShadow:      '0 0 16px rgba(94,234,212,.65), 0 2px 6px rgba(0,0,0,.3)',
+                }}/>
               </div>
-            </div>
+            </React.Fragment>
           );
         })}
 
-        {/* Bottom bar */}
+        {/* ── Bottom strip — refined ── */}
         <div style={{
-          position:       'absolute',
+          position:    'absolute',
           bottom: 0, left: 0, right: 0,
-          zIndex:         10,
-          background:     'rgba(255,255,255,0.90)',
-          backdropFilter: 'blur(12px)',
-          borderTop:      '1px solid #E5E7EB',
-          padding:        '9px 16px',
-          display:        'flex',
-          alignItems:     'center',
-          gap:            '12px',
-          fontFamily:     'Outfit, system-ui, sans-serif',
+          zIndex:      15,
+          background:  'linear-gradient(180deg, rgba(10,22,40,.0) 0%, rgba(10,22,40,.85) 35%, rgba(10,22,40,.95) 100%)',
+          padding:     '24px 16px 14px',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Car size={12} color="#6B7280" strokeWidth={2}/>
-            <span style={{ fontSize: '13px', fontWeight: 800, color: '#111827', fontVariantNumeric: 'tabular-nums' }}>
-              {counts.total}
-            </span>
-            <span style={{ fontSize: '11px', color: '#6B7280', fontWeight: 600 }}>drivers</span>
-          </div>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 12,
+            background:     'rgba(255,255,255,.06)',
+            backdropFilter: 'blur(16px)',
+            border:         '1px solid rgba(255,255,255,.1)',
+            borderRadius:   16,
+            padding:        '11px 14px',
+          }}>
+            {/* Total */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <span style={{
+                fontSize: 9, fontWeight: 800, letterSpacing: '.1em',
+                color: 'rgba(255,255,255,.45)', textTransform: 'uppercase',
+              }}>Fleet</span>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                <span style={{
+                  fontSize: 18, fontWeight: 800, color: '#fff',
+                  fontVariantNumeric: 'tabular-nums', letterSpacing: '-.02em', lineHeight: 1,
+                }}>
+                  {counts.total}
+                </span>
+                <span style={{ fontSize: 10, color: 'rgba(255,255,255,.5)', fontWeight: 600 }}>
+                  drivers
+                </span>
+              </div>
+            </div>
 
-          <div style={{ width: '1px', height: 16, background: '#E5E7EB' }}/>
-          <Pill color="#16A34A" label="Online"  value={counts.online}  />
-          <div style={{ width: '1px', height: 16, background: '#E5E7EB' }}/>
-          <Pill color="#2563EB" label="Busy"    value={counts.busy}    />
-          <div style={{ width: '1px', height: 16, background: '#E5E7EB' }}/>
-          <Pill color="#9CA3AF" label="Offline" value={counts.offline} />
+            <div style={{ width: 1, height: 26, background: 'rgba(255,255,255,.1)' }}/>
 
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5 }}>
+            {/* Status pills */}
+            <DarkPill color="#22D3A5" label="Online"  value={counts.online}  glow />
+            <DarkPill color="#60A5FA" label="Busy"    value={counts.busy}    />
+            <DarkPill color="#94A3B8" label="Offline" value={counts.offline} dim />
+
+            {/* Live indicator */}
             <div style={{
-              width: 6, height: 6, borderRadius: '50%',
-              background: '#16A34A',
-              animation: 'liveDot 1.6s ease-in-out infinite',
-            }}/>
-            <span style={{
-              fontSize: '10px', fontWeight: 800, color: '#16A34A',
-              letterSpacing: '1px', textTransform: 'uppercase',
-            }}>Live</span>
+              marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5,
+              padding: '4px 9px',
+              background: 'rgba(34,211,165,.12)',
+              border: '1px solid rgba(34,211,165,.3)',
+              borderRadius: 99,
+            }}>
+              <Sparkles size={9} color="#5EEAD4" />
+              <span style={{
+                fontSize: 9.5, fontWeight: 800, color: '#5EEAD4',
+                letterSpacing: '.08em', textTransform: 'uppercase',
+              }}>Live</span>
+            </div>
           </div>
         </div>
 
@@ -331,12 +473,31 @@ export default function MapView() {
   );
 }
 
-function Pill({ color, label, value }) {
+function DarkPill({ color, label, value, glow, dim }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-      <div style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }}/>
-      <span style={{ fontSize: '13px', fontWeight: 800, color: '#111827', fontVariantNumeric: 'tabular-nums' }}>{value}</span>
-      <span style={{ fontSize: '11px', color: '#6B7280', fontWeight: 600 }}>{label}</span>
+      <div style={{
+        width: 7, height: 7, borderRadius: '50%',
+        background: color,
+        boxShadow: glow ? `0 0 6px ${color}` : 'none',
+        opacity: dim ? .6 : 1,
+        flexShrink: 0,
+      }}/>
+      <span style={{
+        fontSize: 14, fontWeight: 800,
+        color: dim ? 'rgba(255,255,255,.55)' : '#fff',
+        fontVariantNumeric: 'tabular-nums',
+        letterSpacing: '-.02em',
+        lineHeight: 1,
+      }}>
+        {value}
+      </span>
+      <span style={{
+        fontSize: 10, fontWeight: 600,
+        color: 'rgba(255,255,255,.55)',
+      }}>
+        {label}
+      </span>
     </div>
   );
 }
