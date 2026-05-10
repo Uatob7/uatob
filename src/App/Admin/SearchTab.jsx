@@ -14,7 +14,7 @@ const MAPBOX_TOKEN = "pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjc
 
 // ─── DESIGN TOKENS ─────────────────────────────────────────────────────────
 const D = {
-  bg:        "#F5F7FA",
+  bg:        "#FFFFFF",           // ← white
   bgCard:    "#FFFFFF",
   bgMid:     "#F9FAFB",
   bgHover:   "#F0FDF9",
@@ -278,22 +278,48 @@ const GLOBAL_CSS = `
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
 
-  /* pickup pill */
+  /* route pills */
+  .st-route-pills {
+    display: flex; flex-direction: column; gap: 4px;
+    margin-bottom: 9px;
+  }
   .st-pickup-pill {
     display: flex; align-items: center; gap: 9px;
-    padding: 9px 12px; border-radius: 12px;
+    padding: 8px 12px; border-radius: 10px 10px 0 0;
     background: ${D.bgMid}; border: 1.5px solid ${D.border};
-    margin-bottom: 9px;
+    border-bottom: none;
+  }
+  .st-dropoff-pill {
+    display: flex; align-items: center; gap: 9px;
+    padding: 8px 12px; border-radius: 0 0 10px 10px;
+    background: ${D.bgMid}; border: 1.5px solid ${D.border};
+    border-top: 1px dashed ${D.borderMd};
+    position: relative;
+  }
+  .st-route-connector {
+    position: absolute; left: 20px; top: -5px;
+    width: 1.5px; height: 10px;
+    background: repeating-linear-gradient(
+      to bottom,
+      ${D.borderMd} 0px,
+      ${D.borderMd} 3px,
+      transparent 3px,
+      transparent 6px
+    );
   }
   .st-pickup-dot {
     width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
     box-shadow: 0 0 0 3px var(--dot-ring);
     transition: box-shadow .2s;
   }
-  .st-pickup-addr {
+  .st-dropoff-sq {
+    width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0;
+  }
+  .st-pickup-addr, .st-dropoff-addr {
     font-family: ${body}; font-size: 12.5px; font-weight: 600; color: ${D.t1};
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
   }
+  .st-dropoff-addr { color: ${D.t2}; }
 
   /* chips row */
   .st-chips { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
@@ -462,8 +488,6 @@ function SearchMapView({ searches = [], selectedId, hoveredId, onSelect, height 
       map.addControl(new window.mapboxgl.NavigationControl({ showCompass: false }), "top-right");
       map.on("load", () => {
         map.addSource("pickups", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-
-        // Outer glow ring
         map.addLayer({ id: "pk-ring", type: "circle", source: "pickups",
           paint: {
             "circle-color": ["get", "color"],
@@ -472,7 +496,6 @@ function SearchMapView({ searches = [], selectedId, hoveredId, onSelect, height 
             "circle-blur": 1,
           },
         });
-        // Mid ring
         map.addLayer({ id: "pk-mid", type: "circle", source: "pickups",
           paint: {
             "circle-color": "#FFFFFF",
@@ -480,7 +503,6 @@ function SearchMapView({ searches = [], selectedId, hoveredId, onSelect, height 
             "circle-opacity": 1,
           },
         });
-        // Core dot
         map.addLayer({ id: "pk-dot", type: "circle", source: "pickups",
           paint: {
             "circle-color": ["get", "color"],
@@ -490,7 +512,6 @@ function SearchMapView({ searches = [], selectedId, hoveredId, onSelect, height 
             "circle-opacity": ["case", ["get", "sel"], 1, ["get", "hov"], .95, .8],
           },
         });
-
         map.on("click", "pk-dot", e => { const id = e.features?.[0]?.properties?.id; if (id) onSelect(id); });
         map.on("mouseenter", "pk-dot", () => { map.getCanvas().style.cursor = "pointer"; });
         map.on("mouseleave", "pk-dot", () => { map.getCanvas().style.cursor = ""; });
@@ -536,7 +557,6 @@ function SearchMapView({ searches = [], selectedId, hoveredId, onSelect, height 
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {/* Legend */}
           <div style={{ display: "flex", gap: 6 }}>
             {[{ color: D.teal, label: "Rider", count: riderCt }, { color: D.amber, label: "Guest", count: guestCt }].map(({ color, label, count }) => (
               <div key={label} style={{ display: "flex", alignItems: "center", gap: 4, background: `${color}0F`, border: `1px solid ${color}28`, borderRadius: 99, padding: "3px 9px" }}>
@@ -644,16 +664,34 @@ function SearchCard({ doc, index, selected, hovered, onHover, onLeave, onClick, 
             {guest ? "Not signed in" : (account?.email ?? doc.uid?.slice(0, 20) + "…")}
           </div>
 
-          {/* Pickup pill */}
-          <div
-            className="st-pickup-pill"
-            style={{ borderColor: isAct ? `${ac}30` : D.border, background: isAct ? `${ac}06` : D.bgMid }}
-          >
+          {/* ── Route: Pickup → Dropoff ── */}
+          <div className="st-route-pills">
+            {/* Pickup */}
             <div
-              className="st-pickup-dot"
-              style={{ background: ac, "--dot-ring": isAct ? `${ac}25` : "transparent" }}
-            />
-            <span className="st-pickup-addr">{strip(doc.pickup)}</span>
+              className="st-pickup-pill"
+              style={{ borderColor: isAct ? `${ac}30` : D.border, background: isAct ? `${ac}06` : D.bgMid }}
+            >
+              <div
+                className="st-pickup-dot"
+                style={{ background: ac, "--dot-ring": isAct ? `${ac}25` : "transparent" }}
+              />
+              <span className="st-pickup-addr">{strip(doc.pickup)}</span>
+            </div>
+
+            {/* Dropoff */}
+            {doc.dropoff && (
+              <div
+                className="st-dropoff-pill"
+                style={{ borderColor: isAct ? `${D.t3}25` : D.border, background: isAct ? "rgba(0,0,0,.025)" : D.bgMid }}
+              >
+                <div className="st-route-connector" />
+                <div
+                  className="st-dropoff-sq"
+                  style={{ background: isAct ? D.t2 : D.t4 }}
+                />
+                <span className="st-dropoff-addr">{strip(doc.dropoff)}</span>
+              </div>
+            )}
           </div>
 
           {/* Tags */}
@@ -811,10 +849,7 @@ function DetailSheet({ doc, account, onClose }) {
     <>
       <div className="st-backdrop" onClick={onClose} />
       <div className="st-sheet">
-        {/* Handle */}
         <div className="st-sheet-handle-bar"><div className="st-sheet-handle" /></div>
-
-        {/* Top accent */}
         <div style={{ height: 3, background: `linear-gradient(90deg,${ac},${ac}44)`, margin: "0 20px", borderRadius: 99 }} />
 
         <div style={{ padding: "16px 20px 48px" }}>
@@ -844,15 +879,30 @@ function DetailSheet({ doc, account, onClose }) {
             </button>
           </div>
 
-          {/* Pickup hero */}
-          <div style={{ padding: "14px 16px", background: `${ac}09`, border: `2px solid ${ac}28`, borderRadius: 16, marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 12, background: `${ac}15`, border: `1.5px solid ${ac}28`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <Navigation size={16} color={ac} />
+          {/* Route hero */}
+          <div style={{ marginBottom: 20 }}>
+            {/* Pickup */}
+            <div style={{ padding: "13px 16px", background: `${ac}09`, border: `2px solid ${ac}28`, borderRadius: "16px 16px 0 0", display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 38, height: 38, borderRadius: 12, background: `${ac}15`, border: `1.5px solid ${ac}28`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Navigation size={16} color={ac} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: body, fontSize: 9.5, fontWeight: 700, color: D.t4, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 3 }}>Pickup</div>
+                <div style={{ fontFamily: body, fontSize: 14, fontWeight: 700, color: D.t1, lineHeight: 1.35 }}>{doc.pickup || "—"}</div>
+              </div>
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: body, fontSize: 9.5, fontWeight: 700, color: D.t4, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 3 }}>Pickup Location</div>
-              <div style={{ fontFamily: body, fontSize: 14, fontWeight: 700, color: D.t1, lineHeight: 1.35 }}>{doc.pickup || "—"}</div>
-            </div>
+            {/* Dropoff */}
+            {doc.dropoff && (
+              <div style={{ padding: "13px 16px", background: D.bgMid, border: `2px solid ${D.borderMd}`, borderTop: "1px dashed rgba(0,0,0,.1)", borderRadius: "0 0 16px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 38, height: 38, borderRadius: 12, background: D.bgCard, border: `1.5px solid ${D.borderMd}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <MapPin size={16} color={D.t3} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: body, fontSize: 9.5, fontWeight: 700, color: D.t4, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 3 }}>Dropoff</div>
+                  <div style={{ fontFamily: body, fontSize: 14, fontWeight: 700, color: D.t2, lineHeight: 1.35 }}>{doc.dropoff}</div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Driver intel */}
@@ -900,7 +950,6 @@ function DetailSheet({ doc, account, onClose }) {
           <div style={{ marginBottom: 20 }}>
             <div className="st-section-title">Trip Details</div>
             {[
-              { label: "Full Address",  value: doc.pickup,                                         icon: <Navigation size={13} color={D.teal} /> },
               { label: "Distance",      value: doc.miles   ? `${doc.miles.toFixed(2)} mi` : null,  icon: <Ruler      size={13} color={D.t4}   /> },
               { label: "Est. Duration", value: doc.minutes ? `${doc.minutes} min`         : null,  icon: <Clock      size={13} color={D.t4}   /> },
               { label: "Searched At",   value: fmtTime(doc.createdAt),                             icon: <Timer      size={13} color={D.t4}   /> },
@@ -954,8 +1003,9 @@ export function SearchTab({ onToast }) {
       const q = queryStr.toLowerCase();
       list = list.filter(s => {
         const acc = accountMap[s.uid];
-        return (s.pickup  || "").toLowerCase().includes(q)
-            || (s.uid     || "").toLowerCase().includes(q)
+        return (s.pickup   || "").toLowerCase().includes(q)
+            || (s.dropoff  || "").toLowerCase().includes(q)
+            || (s.uid      || "").toLowerCase().includes(q)
             || (acc?.name  || "").toLowerCase().includes(q)
             || (acc?.email || "").toLowerCase().includes(q);
       });
@@ -978,10 +1028,8 @@ export function SearchTab({ onToast }) {
     <div className="st-root">
       <style>{GLOBAL_CSS}</style>
 
-      {/* Stats */}
       {!loading && searches.length > 0 && <StatsBar searches={searches} accountMap={accountMap} />}
 
-      {/* Map */}
       {!loading && (
         <SearchMapView
           searches={filtered.length > 0 ? filtered : searches}
@@ -992,7 +1040,6 @@ export function SearchTab({ onToast }) {
         />
       )}
 
-      {/* Search + filters */}
       <div className="st-controls">
         <div className="st-search-wrap">
           <Search size={14} color={D.t4} className="st-search-icon" />
@@ -1019,7 +1066,6 @@ export function SearchTab({ onToast }) {
         </div>
       </div>
 
-      {/* List */}
       {loading || acLoad ? (
         <div className="st-loading" style={{ margin: "14px 16px", padding: "52px 20px" }}>Loading searches…</div>
       ) : filtered.length === 0 ? (
@@ -1044,7 +1090,6 @@ export function SearchTab({ onToast }) {
         </div>
       )}
 
-      {/* Detail sheet */}
       {selectedDoc && (
         <DetailSheet
           doc={selectedDoc}
