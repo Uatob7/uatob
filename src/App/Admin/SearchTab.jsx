@@ -17,15 +17,15 @@ const AMBER = "#D97706";
 // ─── LIGHT DESIGN TOKENS ──────────────────────────────────────────────────
 const D = {
   // Backgrounds
-  bg:       "#F1F5F9",       // page bg — cool slate-100
+  bg:       "#FFFFFF",       // page bg — white
   bgCard:   "#FFFFFF",       // cards
   bgMid:    "#F8FAFC",       // inner panels
   bgHover:  "#F0FDF9",       // teal-tinted hover
 
   // Borders
-  border:   "rgba(15,23,42,.07)",
-  borderMd: "rgba(15,23,42,.13)",
-  borderLg: "rgba(15,23,42,.22)",
+  border:   "rgba(15,23,42,.05)",
+  borderMd: "rgba(15,23,42,.1)",
+  borderLg: "rgba(15,23,42,.18)",
 
   // Text
   t1: "#0F172A",   // headings
@@ -144,7 +144,7 @@ function DriverPanel({ driverInfo }) {
   return (
     <div style={{ marginBottom: 18 }}>
       <SectionLabel>Driver Intelligence</SectionLabel>
-      <div style={{ borderRadius: 16, border: `1.5px solid ${hasDriver ? D.teal + "30" : D.red + "25"}`, overflow: "hidden", background: hasDriver ? D.tealDim : D.redDim, marginTop: 8 }}>
+      <div style={{ borderRadius: 16, border: `1px solid ${hasDriver ? D.teal + "30" : D.red + "25"}`, overflow: "hidden", background: hasDriver ? D.tealDim : D.redDim, marginTop: 8, boxShadow: "0 1px 3px rgba(15,23,42,.04)" }}>
         <div style={{ height: 3, background: hasDriver ? `linear-gradient(90deg,${D.teal},${D.blue})` : `linear-gradient(90deg,${D.red},${D.amber})` }} />
         <div style={{ padding: "14px 16px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
@@ -224,7 +224,7 @@ function FareGrid({ rides }) {
           const t   = rides[k];
           const cfg = TIER[k] ?? { label: k, color: D.t3, bg: D.bgMid, grad: "linear-gradient(135deg,#CBD5E1,#94A3B8)" };
           return (
-            <div key={k} style={{ borderRadius: 14, overflow: "hidden", border: `1.5px solid ${D.border}`, background: D.bgCard, boxShadow: "0 1px 6px rgba(15,23,42,.05)" }}>
+            <div key={k} style={{ borderRadius: 14, overflow: "hidden", border: `1px solid ${D.border}`, background: D.bgCard, boxShadow: "0 1px 3px rgba(15,23,42,.05)" }}>
               <div style={{ height: 3, background: cfg.grad }} />
               <div style={{ padding: "11px 13px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
@@ -388,7 +388,7 @@ function SearchMapView({ searches = [], selectedId, hoveredId, onSelect, height 
   const riderCt = searches.length - guestCt;
 
   return (
-    <div style={{ borderRadius: 18, overflow: "hidden", border: `1.5px solid ${D.border}`, marginBottom: 14, background: D.bgCard, boxShadow: "0 2px 12px rgba(15,23,42,.07)" }}>
+    <div style={{ borderRadius: 18, overflow: "hidden", border: `1px solid ${D.border}`, marginBottom: 14, background: D.bgCard, boxShadow: "0 1px 3px rgba(15,23,42,.06), 0 4px 16px rgba(15,23,42,.08)" }}>
       <style>{`
         .mbst .mapboxgl-ctrl-bottom-left,.mbst .mapboxgl-ctrl-bottom-right{display:none!important}
         .mbst .mapboxgl-ctrl-top-right{margin:10px 10px 0 0!important}
@@ -492,8 +492,8 @@ function StatsBar({ searches, accountMap }) {
     <div style={{ display: "flex", gap: 8, marginBottom: 14, overflowX: "auto", paddingBottom: 2, animation: "fadeUp .4s ease both" }}>
       {stats.map(({ v, l, c, icon }) => (
         <div key={l}
-          style={{ flex: "0 0 auto", background: D.bgCard, border: `1.5px solid ${D.border}`, borderRadius: 14, padding: "11px 15px", minWidth: 76, transition: "border-color .15s, transform .15s, box-shadow .15s", boxShadow: "0 1px 4px rgba(15,23,42,.05)" }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = D.teal + "40"; e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(15,23,42,.1)"; }}
+          style={{ flex: "0 0 auto", background: D.bgCard, border: `1px solid ${D.border}`, borderRadius: 14, padding: "11px 15px", minWidth: 76, transition: "border-color .15s, transform .15s, box-shadow .15s", boxShadow: "0 1px 2px rgba(15,23,42,.04)" }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = D.teal + "35"; e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(15,23,42,.1)"; }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 1px 4px rgba(15,23,42,.05)"; }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 4, color: D.t4, marginBottom: 7 }}>
@@ -521,9 +521,9 @@ function SearchCard({ doc, index, selected, hovered, onHover, onLeave, onClick, 
       onMouseLeave={onLeave}
       style={{
         background:   selected ? D.bgHover : D.bgCard,
-        border:       selected ? `1.5px solid ${ac}50` : hovered ? `1.5px solid ${ac}30` : `1.5px solid ${D.border}`,
+        border:       selected ? `1.5px solid ${ac}50` : hovered ? `1.5px solid ${ac}35` : `1px solid ${D.border}`,
         borderRadius: 16, overflow: "hidden", cursor: "pointer",
-        boxShadow:    selected ? `0 0 0 3px ${ac}12, 0 6px 20px rgba(15,23,42,.09)` : "0 1px 6px rgba(15,23,42,.05)",
+        boxShadow:    selected ? `0 0 0 3px ${ac}12, 0 8px 24px rgba(15,23,42,.12)` : hovered ? `0 2px 8px rgba(15,23,42,.08)` : "0 1px 3px rgba(15,23,42,.05)",
         transition:   "border-color .15s, background .15s, box-shadow .15s, transform .12s",
         animation:    `fadeUp .3s ease ${index * 30}ms both`,
         transform:    hovered && !selected ? "translateY(-1px)" : "none",
@@ -618,8 +618,8 @@ function DetailSheet({ doc, account, onClose }) {
         maxWidth: 640, margin: "0 auto",
         maxHeight: "90vh", overflowY: "auto",
         animation: "sheetUp .3s cubic-bezier(.34,1.1,.64,1)",
-        boxShadow: "0 -12px 50px rgba(15,23,42,.16)",
-        border: `1.5px solid ${D.border}`, borderBottom: "none",
+        boxShadow: "0 -2px 8px rgba(15,23,42,.06), 0 -12px 48px rgba(15,23,42,.14)",
+        border: `1px solid ${D.border}`, borderBottom: "none",
       }}>
         <style>{`
           @keyframes fadeIn  { from{opacity:0}                  to{opacity:1} }
@@ -831,11 +831,11 @@ export function SearchTab({ onToast }) {
             placeholder="Search name, email, address, UID…"
             style={{
               width: "100%", padding: "11px 38px",
-              borderRadius: 13, border: `1.5px solid ${query ? D.teal + "60" : D.borderMd}`,
+              borderRadius: 13, border: `1.5px solid ${query ? D.teal + "55" : D.borderMd}`,
               background: D.bgCard, color: D.t1,
               fontFamily: sans, fontSize: 13.5, fontWeight: 500,
-              outline: "none", transition: "border-color .15s",
-              boxShadow: "0 1px 4px rgba(15,23,42,.05)",
+              outline: "none", transition: "border-color .15s, box-shadow .15s",
+              boxShadow: query ? `0 0 0 3px ${D.teal}12` : "0 1px 2px rgba(15,23,42,.04)",
             }}
           />
           {query && (
@@ -867,7 +867,7 @@ export function SearchTab({ onToast }) {
       {loading || acLoad ? (
         <div style={{ textAlign: "center", padding: "48px 0", color: D.t4, fontFamily: sans, fontSize: 13 }}>Loading searches…</div>
       ) : filtered.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "56px 20px", background: D.bgCard, border: `1.5px solid ${D.border}`, borderRadius: 18, boxShadow: "0 1px 6px rgba(15,23,42,.05)" }}>
+        <div style={{ textAlign: "center", padding: "56px 20px", background: D.bgMid, border: `1px solid ${D.border}`, borderRadius: 18, boxShadow: "0 1px 3px rgba(15,23,42,.04)" }}>
           <Search size={26} color={D.t4} style={{ display: "block", margin: "0 auto 12px" }} />
           <div style={{ fontFamily: display, fontSize: 15, fontWeight: 800, color: D.t2, marginBottom: 4 }}>No searches found</div>
           <div style={{ fontFamily: sans, fontSize: 12.5, color: D.t4 }}>Try adjusting your filters</div>
