@@ -1,6 +1,6 @@
 // src/App/UaTob/ConfirmationModal.jsx
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Clock, Car, CheckCircle, RotateCcw, Loader2, Bell, AlertCircle, MapPin, Navigation } from 'lucide-react';
+import { Clock, Car, CheckCircle, RotateCcw, Loader2, Bell, AlertCircle, MapPin, Navigation, Phone, Check, X } from 'lucide-react';
 import { THEME as T } from '@/App/UaTob/pricing.js';
 import { doc, deleteDoc, onSnapshot, getFirestore } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
@@ -12,9 +12,13 @@ const functions = getFunctions(firebase_app, "us-east1");
 const callableExtendRideSearch = httpsCallable(functions, "extendRideSearch");
 const callableSaveRiderToken = httpsCallable(functions, "saveRiderFcmToken");
 const callableCancelRide = httpsCallable(functions, "cancelRide");
+const callableUpdateRiderPhone = httpsCallable(functions, "updateRiderPhone");
 
 const VAPID_KEY = "BJ_sRHZonSGCKk2mB2i9ofTRS8ouFVMV-I15FX4sqdUXHyVb1lo6H-N4GMPrlcIIshRlykQicaxkxxFxcYcI4JQ";
 const SEARCH_LIMIT_SEC = 7 * 60;
+
+// Per-ride sticky skip key
+const PHONE_SKIP_KEY = (rideId) => `uatob_phone_skipped_${rideId}`;
 
 function getSecondsRemaining(expiresAt) {
   if (!expiresAt) return 0;
@@ -33,6 +37,249 @@ async function registerRiderFcmToken(rideId, uid) {
   const token = await getToken(messaging, { vapidKey: VAPID_KEY });
   if (!token) throw new Error("Empty token");
   await callableSaveRiderToken({ rideId, uid, token });
+}
+
+// Format a string of digits as US phone: "5551234567" → "(555) 123-4567"
+function formatUsPhone(raw) {
+  const digits = String(raw ?? "").replace(/\D/g, "").slice(0, 10);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
+// Strip down to digits for validation
+function digitsOnly(s) {
+  return String(s ?? "").replace(/\D/g, "");
+}
+
+// ─── Phone Capture Card (inline, shows during searching) ────────────────────
+function PhoneCaptureCard({ uid, onSkip, onSaved }) {
+  const [value, setValue]     = useState("");
+  const [saving, setSaving]   = useState(false);
+  const [error, setError]     = useState("");
+  const [success, setSuccess] = useState(false);
+
+  const digits = digitsOnly(value);
+  const isValidUs = digits.length === 10 || (digits.length === 11 && digits[0] === "1");
+  const canSubmit = isValidUs && !saving && !success;
+
+  const handleChange = (e) => {
+    setValue(formatUsPhone(e.target.value));
+    if (error) setError("");
+  };
+
+  const handleSubmit = async () => {
+    if (!canSubmit) return;
+    setSaving(true);
+    setError("");
+    try {
+      const { data } = await callableUpdateRiderPhone({ uid, phone: digits });
+      if (data?.success) {
+        setSuccess(true);
+        // Brief celebration then notify parent
+        setTimeout(() => onSaved?.(data.phone), 900);
+      } else {
+        throw new Error("Update failed");
+      }
+    } catch (err) {
+      console.error("[updateRiderPhone] failed:", err);
+      setError(err?.message || "Couldn't save. Try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && canSubmit) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
+  if (success) {
+    return (
+      <div style={{
+        marginTop: 10,
+        background: "linear-gradient(135deg, #ECFDF5, #D1FAE5)",
+        border: `1px solid ${T.accentBorder}`,
+        borderRadius: 14,
+        padding: "14px 16px",
+        display: "flex",
+        alignItems: "center",
+        gap: 11,
+        animation: "phoneSlideIn .3s cubic-bezier(.34,1.56,.64,1) both",
+      }}>
+        <div style={{
+          width: 32, height: 32, borderRadius: "50%",
+          background: "linear-gradient(135deg,#22C55E,#15803D)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          flexShrink: 0,
+          boxShadow: "0 2px 8px rgba(22,163,74,.35)",
+        }}>
+          <Check size={15} color="#fff" strokeWidth={3} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: "#065F46", marginBottom: 1 }}>
+            Phone saved
+          </div>
+          <div style={{ fontSize: 11.5, color: "#047857", fontWeight: 500 }}>
+            Your driver can text you when they arrive
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <style>{`
+        @keyframes phoneSlideIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: translateY(0);   }
+        }
+        @keyframes phoneIconBob {
+          0%, 100% { transform: rotate(-8deg); }
+          50%      { transform: rotate(8deg);  }
+        }
+        .phone-input:focus { border-color: ${T.accent} !important; box-shadow: 0 0 0 3px rgba(34,197,94,.12); }
+        .phone-save-btn:hover:not(:disabled) { filter: brightness(1.07); transform: translateY(-1px); }
+        .phone-save-btn:active:not(:disabled) { transform: translateY(0); filter: brightness(.96); }
+        .phone-skip-btn:hover { color: ${T.text} !important; }
+      `}</style>
+
+      <div style={{
+        marginTop: 10,
+        background: "linear-gradient(135deg, #FAFBFF, #F0F9FF)",
+        border: "1px solid #DBEAFE",
+        borderRadius: 14,
+        padding: "13px 14px 14px",
+        animation: "phoneSlideIn .35s cubic-bezier(.34,1.56,.64,1) both",
+        position: "relative",
+      }}>
+
+        {/* Skip × in top-right */}
+        <button
+          className="phone-skip-btn"
+          onClick={onSkip}
+          aria-label="Skip phone number"
+          style={{
+            position: "absolute", top: 8, right: 8,
+            width: 22, height: 22, borderRadius: "50%",
+            border: "none", background: "transparent",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", color: "#9CA3AF",
+            transition: "color .12s",
+            padding: 0,
+          }}
+        >
+          <X size={13} strokeWidth={2.5} />
+        </button>
+
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, paddingRight: 22 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 9,
+            background: "linear-gradient(135deg, #3B82F6, #2563EB)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            flexShrink: 0,
+            boxShadow: "0 2px 8px rgba(37,99,235,.3)",
+          }}>
+            <Phone size={14} color="#fff" strokeWidth={2.4} style={{ animation: "phoneIconBob 2.2s ease-in-out infinite" }} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#1E3A8A", letterSpacing: "-0.1px" }}>
+              Add your phone number
+            </div>
+            <div style={{ fontSize: 11.5, color: "#3B82F6", fontWeight: 500, marginTop: 1 }}>
+              So your driver can reach you on pickup
+            </div>
+          </div>
+        </div>
+
+        {/* Input row */}
+        <div style={{ display: "flex", gap: 7 }}>
+          <input
+            className="phone-input"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder="(555) 123-4567"
+            value={value}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            disabled={saving}
+            style={{
+              flex: 1,
+              padding: "10px 12px",
+              borderRadius: 10,
+              border: `1.5px solid ${error ? "#FCA5A5" : "#DBEAFE"}`,
+              background: "#fff",
+              fontSize: 14,
+              fontWeight: 600,
+              color: T.text,
+              fontFamily: "inherit",
+              letterSpacing: ".01em",
+              outline: "none",
+              transition: "border-color .15s, box-shadow .15s",
+              minWidth: 0,
+            }}
+          />
+          <button
+            className="phone-save-btn"
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            style={{
+              padding: "0 14px",
+              minWidth: 70,
+              borderRadius: 10,
+              border: "none",
+              background: canSubmit
+                ? "linear-gradient(135deg,#22C55E,#15803D)"
+                : "#E5E7EB",
+              color: canSubmit ? "#fff" : "#9CA3AF",
+              fontSize: 13,
+              fontWeight: 800,
+              cursor: canSubmit ? "pointer" : "not-allowed",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+              boxShadow: canSubmit ? "0 2px 8px rgba(22,163,74,.32)" : "none",
+              transition: "filter .15s, transform .15s, background .15s, color .15s, box-shadow .15s",
+              flexShrink: 0,
+            }}
+          >
+            {saving
+              ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
+              : "Save"
+            }
+          </button>
+        </div>
+
+        {/* Error row */}
+        {error && (
+          <div style={{
+            marginTop: 8,
+            display: "flex", alignItems: "center", gap: 5,
+            fontSize: 11.5, fontWeight: 600, color: "#DC2626",
+          }}>
+            <AlertCircle size={11} strokeWidth={2.5} />
+            {error}
+          </div>
+        )}
+
+        {/* Privacy footnote */}
+        {!error && (
+          <div style={{
+            marginTop: 8,
+            fontSize: 10.5,
+            color: "#6B7280",
+            fontWeight: 500,
+            lineHeight: 1.4,
+          }}>
+            Used only for ride coordination. Never shared.
+          </div>
+        )}
+      </div>
+    </>
+  );
 }
 
 // ─── Notification Popup ────────────────────────────────────────────────────
@@ -179,11 +426,16 @@ export default function ConfirmationModal({
   const [notifLoading, setNotifLoading] = useState(false);
   const [notifError, setNotifError] = useState("");
 
+  // ── Phone capture state ────────────────────────────────────────
+  const [accountPhone, setAccountPhone] = useState(null);   // null = unknown, "" = no phone, string = has phone
+  const [phoneSkipped, setPhoneSkipped] = useState(false);
+
   const timerRef = useRef(null);
   const closeTimeoutRef = useRef(null);
   const mountedRef = useRef(true);
   const lastRideIdRef = useRef(null);
   const unsubRef = useRef(null);
+  const accountUnsubRef = useRef(null);
   const notifRequestedRef = useRef(false);
   const didTimeoutRef = useRef(false);
 
@@ -206,7 +458,8 @@ export default function ConfirmationModal({
       clearTimeout(t);
       clearTimeout(closeTimeoutRef.current);
       clearInterval(timerRef.current);
-      unsubRef.current?.();
+      try { unsubRef.current?.(); } catch {}
+      try { accountUnsubRef.current?.(); } catch {}
     };
   }, []);
 
@@ -214,7 +467,7 @@ export default function ConfirmationModal({
     if (!rideId) return;
     if (rideId === lastRideIdRef.current) return;
     lastRideIdRef.current = rideId;
-    unsubRef.current?.();
+    try { unsubRef.current?.(); } catch {}
     unsubRef.current = onSnapshot(
       doc(db, 'Rides', rideId),
       (snap) => {
@@ -225,7 +478,45 @@ export default function ConfirmationModal({
     );
   }, [rideId]);
 
-  // ── FIXED: allow transitioning back out of timeout after extend ──
+  // ── Subscribe to Accounts/{uid} for live phone status ──
+  useEffect(() => {
+    if (!riderUid) return;
+    try { accountUnsubRef.current?.(); } catch {}
+    try {
+      accountUnsubRef.current = onSnapshot(
+        doc(db, "Accounts", riderUid),
+        (snap) => {
+          if (!mountedRef.current) return;
+          const data = snap.exists() ? snap.data() : null;
+          setAccountPhone(data?.phone ?? "");
+        },
+        (err) => {
+          console.warn("[ConfirmationModal] account snapshot error:", err);
+          // Don't lock the user out of phone capture if read fails
+          setAccountPhone("");
+        }
+      );
+    } catch (err) {
+      console.warn("[ConfirmationModal] account subscribe threw:", err);
+      setAccountPhone("");
+    }
+    return () => {
+      try { accountUnsubRef.current?.(); } catch {}
+    };
+  }, [riderUid]);
+
+  // ── Restore "skipped this ride" preference from session ──
+  useEffect(() => {
+    if (!rideId) { setPhoneSkipped(false); return; }
+    try {
+      const flag = sessionStorage.getItem(PHONE_SKIP_KEY(rideId));
+      setPhoneSkipped(flag === "1");
+    } catch {
+      setPhoneSkipped(false);
+    }
+  }, [rideId]);
+
+  // ── allow transitioning back out of timeout after extend ──
   useEffect(() => {
     if (!currentRide) return;
     const s = currentRide.status;
@@ -236,7 +527,6 @@ export default function ConfirmationModal({
       case 'searching_driver':
       case 'searching':
         if (status === 'timeout') {
-          // coming back from timeout after extend — force reset
           didTimeoutRef.current = false;
           setStatus('searching');
           setDriver(null);
@@ -343,6 +633,31 @@ export default function ConfirmationModal({
   const dropoff = currentRide?.dropoff ?? '—';
   const rideLabel = currentRide?.rideLabel ?? currentRide?.rideType ?? 'Ride';
 
+  // Show phone card only when:
+  //  - status is searching
+  //  - we know the account state (accountPhone !== null)
+  //  - account has no phone yet
+  //  - rider hasn't skipped this ride
+  //  - we have a uid to write to
+  const shouldShowPhoneCapture =
+    status === 'searching' &&
+    accountPhone !== null &&
+    !accountPhone &&
+    !phoneSkipped &&
+    !!riderUid;
+
+  const handleSkipPhone = () => {
+    setPhoneSkipped(true);
+    if (rideId) {
+      try { sessionStorage.setItem(PHONE_SKIP_KEY(rideId), "1"); } catch {}
+    }
+  };
+
+  const handlePhoneSaved = (savedPhone) => {
+    // accountPhone will update via onSnapshot, this just hides instantly
+    setAccountPhone(savedPhone);
+  };
+
   const handleClose = async () => {
     if (status === 'checking_payment' && rideId) {
       deleteDoc(doc(db, 'Rides', rideId)).catch(err => console.warn(err));
@@ -354,22 +669,20 @@ export default function ConfirmationModal({
     closeTimeoutRef.current = setTimeout(() => onClose?.(), 260);
   };
 
-  // ── FIXED: reset didTimeoutRef before the call so snapshot fires correctly ──
   const handleWaitMore = async () => {
     if (!rideId || !riderUid) return;
     setActionLoading(true);
-    didTimeoutRef.current = false; // reset before call
+    didTimeoutRef.current = false;
     try {
       await callableExtendRideSearch({ rideId, uid: riderUid });
     } catch (err) {
       console.error('Extend error:', err);
-      didTimeoutRef.current = true; // re-set if call failed
+      didTimeoutRef.current = true;
     } finally {
       setActionLoading(false);
     }
   };
 
-  // ── Cancel this ride ───────────────────────────────────────────────────
   const handleCancelRide = async () => {
     if (!rideId || !riderUid) return;
     setCancelLoading(true);
@@ -386,7 +699,6 @@ export default function ConfirmationModal({
       setCancelLoading(false);
     }
   };
-  // ──────────────────────────────────────────────────────────────────────
 
   const handleEnableNotifications = async () => {
     if (!rideId || !riderUid) { setNotifError("Ride info missing"); return; }
@@ -524,10 +836,21 @@ export default function ConfirmationModal({
                   </div>
                 </div>
               </div>
+
+              {/* Fare row */}
               <div style={{background:'#F0FDF4',border:`1px solid ${T.accentBorder}`,borderRadius:'12px',padding:'10px 14px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                 <span style={{fontSize:'12px',fontWeight:600,color:T.textMuted}}>{rideLabel} · {miles} mi</span>
                 <span style={{fontFamily:'"JetBrains Mono",monospace',fontSize:'15px',fontWeight:700,color:T.accent}}>${total}</span>
               </div>
+
+              {/* ── PHONE CAPTURE — UNDER FEE ── */}
+              {shouldShowPhoneCapture && (
+                <PhoneCaptureCard
+                  uid={riderUid}
+                  onSkip={handleSkipPhone}
+                  onSaved={handlePhoneSaved}
+                />
+              )}
             </div>
           </>
         )}
@@ -610,7 +933,6 @@ export default function ConfirmationModal({
               .timeout-cancel-btn:active { background: #FEE2E2 !important; }
             `}</style>
 
-            {/* ── Illustrated header ── */}
             <div style={{
               background: 'linear-gradient(160deg, #FFF8F0 0%, #FFF1F2 50%, #FEF2F2 100%)',
               padding: '34px 24px 26px',
@@ -709,10 +1031,8 @@ export default function ConfirmationModal({
               </div>
             </div>
 
-            {/* ── Body ── */}
             <div style={{ padding: '18px 20px 22px' }}>
 
-              {/* Route recap pill */}
               <div style={{
                 background: '#FAFAFA', border: '1px solid #E5E7EB',
                 borderRadius: '16px', padding: '13px 15px',
@@ -745,7 +1065,6 @@ export default function ConfirmationModal({
                 </div>
               </div>
 
-              {/* Option label */}
               <div style={{
                 fontSize: '10px', fontWeight: 800, letterSpacing: '1.1px',
                 textTransform: 'uppercase', color: '#9CA3AF',
@@ -755,7 +1074,6 @@ export default function ConfirmationModal({
                 What would you like to do?
               </div>
 
-              {/* CTA buttons */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '9px', animation: 'slideUpIn .4s ease .1s both' }}>
                 <button
                   className="timeout-retry-btn"
