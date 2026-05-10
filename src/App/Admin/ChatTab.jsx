@@ -15,18 +15,18 @@ const db = getFirestore(firebase_app);
 
 // ── Design tokens ─────────────────────────────────────────────────────
 const T = {
-  bg:       "#0F1117",
-  surface:  "#181C27",
-  card:     "#1E2333",
-  border:   "#2A2F42",
-  accent:   "#3D7FFF",
-  accentDim:"rgba(61,127,255,.15)",
-  green:    "#22C55E",
-  red:      "#EF4444",
-  amber:    "#F59E0B",
-  textPri:  "#F0F2F8",
-  textSec:  "#7B8099",
-  textMut:  "#4A5068",
+  bg:       "#F4F6FB",
+  surface:  "#FFFFFF",
+  card:     "#F9FAFC",
+  border:   "#E4E8F0",
+  accent:   "#2563EB",
+  accentDim:"rgba(37,99,235,.10)",
+  green:    "#16A34A",
+  red:      "#DC2626",
+  amber:    "#D97706",
+  textPri:  "#111827",
+  textSec:  "#6B7280",
+  textMut:  "#9CA3AF",
 };
 
 const QUICK_REPLIES = [
@@ -124,14 +124,14 @@ const CSS = `
   .ac-topbar-sub { font-size: 11.5px; color: ${T.textSec}; font-weight: 500; margin-top: 1px; }
 
   .ac-badge {
-    background: ${T.accentDim}; color: ${T.accent};
-    border: 1px solid rgba(61,127,255,.3); border-radius: 20px;
+    background: #EFF6FF; color: ${T.accent};
+    border: 1px solid #BFDBFE; border-radius: 20px;
     padding: 4px 10px; font-size: 11px; font-weight: 700;
     display: flex; align-items: center; gap: 5px; letter-spacing: .02em;
     flex-shrink: 0;
   }
-  .ac-badge.red { background: rgba(239,68,68,.12); color: ${T.red}; border-color: rgba(239,68,68,.25); }
-  .ac-badge.green { background: rgba(34,197,94,.1); color: ${T.green}; border-color: rgba(34,197,94,.25); }
+  .ac-badge.red { background: #FEF2F2; color: ${T.red}; border-color: #FECACA; }
+  .ac-badge.green { background: #F0FDF4; color: ${T.green}; border-color: #BBF7D0; }
 
   /* ── SEARCH ── */
   .ac-search-wrap {
@@ -170,7 +170,7 @@ const CSS = `
   }
   .ac-filter-chip.active {
     background: ${T.accentDim}; color: ${T.accent};
-    border-color: rgba(61,127,255,.4);
+    border-color: rgba(37,99,235,.3);
   }
 
   /* ── CONVERSATION LIST ── */
@@ -191,8 +191,8 @@ const CSS = `
     -webkit-tap-highlight-color: transparent;
   }
   .ac-conv-item:active { transform: scale(.98); }
-  .ac-conv-item.selected { border-color: rgba(61,127,255,.4); background: rgba(61,127,255,.06); }
-  .ac-conv-item:hover:not(.selected) { border-color: ${T.border}; background: #1A1F2E; }
+  .ac-conv-item.selected { border-color: rgba(37,99,235,.35); background: rgba(37,99,235,.05); }
+  .ac-conv-item:hover:not(.selected) { border-color: #D1D5DB; background: #F0F4FF; }
 
   .ac-avatar {
     width: 46px; height: 46px; border-radius: 50%; flex-shrink: 0;
@@ -215,7 +215,7 @@ const CSS = `
     display: flex; align-items: center; justify-content: center;
     font-size: 10.5px; font-weight: 800; padding: 0 5px;
     animation: ac-pop .3s ease;
-    box-shadow: 0 2px 8px rgba(239,68,68,.4);
+    box-shadow: 0 2px 8px rgba(220,38,38,.3);
   }
 
   /* ── EMPTY STATE ── */
@@ -288,12 +288,13 @@ const CSS = `
   .ac-bubble.out {
     background: ${T.accent};
     color: #fff; border-bottom-right-radius: 4px;
-    box-shadow: 0 4px 14px rgba(61,127,255,.25);
+    box-shadow: 0 4px 14px rgba(37,99,235,.18);
     animation: ac-pop .2s cubic-bezier(.34,1.56,.64,1) both;
   }
   .ac-bubble.in {
-    background: ${T.card}; color: ${T.textPri};
+    background: #FFFFFF; color: ${T.textPri};
     border: 1px solid ${T.border}; border-bottom-left-radius: 4px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
     animation: ac-slideRight .2s ease both;
   }
   .ac-bubble-meta {
@@ -319,7 +320,7 @@ const CSS = `
     width: fit-content; animation: ac-slideRight .2s ease;
   }
   .ac-typing-dot {
-    width: 6px; height: 6px; border-radius: 50%; background: ${T.textMut};
+    width: 6px; height: 6px; border-radius: 50%; background: #CBD5E1;
     animation: ac-bounce 1.2s ease-in-out infinite;
   }
 
@@ -341,7 +342,7 @@ const CSS = `
   }
   .ac-quick-btn:hover {
     background: ${T.accentDim}; color: ${T.accent};
-    border-color: rgba(61,127,255,.4);
+    border-color: rgba(37,99,235,.3);
   }
   .ac-quick-btn:active { transform: scale(.95); }
 
@@ -365,9 +366,9 @@ const CSS = `
     width: 44px; height: 44px; border-radius: 14px; border: none;
     background: ${T.accent}; display: flex; align-items: center; justify-content: center;
     cursor: pointer; flex-shrink: 0; transition: transform .12s, box-shadow .15s;
-    box-shadow: 0 4px 14px rgba(61,127,255,.3);
+    box-shadow: 0 4px 14px rgba(37,99,235,.22);
   }
-  .ac-send-btn:hover { transform: scale(1.06); box-shadow: 0 6px 20px rgba(61,127,255,.4); }
+  .ac-send-btn:hover { transform: scale(1.06); box-shadow: 0 6px 20px rgba(37,99,235,.32); }
   .ac-send-btn:active { transform: scale(.93); }
   .ac-send-btn:disabled { background: ${T.card}; box-shadow: none; cursor: default; }
 
