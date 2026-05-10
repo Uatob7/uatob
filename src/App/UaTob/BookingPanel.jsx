@@ -26,6 +26,9 @@ const T = {
   textMuted:    '#6B7280',
   border:       '#E5E7EB',
   surfaceAlt:   '#F9FAFB',
+  amber:        '#D97706',
+  amberBg:      '#FFFBEB',
+  amberBorder:  '#FDE68A',
 };
 
 // ── localStorage ──────────────────────────────────────────────────────
@@ -69,9 +72,12 @@ async function fetchTripData(pickup, dropoff) {
   };
 }
 
-// ── uid is now accepted and forwarded to the Price function ──────────
-async function fetchQuotesData(tripData, uid) {
-  const { data } = await callPrice({ ...tripData, uid });
+// FIX #1: uid no longer sent. Price reads it from request.auth server-side.
+// Sending it from the client was a no-op (and previously a security hole
+// the server has now closed). Leaving it out keeps the payload smaller
+// and the contract honest.
+async function fetchQuotesData(tripData) {
+  const { data } = await callPrice(tripData);
   if (!data.ok) throw new Error(data.error || 'Pricing error');
   if (data.rides)
     Object.values(data.rides).forEach(r => { r.total = Number(r.total).toFixed(2); });
@@ -142,6 +148,7 @@ const PANEL_CSS = `
   .bp-ride-meta  { display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
   .bp-ride-tag   { display:flex; align-items:center; gap:3px; font-size:10.5px; color:#9CA3AF; font-weight:600; }
   .bp-ride-tag.stale { color:#9CA3AF; }
+  .bp-ride-tag.unavail { color:${T.amber}; font-weight:700; }
   .bp-stats { display:flex; align-items:stretch; border-top:1.5px solid #E5E7EB; }
   .bp-stat  { flex:1; padding:13px 16px; display:flex; flex-direction:column; gap:3px; }
   .bp-stat + .bp-stat { border-left:1.5px solid #E5E7EB; }
@@ -178,10 +185,13 @@ const PANEL_CSS = `
 
   /* ── Driver banner ── */
   .bp-driver-banner { display:flex; align-items:center; gap:10px; padding:10px 14px; border-top:1px solid #F3F4F6; background:#FAFAFA; }
+  .bp-driver-banner.unavail { background:${T.amberBg}; border-top-color:${T.amberBorder}; }
   .bp-driver-dot { width:7px; height:7px; border-radius:50%; background:#16A34A; flex-shrink:0; animation:bp-dotPulse 1.6s ease-in-out infinite; }
   .bp-driver-dot.stale { background:#9CA3AF; animation:none; }
+  .bp-driver-dot.unavail { background:${T.amber}; animation:none; }
   .bp-driver-text { font-size:11.5px; font-weight:700; color:#374151; font-family:'Outfit',sans-serif; }
   .bp-driver-text.stale { color:#9CA3AF; }
+  .bp-driver-text.unavail { color:${T.amber}; }
   .bp-driver-sub { font-size:10.5px; font-weight:500; color:#9CA3AF; font-family:'Outfit',sans-serif; margin-left:auto; }
 `;
 
@@ -228,8 +238,24 @@ function LocationAlert({ onAllow, onDeny, loading, error }) {
 }
 
 // ── Driver availability banner ────────────────────────────────────────
+// FIX #2: Now handles three states explicitly:
+//   - driverInfo === null  → no drivers at all (Price returned null)
+//   - driverInfo.stale     → driver location may be outdated
+//   - normal               → fresh driver(s) nearby
 function DriverBanner({ driverInfo }) {
-  if (!driverInfo) return null;
+  // No drivers at all — be honest, don't just hide
+  if (!driverInfo) {
+    return (
+      <div className="bp-driver-banner unavail">
+        <div className="bp-driver-dot unavail"/>
+        <span className="bp-driver-text unavail">
+          Drivers limited in your area
+        </span>
+        <span className="bp-driver-sub">we'll keep searching</span>
+      </div>
+    );
+  }
+
   const stale = driverInfo.stale;
   const count = driverInfo.driverCount ?? 1;
   const miles = driverInfo.nearestMiles;
@@ -456,12 +482,10 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
   const onPayloadChangeRef = useRef(onPayloadChange);
   const onPriceReadyRef    = useRef(onPriceReady);
   const selectedRideRef    = useRef(selectedRide);
-  const uidRef             = useRef(uid);
 
   useEffect(() => { onPayloadChangeRef.current = onPayloadChange; }, [onPayloadChange]);
   useEffect(() => { onPriceReadyRef.current    = onPriceReady;    }, [onPriceReady]);
   useEffect(() => { selectedRideRef.current    = selectedRide;    }, [selectedRide]);
-  useEffect(() => { uidRef.current             = uid;             }, [uid]);
 
   function setPickup(val)  { setPickupRaw(val);  saveBookingForm({ pickup: val, dropoff,      selectedRide, tripData, quotesData }); }
   function setDropoff(val) { setDropoffRaw(val); saveBookingForm({ pickup,      dropoff: val, selectedRide, tripData, quotesData }); }
@@ -554,14 +578,15 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
     return () => clearTimeout(t);
   }, [pickup, dropoff]);
 
-  // ── Step 2: quotes (uid forwarded to Price function) ──────────────
+  // ── Step 2: quotes ────────────────────────────────────────────────
+  // FIX #1: no longer passes uid to Price. Server reads it from auth context.
   useEffect(() => {
     if (!tripData || quotesData) return;
     const requestId = ++quoteRequestRef.current;
     async function loadQuotes() {
       try {
         setLoadingQuotes(true); setError('');
-        const quotes = await fetchQuotesData(tripData, uidRef.current);
+        const quotes = await fetchQuotesData(tripData);
         if (quoteRequestRef.current !== requestId) return;
 
         const keys           = Object.keys(quotes?.rides || {});
@@ -598,6 +623,11 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
 
   const isLoading = loadingTrip || loadingQuotes;
   const hasQuote  = !!tripData && !!quotesData && !!selectedQuote && !error && !isLoading;
+
+  // FIX #2 helpers — selectedQuote.eta can be null when no drivers exist
+  const selectedEta       = selectedQuote?.eta ?? null;
+  const isStaleEtaSelected= typeof selectedEta === 'string' && selectedEta.startsWith('~');
+  const etaUnavailable    = selectedEta == null;
 
   useEffect(() => {
     if (hasQuote && !priceReadyFiredRef.current) {
@@ -710,7 +740,7 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
               </div>
             </div>
 
-            {/* ── Driver availability banner ── */}
+            {/* Driver availability banner — handles null/stale/normal */}
             <DriverBanner driverInfo={driverInfo}/>
           </>
         )}
@@ -725,6 +755,12 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
         <div className="bp-card bp-fadeup" style={{ marginBottom:10 }}>
           <div style={{ padding:'14px 16px 0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
             <span style={{ fontSize:11, fontWeight:800, letterSpacing:'1.2px', textTransform:'uppercase', color:'#9CA3AF', fontFamily:'Outfit,sans-serif' }}>Choose Ride</span>
+            {/* FIX #3: header advisory matches the reality of eta state */}
+            {!driverInfo && (
+              <span style={{ fontSize:10.5, fontWeight:700, color:T.amber, fontFamily:'Outfit,sans-serif' }}>
+                ⚠ Drivers limited
+              </span>
+            )}
             {driverInfo?.stale && (
               <span style={{ fontSize:10.5, fontWeight:700, color:'#9CA3AF', fontFamily:'Outfit,sans-serif' }}>
                 ⚠ Estimated wait times
@@ -735,7 +771,9 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
             {rideOptions.map((ride) => {
               const active   = selectedRide === ride.id;
               const IconComp = getRideIcon(ride.id);
-              const isStaleEta = ride.eta?.startsWith('~');
+              // FIX #2: ride.eta can be null. Render an honest "no ETA" pill in that case.
+              const etaUnavail = ride.eta == null;
+              const isStaleEta = typeof ride.eta === 'string' && ride.eta.startsWith('~');
               return (
                 <div key={ride.id} className={`bp-ride-card${active ? ' active' : ''}`}
                   onClick={() => { setSelectedRide(ride.id); setShowBreakdown(false); }}
@@ -756,9 +794,15 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
                   <div className="bp-ride-desc">{ride.desc}</div>
                   <div className="bp-ride-price">${Number(ride.total).toFixed(2)}</div>
                   <div className="bp-ride-meta">
-                    <span className={`bp-ride-tag${isStaleEta ? ' stale' : ''}`}>
-                      <Clock size={10}/>{ride.eta}
-                    </span>
+                    {etaUnavail ? (
+                      <span className="bp-ride-tag unavail">
+                        <AlertCircle size={10}/>No ETA
+                      </span>
+                    ) : (
+                      <span className={`bp-ride-tag${isStaleEta ? ' stale' : ''}`}>
+                        <Clock size={10}/>{ride.eta}
+                      </span>
+                    )}
                     <span className="bp-ride-tag"><Users size={10}/>{ride.capacity}</span>
                   </div>
                 </div>
@@ -778,13 +822,23 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
                 <div className="bp-fare-amount">${selectedQuote.total}</div>
                 <div className="bp-fare-sub">
                   {tripData.miles} mi · ~{tripData.durationMin} min
-                  {selectedQuote.eta && (
+                  {/* FIX #2: only render ETA if we have one. Honest "drivers limited"
+                      otherwise instead of the green "10-15 min pickup" lie */}
+                  {etaUnavailable ? (
                     <span style={{
                       marginLeft: 8,
-                      color: driverInfo?.stale ? '#9CA3AF' : T.accent,
+                      color: T.amber,
                       fontWeight: 700,
                     }}>
-                      · {selectedQuote.eta} pickup
+                      · drivers limited
+                    </span>
+                  ) : (
+                    <span style={{
+                      marginLeft: 8,
+                      color: isStaleEtaSelected ? '#9CA3AF' : T.accent,
+                      fontWeight: 700,
+                    }}>
+                      · {selectedEta} pickup
                     </span>
                   )}
                 </div>
