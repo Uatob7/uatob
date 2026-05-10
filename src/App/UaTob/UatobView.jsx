@@ -54,17 +54,17 @@ export default function MapView() {
   const { drivers, loading } = useAllDrivers();
 
   const driverPins = useMemo(() => drivers.map(d => {
-    const hasGps = Number.isFinite(Number(d.currentLat)) && Number.isFinite(Number(d.currentLng));
+    const hasGps = Number.isFinite(Number(d.lat)) && Number.isFinite(Number(d.lng));
     const pos = hasGps
-      ? latLngToPct(Number(d.currentLat), Number(d.currentLng))
+      ? latLngToPct(Number(d.lat), Number(d.lng))
       : addressToCoords(d.city || d.email || d.id);
     return {
-      id: d.id,
-      name: d.name || 'Driver',
+      id:     d.id,
+      name:   d.firstName ? `${d.firstName} ${d.lastName}` : 'Driver',
       status: d.status || 'offline',
       pos,
-      color: statusColor(d.status),
-      label: statusLabel(d.status),
+      color:  statusColor(d.status),
+      label:  statusLabel(d.status),
     };
   }), [drivers]);
 
@@ -79,21 +79,15 @@ export default function MapView() {
     <>
       <style>{STYLES}</style>
       <div style={{
-        position:      'relative',
-        height:        'clamp(240px, 38vh, 300px)',
-        borderRadius:  '20px',
-        overflow:      'hidden',
-        background:    '#F4F4F5',
-        border:        '1px solid #E4E4E7',
+        position:     'relative',
+        height:       'clamp(240px, 38vh, 300px)',
+        borderRadius: '20px',
+        overflow:     'hidden',
+        background:   '#F4F4F5',
+        border:       '1px solid #E4E4E7',
       }}>
 
-        {/* Subtle noise texture overlay */}
-        <div style={{
-          position:   'absolute', inset: 0, pointerEvents: 'none', zIndex: 1,
-          background: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'200\' height=\'200\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.75\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'200\' height=\'200\' filter=\'url(%23n)\' opacity=\'0.03\'/%3E%3C/svg%3E")',
-        }}/>
-
-        {/* Grid lines */}
+        {/* Grid */}
         <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 1 }}>
           <defs>
             <pattern id="g1" width="40" height="40" patternUnits="userSpaceOnUse">
@@ -107,14 +101,14 @@ export default function MapView() {
           <rect width="100%" height="100%" fill="url(#g2)"/>
         </svg>
 
-        {/* Road strokes */}
+        {/* Roads */}
         <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 2, pointerEvents: 'none' }}>
-          <path d="M0,55 Q80,48 160,60 T340,52 T520,58" fill="none" stroke="#E2E2E8" strokeWidth="14" strokeLinecap="round"/>
-          <path d="M0,55 Q80,48 160,60 T340,52 T520,58" fill="none" stroke="#CACAD4" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="18 10"/>
-          <path d="M60,0 Q70,60 64,120 T80,240 T100,360" fill="none" stroke="#E2E2E8" strokeWidth="10" strokeLinecap="round"/>
-          <path d="M60,0 Q70,60 64,120 T80,240 T100,360" fill="none" stroke="#CACAD4" strokeWidth="1" strokeLinecap="round" strokeDasharray="14 8"/>
-          <path d="M280,0 Q275,80 290,160 T310,300" fill="none" stroke="#E2E2E8" strokeWidth="8" strokeLinecap="round"/>
-          <path d="M120,180 Q200,172 300,178 T500,170" fill="none" stroke="#DDDDE4" strokeWidth="6" strokeLinecap="round"/>
+          <path d="M0,55 Q80,48 160,60 T340,52 T520,58"         fill="none" stroke="#E2E2E8" strokeWidth="14" strokeLinecap="round"/>
+          <path d="M0,55 Q80,48 160,60 T340,52 T520,58"         fill="none" stroke="#CACAD4" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="18 10"/>
+          <path d="M60,0 Q70,60 64,120 T80,240 T100,360"        fill="none" stroke="#E2E2E8" strokeWidth="10" strokeLinecap="round"/>
+          <path d="M60,0 Q70,60 64,120 T80,240 T100,360"        fill="none" stroke="#CACAD4" strokeWidth="1"   strokeLinecap="round" strokeDasharray="14 8"/>
+          <path d="M280,0 Q275,80 290,160 T310,300"             fill="none" stroke="#E2E2E8" strokeWidth="8"  strokeLinecap="round"/>
+          <path d="M120,180 Q200,172 300,178 T500,170"          fill="none" stroke="#DDDDE4" strokeWidth="6"  strokeLinecap="round"/>
         </svg>
 
         {/* Loading */}
@@ -122,10 +116,10 @@ export default function MapView() {
           <div style={{
             position: 'absolute', inset: 0, zIndex: 20,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(244,244,245,0.7)', backdropFilter: 'blur(4px)',
+            background: 'rgba(244,244,245,0.75)', backdropFilter: 'blur(4px)',
           }}>
             <span style={{ fontSize: '12px', fontWeight: 600, color: '#9CA3AF', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-              Loading drivers
+              Loading drivers…
             </span>
           </div>
         )}
@@ -144,12 +138,11 @@ export default function MapView() {
               animation:      d.label === 'Online' ? `pinPulse 2.6s ease-in-out ${i * 0.2}s infinite` : 'none',
             }}
           >
-            {/* Ring for online */}
             {d.label === 'Online' && (
               <div style={{
                 position: 'absolute', inset: '-5px', borderRadius: '50%',
-                border: `1.5px solid ${d.color}`,
-                opacity: 0.4,
+                border:   `1.5px solid ${d.color}`,
+                opacity:  0.4,
               }}/>
             )}
             <div style={{
@@ -170,19 +163,17 @@ export default function MapView() {
 
         {/* Bottom bar */}
         <div style={{
-          position:    'absolute',
+          position:       'absolute',
           bottom: 0, left: 0, right: 0,
-          zIndex:      10,
-          background:  'rgba(255,255,255,0.82)',
+          zIndex:         10,
+          background:     'rgba(255,255,255,0.82)',
           backdropFilter: 'blur(12px)',
-          borderTop:   '1px solid rgba(0,0,0,0.07)',
-          padding:     '9px 16px',
-          display:     'flex',
-          alignItems:  'center',
-          gap:         '12px',
+          borderTop:      '1px solid rgba(0,0,0,0.07)',
+          padding:        '9px 16px',
+          display:        'flex',
+          alignItems:     'center',
+          gap:            '12px',
         }}>
-
-          {/* Total */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Car size={12} color="#52525B" strokeWidth={2}/>
             <span style={{ fontSize: '13px', fontWeight: 700, color: '#18181B', fontVariantNumeric: 'tabular-nums' }}>
@@ -198,19 +189,18 @@ export default function MapView() {
           <div style={{ width: '1px', height: 16, background: '#E4E4E7' }}/>
           <Pill color="#9CA3AF" label="Offline" value={counts.offline} />
 
-          {/* Live badge */}
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5 }}>
             <div style={{
               width: 5, height: 5, borderRadius: '50%',
               background: '#22C55E',
               animation: 'dot 1.6s ease-in-out infinite',
             }}/>
-            <span style={{
-              fontSize: '10px', fontWeight: 700,
-              color: '#52525B', letterSpacing: '0.08em', textTransform: 'uppercase',
-            }}>Live</span>
+            <span style={{ fontSize: '10px', fontWeight: 700, color: '#52525B', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              Live
+            </span>
           </div>
         </div>
+
       </div>
     </>
   );
