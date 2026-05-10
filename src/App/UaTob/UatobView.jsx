@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Car } from 'lucide-react';
-import { useAllDrivers } from "@/App/UaTob/useActiveRides";
+import { useAllDrivers } from "@/App/UaTob/useAllDrivers";
 
 const BOUNDS = { minLat: 28.30, maxLat: 28.78, minLng: -81.62, maxLng: -81.10 };
 
