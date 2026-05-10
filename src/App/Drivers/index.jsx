@@ -22,6 +22,7 @@ import { useDriverEarnings }  from "@/App/Drivers/useDriverEarnings";
 import { useCompletedRides }  from "@/App/Drivers/useCompletedRides";
 import { useIncomingRequest } from "@/App/Drivers/useIncomingRequest";
 import { useDriverReviews }   from "@/App/Drivers/useDriverReviews";
+import { useSupportUnread }   from "@/App/Drivers/useSupportUnread";
 import { firebase_app }       from "@/firebase/config";
 
 // ── Callables ─────────────────────────────────────────────────────────
@@ -158,6 +159,7 @@ const NOTIF_STYLES = `
   @keyframes notifSlideDown { from{opacity:0;transform:translateY(-20px) scale(.96)} to{opacity:1;transform:translateY(0) scale(1)} }
   @keyframes notifSlideUp   { from{opacity:1;transform:translateY(0) scale(1)} to{opacity:0;transform:translateY(-16px) scale(.97)} }
   @keyframes notifProgress  { from{width:100%} to{width:0%} }
+  @keyframes badgePop       { 0%{transform:scale(0)} 60%{transform:scale(1.18)} 100%{transform:scale(1)} }
 `;
 
 function getNotifTheme(title) {
@@ -379,6 +381,7 @@ function DriverAppInner({ uid }) {
   const { activeRides }                   = useActiveRides(uid);
   const { completedRides }                = useCompletedRides(uid);
   const { reviews }                       = useDriverReviews(uid);
+  const supportUnread                     = useSupportUnread(uid);
 
   const isRejected    = driver?.status === "rejected";
   const driverOnTrip  = driver?.trip === true;
@@ -664,23 +667,79 @@ function DriverAppInner({ uid }) {
   const tripStage      = activeTrip?.status;
   const tripStageColor = { driver_assigned:C.blue, arrived:C.onlineGreen, in_progress:C.green }[tripStage] || C.green;
 
-  const SupportBtn = () => (
-    <button
-      onClick={() => setShowSupport(true)}
-      style={{ width:36, height:36, borderRadius:10, background:C.surface, border:`1.5px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", transition:"background .15s, border-color .15s, transform .12s", flexShrink:0 }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor="#93C5FD"; e.currentTarget.style.background="#EFF6FF"; }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor=C.border;  e.currentTarget.style.background=C.surface; }}
-      onMouseDown={e  => { e.currentTarget.style.transform="scale(.92)"; }}
-      onMouseUp={e    => { e.currentTarget.style.transform="scale(1)"; }}
-      aria-label="Open support"
-    >
-      <SupportIcon size={18} color="#2563EB" />
-    </button>
-  );
+  // ── Support button with unread badge ────────────────────────────
+  const SupportBtn = () => {
+    const showBadge = supportUnread > 0;
+    const badgeText = supportUnread > 99 ? "99+" : String(supportUnread);
+
+    return (
+      <button
+        onClick={() => setShowSupport(true)}
+        style={{
+          position: "relative",
+          width: 36, height: 36, borderRadius: 10,
+          background: C.surface,
+          border: `1.5px solid ${showBadge ? "#FECACA" : C.border}`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          cursor: "pointer",
+          transition: "background .15s, border-color .15s, transform .12s",
+          flexShrink: 0,
+          overflow: "visible",
+        }}
+        onMouseEnter={e => {
+          e.currentTarget.style.borderColor = showBadge ? "#FCA5A5" : "#93C5FD";
+          e.currentTarget.style.background  = "#EFF6FF";
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.borderColor = showBadge ? "#FECACA" : C.border;
+          e.currentTarget.style.background  = C.surface;
+        }}
+        onMouseDown={e  => { e.currentTarget.style.transform = "scale(.92)"; }}
+        onMouseUp={e    => { e.currentTarget.style.transform = "scale(1)"; }}
+        aria-label={
+          showBadge
+            ? `Open support — ${supportUnread} unread message${supportUnread === 1 ? "" : "s"}`
+            : "Open support"
+        }
+      >
+        <SupportIcon size={18} color="#2563EB" />
+
+        {showBadge && (
+          <span
+            style={{
+              position: "absolute",
+              top: -5, right: -5,
+              minWidth: badgeText.length > 1 ? 20 : 18,
+              height: 18,
+              padding: badgeText.length > 1 ? "0 5px" : 0,
+              borderRadius: 9,
+              background: "linear-gradient(135deg,#EF4444,#DC2626)",
+              color: "#fff",
+              fontSize: 10,
+              fontWeight: 800,
+              lineHeight: 1,
+              fontFamily: '"Barlow",system-ui,sans-serif',
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "2px solid #fff",
+              boxShadow: "0 2px 6px rgba(220,38,38,.45)",
+              letterSpacing: ".02em",
+              pointerEvents: "none",
+              animation: "badgePop .3s cubic-bezier(.34,1.56,.64,1)",
+            }}
+          >
+            {badgeText}
+          </span>
+        )}
+      </button>
+    );
+  };
 
   return (
     <div style={{ minHeight:"100vh", background:C.bg, fontFamily:'"Barlow",system-ui,sans-serif', color:C.text, position:"relative" }}>
       <style>{CSS}</style>
+      <style>{NOTIF_STYLES}</style>
 
       {showSupport && <SupportOverlay onClose={() => setShowSupport(false)} driver={driver} />}
 
