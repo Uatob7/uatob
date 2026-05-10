@@ -1,7 +1,6 @@
-import React, { useMemo, useEffect, useState } from 'react';
+import React, { useMemo } from 'react';
 import { MapPin, Navigation, Car } from 'lucide-react';
-import { collection, onSnapshot } from 'firebase/firestore';
-import { db } from '@/firebase';
+import { useFleetDrivers } from '@/App/Admin/useFleetDrivers';
 
 // ─── Orlando bounding box (lat/lng → % position) ───────────────────────────
 const BOUNDS = { minLat: 28.30, maxLat: 28.78, minLng: -81.62, maxLng: -81.10 };
@@ -62,20 +61,7 @@ export default function MapView({
   etaMinutes,
   distToDropoff,
 }) {
-  const [liveDrivers, setLiveDrivers] = useState([]);
-
-  // Real-time drivers from Firestore
-  useEffect(() => {
-    const unsub = onSnapshot(
-      collection(db, 'Drivers'),
-      snap => {
-        const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setLiveDrivers(docs);
-      },
-      err => console.error('[MapView] drivers snapshot:', err)
-    );
-    return unsub;
-  }, []);
+  const { fleet: liveDrivers } = useFleetDrivers();
 
   // Map each driver to a pin with position + color
   const driverPins = useMemo(() => liveDrivers.map(d => {
