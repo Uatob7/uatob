@@ -1,7 +1,8 @@
-// notifyOfflineDrivers.js
+// notifyApprovedDrivers.js
 // Scheduled Cloud Function — runs every 1 minute
-// Finds rides in "searching_driver" state and emails offline drivers who
-// haven't been emailed yet for that ride (or haven't been emailed recently).
+// Targets drivers in `status: "approved"` (approved but never online yet)
+// and emails them when a paid ride is searching nearby. Combined message:
+// "Your account is approved + a ride is waiting — go online to claim it."
 
 const { onSchedule }   = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require("firebase-functions/params");
@@ -16,8 +17,8 @@ const SENDGRID_API_KEY = defineSecret("SENDGRID_API_KEY");
 // ─────────────────────────────────────────────────────────────
 // Tunables
 // ─────────────────────────────────────────────────────────────
-const MAX_OFFLINE_DRIVERS_PER_RIDE = 50;          // hard cap per scheduler tick
-const OFFLINE_COOLDOWN_MS          = 10 * 60_000; // don't re-email same driver across rides faster than this
+const MAX_APPROVED_DRIVERS_PER_RIDE = 50;
+const APPROVED_COOLDOWN_MS          = 30 * 60_000; // less aggressive than offline (30 min)
 
 // ─────────────────────────────────────────────────────────────
 // Helpers
@@ -39,8 +40,6 @@ const fmt = {
   },
 };
 
-// Mask the street number so drivers can't bypass the app.
-// "2382 Locke Avenue, Orlando, FL, USA" → "•••• Locke Avenue · Orlando, FL"
 function maskAddress(raw) {
   if (!raw) return "—";
   const parts = String(raw).split(",").map((s) => s.trim()).filter(Boolean);
@@ -141,11 +140,20 @@ const ARROW_SVG = `
         stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`.trim();
 
+// Inline checkmark badge for "approved" theme
+const APPROVED_BADGE_SVG = `
+<svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="28" cy="28" r="28" fill="#16A34A"/>
+  <circle cx="28" cy="28" r="26" fill="none" stroke="#4ADE80" stroke-width="1.5" opacity="0.6"/>
+  <path d="M16 28L24 36L40 20" stroke="#fff" stroke-width="3.5"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`.trim();
+
 // ─────────────────────────────────────────────────────────────
 // Email builder
 // ─────────────────────────────────────────────────────────────
-function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaining, expiresAtMs }) {
-  const firstName   = esc(driver.firstName || "Driver");
+function buildApprovedDriverEmail({ driver, ride, rideId, totalDrivers, msRemaining, expiresAtMs }) {
+  const firstName   = esc(driver.firstName?.trim() || "Driver");
   const safePickup  = esc(maskAddress(ride.pickup));
   const safeDropoff = esc(maskAddress(ride.dropoff));
   const safeType    = esc(
@@ -171,15 +179,12 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaini
   const expiresAtText    = fmtExpiresAt(expiresAtMs);
   const minutesRemaining = msRemaining != null ? Math.max(0, Math.round(msRemaining / 60_000)) : null;
 
-  // Color tier — same logic as candidate email
-  const isUrgent  = minutesRemaining !== null && minutesRemaining <= 5;
-  const isWarning = minutesRemaining !== null && minutesRemaining <= 15 && !isUrgent;
+  const isUrgent = minutesRemaining !== null && minutesRemaining <= 5;
 
-  // For offline-driver email, default chip is amber (the "you're offline" theme),
-  // but escalate to red when ride is about to expire.
-  const chipBg     = isUrgent ? "rgba(248,113,113,0.16)" : "rgba(251,191,36,0.15)";
-  const chipBorder = isUrgent ? "#F87171"               : "#FBBF24";
-  const chipText   = isUrgent ? "#FCA5A5"               : "#FBBF24";
+  // Approved drivers theme: green hero (celebration) with countdown chip
+  const chipBg     = isUrgent ? "rgba(248,113,113,0.16)" : "rgba(74,222,128,0.18)";
+  const chipBorder = isUrgent ? "#F87171"               : "#4ADE80";
+  const chipText   = isUrgent ? "#FCA5A5"               : "#86EFAC";
 
   const heroChip = countdownText
     ? `
@@ -188,16 +193,16 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaini
                   padding:5px 14px;margin-bottom:20px;">
         <span style="font-family:'Courier New',monospace;font-size:10px;
                      font-weight:700;color:${chipText};letter-spacing:2px;">
-          &#9679;&nbsp; RIDE WAITING &nbsp;&#183;&nbsp; ${esc(countdownText.toUpperCase())}
+          &#9679;&nbsp; FIRST RIDE READY &nbsp;&#183;&nbsp; ${esc(countdownText.toUpperCase())}
         </span>
       </div>`
     : `
-      <div style="display:inline-block;background-color:rgba(251,191,36,0.15);
-                  border:1.5px solid #FBBF24;border-radius:100px;
+      <div style="display:inline-block;background-color:rgba(74,222,128,0.18);
+                  border:1.5px solid #4ADE80;border-radius:100px;
                   padding:5px 14px;margin-bottom:20px;">
         <span style="font-family:'Courier New',monospace;font-size:10px;
-                     font-weight:700;color:#FBBF24;letter-spacing:2px;">
-          &#9679;&nbsp; RIDE WAITING
+                     font-weight:700;color:#86EFAC;letter-spacing:2px;">
+          &#9679;&nbsp; FIRST RIDE READY
         </span>
       </div>`;
 
@@ -258,7 +263,7 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaini
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="light">
-  <title>Ride Available Near You — UaTob</title>
+  <title>You're Approved — First Ride Waiting</title>
   <style type="text/css">
     body, html {
       -webkit-text-size-adjust: 100% !important;
@@ -279,7 +284,7 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaini
 
 <!-- Preheader -->
 <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#0a0a0a;">
-  ${esc(`${payout} trip waiting · ${distance} · ${countdownText || "go online to accept"}`)}
+  ${esc(`Your UaTob driver account is approved · ${payout} first ride waiting · ${countdownText || "go online to accept"}`)}
 </div>
 
 <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
@@ -302,9 +307,9 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaini
             </td>
             <td valign="middle" style="padding-left:10px;">
               <span style="font-family:'Courier New',monospace;font-size:9px;font-weight:700;
-                           color:#FBBF24;background-color:#1c1000;padding:4px 9px;
+                           color:#4ADE80;background-color:#052e16;padding:4px 9px;
                            border-radius:100px;letter-spacing:1.5px;
-                           border:1px solid #78350f;display:inline-block;">GO ONLINE</span>
+                           border:1px solid #166534;display:inline-block;">APPROVED</span>
             </td>
           </tr></table>
         </td>
@@ -317,29 +322,49 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaini
 
           <!-- HERO -->
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
-            <td style="background:linear-gradient(135deg,#1c1000 0%,#292400 50%,#3b2800 100%);
-                       padding:40px 36px 32px;">
+            <td style="background:linear-gradient(135deg,#052e16 0%,#14532d 50%,#166534 100%);
+                       padding:36px 36px 32px;">
+
+              <!-- Approval badge -->
+              <table cellpadding="0" cellspacing="0" role="presentation" style="margin-bottom:18px;">
+                <tr>
+                  <td valign="middle">${APPROVED_BADGE_SVG}</td>
+                  <td valign="middle" style="padding-left:14px;">
+                    <p style="margin:0;font-family:'Courier New',monospace;font-size:10px;
+                               font-weight:700;color:#4ADE80;letter-spacing:2px;line-height:1;">
+                      ACCOUNT STATUS
+                    </p>
+                    <p style="margin:4px 0 0;font-family:Georgia,serif;font-size:18px;
+                               font-weight:700;color:#ffffff;line-height:1;">
+                      Approved &amp; ready to drive
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
               ${heroChip}
+
               <h1 class="hero-title"
-                  style="margin:0 0 8px;font-family:Georgia,serif;font-size:36px;
+                  style="margin:0 0 8px;font-family:Georgia,serif;font-size:34px;
                          font-weight:700;color:#ffffff;line-height:1.15;letter-spacing:-1px;">
-                Money's Waiting,<br/>
-                <span style="color:#FBBF24;">${firstName}</span>
+                Welcome aboard,<br/>
+                <span style="color:#4ADE80;">${firstName}</span>
               </h1>
               <p style="margin:0;font-family:'Courier New',monospace;font-size:13px;
-                         color:#FDE68A;letter-spacing:0.3px;">
-                A rider just paid &mdash; go online to accept this trip
+                         color:#86efac;letter-spacing:0.3px;">
+                Your account is live &mdash; and your first ride just came in
               </p>
             </td>
           </tr></table>
 
-          <!-- OFFLINE NUDGE -->
+          <!-- ONBOARDING NUDGE -->
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
-            <td align="center" style="padding:12px 36px;background-color:#1c0f00;
-                                      border-top:1px solid #292400;">
-              <p style="margin:0;font-family:'Courier New',monospace;font-size:12px;
-                         font-weight:700;color:#FBBF24;letter-spacing:1px;">
-                &#9888;&nbsp; YOU'RE CURRENTLY OFFLINE — GO ONLINE IN THE APP TO ACCEPT
+            <td align="center" style="padding:14px 36px;background-color:#0d0d0d;
+                                      border-top:1px solid #1f1f1f;">
+              <p style="margin:0;font-family:'Courier New',monospace;font-size:11px;
+                         color:#9CA3AF;letter-spacing:0.5px;">
+                You haven&apos;t gone online yet &nbsp;&#183;&nbsp;
+                <span style="color:#4ADE80;">Open the app to claim this trip</span>
               </p>
             </td>
           </tr></table>
@@ -348,7 +373,8 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaini
 
           <!-- PAYOUT -->
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
-            <td align="center" style="padding:32px 36px 24px;border-bottom:1px solid #1f1f1f;">
+            <td align="center" style="padding:32px 36px 24px;border-bottom:1px solid #1f1f1f;
+                                      border-top:1px solid #1f1f1f;">
               <p style="margin:0 0 6px;font-family:'Courier New',monospace;font-size:11px;
                          font-weight:700;color:#4ADE80;letter-spacing:2.5px;">YOUR PAYOUT</p>
               <p class="payout-num"
@@ -444,14 +470,92 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaini
 
           ${expiresStrip}
 
+          <!-- HOW IT WORKS (3 quick steps for first-timers) -->
+          <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
+            <td style="padding:24px 36px;border-top:1px solid #1f1f1f;">
+              <p style="margin:0 0 16px;font-family:'Courier New',monospace;font-size:11px;
+                         font-weight:700;color:#4ADE80;letter-spacing:2px;">
+                YOUR FIRST 3 STEPS
+              </p>
+
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+                     style="margin-bottom:10px;">
+                <tr>
+                  <td width="28" valign="top" style="padding-top:2px;">
+                    <div style="width:22px;height:22px;border-radius:50%;
+                                background-color:#052e16;border:1.5px solid #4ADE80;
+                                text-align:center;line-height:18px;font-size:11px;
+                                font-weight:900;color:#4ADE80;
+                                font-family:'Courier New',monospace;">1</div>
+                  </td>
+                  <td valign="top">
+                    <p style="margin:0;font-family:Georgia,serif;font-size:14px;
+                               color:#ffffff;font-weight:700;line-height:1.4;">
+                      Open the UaTob Driver App
+                    </p>
+                    <p style="margin:2px 0 0;font-family:'Courier New',monospace;font-size:11px;
+                               color:#6B7280;letter-spacing:0.3px;">
+                      Sign in with the email this was sent to
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+                     style="margin-bottom:10px;">
+                <tr>
+                  <td width="28" valign="top" style="padding-top:2px;">
+                    <div style="width:22px;height:22px;border-radius:50%;
+                                background-color:#052e16;border:1.5px solid #4ADE80;
+                                text-align:center;line-height:18px;font-size:11px;
+                                font-weight:900;color:#4ADE80;
+                                font-family:'Courier New',monospace;">2</div>
+                  </td>
+                  <td valign="top">
+                    <p style="margin:0;font-family:Georgia,serif;font-size:14px;
+                               color:#ffffff;font-weight:700;line-height:1.4;">
+                      Tap &ldquo;Go Online&rdquo;
+                    </p>
+                    <p style="margin:2px 0 0;font-family:'Courier New',monospace;font-size:11px;
+                               color:#6B7280;letter-spacing:0.3px;">
+                      Allow location &mdash; we route rides based on it
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                <tr>
+                  <td width="28" valign="top" style="padding-top:2px;">
+                    <div style="width:22px;height:22px;border-radius:50%;
+                                background-color:#052e16;border:1.5px solid #4ADE80;
+                                text-align:center;line-height:18px;font-size:11px;
+                                font-weight:900;color:#4ADE80;
+                                font-family:'Courier New',monospace;">3</div>
+                  </td>
+                  <td valign="top">
+                    <p style="margin:0;font-family:Georgia,serif;font-size:14px;
+                               color:#ffffff;font-weight:700;line-height:1.4;">
+                      Accept the trip when it appears
+                    </p>
+                    <p style="margin:2px 0 0;font-family:'Courier New',monospace;font-size:11px;
+                               color:#6B7280;letter-spacing:0.3px;">
+                      You&apos;ll see the same ${payout} request inside the app
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr></table>
+
           <!-- DRIVER COUNT NOTE -->
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
             <td align="center" style="padding:14px 36px;background-color:#0d0d0d;
                                       border-top:1px solid #1f1f1f;">
               <p style="margin:0;font-family:'Courier New',monospace;font-size:11px;
                          color:#6B7280;letter-spacing:0.5px;">
-                Sent to <span style="color:#FBBF24;">${totalDrivers} offline driver${totalDrivers !== 1 ? "s" : ""}</span>
-                &nbsp;&#183;&nbsp; go online first to claim it
+                Sent to <span style="color:#4ADE80;">${totalDrivers} approved driver${totalDrivers !== 1 ? "s" : ""}</span>
+                &nbsp;&#183;&nbsp; first to go online claims it
               </p>
             </td>
           </tr></table>
@@ -463,17 +567,17 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaini
                      style="margin-top:24px;"><tr>
                 <td align="center">
                   <a href="https://uatob.com/driver/app" class="cta-btn"
-                     style="display:block;background-color:#D97706;color:#ffffff;
+                     style="display:block;background-color:#16A34A;color:#ffffff;
                             font-family:'Courier New',monospace;font-size:15px;font-weight:700;
                             text-decoration:none;padding:20px 32px;border-radius:12px;
-                            letter-spacing:1px;text-align:center;border:1px solid #FBBF24;">
-                    GO ONLINE &amp; ACCEPT &#8594;
+                            letter-spacing:1px;text-align:center;border:1px solid #4ADE80;">
+                    OPEN APP &amp; GO ONLINE &#8594;
                   </a>
                 </td>
               </tr></table>
               <p style="margin:16px 0 0;font-family:'Courier New',monospace;font-size:11px;
                          color:#374151;text-align:center;letter-spacing:0.5px;">
-                First driver online &amp; available wins the trip
+                You&apos;re cleared to drive &mdash; this is your first ride
               </p>
             </td>
           </tr></table>
@@ -500,12 +604,14 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaini
           </p>
           <p style="margin:0 0 4px;font-family:'Courier New',monospace;font-size:10px;
                      color:#1f2937;letter-spacing:0.3px;">
-            You&apos;re receiving this because you&apos;re a registered UaTob driver.
+            You&apos;re receiving this because your driver application was approved
+            and a paid ride is searching nearby.
           </p>
           <p style="margin:0;font-family:'Courier New',monospace;font-size:10px;
                      color:#1f2937;letter-spacing:0.3px;">
-            <a href="https://uatob.com/driver/notifications" style="color:#374151;text-decoration:underline;">
-              Manage notification preferences
+            Questions? &nbsp;
+            <a href="mailto:support@uatob.com" style="color:#374151;text-decoration:underline;">
+              support@uatob.com
             </a>
           </p>
         </td>
@@ -518,8 +624,9 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaini
 </html>`.trim();
 
   const text =
-    `Hey ${driver.firstName || "Driver"} — a ride just got paid and is waiting for a driver.\n\n` +
-    `You're currently offline. Go online in the UaTob Driver App to accept it.\n\n` +
+    `Welcome aboard, ${driver.firstName?.trim() || "Driver"}!\n\n` +
+    `Your UaTob driver account is APPROVED and ready to go.\n` +
+    `A paid ride just came in nearby — open the app to claim it.\n\n` +
     `Payout:    ${payout}\n` +
     `Distance:  ${distance}\n` +
     `Duration:  ${duration}\n` +
@@ -529,12 +636,16 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaini
     (expiresAtText ? `Expires:   ${expiresAtText}` +
       (countdownText ? ` (${countdownText})\n` : "\n") : "") +
     `Ride ID:   ${rideId}\n\n` +
-    `Full address shown in the app once you accept.\n` +
-    `Open the app and go online: https://uatob.com/driver/app`;
+    `Your first 3 steps:\n` +
+    `  1. Open the UaTob Driver App\n` +
+    `  2. Tap "Go Online" (allow location)\n` +
+    `  3. Accept the trip when it appears\n\n` +
+    `Open the app: https://uatob.com/driver/app\n` +
+    `Need help? support@uatob.com`;
 
   const subject = countdownText
-    ? `💰 ${payout} trip · ${countdownText} — go online`
-    : `💰 ${payout} trip waiting — go online to accept`;
+    ? `✅ You're approved · ${payout} first ride · ${countdownText}`
+    : `✅ Welcome to UaTob — your first ride (${payout}) is waiting`;
 
   return {
     to:      driver.email,
@@ -549,7 +660,7 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaini
 // ─────────────────────────────────────────────────────────────
 // Scheduled Cloud Function — every 1 minute
 // ─────────────────────────────────────────────────────────────
-exports.onPaymentSucceeded = onSchedule(
+exports.notifyApprovedDrivers = onSchedule(
   {
     schedule: "every 1 minutes",
     region:   "us-east1",
@@ -560,7 +671,7 @@ exports.onPaymentSucceeded = onSchedule(
       sgMail.setApiKey(SENDGRID_API_KEY.value());
       const now = Date.now();
 
-      // 1. Find all rides actively searching for a driver
+      // 1. Find rides actively searching for a driver
       const ridesSnap = await db
         .collection("Rides")
         .where("status",        "==", "searching_driver")
@@ -568,14 +679,17 @@ exports.onPaymentSucceeded = onSchedule(
         .get();
 
       if (ridesSnap.empty) {
-        console.log("[notifyOfflineDrivers] No rides currently searching — done");
+        console.log("[notifyApprovedDrivers] No rides currently searching — done");
         return;
       }
 
-      // 2. Find all offline drivers with an email address
+      // 2. Find approved-but-never-online drivers
+      //    These are drivers in `status: "approved"` who haven't transitioned
+      //    to online or offline yet. Once they go online for the first time
+      //    they'll be in "online" or "offline" thereafter.
       const driversSnap = await db
         .collection("Drivers")
-        .where("status", "==", "offline")
+        .where("status", "==", "approved")
         .get();
 
       const drivers = driversSnap.docs
@@ -583,16 +697,15 @@ exports.onPaymentSucceeded = onSchedule(
         .filter((d) => !!d.email);
 
       if (drivers.length === 0) {
-        console.log("[notifyOfflineDrivers] No offline drivers with email — done");
+        console.log("[notifyApprovedDrivers] No approved drivers with email — done");
         return;
       }
 
       console.log(
-        `[notifyOfflineDrivers] ${ridesSnap.size} searching ride(s), ` +
-        `${drivers.length} offline driver(s)`
+        `[notifyApprovedDrivers] ${ridesSnap.size} searching ride(s), ` +
+        `${drivers.length} approved driver(s)`
       );
 
-      // 3. For each searching ride, email only drivers not yet notified
       const batch = db.batch();
       const emailPromises = [];
 
@@ -600,50 +713,45 @@ exports.onPaymentSucceeded = onSchedule(
         const rideId = rideDoc.id;
         const ride   = rideDoc.data();
 
-        // Skip rides that have already expired (don't email about a dead ride)
+        // Skip expired rides
         const expiresAtMs = toMs(ride.expiresAt);
         if (expiresAtMs !== null && expiresAtMs <= now) {
-          console.log(`[notifyOfflineDrivers] Ride ${rideId} — already expired, skipping`);
+          console.log(`[notifyApprovedDrivers] Ride ${rideId} — already expired, skipping`);
           continue;
         }
         const msRemaining = expiresAtMs !== null ? expiresAtMs - now : null;
 
-        // offlineDriversNotified is a map: { [driverUid]: true }
-        const alreadyNotified = ride.offlineDriversNotified || {};
+        // approvedDriversNotified: { [driverUid]: true } — per-ride dedupe
+        const alreadyNotified = ride.approvedDriversNotified || {};
 
-        // Filter eligible drivers:
-        //   - not already notified for THIS ride
-        //   - haven't received an offline-driver email in the last cooldown window
+        // Filter eligible: not already emailed for THIS ride, and not within cooldown
         let eligible = drivers.filter((d) => {
           if (alreadyNotified[d.uid]) return false;
-          const lastSentMs = toMs(d.lastOfflineNotifyAt);
-          if (lastSentMs && now - lastSentMs < OFFLINE_COOLDOWN_MS) return false;
+          const lastSentMs = toMs(d.lastApprovedNotifyAt);
+          if (lastSentMs && now - lastSentMs < APPROVED_COOLDOWN_MS) return false;
           return true;
         });
 
-        // Hard cap per tick to avoid SendGrid spikes if the offline pool is huge
-        if (eligible.length > MAX_OFFLINE_DRIVERS_PER_RIDE) {
-          eligible = eligible.slice(0, MAX_OFFLINE_DRIVERS_PER_RIDE);
+        if (eligible.length > MAX_APPROVED_DRIVERS_PER_RIDE) {
+          eligible = eligible.slice(0, MAX_APPROVED_DRIVERS_PER_RIDE);
         }
 
         if (eligible.length === 0) {
           console.log(
-            `[notifyOfflineDrivers] Ride ${rideId} — 0 eligible drivers ` +
-            `(notified=${Object.keys(alreadyNotified).length}, pool=${drivers.length})`
+            `[notifyApprovedDrivers] Ride ${rideId} — 0 eligible approved drivers`
           );
           continue;
         }
 
         console.log(
-          `[notifyOfflineDrivers] Ride ${rideId} — emailing ${eligible.length} driver(s) ` +
+          `[notifyApprovedDrivers] Ride ${rideId} — emailing ${eligible.length} approved driver(s) ` +
           `(${msRemaining != null ? Math.round(msRemaining/60_000) + " min" : "no expiry"} remaining)`
         );
 
-        // Queue emails
         for (const driver of eligible) {
           emailPromises.push(
             sgMail.send(
-              buildOfflineDriverEmail({
+              buildApprovedDriverEmail({
                 driver,
                 ride,
                 rideId,
@@ -662,28 +770,26 @@ exports.onPaymentSucceeded = onSchedule(
         }
 
         batch.update(rideDoc.ref, {
-          offlineDriversNotified:  updatedNotified,
-          offlineDriversEmailedAt: admin.firestore.FieldValue.serverTimestamp(),
+          approvedDriversNotified:  updatedNotified,
+          approvedDriversEmailedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
-        // Stamp each driver with lastOfflineNotifyAt for the cooldown window
         for (const d of eligible) {
           batch.update(db.collection("Drivers").doc(d.uid), {
-            lastOfflineNotifyAt: admin.firestore.FieldValue.serverTimestamp(),
+            lastApprovedNotifyAt: admin.firestore.FieldValue.serverTimestamp(),
           });
         }
       }
 
-      // 4. Commit Firestore updates + send all emails in parallel
       await Promise.all([
         batch.commit(),
         Promise.allSettled(emailPromises),
       ]);
 
-      console.log("[notifyOfflineDrivers] Run complete");
+      console.log("[notifyApprovedDrivers] Run complete");
 
     } catch (error) {
-      console.error("[notifyOfflineDrivers] Error:", error);
+      console.error("[notifyApprovedDrivers] Error:", error);
     }
   }
 );

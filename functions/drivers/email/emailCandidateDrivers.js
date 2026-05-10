@@ -28,6 +28,65 @@ const fmt = {
   },
 };
 
+// Mask the street number so drivers can't bypass the app.
+// "2382 Locke Avenue, Orlando, FL, USA" → "•••• Locke Avenue · Orlando, FL"
+// "Pine Hills Park, Orlando, FL, USA"   → "Pine Hills Park · Orlando, FL"
+function maskAddress(raw) {
+  if (!raw) return "—";
+  const parts = String(raw).split(",").map((s) => s.trim()).filter(Boolean);
+  if (parts.length === 0) return "—";
+
+  // First segment: street/place. Mask leading number if any.
+  const first = parts[0].replace(/^(\d+[A-Za-z]?)(\s+)/, (_, num, sp) => {
+    const dots = "•".repeat(Math.min(num.length, 4));
+    return `${dots}${sp}`;
+  });
+
+  // Build "City, ST" hint from remaining segments (drop "USA")
+  const tail = parts.slice(1).filter((p) => !/^USA$/i.test(p));
+  const city = tail[0] ?? "";
+  const state = tail[1] ?? "";
+  const tailStr = [city, state].filter(Boolean).join(", ");
+
+  return tailStr ? `${first} · ${tailStr}` : first;
+}
+
+// Convert an expiresAt (Firestore Timestamp | ISO string | Date) → ms epoch
+function toMs(v) {
+  if (!v) return null;
+  if (typeof v.toMillis === "function") return v.toMillis();
+  if (v instanceof Date) return v.getTime();
+  const t = new Date(v).getTime();
+  return Number.isFinite(t) ? t : null;
+}
+
+// Format for "Expires at" line — driver-friendly, includes timezone
+function fmtExpiresAt(ms) {
+  if (!ms) return null;
+  const d = new Date(ms);
+  // e.g. "Sun, May 4 · 11:10 PM EDT"
+  const date = d.toLocaleDateString("en-US", {
+    weekday: "short", month: "short", day: "numeric",
+    timeZone: "America/New_York",
+  });
+  const time = d.toLocaleTimeString("en-US", {
+    hour: "numeric", minute: "2-digit", hour12: true,
+    timeZone: "America/New_York", timeZoneName: "short",
+  });
+  return `${date} · ${time}`;
+}
+
+// Pretty countdown chip ("12 min left", "1h 04m left", "EXPIRED")
+function fmtCountdown(msRemaining) {
+  if (msRemaining == null) return null;
+  if (msRemaining <= 0) return "EXPIRED";
+  const totalMin = Math.round(msRemaining / 60_000);
+  if (totalMin < 60) return `${totalMin} min left`;
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return `${h}h ${String(m).padStart(2, "0")}m left`;
+}
+
 // ─────────────────────────────────────────────────────────────
 // Brand SVGs — email-safe, inlined
 // ─────────────────────────────────────────────────────────────
@@ -85,10 +144,10 @@ const ARROW_SVG = `
 // ─────────────────────────────────────────────────────────────
 // Email builder
 // ─────────────────────────────────────────────────────────────
-function buildCandidateEmail({ driver, ride, rideId, totalCandidates, minutesRemaining }) {
+function buildCandidateEmail({ driver, ride, rideId, totalCandidates, msRemaining, expiresAtMs }) {
   const firstName   = esc(driver.firstName || "Driver");
-  const safePickup  = esc(ride.pickup  || "N/A");
-  const safeDropoff = esc(ride.dropoff || "N/A");
+  const safePickup  = esc(maskAddress(ride.pickup));
+  const safeDropoff = esc(maskAddress(ride.dropoff));
   const safeType    = esc(
     ride.rideLabel ||
     (ride.rideType
@@ -108,16 +167,46 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, minutesRem
         )
       : null;
 
+  const countdownText  = fmtCountdown(msRemaining);                  // "12 min left"
+  const expiresAtText  = fmtExpiresAt(expiresAtMs);                  // "Sun, May 4 · 11:10 PM EDT"
+  const minutesRemaining = msRemaining != null ? Math.max(0, Math.round(msRemaining / 60_000)) : null;
+
   const candidateNote =
     totalCandidates > 1
       ? `Sent to <span style="color:#4ADE80;">${totalCandidates} nearby drivers</span> &nbsp;&#183;&nbsp; first to accept wins`
       : `You&apos;re the only driver being notified right now`;
 
-  // Urgency banner — shown when < 5 minutes remain
-  const urgencyBanner =
-    minutesRemaining !== null && minutesRemaining <= 5
-      ? `
-            <!-- ── URGENCY STRIP ── -->
+  // Color tier for countdown chip (green / amber / red)
+  const isUrgent      = minutesRemaining !== null && minutesRemaining <= 5;
+  const isWarning     = minutesRemaining !== null && minutesRemaining <= 15 && !isUrgent;
+  const chipBg        = isUrgent ? "rgba(248,113,113,0.16)" : isWarning ? "rgba(251,191,36,0.16)" : "rgba(74,222,128,0.15)";
+  const chipBorder    = isUrgent ? "#F87171"               : isWarning ? "#FBBF24"               : "#4ADE80";
+  const chipText      = isUrgent ? "#FCA5A5"               : isWarning ? "#FDE68A"               : "#86EFAC";
+
+  // Hero countdown chip — replaces the static "LIVE REQUEST" pill
+  const heroChip = countdownText
+    ? `
+      <div style="display:inline-block;background-color:${chipBg};
+                  border:1.5px solid ${chipBorder};border-radius:100px;
+                  padding:5px 14px;margin-bottom:20px;">
+        <span style="font-family:'Courier New',monospace;font-size:10px;
+                     font-weight:700;color:${chipText};letter-spacing:2px;">
+          &#9679;&nbsp; LIVE &nbsp;&#183;&nbsp; ${esc(countdownText.toUpperCase())}
+        </span>
+      </div>`
+    : `
+      <div style="display:inline-block;background-color:rgba(74,222,128,0.15);
+                  border:1.5px solid #4ADE80;border-radius:100px;
+                  padding:5px 14px;margin-bottom:20px;">
+        <span style="font-family:'Courier New',monospace;font-size:10px;
+                     font-weight:700;color:#4ADE80;letter-spacing:2px;">
+          &#9679;&nbsp; LIVE REQUEST
+        </span>
+      </div>`;
+
+  // Urgency banner — only when < 5 min remain
+  const urgencyBanner = isUrgent
+    ? `
             <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
               <tr>
                 <td align="center"
@@ -130,7 +219,43 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, minutesRem
                 </td>
               </tr>
             </table>`
-      : "";
+    : "";
+
+  // Expires-at strip (always shown if we have a value)
+  const expiresStrip = expiresAtText
+    ? `
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+              <tr>
+                <td style="padding:14px 36px;background-color:#0d0d0d;
+                           border-top:1px solid #1f1f1f;">
+                  <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                    <tr>
+                      <td valign="middle">
+                        <p style="margin:0;font-family:'Courier New',monospace;font-size:10px;
+                                   font-weight:700;color:#6B7280;letter-spacing:1.8px;">
+                          EXPIRES AT
+                        </p>
+                        <p style="margin:3px 0 0;font-family:Georgia,serif;font-size:14px;
+                                   font-weight:700;color:#ffffff;letter-spacing:-0.2px;">
+                          ${esc(expiresAtText)}
+                        </p>
+                      </td>
+                      ${countdownText ? `
+                      <td valign="middle" align="right" style="white-space:nowrap;">
+                        <span style="display:inline-block;background-color:${chipBg};
+                                     border:1px solid ${chipBorder};border-radius:8px;
+                                     padding:5px 10px;font-family:'Courier New',monospace;
+                                     font-size:11px;font-weight:700;color:${chipText};
+                                     letter-spacing:0.6px;">
+                          ${esc(countdownText.toUpperCase())}
+                        </span>
+                      </td>` : ""}
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>`
+    : "";
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -156,6 +281,11 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, minutesRem
   </style>
 </head>
 <body style="margin:0;padding:0;background-color:#0a0a0a;">
+
+<!-- Preheader (hidden in body, shown in inbox preview) -->
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#0a0a0a;">
+  ${esc(`${payout} payout · ${distance} · ${countdownText || "open the app to accept"}`)}
+</div>
 
 <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
        style="background-color:#0a0a0a;padding:40px 20px;">
@@ -202,14 +332,7 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, minutesRem
               <tr>
                 <td style="background:linear-gradient(135deg,#052e16 0%,#14532d 50%,#166534 100%);
                            padding:40px 36px 32px;">
-                  <div style="display:inline-block;background-color:rgba(74,222,128,0.15);
-                              border:1.5px solid #4ADE80;border-radius:100px;
-                              padding:5px 14px;margin-bottom:20px;">
-                    <span style="font-family:'Courier New',monospace;font-size:10px;
-                                 font-weight:700;color:#4ADE80;letter-spacing:2px;">
-                      &#9679;&nbsp; LIVE REQUEST
-                    </span>
-                  </div>
+                  ${heroChip}
                   <h1 class="hero-title"
                       style="margin:0 0 8px;font-family:Georgia,serif;font-size:36px;
                              font-weight:700;color:#ffffff;line-height:1.15;letter-spacing:-1px;">
@@ -244,7 +367,7 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, minutesRem
                   <p style="margin:8px 0 0;font-family:'Courier New',monospace;
                              font-size:12px;color:#6B7280;letter-spacing:0.5px;">
                     ${epm}/mile &nbsp;&#183;&nbsp;
-                    <span style="color:#4ADE80;">80% split</span>
+                    <span style="color:#4ADE80;">75% split</span>
                   </p>` : ""}
                 </td>
               </tr>
@@ -292,14 +415,30 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, minutesRem
               </tr>
             </table>
 
-            <!-- ── ROUTE CARD ── -->
+            <!-- ── ROUTE CARD (masked addresses) ── -->
             <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
               <tr>
                 <td style="padding:28px 36px;border-top:1px solid #1f1f1f;">
-                  <p style="margin:0 0 18px;font-family:'Courier New',monospace;
-                             font-size:11px;font-weight:700;color:#4ADE80;letter-spacing:2px;">
-                    TRIP ROUTE
-                  </p>
+                  <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+                         style="margin-bottom:14px;">
+                    <tr>
+                      <td>
+                        <p style="margin:0;font-family:'Courier New',monospace;
+                                   font-size:11px;font-weight:700;color:#4ADE80;letter-spacing:2px;">
+                          TRIP ROUTE
+                        </p>
+                      </td>
+                      <td align="right">
+                        <span style="display:inline-block;background-color:#1f1f1f;
+                                     border:1px solid #2a2a2a;border-radius:6px;
+                                     padding:3px 8px;font-family:'Courier New',monospace;
+                                     font-size:9px;font-weight:700;color:#9CA3AF;
+                                     letter-spacing:0.6px;">
+                          FULL ADDRESS IN APP
+                        </span>
+                      </td>
+                    </tr>
+                  </table>
                   <!-- Pickup -->
                   <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
                          style="margin-bottom:8px;">
@@ -352,6 +491,8 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, minutesRem
                 </td>
               </tr>
             </table>
+
+            ${expiresStrip}
 
             <!-- ── CANDIDATE NOTE ── -->
             <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
@@ -435,31 +576,40 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, minutesRem
 </body>
 </html>`.trim();
 
+  // Plain-text fallback — also masks addresses, includes expiry
   const text =
     `New ride available on UaTob, ${driver.firstName || "Driver"}.\n\n` +
-    `Payout:   ${payout}\n` +
-    `Distance: ${distance}\n` +
-    `Duration: ${duration}\n` +
-    `Type:     ${ride.rideType || "Standard"}\n` +
-    `Pickup:   ${ride.pickup   || "N/A"}\n` +
-    `Dropoff:  ${ride.dropoff  || "N/A"}\n` +
-    `Ride ID:  ${rideId}\n\n` +
+    `Payout:    ${payout}\n` +
+    `Distance:  ${distance}\n` +
+    `Duration:  ${duration}\n` +
+    `Type:      ${ride.rideType || "Standard"}\n` +
+    `Pickup:    ${maskAddress(ride.pickup)}\n` +
+    `Dropoff:   ${maskAddress(ride.dropoff)}\n` +
+    (expiresAtText ? `Expires:   ${expiresAtText}` +
+      (countdownText ? ` (${countdownText})\n` : "\n") : "") +
+    `Ride ID:   ${rideId}\n\n` +
+    `Full address shown in the app once you accept.\n` +
     `Open the UaTob app to accept this ride: https://uatob.com/driver/app`;
+
+  // Subject line shows countdown when we have one
+  const subject = countdownText
+    ? `🚗 New ride · ${payout} · ${distance} · ${countdownText}`
+    : `🚗 New ride · ${payout} payout · ${distance} — Accept now`;
 
   return {
     to:      driver.email,
     from:    "UaTob Dispatch <noreply@uatob.com>",
-    subject: `🚗 New ride · ${payout} payout · ${distance} — Accept now`,
+    subject,
     text,
     html,
   };
 }
 
 // ─────────────────────────────────────────────────────────────
-// Send helper — wraps sgMail.send with built email
+// Send helper
 // ─────────────────────────────────────────────────────────────
-function sendDriverEmail(driver, ride, rideId, totalCandidates, minutesRemaining) {
-  const msg = buildCandidateEmail({ driver, ride, rideId, totalCandidates, minutesRemaining });
+function sendDriverEmail(driver, ride, rideId, totalCandidates, msRemaining, expiresAtMs) {
+  const msg = buildCandidateEmail({ driver, ride, rideId, totalCandidates, msRemaining, expiresAtMs });
   return sgMail.send(msg);
 }
 
@@ -510,28 +660,23 @@ exports.emailCandidateDrivers = onSchedule(
       const rideRef = rideDoc.ref;
       const rideId  = rideDoc.id;
 
-      // ── EXPIRY GUARD ─────────────────────────────────────────
-      // expiresAt may be a Firestore Timestamp or an ISO string.
-      const expiresAtMs = ride.expiresAt?.toMillis?.()
-        ?? (ride.expiresAt ? new Date(ride.expiresAt).getTime() : null);
+      const expiresAtMs = toMs(ride.expiresAt);
 
       if (expiresAtMs !== null && expiresAtMs <= now) {
         console.log(`[DISPATCH] Skipping ${rideId} — already expired`);
         continue;
       }
 
-      const msRemaining      = expiresAtMs !== null ? expiresAtMs - now : Infinity;
-      const minutesRemaining = expiresAtMs !== null
-        ? Math.max(1, Math.round(msRemaining / 60_000))
-        : null;
+      const msRemaining = expiresAtMs !== null ? expiresAtMs - now : null;
 
       const sentMap       = ride.emailSentToDrivers  || {};
       const candidateUids = ride.candidateDriverUids || [];
 
-      // ── FIRST WAVE (candidate drivers) ──────────────────────
+      // ── FIRST WAVE (candidate drivers) ──
       if (!ride.emailDispatchStarted) {
         console.log(
-          `[DISPATCH] First wave → ${rideId} (${minutesRemaining ?? "∞"} min remaining)`
+          `[DISPATCH] First wave → ${rideId} ` +
+          `(${msRemaining != null ? Math.round(msRemaining/60_000) + " min" : "no expiry"} remaining)`
         );
 
         await rideRef.update({
@@ -546,7 +691,7 @@ exports.emailCandidateDrivers = onSchedule(
 
         for (const driver of candidateDrivers) {
           emailPromises.push(
-            sendDriverEmail(driver, ride, rideId, candidateDrivers.length, minutesRemaining)
+            sendDriverEmail(driver, ride, rideId, candidateDrivers.length, msRemaining, expiresAtMs)
           );
           sentMap[driver.uid] = true;
         }
@@ -555,10 +700,9 @@ exports.emailCandidateDrivers = onSchedule(
         continue;
       }
 
-      // ── EXPANSION WAVES ──────────────────────────────────────
-      // Don't bother if the ride expires before the next tick —
-      // drivers would receive the email after the ride is gone.
-      if (msRemaining <= TICK_MS) {
+      // ── EXPANSION WAVES ──
+      // Don't email if the ride expires before the next tick.
+      if (msRemaining !== null && msRemaining <= TICK_MS) {
         console.log(
           `[DISPATCH] Skipping expansion for ${rideId} — only ${Math.round(msRemaining / 1000)}s left`
         );
@@ -574,12 +718,13 @@ exports.emailCandidateDrivers = onSchedule(
       if (nextBatch.length === 0) continue;
 
       console.log(
-        `[DISPATCH] Expanding ${rideId} → drivers ${currentIndex}–${currentIndex + batchSize} (${minutesRemaining ?? "∞"} min remaining)`
+        `[DISPATCH] Expanding ${rideId} → drivers ${currentIndex}–${currentIndex + batchSize} ` +
+        `(${msRemaining != null ? Math.round(msRemaining/60_000) + " min" : "no expiry"} remaining)`
       );
 
       for (const driver of nextBatch) {
         emailPromises.push(
-          sendDriverEmail(driver, ride, rideId, nextBatch.length, minutesRemaining)
+          sendDriverEmail(driver, ride, rideId, nextBatch.length, msRemaining, expiresAtMs)
         );
         sentMap[driver.uid] = true;
       }
