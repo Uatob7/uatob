@@ -17,7 +17,7 @@ const AMBER = "#D97706";
 // ─── LIGHT DESIGN TOKENS ──────────────────────────────────────────────────
 const D = {
   // Backgrounds
-  bg:       "#FFFFFF",       // page bg — white
+  bg:       "transparent",   // page bg — inherits from parent
   bgCard:   "#FFFFFF",       // cards
   bgMid:    "#F8FAFC",       // inner panels
   bgHover:  "#F0FDF9",       // teal-tinted hover
