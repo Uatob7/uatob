@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Car } from 'lucide-react';
-import { useAllDrivers } from "@/App/UaTob/useAllDrivers";
+import { useAllDrivers } from "@/App/UaTob/useActiveRides";
 
 const BOUNDS = { minLat: 28.30, maxLat: 28.78, minLng: -81.62, maxLng: -81.10 };
 
@@ -26,7 +26,7 @@ function addressToCoords(address) {
 function statusColor(status) {
   if (!status) return '#9CA3AF';
   const s = status.toLowerCase();
-  if (s === 'online' || s === 'available') return '#16A34A'; // matches T.accent
+  if (s === 'online' || s === 'available') return '#16A34A';
   if (s === 'offline') return '#6B7280';
   return '#2563EB';
 }
@@ -39,12 +39,85 @@ function statusLabel(status) {
   return 'Busy';
 }
 
+// ── UATOB letter dot-matrix positions (x%, y%) ──────────────────────
+// Each letter is 5 rows × 3 cols, letters spaced across the map
+const LETTER_SLOTS = (() => {
+  // dot matrix for each letter: 1 = filled dot
+  const letters = {
+    U: [
+      [1,0,1],
+      [1,0,1],
+      [1,0,1],
+      [1,0,1],
+      [0,1,0],
+    ],
+    A: [
+      [0,1,0],
+      [1,0,1],
+      [1,1,1],
+      [1,0,1],
+      [1,0,1],
+    ],
+    T: [
+      [1,1,1],
+      [0,1,0],
+      [0,1,0],
+      [0,1,0],
+      [0,1,0],
+    ],
+    O: [
+      [0,1,0],
+      [1,0,1],
+      [1,0,1],
+      [1,0,1],
+      [0,1,0],
+    ],
+    B: [
+      [1,1,0],
+      [1,0,1],
+      [1,1,0],
+      [1,0,1],
+      [1,1,0],
+    ],
+  };
+
+  const slots = [];
+  const letterKeys = ['U', 'A', 'T', 'O', 'B'];
+  const startX  = 8;   // % from left
+  const colStep = 7;   // % between columns
+  const letterW = 22;  // % width per letter
+  const startY  = 12;  // % from top
+  const rowStep = 14;  // % between rows
+
+  letterKeys.forEach((key, li) => {
+    const matrix = letters[key];
+    const lx = startX + li * letterW;
+    matrix.forEach((row, ri) => {
+      row.forEach((filled, ci) => {
+        if (filled) {
+          slots.push({
+            x: lx + ci * colStep,
+            y: startY + ri * rowStep,
+          });
+        }
+      });
+    });
+  });
+
+  return slots;
+})();
+
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap');
 
   @keyframes pinPulse {
-    0%, 100% { transform: translate(-50%,-50%) scale(1);    opacity: 1;    }
+    0%, 100% { transform: translate(-50%,-50%) scale(1);     opacity: 1;    }
     50%       { transform: translate(-50%,-50%) scale(1.22); opacity: 0.72; }
+  }
+  @keyframes pinDrop {
+    0%   { transform: translate(-50%,-50%) scale(0) rotate(-20deg); opacity: 0; }
+    60%  { transform: translate(-50%,-50%) scale(1.15) rotate(4deg); opacity: 1; }
+    100% { transform: translate(-50%,-50%) scale(1) rotate(0deg);   opacity: 1; }
   }
   @keyframes liveDot {
     0%, 100% { opacity: 1; }
@@ -70,12 +143,16 @@ export default function MapView() {
     };
   }), [drivers]);
 
+  // Online drivers snap into UATOB letter slots in order
+  const onlinePins  = useMemo(() => driverPins.filter(d => d.label === 'Online'),  [driverPins]);
+  const offlinePins = useMemo(() => driverPins.filter(d => d.label !== 'Online'),  [driverPins]);
+
   const counts = useMemo(() => {
-    const online  = driverPins.filter(d => d.label === 'Online').length;
+    const online  = onlinePins.length;
     const offline = driverPins.filter(d => d.label === 'Offline').length;
     const busy    = driverPins.length - online - offline;
     return { total: driverPins.length, online, offline, busy };
-  }, [driverPins]);
+  }, [driverPins, onlinePins]);
 
   return (
     <>
@@ -85,8 +162,8 @@ export default function MapView() {
         height:       'clamp(240px, 38vh, 300px)',
         borderRadius: '20px',
         overflow:     'hidden',
-        background:   '#F9FAFB',      // matches T.surfaceAlt
-        border:       '1.5px solid #E5E7EB', // matches T.border
+        background:   '#F9FAFB',
+        border:       '1.5px solid #E5E7EB',
       }}>
 
         {/* Grid */}
@@ -113,7 +190,7 @@ export default function MapView() {
           <path d="M120,180 Q200,172 300,178 T500,170"   fill="none" stroke="#EFEFEF" strokeWidth="6"  strokeLinecap="round"/>
         </svg>
 
-        {/* Accent glow — top-left, matches BookingPanel's green ambient */}
+        {/* Green ambient glow */}
         <div style={{
           position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1,
           background: 'radial-gradient(circle at 18% 18%, rgba(22,163,74,.07) 0%, transparent 38%)',
@@ -136,47 +213,76 @@ export default function MapView() {
           </div>
         )}
 
-        {/* Driver pins */}
-        {driverPins.map((d, i) => (
+        {/* ── Offline / busy pins — use GPS/hash position ── */}
+        {offlinePins.map(d => (
           <div
             key={d.id}
             title={`${d.name} · ${d.label}`}
             style={{
-              position:       'absolute',
-              left:           `${d.pos.x}%`,
-              top:            `${d.pos.y}%`,
-              transform:      'translate(-50%,-50%)',
-              zIndex:         5,
-              animation:      d.label === 'Online' ? `pinPulse 2.6s ease-in-out ${i * 0.2}s infinite` : 'none',
+              position:  'absolute',
+              left:      `${d.pos.x}%`,
+              top:       `${d.pos.y}%`,
+              transform: 'translate(-50%,-50%)',
+              zIndex:    4,
             }}
           >
-            {/* Outer ring for online */}
-            {d.label === 'Online' && (
+            <div style={{
+              width:          '16px',
+              height:         '16px',
+              background:     d.color,
+              borderRadius:   '50%',
+              border:         '2px solid #fff',
+              boxShadow:      '0 2px 6px rgba(0,0,0,0.12)',
+              display:        'flex',
+              alignItems:     'center',
+              justifyContent: 'center',
+              opacity:        0.5,
+            }}>
+              <Car size={7} color="#fff" strokeWidth={2.5}/>
+            </div>
+          </div>
+        ))}
+
+        {/* ── Online pins — snap into UATOB letter slots ── */}
+        {onlinePins.map((d, i) => {
+          const slot = LETTER_SLOTS[i % LETTER_SLOTS.length];
+          return (
+            <div
+              key={d.id}
+              title={`${d.name} · Online`}
+              style={{
+                position:        'absolute',
+                left:            `${slot.x}%`,
+                top:             `${slot.y}%`,
+                transform:       'translate(-50%,-50%)',
+                zIndex:          5,
+                animation:       `pinDrop .5s cubic-bezier(.34,1.56,.64,1) ${i * 0.08}s both, pinPulse 2.6s ease-in-out ${i * 0.2}s infinite`,
+              }}
+            >
               <div style={{
                 position:     'absolute',
                 inset:        '-5px',
                 borderRadius: '50%',
-                border:       `1.5px solid #86EFAC`, // matches T.accentBorder
+                border:       '1.5px solid #86EFAC',
                 opacity:      0.6,
               }}/>
-            )}
-            <div style={{
-              width:          '20px',
-              height:         '20px',
-              background:     d.color,
-              borderRadius:   '50%',
-              border:         '2px solid #fff',
-              boxShadow:      d.label === 'Online'
-                ? '0 2px 10px rgba(22,163,74,0.35)'
-                : '0 2px 6px rgba(0,0,0,0.14)',
-              display:        'flex',
-              alignItems:     'center',
-              justifyContent: 'center',
-            }}>
-              <Car size={9} color="#fff" strokeWidth={2.5}/>
+              <div style={{
+                width:          '20px',
+                height:         '20px',
+                background:     '#16A34A',
+                borderRadius:   '50%',
+                border:         '2px solid #fff',
+                boxShadow:      '0 2px 10px rgba(22,163,74,0.35)',
+                display:        'flex',
+                alignItems:     'center',
+                justifyContent: 'center',
+                position:       'relative',
+              }}>
+                <Car size={9} color="#fff" strokeWidth={2.5}/>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {/* Bottom bar */}
         <div style={{
@@ -192,8 +298,6 @@ export default function MapView() {
           gap:            '12px',
           fontFamily:     'Outfit, system-ui, sans-serif',
         }}>
-
-          {/* Total */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Car size={12} color="#6B7280" strokeWidth={2}/>
             <span style={{ fontSize: '13px', fontWeight: 800, color: '#111827', fontVariantNumeric: 'tabular-nums' }}>
@@ -209,7 +313,6 @@ export default function MapView() {
           <div style={{ width: '1px', height: 16, background: '#E5E7EB' }}/>
           <Pill color="#9CA3AF" label="Offline" value={counts.offline} />
 
-          {/* Live badge — matches bp-driver-dot style */}
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5 }}>
             <div style={{
               width: 6, height: 6, borderRadius: '50%',
