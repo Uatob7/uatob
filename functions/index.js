@@ -19,6 +19,7 @@ const { saveRiderFcmToken } = require("./ride/saveRiderFcmToken");
 const { onRideStatusChangedNotifyRider } = require("./ride/onRideStatusChangedNotifyRider");
 const { trackView } = require("./ride/trackView");
 const { updateRiderPhone } = require("./ride/updateRiderPhone");
+const { autoRefundTimeoutRides } = require("./ride/autoRefundTimeoutRides");
 
 // Payment functions
 const { cashPayment } = require("./payments/cashPayment");
@@ -70,6 +71,7 @@ const { onAccountCreatedNotifyAdmin } = require("./admin/email/onAccountCreatedN
 const { onDriverCreatedNotifyAdmin } = require("./admin/email/onDriverCreatedNotifyAdmin");
 const { onRideCreatedNotifyAdmin } = require("./admin/email/onRideCreatedNotifyAdmin");
 const { onDriverStatusChanged } = require("./admin/email/onDriverStatusChanged");
+const { thankYouAnnouncement } = require("./admin/email/thankYouAnnouncement");
 const { saveAdminFcmToken } = require("./admin/saveAdminFcmToken");
 const { approveDriver } = require("./admin/approveDriver");
 const { rejectDriver } = require("./admin/rejectDriver");
@@ -89,6 +91,7 @@ exports.Price = Price;
 exports.cancelRide = cancelRide;
 exports.extendRideSearch = extendRideSearch;
 exports.Geo = Geo;
+exports.autoRefundTimeoutRides = autoRefundTimeoutRides;
 exports.onRidePaymentSucceeded = onRidePaymentSucceeded;
 exports.cardPayment = cardPayment;
 exports.cashPayment = cashPayment;
@@ -134,6 +137,7 @@ exports.pushOfflineDriver = pushOfflineDriver;
 exports.updateDriverSetting = updateDriverSetting;
 
 exports.onAccountCreatedNotifyAdmin = onAccountCreatedNotifyAdmin;
+exports.thankYouAnnouncement = thankYouAnnouncement;
 exports.announceCashRides = announceCashRides;
 exports.onDriverCreatedNotifyAdmin = onDriverCreatedNotifyAdmin;
 exports.onRideCreatedNotifyAdmin = onRideCreatedNotifyAdmin;
