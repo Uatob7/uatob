@@ -290,7 +290,7 @@ export default function MapView() {
               color: hasOnline ? '#5EEAD4' : '#CBD5E1',
               textTransform: 'uppercase',
             }}>
-              {hasOnline ? `${counts.online} ready nearby` : 'Drivers offline'}
+              {hasOnline ? `${counts.online} nearby` : 'Drivers offline'}
             </span>
           </div>
         )}
@@ -430,16 +430,13 @@ export default function MapView() {
               <span style={{
                 fontSize: 9, fontWeight: 800, letterSpacing: '.1em',
                 color: 'rgba(255,255,255,.45)', textTransform: 'uppercase',
-              }}>Fleet</span>
+              }}>Drivers</span>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
                 <span style={{
                   fontSize: 18, fontWeight: 800, color: '#fff',
                   fontVariantNumeric: 'tabular-nums', letterSpacing: '-.02em', lineHeight: 1,
                 }}>
                   {counts.total}
-                </span>
-                <span style={{ fontSize: 10, color: 'rgba(255,255,255,.5)', fontWeight: 600 }}>
-                  drivers
                 </span>
               </div>
             </div>
@@ -451,20 +448,6 @@ export default function MapView() {
             <DarkPill color="#60A5FA" label="Busy"    value={counts.busy}    />
             <DarkPill color="#94A3B8" label="Offline" value={counts.offline} dim />
 
-            {/* Live indicator */}
-            <div style={{
-              marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5,
-              padding: '4px 9px',
-              background: 'rgba(34,211,165,.12)',
-              border: '1px solid rgba(34,211,165,.3)',
-              borderRadius: 99,
-            }}>
-              <Sparkles size={9} color="#5EEAD4" />
-              <span style={{
-                fontSize: 9.5, fontWeight: 800, color: '#5EEAD4',
-                letterSpacing: '.08em', textTransform: 'uppercase',
-              }}>Live</span>
-            </div>
           </div>
         </div>
 
