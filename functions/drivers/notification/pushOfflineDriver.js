@@ -193,7 +193,7 @@ async function sendNudges({ drivers, waitingCount, topRide }) {
 // ─────────────────────────────────────────────────────────────
 // Scheduled Cloud Function
 // ─────────────────────────────────────────────────────────────
-exports.pushOfflineDrivers = onSchedule(
+exports.pushOfflineDriver = onSchedule(
   {
     schedule: "every 1 minutes",
     region:   FUNCTION_REGION,
