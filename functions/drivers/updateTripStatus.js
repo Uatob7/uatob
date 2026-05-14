@@ -3,6 +3,60 @@ const admin = require("firebase-admin");
 
 const db = admin.firestore();
 
+
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { defineSecret } = require("firebase-functions/params");
+const axios = require("axios");
+
+const GOOGLE_MAPS_KEY = defineSecret("GOOGLE_MAPS_KEY");
+
+exports.getDriverToPickup = onCall(
+  {
+    region: "us-east1",
+    secrets: [GOOGLE_MAPS_KEY],
+  },
+  async (request) => {
+    try {
+      const { driverLat, driverLng, pickupLat, pickupLng } = request.data ?? {};
+
+      if (
+        driverLat == null ||
+        driverLng == null ||
+        pickupLat == null ||
+        pickupLng == null
+      ) {
+        throw new HttpsError(
+          "invalid-argument",
+          "driverLat, driverLng, pickupLat, pickupLng are required"
+        );
+      }
+
+      const response = await axios.post(
+        "https://routes.googleapis.com/directions/v2:computeRoutes",
+        {
+          origin: {
+            location: {
+              latLng: { latitude: driverLat, longitude: driverLng },
+            },
+          },
+          destination: {
+            location: {
+              latLng: { latitude: pickupLat, longitude: pickupLng },
+            },
+          },
+          travelMode:               "DRIVE",
+          routingPreference:        "TRAFFIC_AWARE",
+          computeAlternativeRoutes: false,
+        },
+        {
+          headers: {
+            "Content-Type":      "application/json",
+            "X-Goog-Api-Key":    GOOGLE_MAPS_KEY.value(),
+            "X-Goog-FieldMask":  "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline",
+          },
+          timeout: 8000,
+        }
+      );
 // ─────────────────────────────────────────────────────────
 exports.updateTripStatus = onCall(
   { region: "us-east1" },
@@ -102,6 +156,50 @@ exports.updateTripStatus = onCall(
 );
 
 
+
+
+Cloud Firestore
+Database
+(default)
+Data
+Rules
+Indexes
+Disaster Recovery
+Usage
+Query Insights
+Extensions
+Protect your Cloud Firestore resources from abuse, such as billing fraud or phishing
+
+
+
+Rides
+0PNnj6KWLaoxZxBw7RFD
+(default)
+
+Accounts
+
+Admin
+
+Drivers
+
+Rides
+
+Search
+
+Support
+
+SupportThreads
+Rides
+
+0PNnj6KWLaoxZxBw7RFD
+
+1T0rQvkIpRYQaNyTm8lx
+
+BCCx17PgJoEmjMnJZ6dK
+
+PlzVo8BNK7YNtJxqkYEP
+
+vBxXLEArYcXWayvUmBBc
 0PNnj6KWLaoxZxBw7RFD
 acceptedAt
 May 14, 2026 at 7:05:46 PM UTC-4
@@ -121,10 +219,20 @@ May 14, 2026 at 6:56:02 PM UTC-4
 (map)
 
 
+arrivedAt
+May 14, 2026 at 7:12:34 PM UTC-4
+(timestamp)
+
+
 (array)
 
 
 (array)
+
+
+completedAt
+May 14, 2026 at 7:12:38 PM UTC-4
+(timestamp)
 
 
 createdAt
@@ -154,17 +262,17 @@ driverEtaMin
 
 
 driverLat
-28.572782099999998
+28.572790166666664
 (double)
 
 
 driverLng
--81.46883159999999
+-81.46882866666665
 (double)
 
 
 driverLocationAt
-May 14, 2026 at 7:08:35 PM UTC-4
+May 14, 2026 at 7:12:35 PM UTC-4
 (timestamp)
 
 
@@ -265,7 +373,7 @@ paymentStatus
 
 
 payoutStatus
-"pending"
+"processing"
 (string)
 
 
@@ -319,14 +427,7 @@ pushDriverIndex
 (int64)
 
 
-
-pushSentToDrivers
 (map)
-
-
-khfZ88XTF8TjI9dBcbqY0730MQA3
-true
-(boolean)
 
 
 requestSentAt
@@ -344,8 +445,13 @@ rideType
 (string)
 
 
+startedAt
+May 14, 2026 at 7:12:36 PM UTC-4
+(timestamp)
+
+
 status
-"driver_assigned"
+"completed"
 (string)
 
 
@@ -375,10 +481,4 @@ uid
 
 
 updatedAt
-May 14, 2026 at 7:08:35 PM UT we can check to see if the drtiver is less then 1 millage away from the rider with the driverDistanceMiles
-0.06
-(double)
-
-
-driverEtaMin
-1 when they click arrived 
+May 14, 2026 at 7:13:01 PM UTC-4
