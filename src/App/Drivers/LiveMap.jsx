@@ -1,12 +1,9 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { Car, Users, Activity, Clock, Wifi } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Users, Activity, Clock, Wifi } from 'lucide-react';
 
 const MAPBOX_TOKEN = "pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA";
-
-// Dark UaTob-branded Mapbox style override params
 const MAP_STYLE = "mapbox://styles/mapbox/dark-v11";
 
-// Demo rider positions (offset from driver center in degrees)
 const RIDER_OFFSETS = [
   { dlat:  0.018, dlng:  0.024 },
   { dlat: -0.021, dlng:  0.031 },
@@ -16,7 +13,7 @@ const RIDER_OFFSETS = [
 ];
 
 /**
- * LiveMap v2
+ * LiveMap v3
  *
  * Props:
  *   online      — boolean
@@ -28,13 +25,10 @@ export default function LiveMap({ online, driver, searches = [], activeTrip }) {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const markersRef = useRef([]);
-  const driverMarkerRef = useRef(null);
-  const pulseTimerRef = useRef(null);
   const [mapReady, setMapReady] = useState(false);
-  const [tick, setTick] = useState(0);
   const [sweepAngle, setSweepAngle] = useState(0);
 
-  // Radar sweep animation
+  // Radar sweep
   useEffect(() => {
     if (!online || activeTrip) return;
     let angle = 0;
@@ -45,14 +39,7 @@ export default function LiveMap({ online, driver, searches = [], activeTrip }) {
     return () => clearInterval(id);
   }, [online, activeTrip]);
 
-  // Tick for "last update"
-  useEffect(() => {
-    if (!online) return;
-    const id = setInterval(() => setTick(t => t + 1), 5000);
-    return () => clearInterval(id);
-  }, [online]);
-
-  // Initialize Mapbox
+  // Init Mapbox
   useEffect(() => {
     if (!online || activeTrip || mapRef.current) return;
 
@@ -88,12 +75,9 @@ export default function LiveMap({ online, driver, searches = [], activeTrip }) {
       });
 
       map.on('load', () => {
-        // Subtle green tint overlay on roads
-        map.setPaintProperty('road-primary', 'line-color', '#1a2e1a');
         mapRef.current = map;
         setMapReady(true);
 
-        // Slow drift animation
         let bearing = -18;
         const drift = setInterval(() => {
           bearing += 0.05;
@@ -112,93 +96,29 @@ export default function LiveMap({ online, driver, searches = [], activeTrip }) {
     };
   }, [online, activeTrip]);
 
-  // Place/update driver marker
+  // Rider dots
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
     const mapboxgl = window.mapboxgl;
     const driverLat = driver?.lat ?? 28.5383;
     const driverLng = driver?.lng ?? -81.3792;
 
-    if (driverMarkerRef.current) {
-      driverMarkerRef.current.setLngLat([driverLng, driverLat]);
-    } else {
-      const el = document.createElement('div');
-      el.innerHTML = `
-        <div style="
-          position:relative;
-          width:52px; height:52px;
-          display:flex; align-items:center; justify-content:center;
-        ">
-          <div style="
-            position:absolute; inset:-10px; border-radius:50%;
-            background:radial-gradient(circle, rgba(34,197,94,0.35) 0%, transparent 70%);
-            animation:driverGlow 2s ease-in-out infinite;
-          "></div>
-          <div style="
-            position:absolute; inset:-4px; border-radius:50%;
-            border:2px solid rgba(34,197,94,0.5);
-            animation:driverRing 2s ease-out infinite;
-          "></div>
-          <div style="
-            width:48px; height:48px; border-radius:50%;
-            background:linear-gradient(145deg,#22C55E 0%,#16A34A 55%,#14532d);
-            border:2.5px solid rgba(255,255,255,0.92);
-            display:flex; align-items:center; justify-content:center;
-            box-shadow:0 0 0 5px rgba(34,197,94,0.2), 0 8px 24px rgba(22,163,74,0.55);
-          ">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M5 17H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v3"/>
-              <rect x="9" y="11" width="14" height="10" rx="2"/>
-              <circle cx="12" cy="21" r="1"/>
-              <circle cx="20" cy="21" r="1"/>
-            </svg>
-          </div>
-        </div>
-        <style>
-          @keyframes driverGlow {
-            0%,100%{opacity:.7;transform:scale(1);}
-            50%{opacity:1;transform:scale(1.08);}
-          }
-          @keyframes driverRing {
-            0%{transform:scale(1);opacity:.8;}
-            100%{transform:scale(1.9);opacity:0;}
-          }
-        </style>
-      `;
-      el.style.cssText = 'cursor:default; pointer-events:none;';
-
-      driverMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'center' })
-        .setLngLat([driverLng, driverLat])
-        .addTo(mapRef.current);
-    }
-  }, [mapReady, driver?.lat, driver?.lng]);
-
-  // Place rider dots
-  useEffect(() => {
-    if (!mapReady || !mapRef.current) return;
-    const mapboxgl = window.mapboxgl;
-    const driverLat = driver?.lat ?? 28.5383;
-    const driverLng = driver?.lng ?? -81.3792;
-
-    // Remove old markers
     markersRef.current.forEach(m => m.remove());
     markersRef.current = [];
 
     const count = Math.min(searches.length || 3, RIDER_OFFSETS.length);
-    const usedOffsets = RIDER_OFFSETS.slice(0, count);
 
-    usedOffsets.forEach((off, i) => {
+    RIDER_OFFSETS.slice(0, count).forEach((off, i) => {
       const el = document.createElement('div');
       el.innerHTML = `
         <div style="
-          position:relative;
-          width:28px; height:28px;
+          position:relative; width:28px; height:28px;
           display:flex; align-items:center; justify-content:center;
           animation:riderFadeIn .5s cubic-bezier(.34,1.4,.64,1) ${i * 0.1}s both;
         ">
           <div style="
             position:absolute; inset:-5px; border-radius:50%;
-            background:radial-gradient(circle, rgba(96,165,250,0.35) 0%, transparent 70%);
+            background:radial-gradient(circle, rgba(96,165,250,0.3) 0%, transparent 70%);
             animation:riderPulse 2.2s ease-in-out ${i * 0.4}s infinite;
           "></div>
           <div style="
@@ -209,7 +129,10 @@ export default function LiveMap({ online, driver, searches = [], activeTrip }) {
             box-shadow:0 4px 12px rgba(37,99,235,0.5), 0 0 0 3px rgba(59,130,246,0.2);
           ">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
             </svg>
           </div>
         </div>
@@ -230,14 +153,22 @@ export default function LiveMap({ online, driver, searches = [], activeTrip }) {
 
   if (!online || activeTrip) return null;
 
-  const nearbyCount = searches.length || 3; // fallback for demo
+  const nearbyCount = searches.length || 3;
   const closestMi = 0.4;
 
-  // Sweep cone via SVG overlay
-  const sweepRad = (sweepAngle * Math.PI) / 180;
-  const sweepEndRad = ((sweepAngle + 75) * Math.PI) / 180;
-  const R = 160;
-  const cx = 50, cy = 50; // percent
+  const toRad = deg => (deg * Math.PI) / 180;
+  const R = 55;
+  const trailAngle = sweepAngle;
+  const leadAngle  = (sweepAngle + 72) % 360;
+
+  const trailX = 50 + R * Math.cos(toRad(trailAngle));
+  const trailY = 50 + R * Math.sin(toRad(trailAngle));
+  const leadX  = 50 + R * Math.cos(toRad(leadAngle));
+  const leadY  = 50 + R * Math.sin(toRad(leadAngle));
+
+  // dot on the outermost ring where the beam tip lands
+  const tipX = 50 + 52 * Math.cos(toRad(leadAngle));
+  const tipY = 50 + 52 * Math.sin(toRad(leadAngle));
 
   return (
     <div style={{
@@ -248,13 +179,13 @@ export default function LiveMap({ online, driver, searches = [], activeTrip }) {
       boxShadow: "0 20px 60px rgba(0,0,0,.35), 0 0 0 1px rgba(34,197,94,0.15)",
     }}>
 
-      {/* ── Mapbox container ── */}
+      {/* Mapbox */}
       <div
         ref={mapContainerRef}
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
       />
 
-      {/* ── Radar sweep overlay (SVG, above map) ── */}
+      {/* SVG radar overlay */}
       {mapReady && (
         <svg
           style={{
@@ -266,55 +197,61 @@ export default function LiveMap({ online, driver, searches = [], activeTrip }) {
           preserveAspectRatio="none"
         >
           <defs>
-            {/* Sweep gradient */}
             <radialGradient id="sweepGrad" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="rgba(34,197,94,0.55)"/>
+              <stop offset="0%"   stopColor="rgba(34,197,94,0.75)"/>
+              <stop offset="55%"  stopColor="rgba(34,197,94,0.22)"/>
               <stop offset="100%" stopColor="rgba(34,197,94,0)"/>
             </radialGradient>
-            {/* Vignette */}
             <radialGradient id="mapVig" cx="50%" cy="50%" r="60%">
-              <stop offset="40%" stopColor="transparent"/>
-              <stop offset="100%" stopColor="rgba(0,0,0,0.6)"/>
+              <stop offset="35%" stopColor="transparent"/>
+              <stop offset="100%" stopColor="rgba(0,0,0,0.65)"/>
             </radialGradient>
           </defs>
 
-          {/* Vignette frame */}
-          <rect width="100" height="100" fill="url(#mapVig)" />
+          {/* Vignette */}
+          <rect width="100" height="100" fill="url(#mapVig)"/>
 
-          {/* Radar sweep cone */}
-          <path
-            d={`M 50 50
-                L ${50 + 55 * Math.cos(sweepRad - 0.1)} ${50 + 55 * Math.sin(sweepRad - 0.1)}
-                A 55 55 0 0 1 ${50 + 55 * Math.cos(sweepEndRad)} ${50 + 55 * Math.sin(sweepEndRad)}
-                Z`}
-            fill="url(#sweepGrad)"
-            opacity="0.65"
-          />
-
-          {/* Sweep leading edge */}
-          <line
-            x1="50" y1="50"
-            x2={50 + 55 * Math.cos(sweepEndRad)}
-            y2={50 + 55 * Math.sin(sweepEndRad)}
-            stroke="rgba(34,197,94,0.9)"
-            strokeWidth="0.4"
-          />
-
-          {/* Radar rings */}
-          {[18, 32, 46].map((r, i) => (
+          {/* Dashed radar rings */}
+          {[16, 28, 40, 52].map((r, i) => (
             <circle
               key={i}
               cx="50" cy="50" r={r}
               fill="none"
-              stroke="rgba(34,197,94,0.18)"
-              strokeWidth="0.35"
-              strokeDasharray="1.5 2"
+              stroke="rgba(34,197,94,0.15)"
+              strokeWidth="0.3"
+              strokeDasharray="1.2 2.2"
             />
           ))}
+
+          {/* Sweep cone */}
+          <path
+            d={`M 50 50 L ${trailX} ${trailY} A ${R} ${R} 0 0 1 ${leadX} ${leadY} Z`}
+            fill="url(#sweepGrad)"
+            opacity="0.72"
+          />
+
+          {/* Leading-edge beam line */}
+          <line
+            x1="50" y1="50"
+            x2={leadX} y2={leadY}
+            stroke="#4ADE80"
+            strokeWidth="0.55"
+            strokeLinecap="round"
+            opacity="0.95"
+          />
+
+          {/* Bright flare dot where beam tip hits outermost ring */}
+          <circle cx={tipX} cy={tipY} r="1.3" fill="#4ADE80" opacity="0.95"/>
+          <circle cx={tipX} cy={tipY} r="2.4" fill="rgba(74,222,128,0.25)" opacity="0.9"/>
+
+          {/* Center crosshair — small, minimal */}
+          <line x1="47.5" y1="50" x2="52.5" y2="50" stroke="rgba(34,197,94,0.55)" strokeWidth="0.3"/>
+          <line x1="50" y1="47.5" x2="50" y2="52.5" stroke="rgba(34,197,94,0.55)" strokeWidth="0.3"/>
+          <circle cx="50" cy="50" r="0.9" fill="rgba(74,222,128,0.85)"/>
         </svg>
       )}
 
-      {/* ── Loading shimmer (pre-map) ── */}
+      {/* Loading */}
       {!mapReady && (
         <div style={{
           position: "absolute", inset: 0,
@@ -328,24 +265,22 @@ export default function LiveMap({ online, driver, searches = [], activeTrip }) {
             borderTop: "2.5px solid #22C55E",
             animation: "spin .9s linear infinite",
           }}/>
-          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", letterSpacing: ".08em", fontWeight: 600 }}>
+          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", letterSpacing: ".08em", fontWeight: 600 }}>
             Locating…
           </span>
           <style>{`@keyframes spin{to{transform:rotate(360deg);}}`}</style>
         </div>
       )}
 
-      {/* ── Top HUD bar ── */}
+      {/* Top HUD */}
       <div style={{
         position: "absolute", top: 10, left: 10, right: 10,
         display: "flex", justifyContent: "space-between", alignItems: "center",
         zIndex: 20, pointerEvents: "none",
       }}>
-        {/* Live pill */}
         <div style={{
           display: "inline-flex", alignItems: "center", gap: 6,
-          background: "rgba(0,0,0,0.62)",
-          backdropFilter: "blur(14px)",
+          background: "rgba(0,0,0,0.62)", backdropFilter: "blur(14px)",
           border: "1px solid rgba(34,197,94,0.35)",
           borderRadius: 100, padding: "5px 12px",
         }}>
@@ -359,41 +294,32 @@ export default function LiveMap({ online, driver, searches = [], activeTrip }) {
             fontSize: 10, fontWeight: 800, letterSpacing: ".12em",
             textTransform: "uppercase", color: "rgba(255,255,255,.92)",
             fontFamily: "monospace",
-          }}>
-            Online
-          </span>
+          }}>Online</span>
         </div>
 
-        {/* Signal strength */}
         <div style={{
-          display: "inline-flex", alignItems: "center", gap: 5,
-          background: "rgba(0,0,0,0.62)",
-          backdropFilter: "blur(14px)",
+          display: "inline-flex", alignItems: "center", gap: 6,
+          background: "rgba(0,0,0,0.62)", backdropFilter: "blur(14px)",
           border: "1px solid rgba(255,255,255,0.1)",
-          borderRadius: 100, padding: "5px 12px", gap: 6,
+          borderRadius: 100, padding: "5px 12px",
         }}>
           <Wifi size={10} color="rgba(255,255,255,.8)" strokeWidth={2.4}/>
-          <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,.8)" }}>
-            Scanning
-          </span>
+          <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,.8)" }}>Scanning</span>
         </div>
       </div>
 
-      {/* ── Bottom info card ── */}
+      {/* Bottom card */}
       <div style={{
         position: "absolute", bottom: 10, left: 10, right: 10,
         zIndex: 20, pointerEvents: "none",
       }}>
         <div style={{
-          background: "rgba(8, 16, 10, 0.82)",
-          backdropFilter: "blur(20px)",
+          background: "rgba(8,16,10,0.82)", backdropFilter: "blur(20px)",
           border: "1px solid rgba(34,197,94,0.22)",
-          borderRadius: 14,
-          padding: "10px 14px",
+          borderRadius: 14, padding: "10px 14px",
           display: "flex", alignItems: "center", gap: 10,
           boxShadow: "0 8px 32px rgba(0,0,0,.35)",
         }}>
-          {/* Icon */}
           <div style={{
             width: 34, height: 34, borderRadius: 10, flexShrink: 0,
             background: nearbyCount > 0
@@ -410,7 +336,6 @@ export default function LiveMap({ online, driver, searches = [], activeTrip }) {
             }
           </div>
 
-          {/* Text */}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
               fontSize: 13, fontWeight: 800,
@@ -422,10 +347,8 @@ export default function LiveMap({ online, driver, searches = [], activeTrip }) {
                 : "Scanning area"}
             </div>
             <div style={{
-              fontSize: 10.5, fontWeight: 600,
-              color: "rgba(255,255,255,.45)",
-              marginTop: 2,
-              display: "flex", alignItems: "center", gap: 5,
+              fontSize: 10.5, fontWeight: 600, color: "rgba(255,255,255,.45)",
+              marginTop: 2, display: "flex", alignItems: "center", gap: 5,
             }}>
               <Clock size={9} strokeWidth={2.2} color="rgba(255,255,255,.4)"/>
               <span>Updated just now</span>
@@ -438,20 +361,15 @@ export default function LiveMap({ online, driver, searches = [], activeTrip }) {
             </div>
           </div>
 
-          {/* Rider count badge */}
           {nearbyCount > 0 && (
             <div style={{
               minWidth: 28, height: 28,
               background: "linear-gradient(135deg,rgba(59,130,246,0.25),rgba(29,78,216,0.25))",
               border: "1px solid rgba(96,165,250,0.4)",
               borderRadius: 8,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              flexShrink: 0,
+              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
             }}>
-              <span style={{
-                fontSize: 12, fontWeight: 800,
-                color: "#93C5FD",
-              }}>
+              <span style={{ fontSize: 12, fontWeight: 800, color: "#93C5FD" }}>
                 {nearbyCount}
               </span>
             </div>
