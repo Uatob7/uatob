@@ -51,6 +51,14 @@ export default function HomeTab({
         onToggle={onToggleOnline}
       />
 
+      {/* Map appears immediately after going online, self-hides when offline or trip active */}
+      <LiveMap
+        driver={driver}
+        online={online}
+        activeTrip={activeTrip}
+        searches={searches}
+      />
+
       <ActiveTripCard
         activeTrip={activeTrip}
         tripStage={tripStage}
@@ -61,19 +69,17 @@ export default function HomeTab({
         onUnreadChange={onUnreadChange}
       />
 
-      {/* ── Background content — blurred + non-interactive during active trip ── */}
+      {/* Background content — blurred + non-interactive during active trip */}
       <div style={{
         display: "flex",
         flexDirection: "column",
         gap: 14,
-        filter:         tripActive ? "blur(3px)"   : "none",
-        opacity:        tripActive ? 0.45           : 1,
-        pointerEvents:  tripActive ? "none"         : "auto",
-        userSelect:     tripActive ? "none"         : "auto",
-        transition:     "filter .35s ease, opacity .35s ease",
+        filter:        tripActive ? "blur(3px)" : "none",
+        opacity:       tripActive ? 0.45        : 1,
+        pointerEvents: tripActive ? "none"      : "auto",
+        userSelect:    tripActive ? "none"      : "auto",
+        transition:    "filter .35s ease, opacity .35s ease",
       }}>
-        <StatTiles earnings={earnings} online={online} />
-        <LiveMap driver={driver} online={online} activeTrip={activeTrip} searches={searches} />
         <Achievements online={online} driver={driver} />
       </div>
     </div>
