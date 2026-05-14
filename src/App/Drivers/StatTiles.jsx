@@ -3,7 +3,7 @@ import { Sun, Megaphone, X } from 'lucide-react';
 import { C } from '@/App/Drivers/constants.js';
 
 const PROMO_MESSAGE =
-  "UaTob needs your help — let anyone you know who might need a ride know we're here! 🚗";
+  "More riders means more trips — help spread the word about UaTob 🚗";
 
 export default function StatTiles({ earnings, online }) {
   const [msgVisible, setMsgVisible] = useState(true);
