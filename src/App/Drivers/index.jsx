@@ -417,8 +417,6 @@ function DriverAppInner({ uid }) {
   const locationPingRef   = useRef(null);
   const onlineInitialized = useRef(false);
   const notifTimerRef     = useRef(null);
-  const chimedRef         = useRef(new Set());
-  const sessionStartRef   = useRef(Date.now());
 
   useEffect(() => { if (isRejected) setActiveTab("profile"); }, [isRejected]);
 
@@ -447,13 +445,15 @@ function DriverAppInner({ uid }) {
     try {
       const messaging = getMessaging(firebase_app);
       unsub = onMessage(messaging, async (payload) => {
-        // Read from data-only payload (FCM data messages), fallback to notification block
-        const title = payload.data?.title ?? payload.notification?.title ?? "New Ride";
-        const body  = payload.data?.body  ?? payload.notification?.body  ?? "";
+        const title = payload.notification?.title ?? "New Ride";
+        const body  = payload.notification?.body  ?? "";
         showNotif(title, body);
-        // Don't call showNotification here — onMessage only fires when page is foregrounded,
-        // so the in-app toast (showNotif) IS the foreground notification. Native notification
-        // would be handled by the service worker for background messages.
+        if ("serviceWorker" in navigator) {
+          try {
+            const reg = await navigator.serviceWorker.ready;
+            reg.showNotification(title, { body, icon:"/icon.png", tag:payload.data?.rideId??"uatob-driver", renotify:true, data:payload.data||{} });
+          } catch(e) {}
+        }
       });
     } catch(e) {}
     return () => {
@@ -466,11 +466,9 @@ function DriverAppInner({ uid }) {
     : null;
 
   useEffect(() => {
-    // Only play chime if this is a new request we haven't chimed for yet
-    if (tripRequest?.id && !chimedRef.current.has(tripRequest.id)) {
-      chimedRef.current.add(tripRequest.id);
-      playRequestChime();
-    }
+    const newId = tripRequest?.id ?? null;
+    if (newId && newId !== prevRequestId.current) playRequestChime();
+    prevRequestId.current = newId;
   }, [tripRequest?.id]);
 
   useEffect(() => { setMounted(true); }, []);
@@ -486,12 +484,7 @@ function DriverAppInner({ uid }) {
 
   useEffect(() => {
     if (!reviews.length || pendingReview || activeTrip || tripRequest) return;
-    // Only show reviews from current session (within 60 seconds of a recent trip completion)
-    // to avoid showing old reviews that happened before this session started
-    const unseen = reviews.find(r => 
-      !seenReviewIds.has(r.id) && 
-      r.createdAt > (sessionStartRef.current - 60000)  // Reviews from within 60s before session
-    );
+    const unseen = reviews.find(r => !seenReviewIds.has(r.id));
     if (unseen) setPendingReview(unseen);
   }, [reviews, activeTrip, tripRequest, pendingReview, seenReviewIds]);
 
@@ -508,51 +501,42 @@ function DriverAppInner({ uid }) {
 
   useEffect(() => { setTripBtnLabel(TRIP_BUTTON_LABELS[activeTrip?.status] ?? ""); }, [activeTrip?.status]);
 
-  // Define showNotif before the timer effect that uses it
-  const showNotif = useCallback((title, msg) => {
-    setNotification({ title, msg });
-    if (notifTimerRef.current) clearTimeout(notifTimerRef.current);
-    // 3100ms = 2800ms (AppNotification waits) + 280ms (slide-out animation) + 20ms buffer
-    notifTimerRef.current = setTimeout(() => setNotification(null), 3100);
-  }, []);
-
   useEffect(() => {
-    if (!tripRequest?.expiresAt) {
+    if (!tripRequest) {
       clearInterval(timerRef.current);
       timerRef.current = null;
-      setRequestTimer(15);
+      setRequestTimer(60);
       return;
     }
-
-    const updateTimer = () => {
-      const now = Date.now();
-      const remaining = Math.max(0, Math.ceil((tripRequest.expiresAt - now) / 1000));
-      setRequestTimer(remaining);
-
-      if (remaining <= 0) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-        setDismissedRequests(prev => {
-          const next = new Set(prev);
-          if (tripRequest?.id) next.add(tripRequest.id);
-          // Cap memory: if too many, drop oldest by recreating from last N entries
-          if (next.size > MAX_DISMISSED) {
-            const arr = Array.from(next);
-            return new Set(arr.slice(arr.length - MAX_DISMISSED));
-          }
-          return next;
-        });
-        showNotif("Request expired", "Looking for next...");
-      }
-    };
-
-    updateTimer(); // immediate update
-    timerRef.current = setInterval(updateTimer, 1000);
+    // Use timeout from request (in minutes) or default to 1 minute (60 seconds)
+    const timeoutSeconds = (tripRequest.timeoutMinutes ?? 1) * 60;
+    setRequestTimer(timeoutSeconds);
+    timerRef.current = setInterval(() => {
+      setRequestTimer(t => {
+        if (t <= 1) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+          setDismissedRequests(prev => {
+            const next = new Set(prev);
+            if (tripRequest?.id) next.add(tripRequest.id);
+            // Cap memory: if too many, drop oldest by recreating from last N entries
+            if (next.size > MAX_DISMISSED) {
+              const arr = Array.from(next);
+              return new Set(arr.slice(arr.length - MAX_DISMISSED));
+            }
+            return next;
+          });
+          showNotif("Request expired","Looking for next...");
+          return 60;
+        }
+        return t - 1;
+      });
+    }, 1000);
     return () => {
       clearInterval(timerRef.current);
       timerRef.current = null;
     };
-  }, [tripRequest?.id, tripRequest?.expiresAt, showNotif]);
+  }, [tripRequest?.id]);
 
   useEffect(() => {
     clearInterval(locationPingRef.current);
@@ -578,6 +562,12 @@ function DriverAppInner({ uid }) {
     };
   }, []);
 
+  const showNotif = useCallback((title, msg) => {
+    setNotification({ title, msg });
+    if (notifTimerRef.current) clearTimeout(notifTimerRef.current);
+    notifTimerRef.current = setTimeout(() => setNotification(null), 3200);
+  }, []);
+
   const callDriverStatusFn = useCallback(async (status, lat=null, lng=null) => {
     const payload = { uid, status };
     if (lat!==null && lng!==null) { payload.lat=lat; payload.lng=lng; }
@@ -589,14 +579,6 @@ function DriverAppInner({ uid }) {
   const requestLocationAndGoOnline = useCallback(async () => {
     setLocationError(""); setLocationLoading(true);
     try {
-      // Prime AudioContext on this user gesture so chimes work after backgrounding
-      try {
-        const ctx = getAudioCtx();
-        if (ctx && ctx.state === "suspended") {
-          await ctx.resume();
-        }
-      } catch(e) {}
-
       if (!("geolocation" in navigator)) {
         throw new Error("Geolocation is not supported in this browser.");
       }
@@ -627,8 +609,7 @@ function DriverAppInner({ uid }) {
     if (isRejected) return;
     if (online) {
       try { await callDriverStatusFn("offline"); } catch(e) {}
-      setOnline(false); setActiveTrip(null); setAcceptedRequestId(null);
-      // Don't reset dismissedRequests — driver should not re-see declined rides
+      setOnline(false); setActiveTrip(null); setDismissedRequests(new Set()); setAcceptedRequestId(null);
       showNotif("Offline","See you next time");
     } else {
       setLocationError(""); setShowLocationPopup(true);
