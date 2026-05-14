@@ -9,6 +9,27 @@ const callGetDriverToPickup = httpsCallable(functions, "getDriverToPickup");
 
 const MAPBOX_TOKEN = 'pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA';
 
+// ── Mask address: hide street number, show only city/state ─────────────
+function maskAddress(raw) {
+  if (!raw) return "—";
+  const parts = String(raw).split(",").map((s) => s.trim()).filter(Boolean);
+  if (parts.length === 0) return "—";
+
+  // First segment: street/place. Mask leading number if any.
+  const first = parts[0].replace(/^(\d+[A-Za-z]?)(\s+)/, (_, num, sp) => {
+    const dots = "•".repeat(Math.min(num.length, 4));
+    return `${dots}${sp}`;
+  });
+
+  // Build "City, ST" hint from remaining segments (drop "USA")
+  const tail = parts.slice(1).filter((p) => !/^USA$/i.test(p));
+  const city = tail[0] ?? "";
+  const state = tail[1] ?? "";
+  const tailStr = [city, state].filter(Boolean).join(", ");
+
+  return tailStr ? `${first} · ${tailStr}` : first;
+}
+
 // ── Payment method config ──────────────────────────────────────────────
 const PAYMENT_CONFIG = {
   cash: {
@@ -408,8 +429,8 @@ export default function TripRequestModal({
   const etaText      = loadingGeo ? null : (driverEta ?? null);
   const danger       = requestTimer <= 5;
   const rideColor    = TYPE_COLOR[tripRequest.rideType] ?? '#3B82F6';
-  const pickupShort  = (tripRequest.pickup ?? '').split(',')[0].trim();
-  const dropoffShort = (tripRequest.dropoff ?? '').split(',')[0].trim();
+  const pickupMasked = maskAddress(tripRequest.pickup);
+  const dropoffMasked = maskAddress(tripRequest.dropoff);
   const payMethod    = tripRequest.paymentMethod ?? 'card';
 
   return (
@@ -644,19 +665,8 @@ export default function TripRequestModal({
                   color: 'rgba(255,255,255,.88)',
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>
-                  {pickupShort}
+                  {pickupMasked}
                 </div>
-                {tripRequest.pickup !== pickupShort && (
-                  <div style={{
-                    fontFamily: "'Space Grotesk', sans-serif",
-                    fontSize: 11, fontWeight: 400,
-                    color: 'rgba(255,255,255,.3)',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    marginTop: 1,
-                  }}>
-                    {tripRequest.pickup.split(',').slice(1).join(',').trim()}
-                  </div>
-                )}
               </div>
               <div>
                 <div style={{
@@ -673,19 +683,8 @@ export default function TripRequestModal({
                   color: 'rgba(255,255,255,.6)',
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>
-                  {dropoffShort}
+                  {dropoffMasked}
                 </div>
-                {tripRequest.dropoff !== dropoffShort && (
-                  <div style={{
-                    fontFamily: "'Space Grotesk', sans-serif",
-                    fontSize: 11, fontWeight: 400,
-                    color: 'rgba(255,255,255,.22)',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    marginTop: 1,
-                  }}>
-                    {tripRequest.dropoff.split(',').slice(1).join(',').trim()}
-                  </div>
-                )}
               </div>
             </div>
 
