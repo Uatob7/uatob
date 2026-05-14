@@ -80,6 +80,7 @@ export default function HomeTab({
         userSelect:    tripActive ? "none"      : "auto",
         transition:    "filter .35s ease, opacity .35s ease",
       }}>
+        <StatTiles earnings={earnings} online={online} />
         <Achievements online={online} driver={driver} />
       </div>
     </div>
