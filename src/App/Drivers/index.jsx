@@ -17,6 +17,7 @@ import DriverReviewModal from '@/App/Drivers/DriverReviewModal.jsx';
 import SupportOverlay, { SupportIcon } from '@/App/Drivers/SupportOverlay.jsx';
 import { useDriverAccount }   from "@/App/Drivers/useDriverAccount";
 import { useDriverRides }     from '@/App/Drivers/useDriverRides';
+import { useSearch }  from "@/App/Drivers/useSearch";
 import { useActiveRides }     from "@/App/Drivers/useActiveRides";
 import { useDriverEarnings }  from "@/App/Drivers/useDriverEarnings";
 import { useCompletedRides }  from "@/App/Drivers/useCompletedRides";
@@ -382,6 +383,8 @@ function DriverAppInner({ uid }) {
   const { completedRides }                = useCompletedRides(uid);
   const { reviews }                       = useDriverReviews(uid);
   const supportUnread                     = useSupportUnread(uid);
+  const { searches } = useSearch();
+    
 
   const isRejected    = driver?.status === "rejected";
   const driverOnTrip  = driver?.trip === true;
@@ -788,7 +791,7 @@ function DriverAppInner({ uid }) {
 
         {isRejected && <RejectedBanner />}
 
-        {activeTab === "home"     && !isRejected && <HomeTab driver={driver} online={online} rides={rides} activeTrip={activeTrip} tripStage={tripStage} tripStageColor={tripStageColor} tripBtnLabel={tripBtnLabel} earnings={earnings} onToggleOnline={handleToggleOnline} onAdvanceTrip={handleAdvanceTrip} advancePending={advancePending} />}
+        {activeTab === "home"     && !isRejected && <HomeTab driver={driver} online={online} rides={rides} activeTrip={activeTrip} tripStage={tripStage} tripStageColor={tripStageColor} tripBtnLabel={tripBtnLabel} earnings={earnings} onToggleOnline={handleToggleOnline} onAdvanceTrip={handleAdvanceTrip} advancePending={advancePending}searches={searches} />}
         {activeTab === "earnings" && !isRejected && <EarningsTab earnings={earnings} driver={driver} online={online} />}
         {activeTab === "trips"    && !isRejected && <TripsTab    completedRides={completedRides} online={online} />}
         {activeTab === "profile"  &&                <ProfileTab  driver={driver} online={online} />}

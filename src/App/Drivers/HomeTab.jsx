@@ -22,6 +22,7 @@ import Achievements    from '@/App/Drivers/Achievements.jsx';
 export default function HomeTab({
   driver,
   online,
+  searches,
   activeTrip,
   tripStage,
   tripStageColor,
@@ -72,7 +73,7 @@ export default function HomeTab({
         transition:     "filter .35s ease, opacity .35s ease",
       }}>
         <StatTiles earnings={earnings} online={online} />
-        <LiveMap online={online} activeTrip={activeTrip} />
+        <LiveMap driver={driver} online={online} activeTrip={activeTrip} searches={searches} />
         <Achievements online={online} driver={driver} />
       </div>
     </div>
