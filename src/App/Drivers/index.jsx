@@ -511,11 +511,15 @@ function DriverAppInner({ uid }) {
     // Use timeout from request (in minutes) or default to 1 minute (60 seconds)
     const timeoutSeconds = (tripRequest.timeoutMinutes ?? 1) * 60;
     setRequestTimer(timeoutSeconds);
-    timerRef.current = setInterval(() => {
+    timerRef.current = setInterval(async () => {
       setRequestTimer(t => {
         if (t <= 1) {
           clearInterval(timerRef.current);
           timerRef.current = null;
+          // Record the auto-decline when request times out
+          if (tripRequest?.id) {
+            callDeclineRide({ rideId: tripRequest.id, uid }).catch(() => {});
+          }
           setDismissedRequests(prev => {
             const next = new Set(prev);
             if (tripRequest?.id) next.add(tripRequest.id);
