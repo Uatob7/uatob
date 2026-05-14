@@ -1,20 +1,191 @@
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
-const admin = require("firebase-admin");
-
-const db = admin.firestore();
-
-
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
+const admin = require("firebase-admin");
 const axios = require("axios");
+
+if (!admin.apps.length) admin.initializeApp();
+const db = admin.firestore();
 
 const GOOGLE_MAPS_KEY = defineSecret("GOOGLE_MAPS_KEY");
 
+// ── Haversine ─────────────────────────────────────────────
+function haversineMiles(lat1, lng1, lat2, lng2) {
+  const R = 3958.8;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// ─────────────────────────────────────────────────────────
+// autoUpdateTripStatus
+// Called by driver app on every GPS ping.
+// Writes driverLat/driverLng + auto-transitions status
+// based on proximity to pickup or dropoff.
+//
+// Payload:  { rideId, driverUid, driverLat, driverLng }
+// Returns:  { success, autoTransition }
+//   autoTransition → null | "arrived" | "completed"
+// ─────────────────────────────────────────────────────────
+exports.autoUpdateTripStatus = onCall(
+  { region: "us-east1" },
+  async (request) => {
+    try {
+      const { rideId, driverUid, driverLat, driverLng } = request.data || {};
+
+      if (!rideId || !driverUid || driverLat == null || driverLng == null) {
+        throw new HttpsError(
+          "invalid-argument",
+          "Missing rideId, driverUid, driverLat, or driverLng"
+        );
+      }
+
+      const rideRef = db.collection("Rides").doc(rideId);
+      let autoTransition = null;
+
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(rideRef);
+
+        if (!snap.exists) {
+          throw new HttpsError("not-found", "Ride not found");
+        }
+
+        const ride = snap.data();
+
+        if (ride.driverUid !== driverUid) {
+          throw new HttpsError("permission-denied", "Unauthorized driver");
+        }
+
+        const { status, pickupLat, pickupLng, dropoffLat, dropoffLng } = ride;
+
+        // Always write location
+        const update = {
+          driverLat,
+          driverLng,
+          driverLocationAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt:        admin.firestore.FieldValue.serverTimestamp(),
+        };
+
+        // ── driver_assigned → arrived ──────────────────
+        if (status === "driver_assigned" && pickupLat && pickupLng) {
+          const dist = haversineMiles(driverLat, driverLng, pickupLat, pickupLng);
+          update.driverDistanceMiles = parseFloat(dist.toFixed(3));
+
+          if (dist <= 0.2) {
+            update.status    = "arrived";
+            update.arrivedAt = admin.firestore.FieldValue.serverTimestamp();
+            autoTransition   = "arrived";
+            console.log(`[autoUpdateTripStatus] ${rideId} → arrived (${dist.toFixed(3)} mi)`);
+          }
+        }
+
+        // ── in_progress → completed ────────────────────
+        else if (status === "in_progress" && dropoffLat && dropoffLng) {
+          const dist = haversineMiles(driverLat, driverLng, dropoffLat, dropoffLng);
+
+          if (dist <= 0.2) {
+            update.status      = "completed";
+            update.completedAt = admin.firestore.FieldValue.serverTimestamp();
+            autoTransition     = "completed";
+            console.log(`[autoUpdateTripStatus] ${rideId} → completed (${dist.toFixed(3)} mi)`);
+          }
+        }
+
+        tx.update(rideRef, update);
+      });
+
+      return { success: true, autoTransition };
+
+    } catch (err) {
+      console.error("[autoUpdateTripStatus]", err);
+      if (err instanceof HttpsError) throw err;
+      throw new HttpsError("internal", err.message || "Failed to update trip");
+    }
+  }
+);
+
+// ─────────────────────────────────────────────────────────
+// updateTripStatus
+// Manual action — "start" only.
+// arrived and completed are GPS-driven via autoUpdateTripStatus.
+//
+// Payload:  { rideId, driverUid, action }
+// Returns:  { success, message }
+// ─────────────────────────────────────────────────────────
+exports.updateTripStatus = onCall(
+  { region: "us-east1" },
+  async (request) => {
+    try {
+      const { rideId, driverUid, action } = request.data || {};
+
+      if (!rideId || !driverUid || !action) {
+        throw new HttpsError(
+          "invalid-argument",
+          "Missing rideId, driverUid, or action"
+        );
+      }
+
+      if (action !== "start") {
+        throw new HttpsError(
+          "invalid-argument",
+          "Only 'start' is a valid manual action — arrived and completed are GPS-driven"
+        );
+      }
+
+      const rideRef = db.collection("Rides").doc(rideId);
+
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(rideRef);
+
+        if (!snap.exists) {
+          throw new HttpsError("not-found", "Ride not found");
+        }
+
+        const ride = snap.data();
+
+        if (ride.driverUid !== driverUid) {
+          throw new HttpsError("permission-denied", "Unauthorized driver");
+        }
+
+        if (ride.status !== "arrived") {
+          throw new HttpsError(
+            "failed-precondition",
+            "Cannot start trip — system hasn't confirmed arrival yet. Make sure you're within 0.2 miles of the pickup."
+          );
+        }
+
+        tx.update(rideRef, {
+          status:    "in_progress",
+          startedAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      });
+
+      console.log(`[updateTripStatus] ${rideId} → in_progress`);
+      return { success: true, message: "Trip started" };
+
+    } catch (err) {
+      console.error("[updateTripStatus]", err);
+      if (err instanceof HttpsError) throw err;
+      throw new HttpsError("internal", err.message || "Failed to start trip");
+    }
+  }
+);
+
+// ─────────────────────────────────────────────────────────
+// getDriverToPickup
+// Returns ETA, distance, and polyline from driver to pickup
+// using Google Routes API (traffic-aware).
+//
+// Payload:  { driverLat, driverLng, pickupLat, pickupLng }
+// Returns:  { etaMinutes, distanceMiles, polyline }
+// ─────────────────────────────────────────────────────────
 exports.getDriverToPickup = onCall(
-  {
-    region: "us-east1",
-    secrets: [GOOGLE_MAPS_KEY],
-  },
+  { region: "us-east1", secrets: [GOOGLE_MAPS_KEY] },
   async (request) => {
     try {
       const { driverLat, driverLng, pickupLat, pickupLng } = request.data ?? {};
@@ -50,435 +221,30 @@ exports.getDriverToPickup = onCall(
         },
         {
           headers: {
-            "Content-Type":      "application/json",
-            "X-Goog-Api-Key":    GOOGLE_MAPS_KEY.value(),
-            "X-Goog-FieldMask":  "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline",
+            "Content-Type":     "application/json",
+            "X-Goog-Api-Key":   GOOGLE_MAPS_KEY.value(),
+            "X-Goog-FieldMask": "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline",
           },
           timeout: 8000,
         }
       );
-// ─────────────────────────────────────────────────────────
-exports.updateTripStatus = onCall(
-  { region: "us-east1" },
-  async (request) => {
-    try {
-      const { rideId, driverUid, action } = request.data || {};
 
-      if (!rideId || !driverUid || !action) {
-        throw new HttpsError(
-          "invalid-argument",
-          "Missing rideId, driverUid, or action"
-        );
-      }
+      const route = response.data?.routes?.[0];
+      if (!route) throw new HttpsError("not-found", "No route found");
 
-      const rideRef = db.collection("Rides").doc(rideId);
-
-      await db.runTransaction(async (tx) => {
-        const snap = await tx.get(rideRef);
-
-        if (!snap.exists) {
-          throw new HttpsError("not-found", "Ride not found");
-        }
-
-        const ride = snap.data();
-
-        // 🔐 Ensure correct driver
-        if (ride.driverUid !== driverUid) {
-          throw new HttpsError("permission-denied", "Unauthorized driver");
-        }
-
-        let newStatus = ride.status;
-
-        // ── STATE MACHINE ───────────────────────────────
-        if (action === "arrive") {
-          if (ride.status !== "driver_assigned") {
-            throw new HttpsError(
-              "failed-precondition",
-              "Invalid transition to arrived"
-            );
-          }
-          newStatus = "arrived";
-        } else if (action === "start") {
-          if (ride.status !== "arrived") {
-            throw new HttpsError(
-              "failed-precondition",
-              "Invalid transition to in_progress"
-            );
-          }
-          newStatus = "in_progress";
-        } else if (action === "complete") {
-          if (ride.status !== "in_progress") {
-            throw new HttpsError(
-              "failed-precondition",
-              "Invalid transition to completed"
-            );
-          }
-          newStatus = "completed";
-        } else {
-          throw new HttpsError("invalid-argument", "Invalid action");
-        }
-
-        const update = {
-          status: newStatus,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        };
-
-        if (action === "arrive") {
-          update.arrivedAt = admin.firestore.FieldValue.serverTimestamp();
-        }
-
-        if (action === "start") {
-          update.startedAt = admin.firestore.FieldValue.serverTimestamp();
-        }
-
-        if (action === "complete") {
-          update.completedAt = admin.firestore.FieldValue.serverTimestamp();
-        }
-
-        tx.update(rideRef, update);
-      });
+      const durationSec    = parseInt(route.duration?.replace("s", "") || "0", 10);
+      const distanceMeters = route.distanceMeters || 0;
 
       return {
-        success: true,
-        message: `Trip updated: ${action}`,
+        etaMinutes:    Math.ceil(durationSec / 60),
+        distanceMiles: parseFloat((distanceMeters / 1609.34).toFixed(2)),
+        polyline:      route.polyline?.encodedPolyline || null,
       };
+
     } catch (err) {
-      console.error("[updateTripStatus]", err);
-
+      console.error("[getDriverToPickup]", err);
       if (err instanceof HttpsError) throw err;
-
-      throw new HttpsError(
-        "internal",
-        err.message || "Failed to update trip"
-      );
+      throw new HttpsError("internal", err.message || "Failed to get route");
     }
   }
 );
-
-
-
-
-Cloud Firestore
-Database
-(default)
-Data
-Rules
-Indexes
-Disaster Recovery
-Usage
-Query Insights
-Extensions
-Protect your Cloud Firestore resources from abuse, such as billing fraud or phishing
-
-
-
-Rides
-0PNnj6KWLaoxZxBw7RFD
-(default)
-
-Accounts
-
-Admin
-
-Drivers
-
-Rides
-
-Search
-
-Support
-
-SupportThreads
-Rides
-
-0PNnj6KWLaoxZxBw7RFD
-
-1T0rQvkIpRYQaNyTm8lx
-
-BCCx17PgJoEmjMnJZ6dK
-
-PlzVo8BNK7YNtJxqkYEP
-
-vBxXLEArYcXWayvUmBBc
-0PNnj6KWLaoxZxBw7RFD
-acceptedAt
-May 14, 2026 at 7:05:46 PM UTC-4
-(timestamp)
-
-
-adminNotified
-true
-(boolean)
-
-
-approvedDriversEmailedAt
-May 14, 2026 at 6:56:02 PM UTC-4
-(timestamp)
-
-
-(map)
-
-
-arrivedAt
-May 14, 2026 at 7:12:34 PM UTC-4
-(timestamp)
-
-
-(array)
-
-
-(array)
-
-
-completedAt
-May 14, 2026 at 7:12:38 PM UTC-4
-(timestamp)
-
-
-createdAt
-May 10, 2026 at 7:27:46 PM UTC-4
-(timestamp)
-
-
-currentDriverIndex
-0
-(int64)
-
-
-(array)
-
-
-driverDistanceMiles
-0.06
-(double)
-
-
-driverEtaMin
-1
-(int64)
-
-
-(map)
-
-
-driverLat
-28.572790166666664
-(double)
-
-
-driverLng
--81.46882866666665
-(double)
-
-
-driverLocationAt
-May 14, 2026 at 7:12:35 PM UTC-4
-(timestamp)
-
-
-driverPayout
-12.22
-(double)
-
-
-driverUid
-"duuEID4AofX1ooCLfSsfVMjJpUu1"
-(string)
-
-
-dropoff
-"Downtown Orlando, Orlando, FL, USA"
-(string)
-
-
-dropoffCity
-"Orlando"
-(string)
-
-
-dropoffLat
-28.5475134
-(double)
-
-
-dropoffLng
--81.3791202
-(double)
-
-
-dropoffZip
-"32801"
-(string)
-
-
-emailDispatchAt
-May 14, 2026 at 6:56:03 PM UTC-4
-(timestamp)
-
-
-emailDispatchStarted
-true
-(boolean)
-
-
-(map)
-
-
-expiresAt
-May 14, 2026 at 7:28:46 PM UTC-4
-(timestamp)
-
-
-
-fareBreakdown
-(map)
-
-
-fareTotal
-16.29
-(double)
-
-
-lastDispatchAt
-May 14, 2026 at 6:57:02 PM UTC-4
-(timestamp)
-
-
-lastPushAt
-May 14, 2026 at 6:56:04 PM UTC-4
-(timestamp)
-
-
-offlineDriversEmailedAt
-May 14, 2026 at 6:56:04 PM UTC-4
-(timestamp)
-
-
-(map)
-
-
-paymentIntentId
-"pi_3TVglBJhpOy6wtDq0RGBkPb4"
-(string)
-
-
-paymentMethod
-"cashapp"
-(string)
-
-
-paymentStatus
-"succeeded"
-(string)
-
-
-payoutStatus
-"processing"
-(string)
-
-
-pickup
-"2382 Locke Ave, Orlando, FL 32818, USA"
-(string)
-
-
-pickupCity
-"Orlando"
-(string)
-
-
-pickupLat
-28.5730568
-(double)
-
-
-pickupLng
--81.46963459999999
-(double)
-
-
-pickupZip
-"32818"
-(string)
-
-
-platformFee
-4.07
-(double)
-
-
-polyline
-"wtkmDp~fpNxACLI?a@GeF@s@rk@IloAAjB?CaKe@mt@VgAb@e@dDFzAN`En@fGxANs@RiFDkG?iDK_@BeCKmgBH{BXeCX_Bd@aBhAwCbEmJd@wAl@oCTkBPgCB_BEum@FyCVwCZ_CZcBx@}CbAsCnAqCrm@k|@`AcBbAwB~@gCx@}Cd@aC\kCZwE@mPCgu@Ne@`@uOJmMJaAVcA`@y@l@s@t@e@t@Wx@MdABv@Jf@VPPP`@Bf@Gd@S^QLk@Lg@E]IO@gKiF_GsBqCm@uC_@cEWeCIiGBic@v@US}FAyFAAaI@cGrJA"
-(string)
-
-
-pushDispatchAt
-May 14, 2026 at 6:56:04 PM UTC-4
-(timestamp)
-
-
-pushDispatchStarted
-true
-(boolean)
-
-
-pushDriverIndex
-7
-(int64)
-
-
-(map)
-
-
-requestSentAt
-May 14, 2026 at 7:05:15 PM UTC-4
-(timestamp)
-
-
-rideLabel
-"Economy"
-(string)
-
-
-rideType
-"economy"
-(string)
-
-
-startedAt
-May 14, 2026 at 7:12:36 PM UTC-4
-(timestamp)
-
-
-status
-"completed"
-(string)
-
-
-timedOutAt
-May 14, 2026 at 6:55:01 PM UTC-4
-(timestamp)
-
-
-timeoutMinutes
-1
-(int64)
-
-
-tripDistanceMiles
-8.95
-(double)
-
-
-tripDurationMin
-17
-(int64)
-
-
-uid
-"duuEID4AofX1ooCLfSsfVMjJpUu1"
-(string)
-
-
-updatedAt
-May 14, 2026 at 7:13:01 PM UTC-4
