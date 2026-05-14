@@ -50,6 +50,7 @@ export default function HomeTab({
         tripStage={tripStage}
         onToggle={onToggleOnline}
       />
+       <StatTiles earnings={earnings} online={online} />
 
       {/* Map appears immediately after going online, self-hides when offline or trip active */}
       <LiveMap
@@ -80,7 +81,6 @@ export default function HomeTab({
         userSelect:    tripActive ? "none"      : "auto",
         transition:    "filter .35s ease, opacity .35s ease",
       }}>
-        <StatTiles earnings={earnings} online={online} />
         <Achievements online={online} driver={driver} />
       </div>
     </div>
