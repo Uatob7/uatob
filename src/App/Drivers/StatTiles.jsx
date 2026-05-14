@@ -1,29 +1,29 @@
-import { useMemo } from 'react';
-import { Sun } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Sun, Megaphone, X } from 'lucide-react';
 import { C } from '@/App/Drivers/constants.js';
 
+const PROMO_MESSAGE = "UaTob needs your help — let anyone you know who might need a ride know we're here! 🚗";
+
 /**
- * StatTiles — displays today's earnings.
+ * StatTiles — displays today's earnings + a dismissible driver promo message.
  */
 export default function StatTiles({ earnings, online }) {
-  const accentColor = online ? C.onlineGreen : C.text;
+  const [msgDismissed, setMsgDismissed] = useState(false);
 
+  const accentColor    = online ? C.onlineGreen : C.text;
   const today          = earnings?.today ?? {};
   const week           = earnings?.week ?? {};
   const dailyBreakdown = week.dailyBreakdown ?? [];
-
   const todayEarnings  = Number(today.earnings ?? 0);
   const todayTrips     = today.trips ?? 0;
 
-  // Compute the running week total UP TO today (not the full 7-day total)
-  // so the sparkline visually grows with the driver's actual progress
-  const weekSoFar = useMemo(() => {
-    return dailyBreakdown.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
-  }, [dailyBreakdown]);
+  const weekSoFar = useMemo(() =>
+    dailyBreakdown.reduce((sum, d) => sum + (Number(d.amount) || 0), 0),
+  [dailyBreakdown]);
 
-  const maxBar = useMemo(() => {
-    return Math.max(...dailyBreakdown.map(d => Number(d.amount) || 0), 1);
-  }, [dailyBreakdown]);
+  const maxBar = useMemo(() =>
+    Math.max(...dailyBreakdown.map(d => Number(d.amount) || 0), 1),
+  [dailyBreakdown]);
 
   return (
     <div>
@@ -35,6 +35,18 @@ export default function StatTiles({ earnings, online }) {
         @keyframes stBarGrow {
           from { transform: scaleY(0.05); }
           to   { transform: scaleY(1); }
+        }
+        @keyframes msgSlideIn {
+          from { opacity: 0; transform: translateY(-6px); max-height: 0; }
+          to   { opacity: 1; transform: translateY(0);    max-height: 120px; }
+        }
+        @keyframes msgSlideOut {
+          from { opacity: 1; max-height: 120px; margin-top: 14px; }
+          to   { opacity: 0; max-height: 0;     margin-top: 0; }
+        }
+        @keyframes megaBounce {
+          0%,100% { transform: rotate(-8deg) scale(1); }
+          50%     { transform: rotate(8deg)  scale(1.15); }
         }
       `}</style>
 
@@ -53,6 +65,7 @@ export default function StatTiles({ earnings, online }) {
           : `0 4px 16px ${C.shadow}`,
         animation: "stRevealUp .4s ease-out .1s both",
       }}>
+
         {/* Decorative diagonal stripes */}
         <div style={{
           position: "absolute", inset: 0,
@@ -62,7 +75,7 @@ export default function StatTiles({ earnings, online }) {
           pointerEvents: "none",
         }}/>
 
-        {/* Decorative corner glow */}
+        {/* Corner glow */}
         {online && (
           <div style={{
             position: "absolute", top: -50, right: -50,
@@ -73,11 +86,14 @@ export default function StatTiles({ earnings, online }) {
         )}
 
         <div style={{ position: "relative" }}>
+
+          {/* ── Top row: label + sparkline ── */}
           <div style={{
             display: "flex", alignItems: "flex-start", justifyContent: "space-between",
             marginBottom: 12, gap: 12,
           }}>
             <div>
+              {/* Today label */}
               <div style={{
                 display: "inline-flex", alignItems: "center", gap: 5,
                 marginBottom: 6,
@@ -96,20 +112,18 @@ export default function StatTiles({ earnings, online }) {
                 </span>
               </div>
 
+              {/* Earnings amount */}
               <div className="condensed" style={{
-                fontSize: 38,
-                fontWeight: 900,
-                color: C.text,
-                letterSpacing: "-1px",
-                lineHeight: 1,
+                fontSize: 38, fontWeight: 900, color: C.text,
+                letterSpacing: "-1px", lineHeight: 1,
                 fontVariantNumeric: "tabular-nums",
               }}>
                 ${todayEarnings.toFixed(2)}
               </div>
 
+              {/* Trips + week total */}
               <div style={{
-                fontSize: 12, fontWeight: 600, color: C.textMid,
-                marginTop: 5,
+                fontSize: 12, fontWeight: 600, color: C.textMid, marginTop: 5,
               }}>
                 {todayTrips} trip{todayTrips !== 1 ? "s" : ""}
                 {weekSoFar > 0 && (
@@ -158,6 +172,84 @@ export default function StatTiles({ earnings, online }) {
               </div>
             )}
           </div>
+
+          {/* ── Driver promo message ── */}
+          {!msgDismissed && (
+            <div style={{
+              marginTop: 2,
+              borderRadius: 14,
+              overflow: "hidden",
+              animation: "msgSlideIn .4s cubic-bezier(.34,1.2,.64,1) .25s both",
+            }}>
+              <div style={{
+                display: "flex", alignItems: "center", gap: 10,
+                background: online
+                  ? "linear-gradient(120deg, rgba(22,163,74,0.13) 0%, rgba(22,163,74,0.07) 100%)"
+                  : "rgba(0,0,0,0.04)",
+                border: online
+                  ? "1px solid rgba(22,163,74,0.25)"
+                  : `1px solid ${C.border}`,
+                borderRadius: 14,
+                padding: "10px 12px 10px 11px",
+              }}>
+
+                {/* Icon */}
+                <div style={{
+                  width: 32, height: 32, borderRadius: 10, flexShrink: 0,
+                  background: online
+                    ? "linear-gradient(135deg,#22C55E,#15803d)"
+                    : "linear-gradient(135deg,#374151,#1f2937)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  boxShadow: online
+                    ? "0 4px 10px rgba(22,163,74,0.35)"
+                    : "0 4px 10px rgba(0,0,0,0.15)",
+                }}>
+                  <Megaphone
+                    size={15} color="#fff" strokeWidth={2.2}
+                    style={{ animation: "megaBounce 2.4s ease-in-out infinite" }}
+                  />
+                </div>
+
+                {/* Text */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 9, fontWeight: 800, letterSpacing: ".1em",
+                    textTransform: "uppercase",
+                    color: online ? "#15803D" : C.textDim,
+                    marginBottom: 2,
+                    fontFamily: "monospace",
+                  }}>
+                    From UaTob
+                  </div>
+                  <div style={{
+                    fontSize: 12, fontWeight: 600,
+                    color: C.text,
+                    lineHeight: 1.4,
+                  }}>
+                    {PROMO_MESSAGE}
+                  </div>
+                </div>
+
+                {/* Dismiss */}
+                <button
+                  onClick={() => setMsgDismissed(true)}
+                  style={{
+                    flexShrink: 0,
+                    width: 22, height: 22,
+                    borderRadius: "50%",
+                    border: "none",
+                    background: online ? "rgba(22,163,74,0.15)" : "rgba(0,0,0,0.07)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    cursor: "pointer",
+                    padding: 0,
+                  }}
+                >
+                  <X size={11} color={online ? "#15803D" : C.textDim} strokeWidth={2.5}/>
+                </button>
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
     </div>
