@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   MapPin, ChevronRight, Loader2, MessageCircle,
-  Send, Check, X, AlertTriangle, UserX, Banknote,
+  Send, Check, X, AlertTriangle, UserX, Banknote, Navigation,
 } from "lucide-react";
 import {
   getFirestore, collection, onSnapshot, addDoc, serverTimestamp,
@@ -19,8 +19,16 @@ const callConfirmCashCollection = httpsCallable(functions, "confirmCashCollectio
 // ─── Stage config ─────────────────────────────────────────────────────────────
 const STAGES = {
   driver_assigned: { label: "En Route to Pickup", color: "#38BDF8", dot: true  },
-  arrived:         { label: "Awaiting Rider",      color: "#A78BFA", dot: false },
-  in_progress:     { label: "Trip in Progress",    color: "#34D399", dot: true  },
+  arrived:         { label: "Awaiting Rider",     color: "#A78BFA", dot: false },
+  in_progress:     { label: "Trip in Progress",   color: "#34D399", dot: true  },
+};
+
+// ─── Proximity thresholds (meters) ────────────────────────────────────────────
+// Must match the backend updateTripStatus PROXIMITY config.
+const PROXIMITY_METERS = {
+  driver_assigned: 300,   // must be at pickup to tap "Arrived"
+  arrived:         500,   // small forward movement OK to tap "Start"
+  in_progress:     300,   // must be at dropoff to tap "Complete"
 };
 
 // ─── Payment config ───────────────────────────────────────────────────────────
@@ -150,6 +158,14 @@ function geoDistMeters(lat1, lng1, lat2, lng2) {
   const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
   const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// Friendly distance string
+function formatDistance(meters) {
+  if (meters == null) return "—";
+  if (meters < 1000) return `${Math.round(meters)} m`;
+  const miles = meters / 1609.34;
+  return miles < 10 ? `${miles.toFixed(1)} mi` : `${Math.round(miles)} mi`;
 }
 
 const DMB_CSS = `
@@ -418,11 +434,11 @@ export default function ActiveTripCard({
   activeTrip, tripStage, tripStageColor, tripBtnLabel,
   onAdvance, advancePending, onUnreadChange,
 }) {
-  const [showMessages,  setShowMessages]  = useState(false);
-  const [unreadCount,   setUnreadCount]   = useState(0);
-  const [showReassign,  setShowReassign]  = useState(false);
-  const [reassigning,   setReassigning]   = useState(false);
-  const [reassignError, setReassignError] = useState("");
+  const [showMessages,   setShowMessages]   = useState(false);
+  const [unreadCount,    setUnreadCount]    = useState(0);
+  const [showReassign,   setShowReassign]   = useState(false);
+  const [reassigning,    setReassigning]    = useState(false);
+  const [reassignError,  setReassignError]  = useState("");
   const [showCashModal,  setShowCashModal]  = useState(false);
   const [cashConfirming, setCashConfirming] = useState(false);
   const [cashModalError, setCashModalError] = useState("");
@@ -447,6 +463,48 @@ export default function ActiveTripCard({
   const isProgress  = tripStage === "in_progress";
   const canReassign = tripStage === "driver_assigned";
   const payMethod   = activeTrip.paymentMethod ?? "card";
+
+  // ── Proximity check (client-side haversine, instant) ────────────────────────
+  // This mirrors the server-side check in updateTripStatus so the driver gets
+  // immediate feedback before they tap. Server still enforces the real check.
+  const proximityCheck = (() => {
+    const { driverLat, driverLng } = activeTrip;
+
+    if (typeof driverLat !== "number" || typeof driverLng !== "number") {
+      return { ok: false, reason: "no_gps", distanceM: null };
+    }
+
+    let targetLat, targetLng, targetName;
+    if (tripStage === "driver_assigned" || tripStage === "arrived") {
+      targetLat = activeTrip.pickupLat;
+      targetLng = activeTrip.pickupLng;
+      targetName = "pickup";
+    } else if (tripStage === "in_progress") {
+      targetLat = activeTrip.dropoffLat;
+      targetLng = activeTrip.dropoffLng;
+      targetName = "dropoff";
+    } else {
+      return { ok: true, distanceM: 0, targetName: null };
+    }
+
+    if (typeof targetLat !== "number" || typeof targetLng !== "number") {
+      // Missing target coords — don't block (let server decide)
+      return { ok: true, distanceM: 0, targetName };
+    }
+
+    const distanceM = geoDistMeters(driverLat, driverLng, targetLat, targetLng);
+    const maxMeters = PROXIMITY_METERS[tripStage] ?? 300;
+
+    return {
+      ok:        distanceM <= maxMeters,
+      reason:    distanceM <= maxMeters ? null : "too_far",
+      distanceM,
+      maxMeters,
+      targetName,
+    };
+  })();
+
+  const buttonBlocked = !proximityCheck.ok;
 
   const openInMaps = (addr) =>
     addr && window.open(`https://maps.google.com/?q=${encodeURIComponent(addr)}`, "_blank");
@@ -490,6 +548,7 @@ export default function ActiveTripCard({
         @keyframes atc-modal-in   { from{opacity:0;transform:scale(.88) translateY(20px)} to{opacity:1;transform:none} }
         @keyframes atc-msg-in     { from{opacity:0;max-height:0} to{opacity:1;max-height:500px} }
         @keyframes atc-cash-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(217,119,6,.55)} 70%{box-shadow:0 0 0 16px rgba(217,119,6,0)} }
+        @keyframes atc-prox-in    { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
 
         .atc-shell * { box-sizing:border-box; }
         .atc-shell {
@@ -507,7 +566,6 @@ export default function ActiveTripCard({
           opacity:.6; transition:background .4s;
         }
 
-        /* ── Stage row: space-between so badge sits on the right ── */
         .atc-stage-row {
           display:flex; align-items:center; justify-content:space-between;
           padding:13px 18px 10px;
@@ -588,6 +646,31 @@ export default function ActiveTripCard({
         .atc-send { width:38px; height:38px; border-radius:10px; border:none; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; transition:all .15s; }
 
         .atc-cta-area { padding:0 14px 14px; display:flex; flex-direction:column; gap:8px; }
+
+        /* ── Proximity warning banner ──────────────────────────────── */
+        .atc-prox-banner {
+          display:flex; align-items:center; gap:10px;
+          padding:11px 14px;
+          background:rgba(245,158,11,.08);
+          border:1px solid rgba(245,158,11,.22);
+          border-radius:12px;
+          font-size:12px; color:#FBBF24; font-weight:500;
+          font-family:'Outfit',sans-serif;
+          animation:atc-prox-in .22s ease-out both;
+          line-height:1.4;
+        }
+        .atc-prox-banner.gps {
+          background:rgba(148,163,184,.08);
+          border-color:rgba(148,163,184,.22);
+          color:#94A3B8;
+        }
+        .atc-prox-banner svg { flex-shrink:0; }
+        .atc-prox-dist {
+          font-family:'IBM Plex Mono',monospace;
+          color:#F59E0B; font-weight:700;
+        }
+        .atc-prox-banner.gps .atc-prox-dist { color:#94A3B8; }
+
         .atc-cta-btn {
           display:flex; align-items:center; justify-content:space-between;
           width:100%; padding:15px 20px; border:none; border-radius:14px;
@@ -595,12 +678,23 @@ export default function ActiveTripCard({
           color:#fff; cursor:pointer; letter-spacing:.04em;
           position:relative; overflow:hidden; transition:filter .13s,transform .1s,box-shadow .2s;
         }
-        .atc-cta-btn::before { content:''; position:absolute; inset:0; background:linear-gradient(135deg,${accent},${accent}bb); }
-        .atc-cta-btn:hover   { filter:brightness(1.1); transform:translateY(-1px); box-shadow:0 8px 24px ${accent}50; }
-        .atc-cta-btn:active  { filter:brightness(.92); transform:translateY(0); }
-        .atc-cta-btn[disabled] { opacity:.5; cursor:not-allowed; transform:none !important; box-shadow:none !important; }
+        .atc-cta-btn::before { content:''; position:absolute; inset:0; background:linear-gradient(135deg,${accent},${accent}bb); transition:background .3s; }
+        .atc-cta-btn:not(.blocked):hover  { filter:brightness(1.1); transform:translateY(-1px); box-shadow:0 8px 24px ${accent}50; }
+        .atc-cta-btn:not(.blocked):active { filter:brightness(.92); transform:translateY(0); }
+        .atc-cta-btn[disabled]:not(.blocked) { opacity:.5; cursor:not-allowed; transform:none !important; box-shadow:none !important; }
+
+        /* Blocked state — distinct from disabled, shows it's a proximity issue */
+        .atc-cta-btn.blocked {
+          cursor:not-allowed;
+        }
+        .atc-cta-btn.blocked::before {
+          background:linear-gradient(135deg,rgba(148,163,184,.18),rgba(148,163,184,.10));
+        }
+        .atc-cta-btn.blocked .atc-cta-inner { color:rgba(255,255,255,.45); }
+        .atc-cta-btn.blocked .atc-cta-arrow { background:rgba(255,255,255,.08); }
+
         .atc-cta-inner { position:relative; z-index:1; display:flex; align-items:center; justify-content:space-between; width:100%; }
-        .atc-cta-arrow { width:28px; height:28px; border-radius:50%; background:rgba(255,255,255,.18); display:flex; align-items:center; justify-content:center; }
+        .atc-cta-arrow { width:28px; height:28px; border-radius:50%; background:rgba(255,255,255,.18); display:flex; align-items:center; justify-content:center; transition:background .2s; }
 
         .atc-reassign-btn {
           display:flex; align-items:center; justify-content:center; gap:7px;
@@ -804,12 +898,58 @@ export default function ActiveTripCard({
           )}
 
           <div className="atc-cta-area">
-            <button className="atc-cta-btn" onClick={onAdvance} disabled={advancePending}>
+
+            {/* ── Proximity warning banner ─────────────────────────────── */}
+            {buttonBlocked && proximityCheck.reason === "no_gps" && (
+              <div className="atc-prox-banner gps">
+                <Loader2 size={14} style={{ animation: "atc-spin 1s linear infinite" }} />
+                <span>
+                  Waiting for GPS location. Make sure location services are enabled.
+                </span>
+              </div>
+            )}
+
+            {buttonBlocked && proximityCheck.reason === "too_far" && (
+              <div className="atc-prox-banner">
+                <Navigation size={14} />
+                <span>
+                  You're <span className="atc-prox-dist">{formatDistance(proximityCheck.distanceM)}</span>
+                  {" "}from the {proximityCheck.targetName}. Get closer to continue.
+                </span>
+              </div>
+            )}
+
+            <button
+              className={`atc-cta-btn${buttonBlocked ? " blocked" : ""}`}
+              onClick={onAdvance}
+              disabled={advancePending || buttonBlocked}
+            >
               <div className="atc-cta-inner">
-                {advancePending
-                  ? <><Loader2 size={15} style={{ animation: "atc-spin 1s linear infinite" }} /><span style={{ marginLeft: 8 }}>Processing…</span></>
-                  : <><span>{tripBtnLabel}</span><div className="atc-cta-arrow"><ChevronRight size={14} strokeWidth={2.8} /></div></>
-                }
+                {advancePending ? (
+                  <>
+                    <Loader2 size={15} style={{ animation: "atc-spin 1s linear infinite" }} />
+                    <span style={{ marginLeft: 8 }}>Processing…</span>
+                  </>
+                ) : buttonBlocked && proximityCheck.reason === "no_gps" ? (
+                  <>
+                    <span>Waiting for GPS…</span>
+                    <div className="atc-cta-arrow">
+                      <Loader2 size={13} style={{ animation: "atc-spin 1s linear infinite" }} strokeWidth={2.8} />
+                    </div>
+                  </>
+                ) : buttonBlocked ? (
+                  <>
+                    <span>Get closer to {proximityCheck.targetName}</span>
+                    <div className="atc-cta-arrow">
+                      <Navigation size={13} strokeWidth={2.8} />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <span>{tripBtnLabel}</span>
+                    <div className="atc-cta-arrow"><ChevronRight size={14} strokeWidth={2.8} /></div>
+                  </>
+                )}
               </div>
             </button>
 
