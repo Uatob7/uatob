@@ -164,7 +164,7 @@ const JSON_LD = {
 };
 
 export default function Home({ uid }) {
-  console.log("Rendering Home page with uid:", uid);
+
   return (
     <>
       <Head>
