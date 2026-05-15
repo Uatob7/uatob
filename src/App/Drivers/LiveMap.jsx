@@ -512,14 +512,7 @@ export default function LiveMap({ online, driver, searches = [], activeTrip }) {
               fontSize: 10.5, fontWeight: 600, color: "rgba(255,255,255,.45)",
               marginTop: 2, display: "flex", alignItems: "center", gap: 5,
             }}>
-              <Clock size={9} strokeWidth={2.2} color="rgba(255,255,255,.4)"/>
-              <span>Last 10 min</span>
-              {closestMi != null && (
-                <>
-                  <span style={{ width: 2, height: 2, borderRadius: "50%", background: "rgba(255,255,255,.25)", display: "inline-block" }}/>
-                  <span style={{ color: "#4ADE80" }}>Closest {closestMi.toFixed(1)} mi</span>
-                </>
-              )}
+          
             </div>
           </div>
 
