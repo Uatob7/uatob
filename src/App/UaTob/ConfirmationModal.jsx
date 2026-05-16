@@ -6,13 +6,11 @@ import {
   ChevronDown, Zap, Shield,
 } from 'lucide-react';
 import { THEME as T } from '@/App/UaTob/pricing.js';
-import {
-  doc, deleteDoc, onSnapshot, updateDoc,
-  serverTimestamp, getFirestore,
-} from 'firebase/firestore';
+import { doc, deleteDoc, onSnapshot, getFirestore } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getMessaging, getToken } from 'firebase/messaging';
 import { firebase_app } from '@/firebase/config';
+import SearchingMap from '@/App/UaTob/SearchingMap';
 
 const db        = getFirestore(firebase_app);
 const functions = getFunctions(firebase_app, "us-east1");
@@ -21,9 +19,7 @@ const callableSaveRiderToken    = httpsCallable(functions, "saveRiderFcmToken");
 const callableCancelRide        = httpsCallable(functions, "cancelRide");
 const callableUpdateRiderPhone  = httpsCallable(functions, "updateRiderPhone");
 
-const MAPBOX_TOKEN     = "pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA";
-const MAP_STYLE        = "mapbox://styles/mapbox/dark-v11";
-const VAPID_KEY        = "BJ_sRHZonSGCKk2mB2i9ofTRS8ouFVMV-I15FX4sqdUXHyVb1lo6H-N4GMPrlcIIshRlykQicaxkxxFxcYcI4JQ";
+const VAPID_KEY       = "BJ_sRHZonSGCKk2mB2i9ofTRS8ouFVMV-I15FX4sqdUXHyVb1lo6H-N4GMPrlcIIshRlykQicaxkxxFxcYcI4JQ";
 const SEARCH_LIMIT_SEC = 7 * 60;
 const PHONE_SKIP_KEY   = (rideId) => `uatob_phone_skipped_${rideId}`;
 
@@ -210,6 +206,7 @@ function NotificationPopup({ notifLoading, notifError, onAllow, onSkip }) {
           boxShadow: "0 32px 80px rgba(0,0,0,.5)",
           animation: "notifCardIn .3s cubic-bezier(.34,1.46,.64,1) both",
         }}>
+          {/* Header */}
           <div style={{
             padding: "32px 24px 28px",
             background: hasError
@@ -273,6 +270,7 @@ function NotificationPopup({ notifLoading, notifError, onAllow, onSkip }) {
             </div>
           </div>
 
+          {/* Body */}
           <div style={{ padding: "18px 20px 22px" }}>
             {notifLoading && (
               <div style={{ display: "flex", justifyContent: "center", gap: 7, marginBottom: 18 }}>
@@ -316,224 +314,6 @@ function NotificationPopup({ notifLoading, notifError, onAllow, onSkip }) {
   );
 }
 
-// ─── Build the radar DOM element (gets attached as a Mapbox marker) ───────
-// Returns a real DOM element with sweep animation, candidate driver dots,
-// elapsed timer chip, and driver count badge. Anchored to pickup coordinate.
-function buildRadarMarkerElement({ isUrgent, pickupLat, pickupLng, candidateDrivers, requestSentAt }) {
-  const accent  = isUrgent ? "#EF4444" : "#22C55E";
-  const accent2 = isUrgent ? "#F59E0B" : "#4ADE80";
-  const ringRGB = isUrgent ? "239,68,68" : "34,197,94";
-
-  // Place candidates by real bearing+distance
-  const hasPickup = Number.isFinite(pickupLat) && Number.isFinite(pickupLng);
-  const validCandidates = (candidateDrivers || []).filter(d => d && typeof d.uid === "string");
-  const maxRangeMiles = Math.max(1, ...validCandidates.map(d => Number(d?.distance ?? 0)).filter(Number.isFinite));
-
-  const drivers = validCandidates.map((d, idx) => {
-    const dist = Number.isFinite(Number(d.distance)) ? Math.max(0, Number(d.distance)) : 0;
-    let angleDeg;
-    if (hasPickup && Number.isFinite(d.lat) && Number.isFinite(d.lng)) {
-      const dy = d.lat - pickupLat;
-      const dx = d.lng - pickupLng;
-      angleDeg = (Math.atan2(-dy, dx) * 180 / Math.PI + 360) % 360;
-    } else {
-      let h = 0;
-      for (let i = 0; i < d.uid.length; i++) h = ((h << 5) - h + d.uid.charCodeAt(i)) | 0;
-      angleDeg = Math.abs(h) % 360;
-    }
-    const innerPct = 0.12;
-    const t = dist / maxRangeMiles;
-    const rPct = innerPct + t * (1 - innerPct - 0.08);
-    return { uid: d.uid, distance: dist, angleDeg, rPct, index: idx };
-  });
-
-  // Container
-  const el = document.createElement('div');
-  el.className = 'uatob-search-radar';
-  el.style.cssText = `
-    position: relative;
-    width: 260px; height: 260px;
-    pointer-events: none;
-  `;
-
-  // Driver dots HTML
-  const cx = 100, cy = 100, discR = 92;
-  const driverSVG = drivers.map(d => {
-    const r  = d.rPct * discR;
-    const px = cx + r * Math.cos(d.angleDeg * Math.PI / 180);
-    const py = cy + r * Math.sin(d.angleDeg * Math.PI / 180);
-    const label = (d.index === 0)
-      ? `<text x="${px + 7}" y="${py + 2}" font-size="6" fill="#fff" font-weight="800" font-family="monospace" style="text-shadow:0 0 4px rgba(0,0,0,.9)">${d.distance < 0.1 ? '<0.1mi' : d.distance.toFixed(1) + 'mi'}</text>`
-      : '';
-    return `
-      <g data-uid="${d.uid}" class="radar-driver" data-angle="${d.angleDeg}">
-        <circle class="radar-driver-halo" cx="${px}" cy="${py}" r="7" fill="${accent}" opacity="0.25"/>
-        <circle class="radar-driver-dot"  cx="${px}" cy="${py}" r="3.6" fill="${accent}" stroke="#fff" stroke-width="1">
-          <animate attributeName="opacity" values="0.7;1;0.7" dur="2.4s" repeatCount="indefinite"/>
-        </circle>
-        ${label}
-      </g>
-    `;
-  }).join('');
-
-  // Build the inner HTML
-  el.innerHTML = `
-    <style>
-      @keyframes radarExpand {
-        0%   { transform: scale(.5);  opacity: .85; }
-        100% { transform: scale(2.2); opacity: 0;   }
-      }
-      @keyframes radarCenterPulse {
-        0%, 100% { transform: translate(-50%,-50%) scale(1);    box-shadow: 0 0 0 0 rgba(${ringRGB},.5); }
-        50%      { transform: translate(-50%,-50%) scale(1.06); box-shadow: 0 0 0 12px rgba(${ringRGB},0); }
-      }
-      @keyframes radarChipPulse {
-        0%, 100% { opacity: .7; }
-        50%      { opacity: 1; }
-      }
-    </style>
-
-    <!-- Expanding pulse rings -->
-    <div style="position:absolute;inset:0;border-radius:50%;border:1.5px solid rgba(${ringRGB},.45);animation:radarExpand 3s ease-out 0s infinite;pointer-events:none;box-shadow:0 0 30px rgba(${ringRGB},.15)"></div>
-    <div style="position:absolute;inset:0;border-radius:50%;border:1.5px solid rgba(${ringRGB},.45);animation:radarExpand 3s ease-out 1s infinite;pointer-events:none"></div>
-    <div style="position:absolute;inset:0;border-radius:50%;border:1.5px solid rgba(${ringRGB},.45);animation:radarExpand 3s ease-out 2s infinite;pointer-events:none"></div>
-
-    <!-- SVG radar canvas -->
-    <svg viewBox="0 0 200 200" style="position:absolute;inset:0;width:100%;height:100%">
-      <defs>
-        <radialGradient id="radarSweep-${ringRGB}" cx="50%" cy="50%" r="50%">
-          <stop offset="0%"   stop-color="${accent}"  stop-opacity="0"/>
-          <stop offset="40%"  stop-color="${accent}"  stop-opacity=".22"/>
-          <stop offset="100%" stop-color="${accent2}" stop-opacity=".8"/>
-        </radialGradient>
-        <radialGradient id="radarDisc-${ringRGB}" cx="50%" cy="50%" r="50%">
-          <stop offset="0%"   stop-color="${accent}" stop-opacity=".15"/>
-          <stop offset="60%"  stop-color="${accent}" stop-opacity=".05"/>
-          <stop offset="100%" stop-color="${accent}" stop-opacity="0"/>
-        </radialGradient>
-      </defs>
-
-      <!-- Transparent disc -->
-      <circle cx="${cx}" cy="${cy}" r="${discR}" fill="url(#radarDisc-${ringRGB})"/>
-
-      <!-- Grid rings -->
-      <circle cx="${cx}" cy="${cy}" r="30" fill="none" stroke="rgba(${ringRGB},.35)" stroke-width="0.7" stroke-dasharray="2 3"/>
-      <circle cx="${cx}" cy="${cy}" r="55" fill="none" stroke="rgba(${ringRGB},.35)" stroke-width="0.7" stroke-dasharray="2 3"/>
-      <circle cx="${cx}" cy="${cy}" r="80" fill="none" stroke="rgba(${ringRGB},.35)" stroke-width="0.7" stroke-dasharray="2 3"/>
-
-      <!-- Compass labels (always pointing up because they're inside the marker, which auto-counter-rotates if rotationAlignment='map' is NOT set) -->
-      <text x="${cx}"  y="11"      text-anchor="middle" font-size="7" fill="rgba(${ringRGB},.75)" font-weight="800" font-family="monospace" style="text-shadow:0 0 4px rgba(0,0,0,.8)">N</text>
-      <text x="192"    y="${cy+2}" text-anchor="middle" font-size="7" fill="rgba(${ringRGB},.75)" font-weight="800" font-family="monospace" style="text-shadow:0 0 4px rgba(0,0,0,.8)">E</text>
-      <text x="${cx}"  y="196"     text-anchor="middle" font-size="7" fill="rgba(${ringRGB},.75)" font-weight="800" font-family="monospace" style="text-shadow:0 0 4px rgba(0,0,0,.8)">S</text>
-      <text x="8"      y="${cy+2}" text-anchor="middle" font-size="7" fill="rgba(${ringRGB},.75)" font-weight="800" font-family="monospace" style="text-shadow:0 0 4px rgba(0,0,0,.8)">W</text>
-
-      <!-- Crosshairs -->
-      <line x1="${cx}" y1="14" x2="${cx}" y2="186" stroke="rgba(${ringRGB},.25)" stroke-width="0.5"/>
-      <line x1="14" y1="${cy}" x2="186" y2="${cy}" stroke="rgba(${ringRGB},.25)" stroke-width="0.5"/>
-
-      <!-- Sweep wedge (path updated by JS animation loop below) -->
-      <path class="radar-sweep-wedge" d="M ${cx} ${cy}" fill="url(#radarSweep-${ringRGB})" opacity="0.9"/>
-      <line class="radar-sweep-beam" x1="${cx}" y1="${cy}" x2="${cx}" y2="${cy - discR}" stroke="${accent2}" stroke-width="1.4" stroke-linecap="round" opacity="1"/>
-      <circle class="radar-sweep-tip-inner" cx="${cx}" cy="${cy - discR + 4}" r="3" fill="${accent2}"/>
-      <circle class="radar-sweep-tip-outer" cx="${cx}" cy="${cy - discR + 4}" r="6" fill="${accent}" opacity="0.25"/>
-
-      <!-- Outer border ring -->
-      <circle cx="${cx}" cy="${cy}" r="${discR}" fill="none" stroke="rgba(${ringRGB},.7)" stroke-width="1.8"/>
-
-      <!-- Candidate driver dots -->
-      ${driverSVG}
-    </svg>
-
-    <!-- Center pickup pin -->
-    <div style="
-      position:absolute;
-      top:50%; left:50%;
-      width:52px; height:52px;
-      border-radius:50%;
-      background:linear-gradient(135deg, ${accent2}, ${accent});
-      border:3px solid #fff;
-      display:flex; align-items:center; justify-content:center;
-      box-shadow:0 6px 22px rgba(${ringRGB},.6), 0 0 0 5px rgba(${ringRGB},.15);
-      animation:radarCenterPulse 2s ease-in-out infinite;
-      z-index:3;
-    ">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-        <circle cx="12" cy="10" r="3"/>
-      </svg>
-    </div>
-
-    <!-- Elapsed time chip (top-left) -->
-    <div class="radar-elapsed-chip" style="
-      position:absolute;
-      top:0; left:0;
-      background:rgba(10,14,20,0.85);
-      backdrop-filter:blur(10px);
-      border:1px solid rgba(${ringRGB},.5);
-      border-radius:99px;
-      padding:4px 11px;
-      font-size:11px;
-      font-weight:800;
-      color:${accent2};
-      font-family:'JetBrains Mono', monospace;
-      letter-spacing:.04em;
-      display:flex; align-items:center; gap:5px;
-      box-shadow:0 4px 12px rgba(0,0,0,.4);
-      z-index:4;
-      display: ${requestSentAt ? 'flex' : 'none'};
-    ">
-      <div style="width:6px;height:6px;border-radius:50%;background:${accent2};box-shadow:0 0 8px ${accent2};animation:radarChipPulse 1.4s ease-in-out infinite"></div>
-      <span class="radar-elapsed-label">0:00</span>
-    </div>
-
-    <!-- Driver count badge (bottom-right) -->
-    <div style="
-      position:absolute;
-      bottom:0; right:0;
-      background:rgba(10,14,20,0.85);
-      backdrop-filter:blur(10px);
-      border:1px solid rgba(${ringRGB},.5);
-      border-radius:99px;
-      padding:4px 11px;
-      font-size:11px;
-      font-weight:800;
-      color:${accent2};
-      font-family:'JetBrains Mono', monospace;
-      letter-spacing:.04em;
-      display:flex; align-items:center; gap:5px;
-      box-shadow:0 4px 12px rgba(0,0,0,.4);
-      z-index:4;
-    ">
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="${accent2}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/>
-        <circle cx="6.5" cy="16.5" r="2.5"/>
-        <circle cx="16.5" cy="16.5" r="2.5"/>
-      </svg>
-      ${drivers.length} nearby
-    </div>
-  `;
-
-  // Store drivers + state on the element so update functions can read them
-  el._drivers = drivers;
-  el._accent  = accent;
-  el._accent2 = accent2;
-  el._discR   = discR;
-  el._cx      = cx;
-  el._cy      = cy;
-  el._requestSentAt = requestSentAt;
-
-  return el;
-}
-
-// Pull a ms timestamp out of various Firestore/Date formats
-function toMs(ts) {
-  if (!ts) return null;
-  if (ts.toMillis) return ts.toMillis();
-  if (ts.seconds) return ts.seconds * 1000;
-  if (ts instanceof Date) return ts.getTime();
-  return null;
-}
-
 // ─── Main Modal ────────────────────────────────────────────────────────────
 export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry, onCancel, rides }) {
   const [status, setStatus]           = useState('checking_payment');
@@ -547,27 +327,21 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
   const [showNotifPopup, setShowNotifPopup] = useState(false);
   const [notifLoading, setNotifLoading]     = useState(false);
   const [notifError, setNotifError]         = useState("");
+  const [sweepAngle, setSweepAngle]         = useState(0);
   const [accountPhone, setAccountPhone]     = useState(null);
   const [phoneSkipped, setPhoneSkipped]     = useState(false);
   const [mapReady, setMapReady]             = useState(false);
-  const [swapKey, setSwapKey]               = useState(0);
 
-  const timerRef          = useRef(null);
-  const closeTimeoutRef   = useRef(null);
-  const mountedRef        = useRef(true);
-  const lastRideIdRef     = useRef(null);
-  const unsubRef          = useRef(null);
-  const accountUnsubRef   = useRef(null);
+  const timerRef         = useRef(null);
+  const closeTimeoutRef  = useRef(null);
+  const mountedRef       = useRef(true);
+  const lastRideIdRef    = useRef(null);
+  const unsubRef         = useRef(null);
+  const accountUnsubRef  = useRef(null);
   const notifRequestedRef = useRef(false);
-  const didTimeoutRef     = useRef(false);
-  const mapContainerRef   = useRef(null);
-  const mapRef            = useRef(null);
-
-  // Radar marker management
-  const radarMarkerRef    = useRef(null);   // mapboxgl.Marker instance
-  const radarElRef        = useRef(null);   // DOM element inside marker
-  const radarRafRef       = useRef(null);   // sweep animation rAF id
-  const radarTickRef      = useRef(null);   // elapsed-chip 1s setInterval id
+  const didTimeoutRef    = useRef(false);
+  const mapContainerRef  = useRef(null);
+  const mapRef           = useRef(null);
 
   const seedRide = useMemo(() => {
     if (!rides?.length) return null;
@@ -592,6 +366,14 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
       try { accountUnsubRef.current?.(); } catch {}
     };
   }, []);
+
+  // Radar sweep during searching
+  useEffect(() => {
+    if (status !== 'searching') return;
+    let angle = 0;
+    const id = setInterval(() => { angle = (angle + 2) % 360; setSweepAngle(angle); }, 30);
+    return () => clearInterval(id);
+  }, [status]);
 
   useEffect(() => {
     if (!rideId || rideId === lastRideIdRef.current) return;
@@ -670,9 +452,10 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
     }
   }, [status, rideId, riderUid, currentRide?.riderFcmToken]);
 
-  // ── Init Mapbox background ─────────────────────────────────────────
+  // Init Mapbox background
   useEffect(() => {
     if (!visible || mapRef.current) return;
+    const MAPBOX_TOKEN = "pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA";
 
     const script = document.createElement('script');
     script.src = 'https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js';
@@ -689,10 +472,10 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
       mapboxgl.accessToken = MAPBOX_TOKEN;
       const map = new mapboxgl.Map({
         container: mapContainerRef.current,
-        style: MAP_STYLE,
+        style: "mapbox://styles/mapbox/dark-v11",
         center: [currentRide?.pickupLng ?? -81.3792, currentRide?.pickupLat ?? 28.5383],
-        zoom: 15,
-        pitch: 50,
+        zoom: 14,
+        pitch: 40,
         bearing: -20,
         interactive: false,
         attributionControl: false,
@@ -706,150 +489,8 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
       });
     };
 
-    return () => {
-      if (radarMarkerRef.current) { radarMarkerRef.current.remove(); radarMarkerRef.current = null; }
-      if (radarRafRef.current) { cancelAnimationFrame(radarRafRef.current); radarRafRef.current = null; }
-      if (radarTickRef.current) { clearInterval(radarTickRef.current); radarTickRef.current = null; }
-      if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; setMapReady(false); }
-    };
+    return () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; setMapReady(false); } };
   }, [visible]);
-
-  // Recenter map when pickup coords arrive
-  useEffect(() => {
-    if (!mapReady || !mapRef.current) return;
-    const lng = currentRide?.pickupLng;
-    const lat = currentRide?.pickupLat;
-    if (Number.isFinite(lng) && Number.isFinite(lat)) {
-      mapRef.current.easeTo({ center: [lng, lat], duration: 800 });
-    }
-  }, [mapReady, currentRide?.pickupLat, currentRide?.pickupLng]);
-
-  // ── Attach radar as Mapbox marker (only during searching) ──────────
-  useEffect(() => {
-    if (!mapReady || !mapRef.current) return;
-
-    // Tear down existing radar marker first
-    if (radarMarkerRef.current) {
-      radarMarkerRef.current.remove();
-      radarMarkerRef.current = null;
-      radarElRef.current = null;
-    }
-    if (radarRafRef.current) { cancelAnimationFrame(radarRafRef.current); radarRafRef.current = null; }
-    if (radarTickRef.current) { clearInterval(radarTickRef.current); radarTickRef.current = null; }
-
-    if (status !== 'searching') return;
-
-    const lat = currentRide?.pickupLat;
-    const lng = currentRide?.pickupLng;
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-
-    const isUrgent = secondsLeft < 60;
-    const mapboxgl = window.mapboxgl;
-    if (!mapboxgl) return;
-
-    const el = buildRadarMarkerElement({
-      isUrgent,
-      pickupLat: lat,
-      pickupLng: lng,
-      candidateDrivers: currentRide?.candidateDrivers ?? [],
-      requestSentAt: currentRide?.requestSentAt,
-    });
-
-    radarElRef.current = el;
-
-    // pitchAlignment 'viewport' keeps the radar flat to the screen (not laid on the map plane)
-    // rotationAlignment 'viewport' keeps N pointing up even as the map rotates
-    const marker = new mapboxgl.Marker({
-      element: el,
-      anchor: 'center',
-      pitchAlignment: 'viewport',
-      rotationAlignment: 'viewport',
-    })
-      .setLngLat([lng, lat])
-      .addTo(mapRef.current);
-
-    radarMarkerRef.current = marker;
-
-    // ── Sweep animation: update SVG paths in place (no React re-render) ──
-    const cx = 100, cy = 100, discR = 92;
-    const sweepWedge = el.querySelector('.radar-sweep-wedge');
-    const sweepBeam  = el.querySelector('.radar-sweep-beam');
-    const sweepTipIn = el.querySelector('.radar-sweep-tip-inner');
-    const sweepTipOut = el.querySelector('.radar-sweep-tip-outer');
-    const driverGroups = el.querySelectorAll('.radar-driver');
-
-    let lastT = performance.now();
-    let angle = 0;
-    const tick = (now) => {
-      const dt = now - lastT;
-      lastT = now;
-      angle = (angle + dt * 0.09) % 360;
-
-      const trailAng = angle;
-      const leadAng  = (angle + 60) % 360;
-      const rad = (d) => d * Math.PI / 180;
-      const tX = cx + discR * Math.cos(rad(trailAng));
-      const tY = cy + discR * Math.sin(rad(trailAng));
-      const lX = cx + discR * Math.cos(rad(leadAng));
-      const lY = cy + discR * Math.sin(rad(leadAng));
-      const tipX = cx + (discR - 4) * Math.cos(rad(leadAng));
-      const tipY = cy + (discR - 4) * Math.sin(rad(leadAng));
-
-      if (sweepWedge) sweepWedge.setAttribute('d', `M ${cx} ${cy} L ${tX} ${tY} A ${discR} ${discR} 0 0 1 ${lX} ${lY} Z`);
-      if (sweepBeam)  { sweepBeam.setAttribute('x2', lX); sweepBeam.setAttribute('y2', lY); }
-      if (sweepTipIn) { sweepTipIn.setAttribute('cx', tipX); sweepTipIn.setAttribute('cy', tipY); }
-      if (sweepTipOut){ sweepTipOut.setAttribute('cx', tipX); sweepTipOut.setAttribute('cy', tipY); }
-
-      // Light up drivers under the sweep
-      const accent  = el._accent;
-      const accent2 = el._accent2;
-      driverGroups.forEach(g => {
-        const dAng = parseFloat(g.dataset.angle);
-        const lit = trailAng <= leadAng
-          ? (dAng >= trailAng && dAng <= leadAng)
-          : (dAng >= trailAng || dAng <= leadAng);
-        const halo = g.querySelector('.radar-driver-halo');
-        const dot  = g.querySelector('.radar-driver-dot');
-        if (halo) {
-          halo.setAttribute('r', lit ? 11 : 7);
-          halo.setAttribute('fill', lit ? accent2 : accent);
-          halo.setAttribute('opacity', lit ? 0.5 : 0.25);
-        }
-        if (dot) {
-          dot.setAttribute('fill', lit ? '#fff' : accent);
-          dot.setAttribute('stroke-width', lit ? 2 : 1);
-        }
-      });
-
-      radarRafRef.current = requestAnimationFrame(tick);
-    };
-    radarRafRef.current = requestAnimationFrame(tick);
-
-    // ── Elapsed time chip — tick every second ──
-    const elapsedLabel = el.querySelector('.radar-elapsed-label');
-    const sentMs = toMs(currentRide?.requestSentAt);
-    const updateElapsed = () => {
-      if (!sentMs || !elapsedLabel) return;
-      const sec = Math.max(0, Math.floor((Date.now() - sentMs) / 1000));
-      elapsedLabel.textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
-    };
-    updateElapsed();
-    radarTickRef.current = setInterval(updateElapsed, 1000);
-
-    return () => {
-      if (radarRafRef.current) { cancelAnimationFrame(radarRafRef.current); radarRafRef.current = null; }
-      if (radarTickRef.current) { clearInterval(radarTickRef.current); radarTickRef.current = null; }
-      if (radarMarkerRef.current) { radarMarkerRef.current.remove(); radarMarkerRef.current = null; radarElRef.current = null; }
-    };
-  }, [
-    mapReady,
-    status,
-    currentRide?.pickupLat,
-    currentRide?.pickupLng,
-    currentRide?.candidateDrivers,
-    currentRide?.requestSentAt,
-    secondsLeft < 60,  // re-render only when urgency flips
-  ]);
 
   const total  = useMemo(() => { const v = Number(currentRide?.fareTotal ?? 0); return Number.isFinite(v) ? v.toFixed(2) : '0.00'; }, [currentRide]);
   const miles  = useMemo(() => { const v = Number(currentRide?.tripDistanceMiles ?? 0); return Number.isFinite(v) ? v.toFixed(1) : '0.0'; }, [currentRide]);
@@ -863,17 +504,11 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
     return (Math.min(SEARCH_LIMIT_SEC, Math.floor((Date.now() - ms) / 1000)) / SEARCH_LIMIT_SEC) * 100;
   }, [currentRide?.createdAt, secondsLeft]);
 
-  const activeDriver = useMemo(() => {
-    const list = currentRide?.candidateDrivers ?? [];
-    const i = currentRide?.currentDriverIndex ?? 0;
-    return list[i] ?? null;
-  }, [currentRide?.candidateDrivers, currentRide?.currentDriverIndex]);
-
-  const minutes   = Math.floor(secondsLeft / 60);
-  const seconds   = secondsLeft % 60;
-  const isUrgent  = secondsLeft < 60;
-  const pickup    = currentRide?.pickup  ?? '—';
-  const dropoff   = currentRide?.dropoff ?? '—';
+  const minutes  = Math.floor(secondsLeft / 60);
+  const seconds  = secondsLeft % 60;
+  const isUrgent = secondsLeft < 60;
+  const pickup   = currentRide?.pickup  ?? '—';
+  const dropoff  = currentRide?.dropoff ?? '—';
   const rideLabel = currentRide?.rideLabel ?? currentRide?.rideType ?? 'Ride';
 
   const shouldShowPhoneCapture =
@@ -920,23 +555,6 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
     finally { setNotifLoading(false); }
   };
 
-  const handleNextDriver = async () => {
-    if (!rideId || !riderUid) return;
-    const nextIndex = (currentRide?.currentDriverIndex ?? 0) + 1;
-    try {
-      await updateDoc(doc(db, "Rides", rideId), {
-        currentDriverIndex: nextIndex,
-        updatedAt: serverTimestamp(),
-      });
-    } catch (err) {
-      console.error("Swap driver error:", err);
-    }
-  };
-
-  useEffect(() => {
-    setSwapKey(prev => prev + 1);
-  }, [currentRide?.currentDriverIndex]);
-
   return (
     <>
       <style>{`
@@ -946,7 +564,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
         @keyframes assignedPop { 0%{transform:scale(.8);opacity:0} 60%{transform:scale(1.08)} 100%{transform:scale(1);opacity:1} }
         @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
         @keyframes timerBeat { 0%,100%{transform:scale(1)} 50%{transform:scale(1.025)} }
-        @keyframes swapIn { from { opacity:0; transform:translateY(-8px) scale(0.97); } to { opacity:1; transform:translateY(0) scale(1); } }
+        @keyframes routeFlow { to { stroke-dashoffset: -40; } }
       `}</style>
 
       <div style={{
@@ -956,13 +574,13 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
         pointerEvents: visible ? "auto" : "none",
       }}>
 
-        {/* ━━━ Mapbox BG — radar is attached as a Marker on this map ━━━ */}
+        {/* Live Mapbox BG */}
         <div ref={mapContainerRef} style={{ position: "absolute", inset: 0 }}/>
 
-        {/* Dark scrim — soft on top so radar marker reads, hard on bottom for sheet */}
+        {/* Dark scrim over map */}
         <div style={{
           position: "absolute", inset: 0,
-          background: "linear-gradient(to bottom, rgba(0,0,0,.15) 0%, rgba(0,0,0,.05) 30%, rgba(0,0,0,.5) 75%, rgba(0,0,0,.85) 100%)",
+          background: "linear-gradient(to bottom, rgba(0,0,0,.25) 0%, rgba(0,0,0,.1) 40%, rgba(0,0,0,.7) 100%)",
           pointerEvents: "none",
         }}/>
 
@@ -975,7 +593,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
           />
         )}
 
-        {/* ━━━ Sheet container ━━━ */}
+        {/* ── Sheet container ── */}
         <div style={{
           position: "absolute", bottom: 0, left: 0, right: 0,
           display: "flex", justifyContent: "center", alignItems: "flex-end",
@@ -1029,9 +647,10 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
               </div>
             )}
 
-            {/* ══ SEARCHING — sheet content (radar lives on map above) ════ */}
+            {/* ══ SEARCHING ════════════════════════════════════════════ */}
             {status === 'searching' && (
               <div>
+                {/* Urgency progress bar at top */}
                 <div style={{ height: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
                   <div style={{
                     height: "100%",
@@ -1046,28 +665,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
 
                 <div style={{ padding: "20px 22px 28px" }}>
 
-                  {/* Headline (above timer, no radar in sheet) */}
-                  <div style={{ textAlign: "center", marginBottom: 14 }}>
-                    <div style={{
-                      fontSize: 18, fontWeight: 900,
-                      color: "rgba(255,255,255,.95)",
-                      letterSpacing: "-0.4px",
-                      marginBottom: 4,
-                    }}>
-                      {isUrgent ? "Almost out of time…" : "Finding your driver"}
-                    </div>
-                    <div style={{
-                      fontSize: 12, color: "rgba(255,255,255,.4)",
-                      fontWeight: 500,
-                    }}>
-                      {isUrgent
-                        ? "Searching nearby areas. Hang tight."
-                        : `Pinging ${currentRide?.candidateDrivers?.length ?? 0} ${(currentRide?.candidateDrivers?.length ?? 0) === 1 ? "driver" : "drivers"} near you`
-                      }
-                    </div>
-                  </div>
-
-                  {/* Timer */}
+                  {/* Timer — the hero element */}
                   <div style={{
                     background: isUrgent
                       ? "linear-gradient(135deg,rgba(239,68,68,0.12),rgba(185,28,28,0.08))"
@@ -1077,6 +675,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                     marginBottom: 16, position: "relative", overflow: "hidden",
                     animation: isUrgent ? "timerBeat 1s ease-in-out infinite" : "none",
                   }}>
+                    {/* Background shimmer */}
                     <div style={{
                       position: "absolute", inset: 0,
                       background: "linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.025) 50%, transparent 60%)",
@@ -1093,7 +692,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                         marginBottom: 6,
                         fontFamily: "monospace",
                       }}>
-                        {isUrgent ? "⚡ Almost out of time" : "Time remaining"}
+                        {isUrgent ? "⚡ Almost out of time" : "Searching for driver"}
                       </div>
 
                       <div style={{
@@ -1108,6 +707,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                         {String(seconds).padStart(2, '0')}
                       </div>
 
+                      {/* Inner progress */}
                       <div style={{ height: 4, borderRadius: 100, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
                         <div style={{
                           height: "100%", width: `${progress}%`,
@@ -1129,6 +729,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                     marginBottom: 12,
                   }}>
                     <div style={{ display: "flex", gap: 12, alignItems: "stretch" }}>
+                      {/* Route line */}
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 3, flexShrink: 0 }}>
                         <div style={{
                           width: 8, height: 8, borderRadius: "50%",
@@ -1173,6 +774,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                     background: "rgba(255,255,255,0.03)",
                     border: "1px solid rgba(255,255,255,0.07)",
                     borderRadius: 12, padding: "10px 14px",
+                    marginBottom: shouldShowPhoneCapture ? 0 : 0,
                   }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <div style={{
@@ -1208,6 +810,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                     />
                   )}
 
+                  {/* Cancel */}
                   <button onClick={handleCancelRide} disabled={cancelLoading} style={{
                     width: "100%", marginTop: 12, padding: "11px 0",
                     borderRadius: 12, border: "1px solid rgba(255,255,255,0.07)",
@@ -1235,6 +838,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
             {status === 'assigned' && (
               <div style={{ padding: "20px 22px 32px" }}>
 
+                {/* Green hero */}
                 <div style={{
                   background: "linear-gradient(135deg,rgba(34,197,94,0.14),rgba(21,128,61,0.08))",
                   border: "1px solid rgba(34,197,94,0.25)",
@@ -1264,18 +868,16 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                   </div>
                 </div>
 
-                {activeDriver && (
-                  <div
-                    key={swapKey}
-                    style={{
-                      background: "rgba(255,255,255,0.04)",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      borderRadius: 14, padding: "13px 14px",
-                      display: "flex", alignItems: "center", gap: 12,
-                      marginBottom: 12,
-                      animation: "swapIn .3s cubic-bezier(.34,1.2,.64,1) both",
-                    }}
-                  >
+                {/* Driver info */}
+                {driver && (
+                  <div style={{
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: 14, padding: "13px 14px",
+                    display: "flex", alignItems: "center", gap: 12,
+                    marginBottom: 12,
+                    animation: "slideUp .4s cubic-bezier(.34,1.2,.64,1) .15s both",
+                  }}>
                     <div style={{
                       width: 44, height: 44, borderRadius: "50%", flexShrink: 0,
                       background: "linear-gradient(135deg,#22C55E,#15803D)",
@@ -1283,19 +885,30 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                       fontSize: 17, fontWeight: 900, color: "#fff",
                       boxShadow: "0 4px 12px rgba(34,197,94,.35)",
                     }}>
-                      {activeDriver.uid?.[0] ?? '?'}
+                      {driver.name?.[0] ?? '?'}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,.9)" }}>
-                        Driver
+                        {driver.name || 'Driver'}
                       </div>
                       <div style={{ fontSize: 11, color: "rgba(255,255,255,.4)", marginTop: 2 }}>
-                        {activeDriver.distance?.toFixed(1) || '—'} mi away
+                        {driver.vehicle || 'Vehicle'} · {driver.plate || 'Plate pending'}
                       </div>
                     </div>
+                    {driver.rating && (
+                      <div style={{
+                        background: "rgba(251,146,60,0.15)",
+                        border: "1px solid rgba(251,146,60,0.3)",
+                        borderRadius: 8, padding: "4px 9px",
+                        fontSize: 12, fontWeight: 800, color: "#FED7AA",
+                      }}>
+                        ★ {driver.rating}
+                      </div>
+                    )}
                   </div>
                 )}
 
+                {/* Fare */}
                 <div style={{
                   display: "flex", alignItems: "center", justifyContent: "space-between",
                   background: "rgba(34,197,94,0.07)",
@@ -1362,6 +975,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                   </div>
                 </div>
 
+                {/* Route recap */}
                 <div style={{
                   background: "rgba(255,255,255,0.04)",
                   border: "1px solid rgba(255,255,255,0.07)",
