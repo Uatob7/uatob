@@ -589,6 +589,7 @@ export default function UaTobApp({ uid }) {
       {(isSearching || isTimeout) && (
         <ConfirmationModal
           rides={rides}
+          account={account}
           ridesLoading={ridesLoading}
           onClose={resetRide}
           onPaymentCancelled={resetRide}
