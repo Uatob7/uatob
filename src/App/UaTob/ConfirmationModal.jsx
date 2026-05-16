@@ -6,11 +6,13 @@ import {
   ChevronDown, Zap, Shield,
 } from 'lucide-react';
 import { THEME as T } from '@/App/UaTob/pricing.js';
-import { doc, deleteDoc, onSnapshot, getFirestore } from 'firebase/firestore';
+import {
+  doc, deleteDoc, onSnapshot, updateDoc,
+  serverTimestamp, getFirestore,
+} from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getMessaging, getToken } from 'firebase/messaging';
 import { firebase_app } from '@/firebase/config';
-import SearchingMap from '@/App/UaTob/SearchingMap';
 
 const db        = getFirestore(firebase_app);
 const functions = getFunctions(firebase_app, "us-east1");
@@ -19,7 +21,7 @@ const callableSaveRiderToken    = httpsCallable(functions, "saveRiderFcmToken");
 const callableCancelRide        = httpsCallable(functions, "cancelRide");
 const callableUpdateRiderPhone  = httpsCallable(functions, "updateRiderPhone");
 
-const VAPID_KEY       = "BJ_sRHZonSGCKk2mB2i9ofTRS8ouFVMV-I15FX4sqdUXHyVb1lo6H-N4GMPrlcIIshRlykQicaxkxxFxcYcI4JQ";
+const VAPID_KEY        = "BJ_sRHZonSGCKk2mB2i9ofTRS8ouFVMV-I15FX4sqdUXHyVb1lo6H-N4GMPrlcIIshRlykQicaxkxxFxcYcI4JQ";
 const SEARCH_LIMIT_SEC = 7 * 60;
 const PHONE_SKIP_KEY   = (rideId) => `uatob_phone_skipped_${rideId}`;
 
@@ -50,6 +52,350 @@ function formatUsPhone(raw) {
 }
 
 function digitsOnly(s) { return String(s ?? "").replace(/\D/g, ""); }
+
+// ─── RIDE SEARCH RADAR (overlay version) ──────────────────────────────────
+// Floats on top of the Mapbox background, centered above the sheet.
+// Center  = rider's pickup (visually anchored on the map)
+// Sweep   = rotating beam (~4s/revolution)
+// Drivers = candidateDrivers, positioned by REAL bearing+distance from pickup
+// Live    = new drivers fade-in; sweep lights each as the beam crosses
+// Time    = elapsed since requestSentAt
+function RideSearchRadarOverlay({
+  isUrgent,
+  pickupLat,
+  pickupLng,
+  candidateDrivers = [],
+  requestSentAt,
+}) {
+  const [sweepAngle, setSweepAngle] = useState(0);
+  const [now, setNow]               = useState(() => Date.now());
+  const seenUidsRef                 = useRef(new Set());
+
+  useEffect(() => {
+    let raf;
+    let last = performance.now();
+    let angle = 0;
+    const tick = (t) => {
+      const dt = t - last;
+      last = t;
+      angle = (angle + dt * 0.09) % 360;
+      setSweepAngle(angle);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const accent  = isUrgent ? "#EF4444" : "#22C55E";
+  const accent2 = isUrgent ? "#F59E0B" : "#4ADE80";
+  const ringRGB = isUrgent ? "239,68,68" : "34,197,94";
+
+  const elapsedSec = useMemo(() => {
+    const ms = requestSentAt?.toMillis?.()
+      ?? (requestSentAt?.seconds ? requestSentAt.seconds * 1000 : null)
+      ?? (requestSentAt instanceof Date ? requestSentAt.getTime() : null);
+    if (!ms) return null;
+    return Math.max(0, Math.floor((now - ms) / 1000));
+  }, [requestSentAt, now]);
+
+  const elapsedLabel = elapsedSec != null
+    ? `${Math.floor(elapsedSec / 60)}:${String(elapsedSec % 60).padStart(2, '0')}`
+    : null;
+
+  const drivers = useMemo(() => {
+    if (!Array.isArray(candidateDrivers) || candidateDrivers.length === 0) return [];
+
+    const maxRangeMiles = Math.max(
+      1,
+      ...candidateDrivers
+        .map(d => Number(d?.distance ?? 0))
+        .filter(n => Number.isFinite(n))
+    );
+
+    const hasPickup = Number.isFinite(pickupLat) && Number.isFinite(pickupLng);
+
+    return candidateDrivers
+      .filter(d => d && typeof d.uid === "string")
+      .map((d, idx) => {
+        const dist = Number.isFinite(Number(d.distance)) ? Math.max(0, Number(d.distance)) : 0;
+
+        let angleDeg;
+        if (hasPickup && Number.isFinite(d.lat) && Number.isFinite(d.lng)) {
+          const dy = d.lat - pickupLat;
+          const dx = d.lng - pickupLng;
+          angleDeg = (Math.atan2(-dy, dx) * 180 / Math.PI + 360) % 360;
+        } else {
+          let h = 0;
+          for (let i = 0; i < d.uid.length; i++) {
+            h = ((h << 5) - h + d.uid.charCodeAt(i)) | 0;
+          }
+          angleDeg = Math.abs(h) % 360;
+        }
+
+        const innerPct = 0.12;
+        const t = dist / maxRangeMiles;
+        const rPct = innerPct + t * (1 - innerPct - 0.08);
+
+        return { uid: d.uid, distance: dist, angleDeg, rPct, index: idx };
+      });
+  }, [candidateDrivers, pickupLat, pickupLng]);
+
+  const newUids = useMemo(() => {
+    const fresh = new Set();
+    drivers.forEach(d => {
+      if (!seenUidsRef.current.has(d.uid)) {
+        fresh.add(d.uid);
+        seenUidsRef.current.add(d.uid);
+      }
+    });
+    return fresh;
+  }, [drivers]);
+
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const cx = 100, cy = 100;
+  const discR = 92;
+  const trailAng = sweepAngle;
+  const leadAng  = (sweepAngle + 60) % 360;
+  const trailX = cx + discR * Math.cos(toRad(trailAng));
+  const trailY = cy + discR * Math.sin(toRad(trailAng));
+  const leadX  = cx + discR * Math.cos(toRad(leadAng));
+  const leadY  = cy + discR * Math.sin(toRad(leadAng));
+  const tipX   = cx + (discR - 4) * Math.cos(toRad(leadAng));
+  const tipY   = cy + (discR - 4) * Math.sin(toRad(leadAng));
+
+  const sweepCoversAngle = (angDeg) => {
+    if (trailAng <= leadAng) return angDeg >= trailAng && angDeg <= leadAng;
+    return angDeg >= trailAng || angDeg <= leadAng;
+  };
+
+  return (
+    <div style={{
+      position: 'absolute',
+      top: '32%',                       // sits above the sheet, on the map
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      width: 240, height: 240,
+      pointerEvents: 'none',            // doesn't block map drag (if ever)
+      zIndex: 5,
+    }}>
+      <style>{`
+        @keyframes radarExpand {
+          0%   { transform: scale(.5);  opacity: .85; }
+          100% { transform: scale(2.2); opacity: 0;   }
+        }
+        @keyframes radarCenterPulse {
+          0%, 100% { transform: translate(-50%,-50%) scale(1);    box-shadow: 0 0 0 0 rgba(${ringRGB},.5); }
+          50%      { transform: translate(-50%,-50%) scale(1.06); box-shadow: 0 0 0 12px rgba(${ringRGB},0); }
+        }
+        @keyframes radarChipPulse {
+          0%, 100% { opacity: .7; }
+          50%      { opacity: 1; }
+        }
+        @keyframes radarDriverAppear {
+          0%   { transform: scale(0);   opacity: 0; }
+          60%  { transform: scale(1.6); opacity: 1; }
+          100% { transform: scale(1);   opacity: 1; }
+        }
+      `}</style>
+
+      {/* Expanding pulse rings */}
+      {[0, 1, 2].map((i) => (
+        <div key={i} style={{
+          position: 'absolute', inset: 0,
+          borderRadius: '50%',
+          border: `1.5px solid rgba(${ringRGB},.45)`,
+          animation: `radarExpand 3s ease-out ${i * 1}s infinite`,
+          pointerEvents: 'none',
+          boxShadow: `0 0 30px rgba(${ringRGB},.15)`,
+        }}/>
+      ))}
+
+      {/* SVG radar canvas */}
+      <svg
+        viewBox="0 0 200 200"
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+      >
+        <defs>
+          <radialGradient id="radarSweep" cx="50%" cy="50%" r="50%">
+            <stop offset="0%"   stopColor={accent}  stopOpacity="0"/>
+            <stop offset="40%"  stopColor={accent}  stopOpacity=".22"/>
+            <stop offset="100%" stopColor={accent2} stopOpacity=".8"/>
+          </radialGradient>
+          <radialGradient id="radarDisc" cx="50%" cy="50%" r="50%">
+            <stop offset="0%"   stopColor={accent} stopOpacity=".15"/>
+            <stop offset="60%"  stopColor={accent} stopOpacity=".05"/>
+            <stop offset="100%" stopColor={accent} stopOpacity="0"/>
+          </radialGradient>
+        </defs>
+
+        {/* Disc — transparent so map shows through */}
+        <circle cx={cx} cy={cy} r={discR} fill="url(#radarDisc)" />
+
+        {/* Concentric grid rings — brighter so they pop over the map */}
+        {[30, 55, 80].map((r) => (
+          <circle key={r}
+            cx={cx} cy={cy} r={r}
+            fill="none"
+            stroke={`rgba(${ringRGB},.35)`}
+            strokeWidth="0.7"
+            strokeDasharray="2 3"
+          />
+        ))}
+
+        {/* Compass labels */}
+        <text x={cx}  y="11"     textAnchor="middle" fontSize="7" fill={`rgba(${ringRGB},.75)`} fontWeight="800" fontFamily="monospace" style={{textShadow:'0 0 4px rgba(0,0,0,.8)'}}>N</text>
+        <text x="192" y={cy + 2} textAnchor="middle" fontSize="7" fill={`rgba(${ringRGB},.75)`} fontWeight="800" fontFamily="monospace" style={{textShadow:'0 0 4px rgba(0,0,0,.8)'}}>E</text>
+        <text x={cx}  y="196"    textAnchor="middle" fontSize="7" fill={`rgba(${ringRGB},.75)`} fontWeight="800" fontFamily="monospace" style={{textShadow:'0 0 4px rgba(0,0,0,.8)'}}>S</text>
+        <text x="8"   y={cy + 2} textAnchor="middle" fontSize="7" fill={`rgba(${ringRGB},.75)`} fontWeight="800" fontFamily="monospace" style={{textShadow:'0 0 4px rgba(0,0,0,.8)'}}>W</text>
+
+        {/* Crosshairs */}
+        <line x1={cx} y1="14" x2={cx} y2="186" stroke={`rgba(${ringRGB},.25)`} strokeWidth="0.5"/>
+        <line x1="14" y1={cy} x2="186" y2={cy} stroke={`rgba(${ringRGB},.25)`} strokeWidth="0.5"/>
+
+        {/* Sweep wedge */}
+        <path
+          d={`M ${cx} ${cy} L ${trailX} ${trailY} A ${discR} ${discR} 0 0 1 ${leadX} ${leadY} Z`}
+          fill="url(#radarSweep)"
+          opacity="0.9"
+        />
+
+        {/* Leading beam line */}
+        <line x1={cx} y1={cy} x2={leadX} y2={leadY}
+          stroke={accent2} strokeWidth="1.4" strokeLinecap="round" opacity="1"/>
+
+        {/* Tip flare */}
+        <circle cx={tipX} cy={tipY} r="3" fill={accent2}/>
+        <circle cx={tipX} cy={tipY} r="6" fill={accent} opacity="0.25"/>
+
+        {/* Outer border ring */}
+        <circle cx={cx} cy={cy} r={discR} fill="none" stroke={`rgba(${ringRGB},.7)`} strokeWidth="1.8"/>
+
+        {/* Candidate driver dots */}
+        {drivers.map((d) => {
+          const r  = d.rPct * discR;
+          const px = cx + r * Math.cos(toRad(d.angleDeg));
+          const py = cy + r * Math.sin(toRad(d.angleDeg));
+          const lit = sweepCoversAngle(d.angleDeg);
+          const isNew = newUids.has(d.uid);
+
+          return (
+            <g
+              key={d.uid}
+              style={isNew ? {
+                transformOrigin: `${px}px ${py}px`,
+                animation: 'radarDriverAppear 0.7s cubic-bezier(.34,1.56,.64,1) both',
+              } : undefined}
+            >
+              {lit && (
+                <circle cx={px} cy={py} r="12" fill={accent2} opacity="0.35">
+                  <animate attributeName="r" values="10;15;10" dur="0.6s" repeatCount="indefinite"/>
+                </circle>
+              )}
+              <circle cx={px} cy={py} r="7"
+                fill={accent}
+                opacity={lit ? 0.6 : 0.25}/>
+              <circle cx={px} cy={py} r="3.6"
+                fill={lit ? "#fff" : accent}
+                stroke="#fff"
+                strokeWidth={lit ? 2 : 1}>
+                {!lit && (
+                  <animate attributeName="opacity"
+                    values="0.7;1;0.7"
+                    dur="2.4s"
+                    repeatCount="indefinite"/>
+                )}
+              </circle>
+              {d.index === 0 && !lit && (
+                <text x={px + 7} y={py + 2}
+                  fontSize="6"
+                  fill="#fff"
+                  fontWeight="800"
+                  fontFamily="monospace"
+                  style={{textShadow:'0 0 4px rgba(0,0,0,.9)'}}>
+                  {d.distance < 0.1 ? '<0.1mi' : `${d.distance.toFixed(1)}mi`}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+
+      {/* Center pickup pin */}
+      <div style={{
+        position: 'absolute',
+        top: '50%', left: '50%',
+        width: 52, height: 52,
+        borderRadius: '50%',
+        background: `linear-gradient(135deg, ${accent2}, ${accent})`,
+        border: '3px solid #fff',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        boxShadow: `0 6px 22px rgba(${ringRGB},.6), 0 0 0 5px rgba(${ringRGB},.15)`,
+        animation: 'radarCenterPulse 2s ease-in-out infinite',
+        zIndex: 3,
+      }}>
+        <MapPin size={22} color="#fff" strokeWidth={2.5} style={{ marginTop: -1 }}/>
+      </div>
+
+      {/* Top-left: elapsed time chip */}
+      {elapsedLabel && (
+        <div style={{
+          position: 'absolute',
+          top: 0, left: 0,
+          background: 'rgba(10,14,20,0.85)',
+          backdropFilter: 'blur(10px)',
+          border: `1px solid rgba(${ringRGB},.5)`,
+          borderRadius: 99,
+          padding: '4px 11px',
+          fontSize: 11,
+          fontWeight: 800,
+          color: accent2,
+          fontFamily: '"JetBrains Mono", monospace',
+          letterSpacing: '.04em',
+          display: 'flex', alignItems: 'center', gap: 5,
+          boxShadow: `0 4px 12px rgba(0,0,0,.4)`,
+          zIndex: 4,
+        }}>
+          <div style={{
+            width: 6, height: 6, borderRadius: '50%',
+            background: accent2,
+            boxShadow: `0 0 8px ${accent2}`,
+            animation: 'radarChipPulse 1.4s ease-in-out infinite',
+          }}/>
+          {elapsedLabel}
+        </div>
+      )}
+
+      {/* Bottom-right: driver count */}
+      {drivers.length > 0 && (
+        <div style={{
+          position: 'absolute',
+          bottom: 0, right: 0,
+          background: 'rgba(10,14,20,0.85)',
+          backdropFilter: 'blur(10px)',
+          border: `1px solid rgba(${ringRGB},.5)`,
+          borderRadius: 99,
+          padding: '4px 11px',
+          fontSize: 11,
+          fontWeight: 800,
+          color: accent2,
+          fontFamily: '"JetBrains Mono", monospace',
+          letterSpacing: '.04em',
+          display: 'flex', alignItems: 'center', gap: 5,
+          boxShadow: `0 4px 12px rgba(0,0,0,.4)`,
+          zIndex: 4,
+        }}>
+          <Car size={11} strokeWidth={2.5}/>
+          {drivers.length} nearby
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Phone Capture Card ────────────────────────────────────────────────────
 function PhoneCaptureCard({ uid, onSkip, onSaved }) {
@@ -206,7 +552,6 @@ function NotificationPopup({ notifLoading, notifError, onAllow, onSkip }) {
           boxShadow: "0 32px 80px rgba(0,0,0,.5)",
           animation: "notifCardIn .3s cubic-bezier(.34,1.46,.64,1) both",
         }}>
-          {/* Header */}
           <div style={{
             padding: "32px 24px 28px",
             background: hasError
@@ -270,7 +615,6 @@ function NotificationPopup({ notifLoading, notifError, onAllow, onSkip }) {
             </div>
           </div>
 
-          {/* Body */}
           <div style={{ padding: "18px 20px 22px" }}>
             {notifLoading && (
               <div style={{ display: "flex", justifyContent: "center", gap: 7, marginBottom: 18 }}>
@@ -327,22 +671,21 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
   const [showNotifPopup, setShowNotifPopup] = useState(false);
   const [notifLoading, setNotifLoading]     = useState(false);
   const [notifError, setNotifError]         = useState("");
-  const [sweepAngle, setSweepAngle]         = useState(0);
   const [accountPhone, setAccountPhone]     = useState(null);
   const [phoneSkipped, setPhoneSkipped]     = useState(false);
   const [mapReady, setMapReady]             = useState(false);
   const [swapKey, setSwapKey]               = useState(0);
 
-  const timerRef         = useRef(null);
-  const closeTimeoutRef  = useRef(null);
-  const mountedRef       = useRef(true);
-  const lastRideIdRef    = useRef(null);
-  const unsubRef         = useRef(null);
-  const accountUnsubRef  = useRef(null);
+  const timerRef          = useRef(null);
+  const closeTimeoutRef   = useRef(null);
+  const mountedRef        = useRef(true);
+  const lastRideIdRef     = useRef(null);
+  const unsubRef          = useRef(null);
+  const accountUnsubRef   = useRef(null);
   const notifRequestedRef = useRef(false);
-  const didTimeoutRef    = useRef(false);
-  const mapContainerRef  = useRef(null);
-  const mapRef           = useRef(null);
+  const didTimeoutRef     = useRef(false);
+  const mapContainerRef   = useRef(null);
+  const mapRef            = useRef(null);
 
   const seedRide = useMemo(() => {
     if (!rides?.length) return null;
@@ -367,14 +710,6 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
       try { accountUnsubRef.current?.(); } catch {}
     };
   }, []);
-
-  // Radar sweep during searching
-  useEffect(() => {
-    if (status !== 'searching') return;
-    let angle = 0;
-    const id = setInterval(() => { angle = (angle + 2) % 360; setSweepAngle(angle); }, 30);
-    return () => clearInterval(id);
-  }, [status]);
 
   useEffect(() => {
     if (!rideId || rideId === lastRideIdRef.current) return;
@@ -475,8 +810,8 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
         container: mapContainerRef.current,
         style: "mapbox://styles/mapbox/dark-v11",
         center: [currentRide?.pickupLng ?? -81.3792, currentRide?.pickupLat ?? 28.5383],
-        zoom: 14,
-        pitch: 40,
+        zoom: 15,
+        pitch: 50,
         bearing: -20,
         interactive: false,
         attributionControl: false,
@@ -492,6 +827,16 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
 
     return () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; setMapReady(false); } };
   }, [visible]);
+
+  // Recenter map when pickup coords arrive
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    const lng = currentRide?.pickupLng;
+    const lat = currentRide?.pickupLat;
+    if (Number.isFinite(lng) && Number.isFinite(lat)) {
+      mapRef.current.easeTo({ center: [lng, lat], duration: 800 });
+    }
+  }, [mapReady, currentRide?.pickupLat, currentRide?.pickupLng]);
 
   const total  = useMemo(() => { const v = Number(currentRide?.fareTotal ?? 0); return Number.isFinite(v) ? v.toFixed(2) : '0.00'; }, [currentRide]);
   const miles  = useMemo(() => { const v = Number(currentRide?.tripDistanceMiles ?? 0); return Number.isFinite(v) ? v.toFixed(1) : '0.0'; }, [currentRide]);
@@ -511,11 +856,11 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
     return list[i] ?? null;
   }, [currentRide?.candidateDrivers, currentRide?.currentDriverIndex]);
 
-  const minutes  = Math.floor(secondsLeft / 60);
-  const seconds  = secondsLeft % 60;
-  const isUrgent = secondsLeft < 60;
-  const pickup   = currentRide?.pickup  ?? '—';
-  const dropoff  = currentRide?.dropoff ?? '—';
+  const minutes   = Math.floor(secondsLeft / 60);
+  const seconds   = secondsLeft % 60;
+  const isUrgent  = secondsLeft < 60;
+  const pickup    = currentRide?.pickup  ?? '—';
+  const dropoff   = currentRide?.dropoff ?? '—';
   const rideLabel = currentRide?.rideLabel ?? currentRide?.rideType ?? 'Ride';
 
   const shouldShowPhoneCapture =
@@ -588,7 +933,6 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
         @keyframes assignedPop { 0%{transform:scale(.8);opacity:0} 60%{transform:scale(1.08)} 100%{transform:scale(1);opacity:1} }
         @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
         @keyframes timerBeat { 0%,100%{transform:scale(1)} 50%{transform:scale(1.025)} }
-        @keyframes routeFlow { to { stroke-dashoffset: -40; } }
         @keyframes swapIn { from { opacity:0; transform:translateY(-8px) scale(0.97); } to { opacity:1; transform:translateY(0) scale(1); } }
       `}</style>
 
@@ -599,15 +943,59 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
         pointerEvents: visible ? "auto" : "none",
       }}>
 
-        {/* Live Mapbox BG */}
+        {/* ━━━ Mapbox BG ━━━ */}
         <div ref={mapContainerRef} style={{ position: "absolute", inset: 0 }}/>
 
-        {/* Dark scrim over map */}
+        {/* Dark scrim — softer so the radar reads against it */}
         <div style={{
           position: "absolute", inset: 0,
-          background: "linear-gradient(to bottom, rgba(0,0,0,.25) 0%, rgba(0,0,0,.1) 40%, rgba(0,0,0,.7) 100%)",
+          background: "linear-gradient(to bottom, rgba(0,0,0,.15) 0%, rgba(0,0,0,.05) 30%, rgba(0,0,0,.5) 75%, rgba(0,0,0,.85) 100%)",
           pointerEvents: "none",
         }}/>
+
+        {/* ━━━ RADAR — overlaid on the Mapbox background, only during searching ━━━ */}
+        {status === 'searching' && (
+          <RideSearchRadarOverlay
+            isUrgent={isUrgent}
+            pickupLat={currentRide?.pickupLat}
+            pickupLng={currentRide?.pickupLng}
+            candidateDrivers={currentRide?.candidateDrivers ?? []}
+            requestSentAt={currentRide?.requestSentAt}
+          />
+        )}
+
+        {/* Headline above the sheet during searching */}
+        {status === 'searching' && (
+          <div style={{
+            position: "absolute",
+            top: 'calc(32% + 140px)',  // just below the radar
+            left: 0, right: 0,
+            textAlign: "center",
+            pointerEvents: "none",
+            zIndex: 6,
+            padding: "0 24px",
+          }}>
+            <div style={{
+              fontSize: 20, fontWeight: 900,
+              color: "#fff",
+              letterSpacing: "-0.4px",
+              marginBottom: 4,
+              textShadow: "0 2px 16px rgba(0,0,0,.7)",
+            }}>
+              {isUrgent ? "Almost out of time…" : "Finding your driver"}
+            </div>
+            <div style={{
+              fontSize: 13, color: "rgba(255,255,255,.7)",
+              fontWeight: 500,
+              textShadow: "0 1px 8px rgba(0,0,0,.7)",
+            }}>
+              {isUrgent
+                ? "Searching nearby areas. Hang tight."
+                : `Pinging ${currentRide?.candidateDrivers?.length ?? 0} ${(currentRide?.candidateDrivers?.length ?? 0) === 1 ? "driver" : "drivers"} near you`
+              }
+            </div>
+          </div>
+        )}
 
         {showNotifPopup && (
           <NotificationPopup
@@ -618,7 +1006,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
           />
         )}
 
-        {/* ── Sheet container ── */}
+        {/* ━━━ Sheet container ━━━ */}
         <div style={{
           position: "absolute", bottom: 0, left: 0, right: 0,
           display: "flex", justifyContent: "center", alignItems: "flex-end",
@@ -672,10 +1060,10 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
               </div>
             )}
 
-            {/* ══ SEARCHING ════════════════════════════════════════════ */}
+            {/* ══ SEARCHING — sheet content (no radar here anymore) ════════ */}
             {status === 'searching' && (
               <div>
-                {/* Urgency progress bar at top */}
+                {/* Urgency progress bar at top of sheet */}
                 <div style={{ height: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
                   <div style={{
                     height: "100%",
@@ -690,7 +1078,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
 
                 <div style={{ padding: "20px 22px 28px" }}>
 
-                  {/* Timer — the hero element */}
+                  {/* Timer */}
                   <div style={{
                     background: isUrgent
                       ? "linear-gradient(135deg,rgba(239,68,68,0.12),rgba(185,28,28,0.08))"
@@ -700,7 +1088,6 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                     marginBottom: 16, position: "relative", overflow: "hidden",
                     animation: isUrgent ? "timerBeat 1s ease-in-out infinite" : "none",
                   }}>
-                    {/* Background shimmer */}
                     <div style={{
                       position: "absolute", inset: 0,
                       background: "linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.025) 50%, transparent 60%)",
@@ -717,7 +1104,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                         marginBottom: 6,
                         fontFamily: "monospace",
                       }}>
-                        {isUrgent ? "⚡ Almost out of time" : "Searching for driver"}
+                        {isUrgent ? "⚡ Almost out of time" : "Time remaining"}
                       </div>
 
                       <div style={{
@@ -732,7 +1119,6 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                         {String(seconds).padStart(2, '0')}
                       </div>
 
-                      {/* Inner progress */}
                       <div style={{ height: 4, borderRadius: 100, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
                         <div style={{
                           height: "100%", width: `${progress}%`,
@@ -754,7 +1140,6 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                     marginBottom: 12,
                   }}>
                     <div style={{ display: "flex", gap: 12, alignItems: "stretch" }}>
-                      {/* Route line */}
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 3, flexShrink: 0 }}>
                         <div style={{
                           width: 8, height: 8, borderRadius: "50%",
@@ -799,7 +1184,6 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                     background: "rgba(255,255,255,0.03)",
                     border: "1px solid rgba(255,255,255,0.07)",
                     borderRadius: 12, padding: "10px 14px",
-                    marginBottom: shouldShowPhoneCapture ? 0 : 0,
                   }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <div style={{
@@ -835,7 +1219,6 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                     />
                   )}
 
-                  {/* Cancel */}
                   <button onClick={handleCancelRide} disabled={cancelLoading} style={{
                     width: "100%", marginTop: 12, padding: "11px 0",
                     borderRadius: 12, border: "1px solid rgba(255,255,255,0.07)",
@@ -863,7 +1246,6 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
             {status === 'assigned' && (
               <div style={{ padding: "20px 22px 32px" }}>
 
-                {/* Green hero */}
                 <div style={{
                   background: "linear-gradient(135deg,rgba(34,197,94,0.14),rgba(21,128,61,0.08))",
                   border: "1px solid rgba(34,197,94,0.25)",
@@ -893,7 +1275,6 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                   </div>
                 </div>
 
-                {/* Driver info */}
                 {activeDriver && (
                   <div
                     key={swapKey}
@@ -926,7 +1307,6 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                   </div>
                 )}
 
-                {/* Fare */}
                 <div style={{
                   display: "flex", alignItems: "center", justifyContent: "space-between",
                   background: "rgba(34,197,94,0.07)",
@@ -993,7 +1373,6 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                   </div>
                 </div>
 
-                {/* Route recap */}
                 <div style={{
                   background: "rgba(255,255,255,0.04)",
                   border: "1px solid rgba(255,255,255,0.07)",
