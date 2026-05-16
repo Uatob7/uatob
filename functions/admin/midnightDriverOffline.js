@@ -444,4 +444,3 @@ exports.midnightDriverOffline = onSchedule(
     console.log("[midnightDriverOffline] complete");
   }
 );
-
