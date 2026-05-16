@@ -354,50 +354,56 @@ function CyclingCard({
               </div>
             )}
 
-            {/* 1 — Candidate drivers */}
-            {panelId === 1 && (
-              <div key="p1" style={{ animation: 'fadeUp .28s ease' }}>
-                <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,.28)', marginBottom: 8 }}>
-                  {topDrivers.length > 0 ? `${(candidateDrivers ?? []).length} drivers in your area` : 'Scanning…'}
-                </div>
-                {topDrivers.length === 0 && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0' }}>
-                    <Loader2 size={13} color="rgba(255,255,255,.3)" style={{ animation: 'spin 1s linear infinite' }}/>
-                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,.3)' }}>No candidates yet</span>
-                  </div>
-                )}
-                {topDrivers.map((d, i) => {
-                  const colors = ['#22C55E','#F59E0B','#94A3B8'];
-                  const bgColors = ['rgba(34,197,94,.12)','rgba(245,158,11,.1)','rgba(100,116,139,.08)'];
-                  const borderColors = ['rgba(34,197,94,.25)','rgba(245,158,11,.2)','rgba(100,116,139,.18)'];
-                  const c = colors[i] ?? '#64748B';
-                  return (
-                    <div key={d.uid ?? i} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '5px 0', borderBottom: i < topDrivers.length - 1 ? '1px solid rgba(255,255,255,.05)' : 'none' }}>
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: c, flexShrink: 0, animation: `blink ${1.2 + i*.3}s ease-in-out infinite` }}/>
-                      <div style={{ width: 22, height: 22, borderRadius: 6, background: bgColors[i], border: `1px solid ${borderColors[i]}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800, color: c, flexShrink: 0 }}>
-                        D{i+1}
+            {/* 1 — Candidate drivers summary */}
+            {panelId === 1 && (() => {
+              const count    = (candidateDrivers ?? []).length;
+              const closest  = topDrivers[0];
+              const hasAny   = count > 0;
+              return (
+                <div key="p1" style={{ animation: 'fadeUp .28s ease', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: PANEL_MIN_H }}>
+                  {!hasAny ? (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 0' }}>
+                      <Loader2 size={13} color="rgba(255,255,255,.3)" style={{ animation: 'spin 1s linear infinite' }}/>
+                      <span style={{ fontSize: 12, color: 'rgba(255,255,255,.3)' }}>Scanning for drivers…</span>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{
+                        width: 44, height: 44, borderRadius: 12,
+                        background: 'rgba(34,197,94,.12)',
+                        border: '1px solid rgba(34,197,94,.25)',
+                        display: 'flex', flexDirection: 'column',
+                        alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0,
+                        boxShadow: '0 0 12px rgba(34,197,94,.15)',
+                      }}>
+                        <div style={{ fontFamily: 'monospace', fontSize: 18, fontWeight: 800, color: '#4ADE80', lineHeight: 1 }}>
+                          {count}
+                        </div>
+                        <div style={{ fontSize: 7, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', color: 'rgba(74,222,128,.7)', marginTop: 1 }}>
+                          {count === 1 ? 'driver' : 'drivers'}
+                        </div>
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: `rgba(255,255,255,${0.85 - i*.15})`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {d.uid?.slice(0,8)}…
+                        <div style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,.9)', marginBottom: 3 }}>
+                          {count} {count === 1 ? 'driver' : 'drivers'} noticed
                         </div>
-                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,.22)', marginTop: 1 }}>
-                          {d.lat?.toFixed(4)}, {d.lng?.toFixed(4)}
+                        {closest && (
+                          <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <Navigation size={10} color="#4ADE80"/>
+                            <span>Closest <span style={{ color: '#4ADE80', fontWeight: 700, fontFamily: 'monospace' }}>{driverDistLabel(closest.distance)}</span> away</span>
+                          </div>
+                        )}
+                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,.3)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#4ADE80', display: 'inline-block', animation: 'blink 1.2s ease-in-out infinite' }}/>
+                          Waiting on a response
                         </div>
-                      </div>
-                      <div style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: c, flexShrink: 0 }}>
-                        {driverDistLabel(d.distance ?? 0)}
                       </div>
                     </div>
-                  );
-                })}
-                {(candidateDrivers ?? []).length > 3 && (
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,.18)', textAlign: 'center', marginTop: 6 }}>
-                    +{(candidateDrivers ?? []).length - 3} more in your area
-                  </div>
-                )}
-              </div>
-            )}
+                  )}
+                </div>
+              );
+            })()}
 
             {/* 2 — Notifications */}
             {panelId === 2 && (
