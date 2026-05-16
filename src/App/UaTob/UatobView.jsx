@@ -178,11 +178,11 @@ export default function UatobView({ trips }) {
   const offlinePins = useMemo(() => driverPins.filter(d => d.label !== 'Online'),  [driverPins]);
 
   const counts = useMemo(() => {
-    const online  = onlinePins.length;
-    const offline = driverPins.filter(d => d.label === 'Offline').length;
-    const busy    = driverPins.length - online - offline;
-    return { total: driverPins.length, online, offline, busy };
-  }, [driverPins, onlinePins]);
+    const online    = onlinePins.length;
+    const offline   = driverPins.filter(d => d.label === 'Offline').length;
+    const tripCount = Array.isArray(trips) ? trips.length : 0;
+    return { total: driverPins.length, online, offline, trips: tripCount };
+  }, [driverPins, onlinePins, trips]);
 
   const constellationLines = useMemo(
     () => buildConstellationLines(onlinePins.length),
@@ -447,7 +447,7 @@ export default function UatobView({ trips }) {
 
             {/* Status pills */}
             <DarkPill color="#22D3A5" label="Online"  value={counts.online}  glow />
-            <DarkPill color="#60A5FA" label="Busy"    value={counts.busy}    />
+            <DarkPill color="#A78BFA" label="Trips"   value={counts.trips}   />
             <DarkPill color="#94A3B8" label="Offline" value={counts.offline} dim />
 
           </div>
@@ -486,20 +486,3 @@ function DarkPill({ color, label, value, glow, dim }) {
     </div>
   );
 }
-Trips in UatobView: 
-(4) [{…}, {…}, {…}, {…}]
-0
-: 
-{id: '1T0rQvkIpRYQaNyTm8lx', timedOutAt: Timestamp, emailDispatchAt: Timestamp, offlineDriversNotified: {…}, pickupLng: -82.7099003, …}
-1
-: 
-{id: 'BCCx17PgJoEmjMnJZ6dK', pickupZip: '32789', adminNotified: true, payoutStatus: 'pending', pickupLng: -81.3807973, …}
-2
-: 
-{id: 'PlzVo8BNK7YNtJxqkYEP', cancelledAt: Timestamp, platformFee: 3.89, uid: 'TA5V8QslrMRxQ7xcUheGJrJJ9EG3', lastDispatchAt: Timestamp, …}
-3
-: 
-{id: 'vBxXLEArYcXWayvUmBBc', candidateDriverUids: Array(6), paymentStatus: 'succeeded', dropoffLng: -79.8865932, timeoutMinutes: 10, …}
-length
-: 
-4
