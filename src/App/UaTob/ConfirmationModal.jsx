@@ -331,6 +331,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
   const [accountPhone, setAccountPhone]     = useState(null);
   const [phoneSkipped, setPhoneSkipped]     = useState(false);
   const [mapReady, setMapReady]             = useState(false);
+  const [swapKey, setSwapKey]               = useState(0);
 
   const timerRef         = useRef(null);
   const closeTimeoutRef  = useRef(null);
@@ -504,6 +505,12 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
     return (Math.min(SEARCH_LIMIT_SEC, Math.floor((Date.now() - ms) / 1000)) / SEARCH_LIMIT_SEC) * 100;
   }, [currentRide?.createdAt, secondsLeft]);
 
+  const activeDriver = useMemo(() => {
+    const list = currentRide?.candidateDrivers ?? [];
+    const i = currentRide?.currentDriverIndex ?? 0;
+    return list[i] ?? null;
+  }, [currentRide?.candidateDrivers, currentRide?.currentDriverIndex]);
+
   const minutes  = Math.floor(secondsLeft / 60);
   const seconds  = secondsLeft % 60;
   const isUrgent = secondsLeft < 60;
@@ -555,6 +562,23 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
     finally { setNotifLoading(false); }
   };
 
+  const handleNextDriver = async () => {
+    if (!rideId || !riderUid) return;
+    const nextIndex = (currentRide?.currentDriverIndex ?? 0) + 1;
+    try {
+      await updateDoc(doc(db, "Rides", rideId), {
+        currentDriverIndex: nextIndex,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.error("Swap driver error:", err);
+    }
+  };
+
+  useEffect(() => {
+    setSwapKey(prev => prev + 1);
+  }, [currentRide?.currentDriverIndex]);
+
   return (
     <>
       <style>{`
@@ -565,6 +589,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
         @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
         @keyframes timerBeat { 0%,100%{transform:scale(1)} 50%{transform:scale(1.025)} }
         @keyframes routeFlow { to { stroke-dashoffset: -40; } }
+        @keyframes swapIn { from { opacity:0; transform:translateY(-8px) scale(0.97); } to { opacity:1; transform:translateY(0) scale(1); } }
       `}</style>
 
       <div style={{
@@ -869,15 +894,18 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                 </div>
 
                 {/* Driver info */}
-                {driver && (
-                  <div style={{
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    borderRadius: 14, padding: "13px 14px",
-                    display: "flex", alignItems: "center", gap: 12,
-                    marginBottom: 12,
-                    animation: "slideUp .4s cubic-bezier(.34,1.2,.64,1) .15s both",
-                  }}>
+                {activeDriver && (
+                  <div
+                    key={swapKey}
+                    style={{
+                      background: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      borderRadius: 14, padding: "13px 14px",
+                      display: "flex", alignItems: "center", gap: 12,
+                      marginBottom: 12,
+                      animation: "swapIn .3s cubic-bezier(.34,1.2,.64,1) both",
+                    }}
+                  >
                     <div style={{
                       width: 44, height: 44, borderRadius: "50%", flexShrink: 0,
                       background: "linear-gradient(135deg,#22C55E,#15803D)",
@@ -885,26 +913,16 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                       fontSize: 17, fontWeight: 900, color: "#fff",
                       boxShadow: "0 4px 12px rgba(34,197,94,.35)",
                     }}>
-                      {driver.name?.[0] ?? '?'}
+                      {activeDriver.uid?.[0] ?? '?'}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,.9)" }}>
-                        {driver.name || 'Driver'}
+                        Driver
                       </div>
                       <div style={{ fontSize: 11, color: "rgba(255,255,255,.4)", marginTop: 2 }}>
-                        {driver.vehicle || 'Vehicle'} · {driver.plate || 'Plate pending'}
+                        {activeDriver.distance?.toFixed(1) || '—'} mi away
                       </div>
                     </div>
-                    {driver.rating && (
-                      <div style={{
-                        background: "rgba(251,146,60,0.15)",
-                        border: "1px solid rgba(251,146,60,0.3)",
-                        borderRadius: 8, padding: "4px 9px",
-                        fontSize: 12, fontWeight: 800, color: "#FED7AA",
-                      }}>
-                        ★ {driver.rating}
-                      </div>
-                    )}
                   </div>
                 )}
 
