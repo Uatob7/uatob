@@ -125,9 +125,12 @@ function tripOutcome(trip) {
 function parseAddress(address) {
   if (!address) return { street: '', city: '' };
   const parts = address.split(',').map(p => p.trim());
+  // Strip leading street number (e.g. "123 Main St" → "Main St")
+  const rawStreet = parts[0] || '';
+  const street = rawStreet.replace(/^\d+\s+/, '');
   return {
-    street: parts[0] || '',
-    city:   parts[1] || '',
+    street,
+    city: parts[1] || '',
   };
 }
 
@@ -348,7 +351,7 @@ function SingleTripCard({ trip }) {
       background: 'rgba(255,255,255,.05)',
       border: '1px solid rgba(255,255,255,.10)',
       borderRadius: 18,
-      padding: '16px 18px',
+      padding: '14px 16px',
       backdropFilter: 'blur(12px)',
       display: 'flex', flexDirection: 'column',
       position: 'relative', overflow: 'hidden',
@@ -359,8 +362,8 @@ function SingleTripCard({ trip }) {
         background: `linear-gradient(90deg, ${outcome.accent}, ${outcome.accent}88, transparent 80%)`,
       }}/>
 
-      {/* TOP ROW — status + payment pills */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+      {/* TOP ROW — status + payment pills + fare right-aligned */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, flexWrap: 'nowrap' }}>
 
         {/* Status pill */}
         <div style={{
@@ -388,78 +391,71 @@ function SingleTripCard({ trip }) {
           </span>
         </div>
 
-        {/* Relative time — pushed to the right */}
-        <span style={{
+        {/* Fare + time stacked, pushed right */}
+        <div style={{
           marginLeft: 'auto',
-          fontFamily: '"JetBrains Mono", monospace',
-          fontSize: 10, fontWeight: 600,
-          color: 'rgba(255,255,255,.35)',
-          lineHeight: 1,
+          display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3,
           flexShrink: 0,
         }}>
-          {timeStr}
-        </span>
-      </div>
-
-      {/* FARE — big, centered, dominant */}
-      {fareStr && (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginBottom: 16,
-          animation: isCompleted ? 'farePulse 0.6s ease-out forwards' : 'none',
-        }}>
+          {fareStr && (
+            <span style={{
+              fontFamily: '"JetBrains Mono", monospace',
+              fontSize: 26, fontWeight: 900,
+              color: outcome.accent,
+              lineHeight: 1,
+              letterSpacing: '-.03em',
+              textShadow: `0 0 18px ${outcome.accent}cc, 0 0 36px ${outcome.accent}55`,
+              animation: `fareGlow 4s ease-in-out 0.3s infinite${isCompleted ? ', farePulse 0.6s ease-out forwards' : ''}`,
+            }}>
+              {fareStr}
+            </span>
+          )}
           <span style={{
             fontFamily: '"JetBrains Mono", monospace',
-            fontSize: 48,
-            fontWeight: 900,
-            color: outcome.accent,
+            fontSize: 9, fontWeight: 600,
+            color: 'rgba(255,255,255,.35)',
             lineHeight: 1,
-            letterSpacing: '-.03em',
-            display: 'inline-block',
-            textShadow: `0 0 18px ${outcome.accent}cc, 0 0 36px ${outcome.accent}55`,
-            animation: `fareGlow 4s ease-in-out 0.3s infinite`,
           }}>
-            {fareStr}
+            {timeStr}
           </span>
         </div>
-      )}
+      </div>
 
-      {/* MIDDLE — route with real street + city text */}
+      {/* ROUTE — fills remaining card height */}
       <div style={{ display: 'flex', alignItems: 'stretch', gap: 12, flex: 1, minHeight: 0 }}>
+
         {/* Vertical connector */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 6, flexShrink: 0 }}>
-          <div style={{ width: 9, height: 9, borderRadius: '50%', background: '#5EEAD4', boxShadow: '0 0 10px rgba(94,234,212,.7)' }}/>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 4, paddingBottom: 4, flexShrink: 0 }}>
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#5EEAD4', boxShadow: '0 0 10px rgba(94,234,212,.7)', flexShrink: 0 }}/>
           <div style={{
-            width: 1.5, flex: 1, minHeight: 28,
+            width: 1.5, flex: 1,
             background: 'linear-gradient(to bottom, rgba(94,234,212,.5), rgba(167,139,250,.5))',
-            margin: '3px 0',
+            margin: '4px 0',
           }}/>
-          <div style={{ width: 9, height: 9, borderRadius: 2, background: '#C4B5FD', transform: 'rotate(45deg)', boxShadow: '0 0 10px rgba(196,181,253,.7)' }}/>
+          <div style={{ width: 10, height: 10, borderRadius: 2, background: '#C4B5FD', transform: 'rotate(45deg)', boxShadow: '0 0 10px rgba(196,181,253,.7)', flexShrink: 0 }}/>
         </div>
 
-        {/* Address text blocks */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', paddingTop: 2, paddingBottom: 2, minWidth: 0 }}>
+        {/* Address blocks — pickup top, dropoff bottom */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minWidth: 0 }}>
 
           {/* Pickup */}
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(94,234,212,.7)', marginBottom: 3 }}>
+            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(94,234,212,.65)', marginBottom: 4 }}>
               Pickup
             </div>
             {pickup.street ? (
               <>
                 <div style={{
-                  fontSize: 13, fontWeight: 700, color: '#E2E8F0', lineHeight: 1.2,
+                  fontSize: 14, fontWeight: 700, color: '#F1F5F9', lineHeight: 1.25,
                   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                 }}>
                   {pickup.street}
                 </div>
                 {pickup.city && (
                   <div style={{
-                    fontSize: 11, fontWeight: 500, color: 'rgba(94,234,212,.65)',
+                    fontSize: 11, fontWeight: 500, color: 'rgba(94,234,212,.6)',
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                    marginTop: 1,
+                    marginTop: 2,
                   }}>
                     {pickup.city}
                   </div>
@@ -472,22 +468,22 @@ function SingleTripCard({ trip }) {
 
           {/* Dropoff */}
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(196,181,253,.7)', marginBottom: 3 }}>
+            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(196,181,253,.65)', marginBottom: 4 }}>
               Dropoff
             </div>
             {dropoff.street ? (
               <>
                 <div style={{
-                  fontSize: 13, fontWeight: 700, color: '#E2E8F0', lineHeight: 1.2,
+                  fontSize: 14, fontWeight: 700, color: '#F1F5F9', lineHeight: 1.25,
                   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                 }}>
                   {dropoff.street}
                 </div>
                 {dropoff.city && (
                   <div style={{
-                    fontSize: 11, fontWeight: 500, color: 'rgba(196,181,253,.65)',
+                    fontSize: 11, fontWeight: 500, color: 'rgba(196,181,253,.6)',
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                    marginTop: 1,
+                    marginTop: 2,
                   }}>
                     {dropoff.city}
                   </div>
