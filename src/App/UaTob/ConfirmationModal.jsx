@@ -10,7 +10,6 @@ import { doc, deleteDoc, onSnapshot, getFirestore } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getMessaging, getToken } from 'firebase/messaging';
 import { firebase_app } from '@/firebase/config';
-import SearchingMap from '@/App/UaTob/SearchingMap';
 
 const db        = getFirestore(firebase_app);
 const functions = getFunctions(firebase_app, "us-east1");
@@ -19,7 +18,7 @@ const callableSaveRiderToken    = httpsCallable(functions, "saveRiderFcmToken");
 const callableCancelRide        = httpsCallable(functions, "cancelRide");
 const callableUpdateRiderPhone  = httpsCallable(functions, "updateRiderPhone");
 
-const VAPID_KEY       = "BJ_sRHZonSGCKk2mB2i9ofTRS8ouFVMV-I15FX4sqdUXHyVb1lo6H-N4GMPrlcIIshRlykQicaxkxxFxcYcI4JQ";
+const VAPID_KEY        = "BJ_sRHZonSGCKk2mB2i9ofTRS8ouFVMV-I15FX4sqdUXHyVb1lo6H-N4GMPrlcIIshRlykQicaxkxxFxcYcI4JQ";
 const SEARCH_LIMIT_SEC = 7 * 60;
 const PHONE_SKIP_KEY   = (rideId) => `uatob_phone_skipped_${rideId}`;
 
@@ -51,6 +50,82 @@ function formatUsPhone(raw) {
 
 function digitsOnly(s) { return String(s ?? "").replace(/\D/g, ""); }
 
+// ─── Radar SVG overlay (same logic as LiveMap) ────────────────────────────
+function RadarOverlay({ sweepAngle }) {
+  const toRad = deg => (deg * Math.PI) / 180;
+  const R = 55;
+  const trailAngle = sweepAngle;
+  const leadAngle  = (sweepAngle + 72) % 360;
+  const trailX = 50 + R * Math.cos(toRad(trailAngle));
+  const trailY = 50 + R * Math.sin(toRad(trailAngle));
+  const leadX  = 50 + R * Math.cos(toRad(leadAngle));
+  const leadY  = 50 + R * Math.sin(toRad(leadAngle));
+  const tipX   = 50 + 52 * Math.cos(toRad(leadAngle));
+  const tipY   = 50 + 52 * Math.sin(toRad(leadAngle));
+
+  return (
+    <svg
+      style={{
+        position: "absolute", inset: 0,
+        width: "100%", height: "100%",
+        pointerEvents: "none",
+        zIndex: 2,
+      }}
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
+    >
+      <defs>
+        <radialGradient id="cmSweepGrad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%"   stopColor="rgba(34,197,94,0.75)"/>
+          <stop offset="55%"  stopColor="rgba(34,197,94,0.22)"/>
+          <stop offset="100%" stopColor="rgba(34,197,94,0)"/>
+        </radialGradient>
+        <radialGradient id="cmVig" cx="50%" cy="50%" r="60%">
+          <stop offset="30%" stopColor="transparent"/>
+          <stop offset="100%" stopColor="rgba(0,0,0,0.72)"/>
+        </radialGradient>
+      </defs>
+
+      {/* Vignette to frame the map edges */}
+      <rect width="100" height="100" fill="url(#cmVig)"/>
+
+      {/* Dashed radar rings */}
+      {[14, 26, 38, 50].map((r, i) => (
+        <circle
+          key={i} cx="50" cy="50" r={r}
+          fill="none"
+          stroke="rgba(34,197,94,0.18)"
+          strokeWidth="0.3"
+          strokeDasharray="1.2 2.2"
+        />
+      ))}
+
+      {/* Sweep cone */}
+      <path
+        d={`M 50 50 L ${trailX} ${trailY} A ${R} ${R} 0 0 1 ${leadX} ${leadY} Z`}
+        fill="url(#cmSweepGrad)"
+        opacity="0.72"
+      />
+
+      {/* Leading-edge beam */}
+      <line
+        x1="50" y1="50" x2={leadX} y2={leadY}
+        stroke="#4ADE80" strokeWidth="0.55"
+        strokeLinecap="round" opacity="0.95"
+      />
+
+      {/* Flare dot at outermost ring */}
+      <circle cx={tipX} cy={tipY} r="1.3" fill="#4ADE80" opacity="0.95"/>
+      <circle cx={tipX} cy={tipY} r="2.4" fill="rgba(74,222,128,0.25)" opacity="0.9"/>
+
+      {/* Center crosshair */}
+      <line x1="47.5" y1="50" x2="52.5" y2="50" stroke="rgba(34,197,94,0.55)" strokeWidth="0.3"/>
+      <line x1="50" y1="47.5" x2="50" y2="52.5" stroke="rgba(34,197,94,0.55)" strokeWidth="0.3"/>
+      <circle cx="50" cy="50" r="0.9" fill="rgba(74,222,128,0.85)"/>
+    </svg>
+  );
+}
+
 // ─── Phone Capture Card ────────────────────────────────────────────────────
 function PhoneCaptureCard({ uid, onSkip, onSaved }) {
   const [value, setValue]     = useState("");
@@ -67,8 +142,7 @@ function PhoneCaptureCard({ uid, onSkip, onSaved }) {
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
-    setSaving(true);
-    setError("");
+    setSaving(true); setError("");
     try {
       const { data } = await callableUpdateRiderPhone({ uid, phone: digits });
       if (data?.success) { setSuccess(true); setTimeout(() => onSaved?.(data.phone), 900); }
@@ -118,8 +192,7 @@ function PhoneCaptureCard({ uid, onSkip, onSaved }) {
         width: 22, height: 22, borderRadius: "50%",
         border: "none", background: "rgba(255,255,255,0.07)",
         display: "flex", alignItems: "center", justifyContent: "center",
-        cursor: "pointer", color: "rgba(255,255,255,0.4)",
-        padding: 0,
+        cursor: "pointer", color: "rgba(255,255,255,0.4)", padding: 0,
       }}>
         <X size={11} strokeWidth={2.5}/>
       </button>
@@ -150,8 +223,7 @@ function PhoneCaptureCard({ uid, onSkip, onSaved }) {
             border: `1.5px solid ${error ? "rgba(239,68,68,0.5)" : "rgba(255,255,255,0.12)"}`,
             background: "rgba(255,255,255,0.05)",
             fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,.9)",
-            fontFamily: "inherit", outline: "none",
-            transition: "border-color .15s",
+            fontFamily: "inherit", outline: "none", transition: "border-color .15s",
           }}
         />
         <button onClick={handleSubmit} disabled={!canSubmit} style={{
@@ -206,7 +278,6 @@ function NotificationPopup({ notifLoading, notifError, onAllow, onSkip }) {
           boxShadow: "0 32px 80px rgba(0,0,0,.5)",
           animation: "notifCardIn .3s cubic-bezier(.34,1.46,.64,1) both",
         }}>
-          {/* Header */}
           <div style={{
             padding: "32px 24px 28px",
             background: hasError
@@ -225,7 +296,6 @@ function NotificationPopup({ notifLoading, notifError, onAllow, onSkip }) {
                 animation: `ringExpand 2.4s ease-out ${i * .8}s infinite`,
               }}/>
             ))}
-
             <div style={{
               position: "relative", zIndex: 1,
               width: 64, height: 64, borderRadius: "50%",
@@ -249,36 +319,18 @@ function NotificationPopup({ notifLoading, notifError, onAllow, onSkip }) {
                     />
               }
             </div>
-
-            <div style={{
-              position: "relative", zIndex: 1, marginTop: 16,
-              fontSize: 20, fontWeight: 900, color: "rgba(255,255,255,.95)",
-              letterSpacing: "-0.4px", textAlign: "center",
-            }}>
+            <div style={{ position: "relative", zIndex: 1, marginTop: 16, fontSize: 20, fontWeight: 900, color: "rgba(255,255,255,.95)", letterSpacing: "-0.4px", textAlign: "center" }}>
               {notifLoading ? "Connecting…" : hasError ? "Permission failed" : "Get notified instantly"}
             </div>
-            <div style={{
-              position: "relative", zIndex: 1, marginTop: 6,
-              fontSize: 13, color: "rgba(255,255,255,.45)", textAlign: "center",
-              lineHeight: 1.5, maxWidth: 240,
-            }}>
-              {notifLoading
-                ? "Registering your device…"
-                : hasError
-                  ? notifError || "We couldn't get permission. Try again."
-                  : "Know the second a driver accepts your ride."}
+            <div style={{ position: "relative", zIndex: 1, marginTop: 6, fontSize: 13, color: "rgba(255,255,255,.45)", textAlign: "center", lineHeight: 1.5, maxWidth: 240 }}>
+              {notifLoading ? "Registering your device…" : hasError ? notifError || "We couldn't get permission. Try again." : "Know the second a driver accepts your ride."}
             </div>
           </div>
-
-          {/* Body */}
           <div style={{ padding: "18px 20px 22px" }}>
             {notifLoading && (
               <div style={{ display: "flex", justifyContent: "center", gap: 7, marginBottom: 18 }}>
                 {[0,1,2].map(i => (
-                  <div key={i} style={{
-                    width: 7, height: 7, borderRadius: "50%", background: "#3B82F6",
-                    animation: `dotPulse 1.2s ease-in-out ${i * .2}s infinite`,
-                  }}/>
+                  <div key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: "#3B82F6", animation: `dotPulse 1.2s ease-in-out ${i * .2}s infinite` }}/>
                 ))}
               </div>
             )}
@@ -286,13 +338,10 @@ function NotificationPopup({ notifLoading, notifError, onAllow, onSkip }) {
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <button onClick={onAllow} style={{
                   width: "100%", padding: "13px 0", borderRadius: 12, border: "none",
-                  background: hasError
-                    ? "linear-gradient(135deg,#EF4444,#B91C1C)"
-                    : "linear-gradient(135deg,#3B82F6,#1D4ED8)",
+                  background: hasError ? "linear-gradient(135deg,#EF4444,#B91C1C)" : "linear-gradient(135deg,#3B82F6,#1D4ED8)",
                   color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
                   boxShadow: hasError ? "0 4px 16px rgba(239,68,68,.3)" : "0 4px 16px rgba(37,99,235,.3)",
-                  transition: "filter .15s, transform .15s",
                 }}>
                   {hasError ? <><RotateCcw size={14}/> Try again</> : <><Bell size={14}/> Allow notifications</>}
                 </button>
@@ -301,7 +350,6 @@ function NotificationPopup({ notifLoading, notifError, onAllow, onSkip }) {
                   border: "1px solid rgba(255,255,255,0.08)",
                   background: "rgba(255,255,255,0.04)",
                   color: "rgba(255,255,255,.4)", fontSize: 13, fontWeight: 600, cursor: "pointer",
-                  transition: "all .12s",
                 }}>
                   {hasError ? "Dismiss" : "Not now"}
                 </button>
@@ -316,11 +364,11 @@ function NotificationPopup({ notifLoading, notifError, onAllow, onSkip }) {
 
 // ─── Main Modal ────────────────────────────────────────────────────────────
 export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry, onCancel, rides }) {
-  const [status, setStatus]           = useState('checking_payment');
-  const [secondsLeft, setSecondsLeft] = useState(0);
-  const [driver, setDriver]           = useState(null);
-  const [visible, setVisible]         = useState(false);
-  const [liveRide, setLiveRide]       = useState(null);
+  const [status, setStatus]               = useState('checking_payment');
+  const [secondsLeft, setSecondsLeft]     = useState(0);
+  const [driver, setDriver]               = useState(null);
+  const [visible, setVisible]             = useState(false);
+  const [liveRide, setLiveRide]           = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [cancelLoading, setCancelLoading] = useState(false);
   const [cancelError, setCancelError]     = useState('');
@@ -332,16 +380,16 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
   const [phoneSkipped, setPhoneSkipped]     = useState(false);
   const [mapReady, setMapReady]             = useState(false);
 
-  const timerRef         = useRef(null);
-  const closeTimeoutRef  = useRef(null);
-  const mountedRef       = useRef(true);
-  const lastRideIdRef    = useRef(null);
-  const unsubRef         = useRef(null);
-  const accountUnsubRef  = useRef(null);
+  const timerRef          = useRef(null);
+  const closeTimeoutRef   = useRef(null);
+  const mountedRef        = useRef(true);
+  const lastRideIdRef     = useRef(null);
+  const unsubRef          = useRef(null);
+  const accountUnsubRef   = useRef(null);
   const notifRequestedRef = useRef(false);
-  const didTimeoutRef    = useRef(false);
-  const mapContainerRef  = useRef(null);
-  const mapRef           = useRef(null);
+  const didTimeoutRef     = useRef(false);
+  const mapContainerRef   = useRef(null);
+  const mapRef            = useRef(null);
 
   const seedRide = useMemo(() => {
     if (!rides?.length) return null;
@@ -354,6 +402,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
   const rideId      = currentRide?.id ?? null;
   const riderUid    = currentRide?.uid ?? null;
 
+  // Mount / unmount
   useEffect(() => {
     mountedRef.current = true;
     const t = setTimeout(() => { if (mountedRef.current) setVisible(true); }, 30);
@@ -367,7 +416,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
     };
   }, []);
 
-  // Radar sweep during searching
+  // ── Radar sweep — runs during searching ──────────────────────────────────
   useEffect(() => {
     if (status !== 'searching') return;
     let angle = 0;
@@ -375,6 +424,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
     return () => clearInterval(id);
   }, [status]);
 
+  // Ride snapshot
   useEffect(() => {
     if (!rideId || rideId === lastRideIdRef.current) return;
     lastRideIdRef.current = rideId;
@@ -385,6 +435,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
     }, err => console.warn('[ConfirmationModal] snapshot error:', err));
   }, [rideId]);
 
+  // Account snapshot
   useEffect(() => {
     if (!riderUid) return;
     try { accountUnsubRef.current?.(); } catch {}
@@ -397,17 +448,20 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
     return () => { try { accountUnsubRef.current?.(); } catch {} };
   }, [riderUid]);
 
+  // Phone skip flag
   useEffect(() => {
     if (!rideId) { setPhoneSkipped(false); return; }
     try { setPhoneSkipped(sessionStorage.getItem(PHONE_SKIP_KEY(rideId)) === "1"); }
     catch { setPhoneSkipped(false); }
   }, [rideId]);
 
+  // Status machine
   useEffect(() => {
     if (!currentRide) return;
     const s = currentRide.status;
-    if (s === 'pending_payment') { setStatus('checking_payment'); }
-    else if (s === 'searching_driver' || s === 'searching') {
+    if (s === 'pending_payment') {
+      setStatus('checking_payment');
+    } else if (s === 'searching_driver' || s === 'searching') {
       if (status === 'timeout') { didTimeoutRef.current = false; setStatus('searching'); setDriver(null); }
       else if (!didTimeoutRef.current) { setStatus('searching'); setDriver(null); }
     } else if (s === 'driver_assigned') {
@@ -420,6 +474,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
     }
   }, [currentRide]);
 
+  // Countdown timer
   useEffect(() => {
     if (status !== 'searching') { clearInterval(timerRef.current); timerRef.current = null; return; }
     const update = () => {
@@ -437,12 +492,14 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
     return () => { clearInterval(timerRef.current); timerRef.current = null; };
   }, [status, currentRide?.expiresAt]);
 
+  // Auto-close on assigned
   useEffect(() => {
     if (status !== 'assigned') return;
     const t = setTimeout(() => { if (mountedRef.current) handleClose(); }, 1800);
     return () => clearTimeout(t);
   }, [status]);
 
+  // Notification prompt
   useEffect(() => {
     if (status !== 'searching' || notifRequestedRef.current || !("Notification" in window)) return;
     if (window.Notification.permission === "default") {
@@ -489,12 +546,14 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
       });
     };
 
-    return () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; setMapReady(false); } };
+    return () => {
+      if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; setMapReady(false); }
+    };
   }, [visible]);
 
-  const total  = useMemo(() => { const v = Number(currentRide?.fareTotal ?? 0); return Number.isFinite(v) ? v.toFixed(2) : '0.00'; }, [currentRide]);
-  const miles  = useMemo(() => { const v = Number(currentRide?.tripDistanceMiles ?? 0); return Number.isFinite(v) ? v.toFixed(1) : '0.0'; }, [currentRide]);
-
+  // Derived values
+  const total    = useMemo(() => { const v = Number(currentRide?.fareTotal ?? 0); return Number.isFinite(v) ? v.toFixed(2) : '0.00'; }, [currentRide]);
+  const miles    = useMemo(() => { const v = Number(currentRide?.tripDistanceMiles ?? 0); return Number.isFinite(v) ? v.toFixed(1) : '0.0'; }, [currentRide]);
   const progress = useMemo(() => {
     if (!currentRide?.createdAt) return 0;
     const ms = currentRide.createdAt instanceof Date
@@ -504,11 +563,11 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
     return (Math.min(SEARCH_LIMIT_SEC, Math.floor((Date.now() - ms) / 1000)) / SEARCH_LIMIT_SEC) * 100;
   }, [currentRide?.createdAt, secondsLeft]);
 
-  const minutes  = Math.floor(secondsLeft / 60);
-  const seconds  = secondsLeft % 60;
-  const isUrgent = secondsLeft < 60;
-  const pickup   = currentRide?.pickup  ?? '—';
-  const dropoff  = currentRide?.dropoff ?? '—';
+  const minutes   = Math.floor(secondsLeft / 60);
+  const seconds   = secondsLeft % 60;
+  const isUrgent  = secondsLeft < 60;
+  const pickup    = currentRide?.pickup  ?? '—';
+  const dropoff   = currentRide?.dropoff ?? '—';
   const rideLabel = currentRide?.rideLabel ?? currentRide?.rideType ?? 'Ride';
 
   const shouldShowPhoneCapture =
@@ -558,13 +617,12 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
   return (
     <>
       <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes slideUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
-        @keyframes fadeIn  { from { opacity:0; } to { opacity:1; } }
+        @keyframes spin        { to { transform: rotate(360deg); } }
+        @keyframes slideUp     { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
+        @keyframes fadeIn      { from { opacity:0; } to { opacity:1; } }
         @keyframes assignedPop { 0%{transform:scale(.8);opacity:0} 60%{transform:scale(1.08)} 100%{transform:scale(1);opacity:1} }
-        @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
-        @keyframes timerBeat { 0%,100%{transform:scale(1)} 50%{transform:scale(1.025)} }
-        @keyframes routeFlow { to { stroke-dashoffset: -40; } }
+        @keyframes shimmer     { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+        @keyframes timerBeat   { 0%,100%{transform:scale(1)} 50%{transform:scale(1.025)} }
       `}</style>
 
       <div style={{
@@ -574,29 +632,37 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
         pointerEvents: visible ? "auto" : "none",
       }}>
 
-        {/* Live Mapbox BG */}
+        {/* ── Full-screen Mapbox background ── */}
         <div ref={mapContainerRef} style={{ position: "absolute", inset: 0 }}/>
 
-        {/* Dark scrim over map */}
+        {/* ── Radar sweep — only during searching, only when map is ready ── */}
+        {mapReady && status === 'searching' && (
+          <RadarOverlay sweepAngle={sweepAngle}/>
+        )}
+
+        {/* ── Dark gradient scrim (sits above radar, below sheet) ── */}
         <div style={{
-          position: "absolute", inset: 0,
-          background: "linear-gradient(to bottom, rgba(0,0,0,.25) 0%, rgba(0,0,0,.1) 40%, rgba(0,0,0,.7) 100%)",
+          position: "absolute", inset: 0, zIndex: 3,
+          background: "linear-gradient(to bottom, rgba(0,0,0,.18) 0%, rgba(0,0,0,.05) 35%, rgba(0,0,0,.65) 100%)",
           pointerEvents: "none",
         }}/>
 
         {showNotifPopup && (
-          <NotificationPopup
-            notifLoading={notifLoading}
-            notifError={notifError}
-            onAllow={handleEnableNotifications}
-            onSkip={() => { setShowNotifPopup(false); setNotifError(""); }}
-          />
+          <div style={{ position: "relative", zIndex: 1060 }}>
+            <NotificationPopup
+              notifLoading={notifLoading}
+              notifError={notifError}
+              onAllow={handleEnableNotifications}
+              onSkip={() => { setShowNotifPopup(false); setNotifError(""); }}
+            />
+          </div>
         )}
 
-        {/* ── Sheet container ── */}
+        {/* ── Bottom sheet ── */}
         <div style={{
           position: "absolute", bottom: 0, left: 0, right: 0,
           display: "flex", justifyContent: "center", alignItems: "flex-end",
+          zIndex: 10,
         }}>
           <div style={{
             width: "100%", maxWidth: 440,
@@ -612,9 +678,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
           }}>
 
             {/* Drag handle */}
-            <div style={{
-              display: "flex", justifyContent: "center", paddingTop: 12, paddingBottom: 4,
-            }}>
+            <div style={{ display: "flex", justifyContent: "center", paddingTop: 12, paddingBottom: 4 }}>
               <div style={{ width: 36, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.15)" }}/>
             </div>
 
@@ -650,11 +714,10 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
             {/* ══ SEARCHING ════════════════════════════════════════════ */}
             {status === 'searching' && (
               <div>
-                {/* Urgency progress bar at top */}
+                {/* Urgency strip */}
                 <div style={{ height: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
                   <div style={{
-                    height: "100%",
-                    width: `${100 - progress}%`,
+                    height: "100%", width: `${100 - progress}%`,
                     background: isUrgent
                       ? "linear-gradient(90deg,#F59E0B,#EF4444)"
                       : "linear-gradient(90deg,#22C55E,#16A34A)",
@@ -665,7 +728,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
 
                 <div style={{ padding: "20px 22px 28px" }}>
 
-                  {/* Timer — the hero element */}
+                  {/* Timer hero */}
                   <div style={{
                     background: isUrgent
                       ? "linear-gradient(135deg,rgba(239,68,68,0.12),rgba(185,28,28,0.08))"
@@ -675,7 +738,6 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                     marginBottom: 16, position: "relative", overflow: "hidden",
                     animation: isUrgent ? "timerBeat 1s ease-in-out infinite" : "none",
                   }}>
-                    {/* Background shimmer */}
                     <div style={{
                       position: "absolute", inset: 0,
                       background: "linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.025) 50%, transparent 60%)",
@@ -683,22 +745,18 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                       animation: "shimmer 3s linear infinite",
                       pointerEvents: "none",
                     }}/>
-
                     <div style={{ position: "relative" }}>
                       <div style={{
                         fontSize: 10, fontWeight: 800, letterSpacing: ".16em",
                         textTransform: "uppercase",
                         color: isUrgent ? "rgba(252,165,165,.7)" : "rgba(134,239,172,.7)",
-                        marginBottom: 6,
-                        fontFamily: "monospace",
+                        marginBottom: 6, fontFamily: "monospace",
                       }}>
                         {isUrgent ? "⚡ Almost out of time" : "Searching for driver"}
                       </div>
-
                       <div style={{
                         fontFamily: '"JetBrains Mono", "Courier New", monospace',
-                        fontSize: 52, fontWeight: 700, lineHeight: 1,
-                        letterSpacing: "-4px",
+                        fontSize: 52, fontWeight: 700, lineHeight: 1, letterSpacing: "-4px",
                         color: isUrgent ? "#EF4444" : "#22C55E",
                         marginBottom: 12,
                       }}>
@@ -706,14 +764,10 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                         <span style={{ opacity: 0.5, animation: "timerBeat .5s ease-in-out infinite" }}>:</span>
                         {String(seconds).padStart(2, '0')}
                       </div>
-
-                      {/* Inner progress */}
                       <div style={{ height: 4, borderRadius: 100, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
                         <div style={{
                           height: "100%", width: `${progress}%`,
-                          background: isUrgent
-                            ? "linear-gradient(90deg,#F59E0B,#EF4444)"
-                            : "linear-gradient(90deg,#22C55E,#16A34A)",
+                          background: isUrgent ? "linear-gradient(90deg,#F59E0B,#EF4444)" : "linear-gradient(90deg,#22C55E,#16A34A)",
                           borderRadius: 100, transition: "width 1s linear",
                           boxShadow: isUrgent ? "0 0 6px rgba(239,68,68,.5)" : "0 0 6px rgba(34,197,94,.4)",
                         }}/>
@@ -725,43 +779,19 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                   <div style={{
                     background: "rgba(255,255,255,0.04)",
                     border: "1px solid rgba(255,255,255,0.08)",
-                    borderRadius: 14, padding: "13px 14px",
-                    marginBottom: 12,
+                    borderRadius: 14, padding: "13px 14px", marginBottom: 12,
                   }}>
                     <div style={{ display: "flex", gap: 12, alignItems: "stretch" }}>
-                      {/* Route line */}
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 3, flexShrink: 0 }}>
-                        <div style={{
-                          width: 8, height: 8, borderRadius: "50%",
-                          background: "#60A5FA",
-                          boxShadow: "0 0 6px rgba(96,165,250,0.6)",
-                        }}/>
-                        <div style={{
-                          width: 1, flex: 1, minHeight: 14,
-                          background: "linear-gradient(to bottom, rgba(96,165,250,0.4), rgba(34,197,94,0.4))",
-                          margin: "3px 0",
-                        }}/>
-                        <div style={{
-                          width: 8, height: 8, borderRadius: 2,
-                          background: "#22C55E",
-                          transform: "rotate(45deg)",
-                          boxShadow: "0 0 6px rgba(34,197,94,0.6)",
-                        }}/>
+                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#60A5FA", boxShadow: "0 0 6px rgba(96,165,250,0.6)" }}/>
+                        <div style={{ width: 1, flex: 1, minHeight: 14, background: "linear-gradient(to bottom, rgba(96,165,250,0.4), rgba(34,197,94,0.4))", margin: "3px 0" }}/>
+                        <div style={{ width: 8, height: 8, borderRadius: 2, background: "#22C55E", transform: "rotate(45deg)", boxShadow: "0 0 6px rgba(34,197,94,0.6)" }}/>
                       </div>
-
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{
-                          fontSize: 12, fontWeight: 700,
-                          color: "rgba(255,255,255,.85)", marginBottom: 8,
-                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                        }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,.85)", marginBottom: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {pickup}
                         </div>
-                        <div style={{
-                          fontSize: 12, fontWeight: 700,
-                          color: "rgba(255,255,255,.6)",
-                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                        }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,.6)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {dropoff}
                         </div>
                       </div>
@@ -774,7 +804,6 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                     background: "rgba(255,255,255,0.03)",
                     border: "1px solid rgba(255,255,255,0.07)",
                     borderRadius: 12, padding: "10px 14px",
-                    marginBottom: shouldShowPhoneCapture ? 0 : 0,
                   }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <div style={{
@@ -786,28 +815,17 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                         <Shield size={12} color="#22C55E" strokeWidth={2.2}/>
                       </div>
                       <div>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,.7)" }}>
-                          {rideLabel}
-                        </div>
-                        <div style={{ fontSize: 10, color: "rgba(255,255,255,.3)" }}>
-                          {miles} mi · fare locked
-                        </div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,.7)" }}>{rideLabel}</div>
+                        <div style={{ fontSize: 10, color: "rgba(255,255,255,.3)" }}>{miles} mi · fare locked</div>
                       </div>
                     </div>
-                    <div style={{
-                      fontFamily: '"JetBrains Mono", monospace',
-                      fontSize: 16, fontWeight: 700, color: "#22C55E",
-                    }}>
+                    <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 16, fontWeight: 700, color: "#22C55E" }}>
                       ${total}
                     </div>
                   </div>
 
                   {shouldShowPhoneCapture && (
-                    <PhoneCaptureCard
-                      uid={riderUid}
-                      onSkip={handleSkipPhone}
-                      onSaved={(p) => setAccountPhone(p)}
-                    />
+                    <PhoneCaptureCard uid={riderUid} onSkip={handleSkipPhone} onSaved={(p) => setAccountPhone(p)}/>
                   )}
 
                   {/* Cancel */}
@@ -818,7 +836,6 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                     color: "rgba(255,255,255,.3)", fontSize: 13, fontWeight: 600,
                     cursor: cancelLoading ? "not-allowed" : "pointer",
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                    transition: "color .15s",
                   }}>
                     {cancelLoading
                       ? <><Loader2 size={13} style={{ animation: "spin 1s linear infinite" }}/> Cancelling…</>
@@ -826,9 +843,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                     }
                   </button>
                   {cancelError && (
-                    <div style={{ marginTop: 8, fontSize: 11, color: "#FCA5A5", textAlign: "center" }}>
-                      {cancelError}
-                    </div>
+                    <div style={{ marginTop: 8, fontSize: 11, color: "#FCA5A5", textAlign: "center" }}>{cancelError}</div>
                   )}
                 </div>
               </div>
@@ -837,8 +852,6 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
             {/* ══ ASSIGNED ═════════════════════════════════════════════ */}
             {status === 'assigned' && (
               <div style={{ padding: "20px 22px 32px" }}>
-
-                {/* Green hero */}
                 <div style={{
                   background: "linear-gradient(135deg,rgba(34,197,94,0.14),rgba(21,128,61,0.08))",
                   border: "1px solid rgba(34,197,94,0.25)",
@@ -857,10 +870,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                   }}>
                     <CheckCircle size={30} color="#22C55E" strokeWidth={2}/>
                   </div>
-                  <div style={{
-                    fontSize: 22, fontWeight: 900, color: "#22C55E",
-                    letterSpacing: "-0.5px", marginBottom: 5,
-                  }}>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: "#22C55E", letterSpacing: "-0.5px", marginBottom: 5 }}>
                     Driver matched!
                   </div>
                   <div style={{ fontSize: 13, color: "rgba(134,239,172,.65)", fontWeight: 500 }}>
@@ -868,14 +878,11 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                   </div>
                 </div>
 
-                {/* Driver info */}
                 {driver && (
                   <div style={{
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.08)",
+                    background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
                     borderRadius: 14, padding: "13px 14px",
-                    display: "flex", alignItems: "center", gap: 12,
-                    marginBottom: 12,
+                    display: "flex", alignItems: "center", gap: 12, marginBottom: 12,
                     animation: "slideUp .4s cubic-bezier(.34,1.2,.64,1) .15s both",
                   }}>
                     <div style={{
@@ -888,19 +895,15 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                       {driver.name?.[0] ?? '?'}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,.9)" }}>
-                        {driver.name || 'Driver'}
-                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,.9)" }}>{driver.name || 'Driver'}</div>
                       <div style={{ fontSize: 11, color: "rgba(255,255,255,.4)", marginTop: 2 }}>
                         {driver.vehicle || 'Vehicle'} · {driver.plate || 'Plate pending'}
                       </div>
                     </div>
                     {driver.rating && (
                       <div style={{
-                        background: "rgba(251,146,60,0.15)",
-                        border: "1px solid rgba(251,146,60,0.3)",
-                        borderRadius: 8, padding: "4px 9px",
-                        fontSize: 12, fontWeight: 800, color: "#FED7AA",
+                        background: "rgba(251,146,60,0.15)", border: "1px solid rgba(251,146,60,0.3)",
+                        borderRadius: 8, padding: "4px 9px", fontSize: 12, fontWeight: 800, color: "#FED7AA",
                       }}>
                         ★ {driver.rating}
                       </div>
@@ -908,11 +911,9 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                   </div>
                 )}
 
-                {/* Fare */}
                 <div style={{
                   display: "flex", alignItems: "center", justifyContent: "space-between",
-                  background: "rgba(34,197,94,0.07)",
-                  border: "1px solid rgba(34,197,94,0.18)",
+                  background: "rgba(34,197,94,0.07)", border: "1px solid rgba(34,197,94,0.18)",
                   borderRadius: 12, padding: "11px 14px", marginBottom: 16,
                   animation: "slideUp .4s cubic-bezier(.34,1.2,.64,1) .22s both",
                 }}>
@@ -920,14 +921,9 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                     <div style={{ fontSize: 10, fontWeight: 800, color: "rgba(134,239,172,.6)", letterSpacing: ".1em", textTransform: "uppercase" }}>
                       Confirmed fare
                     </div>
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,.4)", marginTop: 2 }}>
-                      {rideLabel} · {miles} mi
-                    </div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,.4)", marginTop: 2 }}>{rideLabel} · {miles} mi</div>
                   </div>
-                  <div style={{
-                    fontFamily: '"JetBrains Mono", monospace',
-                    fontSize: 22, fontWeight: 700, color: "#22C55E",
-                  }}>
+                  <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 22, fontWeight: 700, color: "#22C55E" }}>
                     ${total}
                   </div>
                 </div>
@@ -938,7 +934,6 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                   color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer",
                   boxShadow: "0 4px 20px rgba(34,197,94,.35)",
                   animation: "slideUp .4s cubic-bezier(.34,1.2,.64,1) .3s both",
-                  transition: "filter .15s",
                 }}>
                   Track My Ride
                 </button>
@@ -948,7 +943,6 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
             {/* ══ TIMEOUT ══════════════════════════════════════════════ */}
             {status === 'timeout' && (
               <div style={{ padding: "20px 22px 32px" }}>
-
                 <div style={{
                   background: "linear-gradient(135deg,rgba(239,68,68,0.12),rgba(185,28,28,0.08))",
                   border: "1px solid rgba(239,68,68,0.2)",
@@ -975,10 +969,8 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                   </div>
                 </div>
 
-                {/* Route recap */}
                 <div style={{
-                  background: "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(255,255,255,0.07)",
+                  background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)",
                   borderRadius: 14, padding: "13px 14px", marginBottom: 16,
                 }}>
                   <div style={{ display: "flex", gap: 12, alignItems: "stretch" }}>
@@ -999,8 +991,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                       flexShrink: 0, alignSelf: "center",
                       fontFamily: '"JetBrains Mono", monospace',
                       fontSize: 13, fontWeight: 700, color: "#22C55E",
-                      background: "rgba(34,197,94,0.1)",
-                      border: "1px solid rgba(34,197,94,0.2)",
+                      background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.2)",
                       borderRadius: 8, padding: "4px 9px",
                     }}>
                       ${total}
@@ -1008,51 +999,34 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                   </div>
                 </div>
 
-                <div style={{
-                  fontSize: 10, fontWeight: 800, letterSpacing: ".14em",
-                  textTransform: "uppercase", color: "rgba(255,255,255,.25)",
-                  marginBottom: 10,
-                }}>
+                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".14em", textTransform: "uppercase", color: "rgba(255,255,255,.25)", marginBottom: 10 }}>
                   What would you like to do?
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <button
-                    onClick={handleWaitMore}
-                    disabled={actionLoading || cancelLoading}
-                    style={{
-                      width: "100%", padding: "14px 0", borderRadius: 13, border: "none",
-                      background: actionLoading || cancelLoading
-                        ? "rgba(34,197,94,0.2)"
-                        : "linear-gradient(135deg,#22C55E,#15803D)",
-                      color: "#fff", fontSize: 14, fontWeight: 800,
-                      cursor: actionLoading || cancelLoading ? "not-allowed" : "pointer",
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
-                      boxShadow: actionLoading || cancelLoading ? "none" : "0 4px 16px rgba(34,197,94,.3)",
-                      opacity: actionLoading || cancelLoading ? 0.65 : 1,
-                      transition: "all .15s",
-                    }}
-                  >
+                  <button onClick={handleWaitMore} disabled={actionLoading || cancelLoading} style={{
+                    width: "100%", padding: "14px 0", borderRadius: 13, border: "none",
+                    background: actionLoading || cancelLoading ? "rgba(34,197,94,0.2)" : "linear-gradient(135deg,#22C55E,#15803D)",
+                    color: "#fff", fontSize: 14, fontWeight: 800,
+                    cursor: actionLoading || cancelLoading ? "not-allowed" : "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+                    boxShadow: actionLoading || cancelLoading ? "none" : "0 4px 16px rgba(34,197,94,.3)",
+                    opacity: actionLoading || cancelLoading ? 0.65 : 1, transition: "all .15s",
+                  }}>
                     {actionLoading
                       ? <><Loader2 size={15} style={{ animation: "spin 1s linear infinite" }}/> Extending search…</>
                       : <><RotateCcw size={15} strokeWidth={2.5}/> Keep searching</>
                     }
                   </button>
-
-                  <button
-                    onClick={handleCancelRide}
-                    disabled={actionLoading || cancelLoading}
-                    style={{
-                      width: "100%", padding: "13px 0", borderRadius: 13,
-                      border: "1px solid rgba(255,255,255,0.09)",
-                      background: "rgba(255,255,255,0.04)",
-                      color: "rgba(255,255,255,.4)", fontSize: 13, fontWeight: 600,
-                      cursor: actionLoading || cancelLoading ? "not-allowed" : "pointer",
-                      opacity: actionLoading || cancelLoading ? 0.5 : 1,
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                      transition: "all .12s",
-                    }}
-                  >
+                  <button onClick={handleCancelRide} disabled={actionLoading || cancelLoading} style={{
+                    width: "100%", padding: "13px 0", borderRadius: 13,
+                    border: "1px solid rgba(255,255,255,0.09)",
+                    background: "rgba(255,255,255,0.04)",
+                    color: "rgba(255,255,255,.4)", fontSize: 13, fontWeight: 600,
+                    cursor: actionLoading || cancelLoading ? "not-allowed" : "pointer",
+                    opacity: actionLoading || cancelLoading ? 0.5 : 1,
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  }}>
                     {cancelLoading
                       ? <><Loader2 size={13} style={{ animation: "spin 1s linear infinite" }}/> Cancelling…</>
                       : "Cancel this ride"
@@ -1060,9 +1034,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                   </button>
                 </div>
                 {cancelError && (
-                  <div style={{ marginTop: 10, fontSize: 11, color: "#FCA5A5", textAlign: "center" }}>
-                    {cancelError}
-                  </div>
+                  <div style={{ marginTop: 10, fontSize: 11, color: "#FCA5A5", textAlign: "center" }}>{cancelError}</div>
                 )}
               </div>
             )}
