@@ -6,6 +6,7 @@ import { doc, deleteDoc, onSnapshot, getFirestore } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getMessaging, getToken } from 'firebase/messaging';
 import { firebase_app } from '@/firebase/config';
+import SearchingMap from '@/App/UaTob/SearchingMap';
 
 const db = getFirestore(firebase_app);
 const functions = getFunctions(firebase_app, "us-east1");
@@ -47,197 +48,6 @@ function formatUsPhone(raw) {
 
 function digitsOnly(s) {
   return String(s ?? "").replace(/\D/g, "");
-}
-
-// ─── NEW: Ride Search Radar ─────────────────────────────────────────────
-// A live "scanning for drivers" radar with sweeping beam, concentric grid,
-// and floating driver silhouettes that fade in/out at the perimeter.
-function RideSearchRadar({ isUrgent }) {
-  const [sweepAngle, setSweepAngle] = useState(0);
-
-  useEffect(() => {
-    let raf;
-    let last = performance.now();
-    let angle = 0;
-    const tick = (now) => {
-      const dt = now - last;
-      last = now;
-      // ~360° per 4 seconds → 90°/sec, scaled by dt
-      angle = (angle + (dt * 0.09)) % 360;
-      setSweepAngle(angle);
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  const accent  = isUrgent ? "#EF4444" : "#16A34A";
-  const accent2 = isUrgent ? "#F59E0B" : "#22C55E";
-  const ringRGB = isUrgent ? "239,68,68" : "22,163,74";
-
-  // Sweep geometry (SVG viewBox 0 0 200 200, center 100,100)
-  const toRad = (deg) => (deg * Math.PI) / 180;
-  const R = 92;
-  const trailAng = sweepAngle;
-  const leadAng  = (sweepAngle + 60) % 360;
-  const trailX = 100 + R * Math.cos(toRad(trailAng));
-  const trailY = 100 + R * Math.sin(toRad(trailAng));
-  const leadX  = 100 + R * Math.cos(toRad(leadAng));
-  const leadY  = 100 + R * Math.sin(toRad(leadAng));
-  const tipX   = 100 + 88 * Math.cos(toRad(leadAng));
-  const tipY   = 100 + 88 * Math.sin(toRad(leadAng));
-
-  // Driver silhouettes around perimeter — each pulses on its own phase
-  const driverPositions = [
-    { angle: 25,  r: 70, delay: 0.0 },
-    { angle: 115, r: 76, delay: 0.6 },
-    { angle: 200, r: 68, delay: 1.1 },
-    { angle: 295, r: 78, delay: 1.6 },
-  ];
-
-  return (
-    <div style={{
-      position: 'relative',
-      width: 152, height: 152,
-      margin: '0 auto 18px',
-    }}>
-      <style>{`
-        @keyframes radarExpand {
-          0%   { transform: scale(.5);  opacity: .85; }
-          100% { transform: scale(2.2); opacity: 0;   }
-        }
-        @keyframes radarDriverPulse {
-          0%, 100% { opacity: .25; transform: scale(.85); }
-          50%      { opacity: 1;    transform: scale(1.1); }
-        }
-        @keyframes radarCenterPulse {
-          0%, 100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(${ringRGB},.5); }
-          50%      { transform: scale(1.06); box-shadow: 0 0 0 10px rgba(${ringRGB},0); }
-        }
-      `}</style>
-
-      {/* Expanding pulse rings (behind everything) */}
-      {[0, 1, 2].map((i) => (
-        <div key={i} style={{
-          position: 'absolute', inset: 0,
-          borderRadius: '50%',
-          border: `1.5px solid rgba(${ringRGB},.35)`,
-          animation: `radarExpand 3s ease-out ${i * 1}s infinite`,
-          pointerEvents: 'none',
-        }}/>
-      ))}
-
-      {/* SVG radar canvas */}
-      <svg
-        viewBox="0 0 200 200"
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
-      >
-        <defs>
-          {/* Sweep beam gradient */}
-          <radialGradient id="radarSweep" cx="50%" cy="50%" r="50%">
-            <stop offset="0%"   stopColor={accent}  stopOpacity="0"/>
-            <stop offset="40%"  stopColor={accent}  stopOpacity=".25"/>
-            <stop offset="100%" stopColor={accent2} stopOpacity=".75"/>
-          </radialGradient>
-
-          {/* Disc background */}
-          <radialGradient id="radarDisc" cx="50%" cy="50%" r="50%">
-            <stop offset="0%"   stopColor={accent} stopOpacity=".10"/>
-            <stop offset="60%"  stopColor={accent} stopOpacity=".04"/>
-            <stop offset="100%" stopColor={accent} stopOpacity="0"/>
-          </radialGradient>
-
-          {/* Subtle disc tint */}
-          <linearGradient id="radarTint" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%"   stopColor="#FAFAFA"/>
-            <stop offset="100%" stopColor="#F3F4F6"/>
-          </linearGradient>
-        </defs>
-
-        {/* Disc background */}
-        <circle cx="100" cy="100" r="94" fill="url(#radarTint)" />
-        <circle cx="100" cy="100" r="94" fill="url(#radarDisc)" />
-
-        {/* Concentric grid rings */}
-        {[30, 55, 80].map((r) => (
-          <circle
-            key={r}
-            cx="100" cy="100" r={r}
-            fill="none"
-            stroke={`rgba(${ringRGB},.18)`}
-            strokeWidth="0.6"
-            strokeDasharray="2 3"
-          />
-        ))}
-
-        {/* Cross hairs */}
-        <line x1="100" y1="6"  x2="100" y2="194" stroke={`rgba(${ringRGB},.12)`} strokeWidth="0.5"/>
-        <line x1="6"   y1="100" x2="194" y2="100" stroke={`rgba(${ringRGB},.12)`} strokeWidth="0.5"/>
-
-        {/* Sweep wedge */}
-        <path
-          d={`M 100 100 L ${trailX} ${trailY} A ${R} ${R} 0 0 1 ${leadX} ${leadY} Z`}
-          fill="url(#radarSweep)"
-          opacity="0.85"
-        />
-
-        {/* Leading beam line */}
-        <line
-          x1="100" y1="100" x2={leadX} y2={leadY}
-          stroke={accent}
-          strokeWidth="1.2"
-          strokeLinecap="round"
-          opacity="0.95"
-        />
-
-        {/* Tip flare */}
-        <circle cx={tipX} cy={tipY} r="2.6" fill={accent2} opacity="0.95"/>
-        <circle cx={tipX} cy={tipY} r="5"   fill={accent}  opacity="0.20"/>
-
-        {/* Outer border ring */}
-        <circle cx="100" cy="100" r="94" fill="none" stroke={`rgba(${ringRGB},.5)`} strokeWidth="1.5"/>
-      </svg>
-
-      {/* Driver silhouettes drifting at the perimeter */}
-      {driverPositions.map((p, i) => {
-        const px = 76 + p.r * Math.cos(toRad(p.angle)) * (152 / 200) - 12;
-        const py = 76 + p.r * Math.sin(toRad(p.angle)) * (152 / 200) - 12;
-        return (
-          <div key={i} style={{
-            position: 'absolute',
-            left: px, top: py,
-            width: 24, height: 24,
-            borderRadius: '50%',
-            background: '#fff',
-            border: `1.5px solid rgba(${ringRGB},.4)`,
-            boxShadow: `0 2px 6px rgba(${ringRGB},.15)`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            animation: `radarDriverPulse 2.4s ease-in-out ${p.delay}s infinite`,
-            zIndex: 2,
-          }}>
-            <Car size={11} color={accent} strokeWidth={2.2}/>
-          </div>
-        );
-      })}
-
-      {/* Center "you are here" pin */}
-      <div style={{
-        position: 'absolute',
-        top: '50%', left: '50%',
-        transform: 'translate(-50%, -50%)',
-        width: 44, height: 44,
-        borderRadius: '50%',
-        background: `linear-gradient(135deg, ${accent2}, ${accent})`,
-        border: '3px solid #fff',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        boxShadow: `0 4px 14px rgba(${ringRGB},.45)`,
-        animation: 'radarCenterPulse 2s ease-in-out infinite',
-        zIndex: 3,
-      }}>
-        <Navigation size={18} color="#fff" strokeWidth={2.4} style={{ marginTop: -1 }}/>
-      </div>
-    </div>
-  );
 }
 
 // ─── Phone Capture Card (inline, shows during searching) ────────────────────
@@ -605,6 +415,7 @@ export default function ConfirmationModal({
   const [showNotifPopup, setShowNotifPopup] = useState(false);
   const [notifLoading, setNotifLoading] = useState(false);
   const [notifError, setNotifError] = useState("");
+  const [sweepAngle, setSweepAngle] = useState(0);
 
   const [accountPhone, setAccountPhone] = useState(null);
   const [phoneSkipped, setPhoneSkipped] = useState(false);
@@ -641,6 +452,17 @@ export default function ConfirmationModal({
       try { accountUnsubRef.current?.(); } catch {}
     };
   }, []);
+
+  // ── Radar sweep animation during searching ────────────────────────────────
+  useEffect(() => {
+    if (status !== 'searching') return;
+    let angle = 0;
+    const id = setInterval(() => {
+      angle = (angle + 2) % 360;
+      setSweepAngle(angle);
+    }, 30);
+    return () => clearInterval(id);
+  }, [status]);
 
   useEffect(() => {
     if (!rideId) return;
@@ -887,13 +709,79 @@ export default function ConfirmationModal({
     setNotifError("");
   };
 
+  const mapContainerRef = useRef(null);
+  const mapRef = useRef(null);
+
+  // ── Init Mapbox ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!visible || mapRef.current) return;
+
+    const MAPBOX_TOKEN = "pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA";
+    const MAP_STYLE = "mapbox://styles/mapbox/dark-v11";
+
+    const script = document.createElement('script');
+    script.src = 'https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js';
+    script.async = true;
+
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css';
+
+    document.head.appendChild(link);
+    document.head.appendChild(script);
+
+    script.onload = () => {
+      if (!mapContainerRef.current) return;
+      const mapboxgl = window.mapboxgl;
+      mapboxgl.accessToken = MAPBOX_TOKEN;
+
+      const centerLat = currentRide?.pickupLat ?? 28.5383;
+      const centerLng = currentRide?.pickupLng ?? -81.3792;
+
+      const map = new mapboxgl.Map({
+        container: mapContainerRef.current,
+        style: MAP_STYLE,
+        center: [centerLng, centerLat],
+        zoom: 14,
+        pitch: 35,
+        bearing: -25,
+        interactive: false,
+        attributionControl: false,
+      });
+
+      map.on('load', () => {
+        mapRef.current = map;
+        let bearing = -25;
+        const drift = setInterval(() => {
+          bearing += 0.05;
+          map.setBearing(bearing);
+        }, 100);
+        map.on('remove', () => clearInterval(drift));
+      });
+    };
+
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, [visible, currentRide?.pickupLat, currentRide?.pickupLng]);
+
   return (
     <div style={{
-      position:'fixed',inset:0,background:'rgba(0,0,0,.55)',
-      backdropFilter:'blur(10px)',display:'flex',justifyContent:'center',
-      alignItems:'center',zIndex:999,padding:'20px',
+      position:'fixed',inset:0,zIndex:999,
       transition:'opacity .25s ease',opacity:visible?1:0,
     }}>
+      {/* Mapbox background */}
+      <div ref={mapContainerRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
+
+      {/* Backdrop overlay */}
+      <div style={{
+        position:'absolute',inset:0,background:'rgba(0,0,0,.15)',backdropFilter:'blur(3px)',
+        pointerEvents:status==='searching'?'none':'auto',
+      }}/>
+
       {showNotifPopup && (
         <NotificationPopup
           notifLoading={notifLoading}
@@ -903,388 +791,246 @@ export default function ConfirmationModal({
         />
       )}
 
+      {/* Immersive floating card container */}
       <div style={{
-        maxWidth:'420px',width:'100%',background:'#fff',borderRadius:'28px',
-        overflow:'hidden',boxShadow:'0 32px 100px rgba(0,0,0,.22)',
-        border:'1px solid rgba(229,231,235,.8)',
-        transition:'transform .28s cubic-bezier(.34,1.56,.64,1), opacity .25s ease',
-        transform:visible?'scale(1) translateY(0)':'scale(.94) translateY(16px)',
+        position:'absolute',bottom:0,left:0,right:0,
+        display:'flex',justifyContent:'center',alignItems:'flex-end',
+        padding:'20px',pointerEvents:'auto',
       }}>
+        <div style={{
+          width:'100%',maxWidth:'420px',
+          background:'rgba(15,23,42,.92)',backdropFilter:'blur(12px)',
+          borderRadius:'24px 24px 0 0',
+          overflow:'hidden',border:'1px solid rgba(255,255,255,.08)',
+          boxShadow:'0 20px 80px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.1)',
+          transition:'transform .28s cubic-bezier(.34,1.56,.64,1), opacity .25s ease',
+          transform:visible?'translateY(0)':'translateY(400px)',
+        }}>
 
-        {/* ── CHECKING PAYMENT ── */}
-        {status === 'checking_payment' && (
-          <div style={{padding:'40px',textAlign:'center'}}>
-            <Loader2 size={40} color={T.accent} style={{animation:'spin 1s linear infinite',marginBottom:'20px'}}/>
-            <h3 style={{fontSize:'22px',fontWeight:900,color:T.text,marginBottom:'8px'}}>Checking payment...</h3>
-            <p style={{fontSize:'13px',color:T.textMuted,marginBottom:'24px'}}>
-              Verifying your payment — this only takes a moment.
-            </p>
-            <button onClick={handleClose} style={{
-              width:'100%',padding:'13px',borderRadius:'14px',border:`1.5px solid ${T.border}`,
-              background:'#fff',fontSize:'14px',fontWeight:700,color:T.textMuted,cursor:'pointer',
-            }}>
-              Cancel
-            </button>
-          </div>
-        )}
-
-        {/* ── SEARCHING ── */}
-        {status === 'searching' && (
-          <>
-            {progress > 0 && (
-              <div style={{height:'4px',background:'#F3F4F6',overflow:'hidden'}}>
-                <div style={{
-                  height:'100%',width:`${100-progress}%`,
-                  background:isUrgent?'linear-gradient(90deg,#F59E0B,#EF4444)':'linear-gradient(90deg,#22C55E,#16A34A)',
-                  transition:'width 1s linear',
-                }}/>
-              </div>
-            )}
-            <div style={{padding:'28px 24px 24px',textAlign:'center'}}>
-
-              {/* ── NEW RADAR ── */}
-              <RideSearchRadar isUrgent={isUrgent} />
-
-              <h3 style={{fontSize:'22px',fontWeight:900,color:T.text,marginBottom:'6px'}}>
-                {isUrgent?'Almost out of time…':'Finding your driver'}
-              </h3>
-              <p style={{fontSize:'13px',color:T.textMuted,marginBottom:'20px'}}>
-                {isUrgent?'Searching nearby areas. Hang tight.':'Matching you with the nearest available driver.'}
+          {/* ── CHECKING PAYMENT ── */}
+          {status === 'checking_payment' && (
+            <div style={{padding:'32px 24px',textAlign:'center'}}>
+              <Loader2 size={36} color="#60A5FA" style={{animation:'spin 1s linear infinite',marginBottom:'16px'}}/>
+              <h3 style={{fontSize:'20px',fontWeight:900,color:'#E2E8F0',marginBottom:'6px'}}>Checking payment...</h3>
+              <p style={{fontSize:'13px',color:'#94A3B8',marginBottom:'20px'}}>
+                Verifying your payment — this only takes a moment.
               </p>
-              <div style={{
-                background:isUrgent?'#FFF7ED':'#F9FAFB',
-                border:`1.5px solid ${isUrgent?'#FED7AA':T.border}`,
-                borderRadius:'18px',padding:'18px 20px',marginBottom:'14px',
+              <button onClick={handleClose} style={{
+                width:'100%',padding:'12px',borderRadius:'12px',border:'1.5px solid rgba(255,255,255,.1)',
+                background:'rgba(255,255,255,.05)',fontSize:'14px',fontWeight:700,color:'#94A3B8',cursor:'pointer',
+                transition:'all .15s',
               }}>
-                <div style={{fontSize:'10px',fontWeight:800,letterSpacing:'1.2px',textTransform:'uppercase',color:isUrgent?'#D97706':T.textMuted,marginBottom:'8px'}}>
-                  Time remaining
-                </div>
-                <div style={{fontFamily:'"JetBrains Mono",monospace',fontSize:'48px',fontWeight:700,lineHeight:1,letterSpacing:'-3px',color:isUrgent?'#EF4444':T.accent}}>
-                  {String(minutes).padStart(2,'0')}
-                  <span style={{fontSize:'24px',opacity:0.35,margin:'0 1px'}}>:</span>
-                  {String(seconds).padStart(2,'0')}
-                </div>
-                {progress > 0 && (
-                  <div style={{height:'4px',background:T.border,borderRadius:'100px',marginTop:'14px',overflow:'hidden'}}>
-                    <div style={{
-                      height:'100%',width:`${progress}%`,
-                      background:isUrgent?'linear-gradient(90deg,#F59E0B,#EF4444)':'linear-gradient(90deg,#22C55E,#16A34A)',
-                      borderRadius:'100px',transition:'width 1s linear',
-                    }}/>
-                  </div>
-                )}
-                {createdAtLabel && (
-                  <div style={{marginTop:'10px',fontSize:'11px',color:T.textMuted}}>
-                    Booked {createdAtLabel}
-                  </div>
-                )}
-              </div>
-              <div style={{background:'#FAFAFA',border:`1px solid ${T.border}`,borderRadius:'14px',padding:'12px 14px',marginBottom:'10px',textAlign:'left'}}>
-                <div style={{display:'flex',gap:'11px'}}>
-                  <div style={{display:'flex',flexDirection:'column',alignItems:'center',paddingTop:'3px'}}>
-                    <div style={{width:'7px',height:'7px',borderRadius:'50%',background:T.ink}}/>
-                    <div style={{width:'1px',flex:1,background:T.border,minHeight:'14px',margin:'3px 0'}}/>
-                    <div style={{width:'7px',height:'7px',borderRadius:'2px',background:T.accent,transform:'rotate(45deg)'}}/>
-                  </div>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:'12px',fontWeight:700,color:T.text,marginBottom:'7px'}}>{pickup}</div>
-                    <div style={{fontSize:'12px',fontWeight:700,color:T.text}}>{dropoff}</div>
-                  </div>
-                </div>
-              </div>
+                Cancel
+              </button>
+            </div>
+          )}
 
-              <div style={{background:'#F0FDF4',border:`1px solid ${T.accentBorder}`,borderRadius:'12px',padding:'10px 14px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <span style={{fontSize:'12px',fontWeight:600,color:T.textMuted}}>{rideLabel} · {miles} mi</span>
-                <span style={{fontFamily:'"JetBrains Mono",monospace',fontSize:'15px',fontWeight:700,color:T.accent}}>${total}</span>
-              </div>
-
-              {shouldShowPhoneCapture && (
-                <PhoneCaptureCard
-                  uid={riderUid}
-                  onSkip={handleSkipPhone}
-                  onSaved={handlePhoneSaved}
-                />
+          {/* ── SEARCHING ── */}
+          {status === 'searching' && (
+            <div style={{padding:'0'}}>
+              {progress > 0 && (
+                <div style={{height:'3px',background:'rgba(255,255,255,.1)',overflow:'hidden'}}>
+                  <div style={{
+                    height:'100%',width:`${100-progress}%`,
+                    background:isUrgent?'linear-gradient(90deg,#F59E0B,#EF4444)':'linear-gradient(90deg,#22C55E,#16A34A)',
+                    transition:'width 1s linear',
+                  }}/>
+                </div>
               )}
-            </div>
-          </>
-        )}
+              <div style={{padding:'24px'}}>
+                <SearchingMap
+                  isUrgent={isUrgent}
+                  pickupLat={currentRide?.pickupLat}
+                  pickupLng={currentRide?.pickupLng}
+                  sweepAngle={sweepAngle}
+                />
 
-        {/* ── ASSIGNED ── */}
-        {status === 'assigned' && (
-          <>
-            <div style={{background:'linear-gradient(135deg,#22C55E 0%,#15803D 100%)',padding:'36px 24px 28px',textAlign:'center',position:'relative',overflow:'hidden'}}>
-              <div style={{position:'absolute',inset:0,background:'repeating-linear-gradient(45deg,rgba(255,255,255,.03) 0px,rgba(255,255,255,.03) 1px,transparent 1px,transparent 20px)'}}/>
-              {[0,1].map(i=>(
-                <div key={i} style={{
-                  position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',
-                  width:`${130+i*70}px`,height:`${130+i*70}px`,borderRadius:'50%',
-                  border:'1.5px solid rgba(255,255,255,.14)',animation:`burstRing 2s ease-out ${i*0.35}s infinite`,
-                }}/>
-              ))}
-              <div style={{position:'relative',zIndex:1}}>
-                <div style={{width:'76px',height:'76px',margin:'0 auto 14px',background:'rgba(255,255,255,.18)',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid rgba(255,255,255,.35)'}}>
-                  <CheckCircle size={38} color="#fff" strokeWidth={2}/>
+                <h3 style={{fontSize:'20px',fontWeight:900,color:'#E2E8F0',marginBottom:'4px'}}>
+                  {isUrgent?'Almost out of time…':'Finding your driver'}
+                </h3>
+                <p style={{fontSize:'12px',color:'#94A3B8',marginBottom:'18px'}}>
+                  {isUrgent?'Searching nearby areas. Hang tight.':'Matching you with the nearest available driver.'}
+                </p>
+
+                <div style={{
+                  background:isUrgent?'rgba(239,68,68,.1)':'rgba(34,197,74,.1)',
+                  border:`1.5px solid ${isUrgent?'rgba(239,68,68,.3)':'rgba(34,197,74,.3)'}`,
+                  borderRadius:'16px',padding:'16px 18px',marginBottom:'12px',
+                }}>
+                  <div style={{fontSize:'10px',fontWeight:800,letterSpacing:'1.2px',textTransform:'uppercase',color:isUrgent?'#FCA5A5':'#86EFAC',marginBottom:'6px'}}>
+                    Time remaining
+                  </div>
+                  <div style={{fontFamily:'"JetBrains Mono",monospace',fontSize:'44px',fontWeight:700,lineHeight:1,letterSpacing:'-3px',color:isUrgent?'#EF4444':'#22C55E'}}>
+                    {String(minutes).padStart(2,'0')}:{String(seconds).padStart(2,'0')}
+                  </div>
+                  {progress > 0 && (
+                    <div style={{height:'3px',background:'rgba(255,255,255,.1)',borderRadius:'100px',marginTop:'12px',overflow:'hidden'}}>
+                      <div style={{
+                        height:'100%',width:`${progress}%`,
+                        background:isUrgent?'linear-gradient(90deg,#F59E0B,#EF4444)':'linear-gradient(90deg,#22C55E,#16A34A)',
+                        borderRadius:'100px',transition:'width 1s linear',
+                      }}/>
+                    </div>
+                  )}
+                  {createdAtLabel && (
+                    <div style={{marginTop:'10px',fontSize:'11px',color:'#64748B'}}>
+                      Booked {createdAtLabel}
+                    </div>
+                  )}
                 </div>
-                <h3 style={{fontSize:'26px',fontWeight:900,color:'#fff',marginBottom:'4px'}}>Driver matched!</h3>
-                <p style={{fontSize:'13px',color:'rgba(255,255,255,.8)',fontWeight:500}}>Your ride is confirmed and on the way</p>
+
+                <div style={{background:'rgba(255,255,255,.05)',border:'1px solid rgba(255,255,255,.1)',borderRadius:'12px',padding:'11px 13px',marginBottom:'10px',textAlign:'left'}}>
+                  <div style={{display:'flex',gap:'10px'}}>
+                    <div style={{display:'flex',flexDirection:'column',alignItems:'center',paddingTop:'2px'}}>
+                      <div style={{width:'6px',height:'6px',borderRadius:'50%',background:'#60A5FA'}}/>
+                      <div style={{width:'1px',flex:1,background:'rgba(255,255,255,.1)',minHeight:'12px',margin:'2px 0'}}/>
+                      <div style={{width:'6px',height:'6px',borderRadius:'2px',background:'#22C55E',transform:'rotate(45deg)'}}/>
+                    </div>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:'12px',fontWeight:700,color:'#E2E8F0',marginBottom:'6px'}}>{pickup}</div>
+                      <div style={{fontSize:'12px',fontWeight:700,color:'#E2E8F0'}}>{dropoff}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{background:isUrgent?'rgba(239,68,68,.08)':'rgba(34,197,74,.08)',border:`1px solid ${isUrgent?'rgba(239,68,68,.2)':'rgba(34,197,74,.2)'}`,borderRadius:'10px',padding:'9px 12px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <span style={{fontSize:'12px',fontWeight:600,color:'#94A3B8'}}>{rideLabel} · {miles} mi</span>
+                  <span style={{fontFamily:'"JetBrains Mono",monospace',fontSize:'14px',fontWeight:700,color:'#22C55E'}}>${total}</span>
+                </div>
+
+                {shouldShowPhoneCapture && (
+                  <PhoneCaptureCard
+                    uid={riderUid}
+                    onSkip={handleSkipPhone}
+                    onSaved={handlePhoneSaved}
+                  />
+                )}
               </div>
             </div>
-            <div style={{padding:'20px 22px 22px'}}>
+          )}
+
+          {/* ── ASSIGNED ── */}
+          {status === 'assigned' && (
+            <div style={{padding:'20px'}}>
+              <div style={{background:'linear-gradient(135deg,rgba(34,197,74,.15),rgba(21,128,61,.15))',border:'1px solid rgba(34,197,74,.3)',borderRadius:'16px',padding:'20px',textAlign:'center',marginBottom:'14px'}}>
+                <div style={{width:'60px',height:'60px',margin:'0 auto 12px',background:'rgba(34,197,74,.2)',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid rgba(34,197,74,.4)'}}>
+                  <CheckCircle size={32} color="#22C55E" strokeWidth={2}/>
+                </div>
+                <h3 style={{fontSize:'22px',fontWeight:900,color:'#22C55E',marginBottom:'4px'}}>Driver matched!</h3>
+                <p style={{fontSize:'12px',color:'#86EFAC',fontWeight:500}}>Your ride is confirmed and on the way</p>
+              </div>
+
               {driver ? (
-                <div style={{background:'#F9FAFB',border:`1px solid ${T.border}`,borderRadius:'16px',padding:'14px',display:'flex',alignItems:'center',gap:'13px',marginBottom:'14px'}}>
-                  <div style={{width:'46px',height:'46px',borderRadius:'50%',background:'linear-gradient(135deg,#22C55E,#15803D)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'18px',fontWeight:900,color:'#fff'}}>
+                <div style={{background:'rgba(255,255,255,.05)',border:'1px solid rgba(255,255,255,.1)',borderRadius:'14px',padding:'12px',display:'flex',alignItems:'center',gap:'12px',marginBottom:'12px'}}>
+                  <div style={{width:'42px',height:'42px',borderRadius:'50%',background:'linear-gradient(135deg,#22C55E,#15803D)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'16px',fontWeight:900,color:'#fff',flexShrink:0}}>
                     {driver.name?.[0]??'?'}
                   </div>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:'14px',fontWeight:800,color:T.text}}>{driver.name||'Driver'}</div>
-                    <div style={{fontSize:'11.5px',color:T.textMuted,marginTop:'2px'}}>{driver.vehicle||'Vehicle'} · {driver.plate||'Plate pending'}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:'13px',fontWeight:800,color:'#E2E8F0'}}>{driver.name||'Driver'}</div>
+                    <div style={{fontSize:'11px',color:'#94A3B8',marginTop:'1px'}}>{driver.vehicle||'Vehicle'} · {driver.plate||'Plate pending'}</div>
                   </div>
                   {driver.rating && (
-                    <div style={{background:'#FEF9C3',border:'1px solid #FEF08A',borderRadius:'8px',padding:'4px 10px',fontSize:'12px',fontWeight:800,color:'#854D0E'}}>
+                    <div style={{background:'rgba(251,146,60,.2)',border:'1px solid rgba(251,146,60,.4)',borderRadius:'6px',padding:'3px 8px',fontSize:'11px',fontWeight:800,color:'#FCA5A5',flexShrink:0}}>
                       ★ {driver.rating}
                     </div>
                   )}
                 </div>
-              ) : (
-                <div style={{background:'#F0FDF4',border:`1px solid ${T.accentBorder}`,borderRadius:'14px',padding:'13px 15px',display:'flex',alignItems:'center',gap:'10px',marginBottom:'14px'}}>
-                  <Car size={18} color={T.accent}/>
-                  <span style={{fontSize:'13px',fontWeight:700,color:T.accent}}>Driver is heading to your pickup</span>
-                </div>
-              )}
-              <div style={{background:'#F9FAFB',border:`1px solid ${T.border}`,borderRadius:'13px',padding:'12px 14px',display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'14px'}}>
+              ) : null}
+
+              <div style={{background:'rgba(34,197,74,.1)',border:'1px solid rgba(34,197,74,.3)',borderRadius:'12px',padding:'11px 13px',display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}}>
                 <div>
-                  <div style={{fontSize:'10px',fontWeight:800,color:T.textMuted,letterSpacing:'1px',textTransform:'uppercase',marginBottom:'3px'}}>Confirmed fare</div>
-                  <div style={{fontSize:'12px',color:T.textMuted}}>{rideLabel} · {miles} mi</div>
+                  <div style={{fontSize:'9px',fontWeight:800,color:'#86EFAC',letterSpacing:'1px',textTransform:'uppercase',marginBottom:'2px'}}>Confirmed fare</div>
+                  <div style={{fontSize:'11px',color:'#94A3B8'}}>{rideLabel} · {miles} mi</div>
                 </div>
-                <div style={{fontFamily:'"JetBrains Mono",monospace',fontSize:'22px',fontWeight:700,color:T.accent}}>${total}</div>
+                <div style={{fontFamily:'"JetBrains Mono",monospace',fontSize:'20px',fontWeight:700,color:'#22C55E'}}>${total}</div>
               </div>
-              <button onClick={handleClose} style={{width:'100%',padding:'14px',background:T.accent,border:'none',borderRadius:'14px',color:'#fff',fontWeight:800,fontSize:'15px',cursor:'pointer'}}>
+
+              <button onClick={handleClose} style={{width:'100%',padding:'12px',background:'linear-gradient(135deg,#22C55E,#15803D)',border:'none',borderRadius:'12px',color:'#fff',fontWeight:800,fontSize:'14px',cursor:'pointer',transition:'filter .15s'}}>
                 Track My Ride
               </button>
             </div>
-          </>
-        )}
+          )}
 
-        {/* ── TIMEOUT ── */}
-        {status === 'timeout' && (
-          <>
-            <style>{`
-              @keyframes timeoutPulse {
-                0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,.25); }
-                50%      { box-shadow: 0 0 0 14px rgba(239,68,68,0); }
-              }
-              @keyframes floatDot {
-                0%,100% { transform: translateY(0px); opacity: .5; }
-                50%      { transform: translateY(-6px); opacity: .9; }
-              }
-              @keyframes slideUpIn {
-                from { opacity: 0; transform: translateY(12px); }
-                to   { opacity: 1; transform: translateY(0);    }
-              }
-              .timeout-retry-btn:hover  { filter: brightness(1.07); transform: translateY(-1px); box-shadow: 0 8px 24px rgba(22,163,74,.36) !important; }
-              .timeout-retry-btn:active { filter: brightness(.96);  transform: translateY(0); }
-              .timeout-cancel-btn:hover  { background: #FEF2F2 !important; border-color: #FECACA !important; color: #DC2626 !important; }
-              .timeout-cancel-btn:active { background: #FEE2E2 !important; }
-            `}</style>
-
-            <div style={{
-              background: 'linear-gradient(160deg, #FFF8F0 0%, #FFF1F2 50%, #FEF2F2 100%)',
-              padding: '34px 24px 26px',
-              textAlign: 'center',
-              position: 'relative',
-              overflow: 'hidden',
-            }}>
-              <div style={{
-                position: 'absolute', inset: 0, opacity: .55,
-                backgroundImage: 'radial-gradient(circle, #FCA5A5 1px, transparent 1px)',
-                backgroundSize: '18px 18px',
-              }}/>
-              <div style={{
-                position: 'absolute', top: '50%', left: '50%',
-                transform: 'translate(-50%, -60%)',
-                width: '220px', height: '220px', borderRadius: '50%',
-                background: 'radial-gradient(circle, rgba(251,146,60,.15) 0%, transparent 70%)',
-                pointerEvents: 'none',
-              }}/>
-              {[
-                { top: '20px',  left: '20px',  delay: '0s',    size: 6  },
-                { top: '28px',  right: '32px', delay: '.4s',   size: 5  },
-                { top: '52px',  left: '44px',  delay: '.8s',   size: 4  },
-                { bottom: '26px', right: '18px', delay: '.2s', size: 7  },
-                { bottom: '18px', left: '28px',  delay: '.6s', size: 5  },
-              ].map((d, i) => (
-                <div key={i} style={{
-                  position: 'absolute', ...d,
-                  width: d.size, height: d.size,
-                  borderRadius: '50%',
-                  background: '#FCA5A5',
-                  animation: `floatDot 2.8s ease-in-out ${d.delay} infinite`,
-                }}/>
-              ))}
-
-              <div style={{
-                position: 'relative', zIndex: 1,
-                width: '104px', height: '104px',
-                margin: '0 auto 20px',
-              }}>
-                <div style={{
-                  position: 'absolute', inset: 0, borderRadius: '50%',
-                  border: '1.5px dashed rgba(239,68,68,.22)',
-                }}/>
-                <div style={{
-                  position: 'absolute', inset: '12px', borderRadius: '50%',
-                  border: '1px solid rgba(239,68,68,.14)',
-                  background: 'rgba(254,242,242,.6)',
-                }}/>
-                <div style={{
-                  position: 'absolute', inset: '24px', borderRadius: '50%',
-                  background: 'linear-gradient(145deg, #F87171, #DC2626)',
-                  boxShadow: '0 6px 24px rgba(220,38,38,.35)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  animation: 'timeoutPulse 2.6s ease-in-out infinite',
-                }}>
-                  <Clock size={20} color="#fff" strokeWidth={2.5}/>
+          {/* ── TIMEOUT ── */}
+          {status === 'timeout' && (
+            <div style={{padding:'20px'}}>
+              <div style={{background:'linear-gradient(135deg,rgba(239,68,68,.15),rgba(185,28,28,.15))',border:'1px solid rgba(239,68,68,.3)',borderRadius:'16px',padding:'20px',textAlign:'center',marginBottom:'14px'}}>
+                <div style={{width:'60px',height:'60px',margin:'0 auto 12px',background:'rgba(239,68,68,.2)',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid rgba(239,68,68,.4)'}}>
+                  <Clock size={32} color="#EF4444" strokeWidth={2}/>
                 </div>
-                {[0, 1, 2].map(i => {
-                  const angle = (i * 120 - 90) * (Math.PI / 180);
-                  const r = 42;
-                  const x = 52 + r * Math.cos(angle) - 9;
-                  const y = 52 + r * Math.sin(angle) - 9;
-                  return (
-                    <div key={i} style={{
-                      position: 'absolute',
-                      top: y, left: x,
-                      width: '18px', height: '18px',
-                      borderRadius: '50%',
-                      background: 'rgba(255,255,255,.9)',
-                      border: '1.5px solid rgba(239,68,68,.3)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      boxShadow: '0 2px 6px rgba(0,0,0,.08)',
-                    }}>
-                      <Car size={9} color="#F87171" strokeWidth={2}/>
-                    </div>
-                  );
-                })}
+                <h3 style={{fontSize:'22px',fontWeight:900,color:'#EF4444',marginBottom:'4px'}}>No drivers available</h3>
+                <p style={{fontSize:'12px',color:'#FCA5A5',fontWeight:500}}>We searched your area but couldn't find a nearby driver.</p>
               </div>
 
-              <div style={{
-                position: 'relative', zIndex: 1,
-                fontSize: '22px', fontWeight: 900,
-                color: '#1C0A00', letterSpacing: '-0.4px',
-                lineHeight: 1.2, marginBottom: '7px',
-              }}>
-                No drivers available
-              </div>
-              <div style={{
-                position: 'relative', zIndex: 1,
-                fontSize: '13px', fontWeight: 500,
-                color: '#9A3412', lineHeight: 1.65,
-                maxWidth: '270px', margin: '0 auto',
-              }}>
-                We searched your area but couldn't find a nearby driver.
-              </div>
-            </div>
-
-            <div style={{ padding: '18px 20px 22px' }}>
-
-              <div style={{
-                background: '#FAFAFA', border: '1px solid #E5E7EB',
-                borderRadius: '16px', padding: '13px 15px',
-                marginBottom: '14px',
-                animation: 'slideUpIn .3s ease both',
-              }}>
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: '2px', flexShrink: 0 }}>
-                    <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#374151' }}/>
-                    <div style={{ width: '1.5px', flex: 1, background: '#E5E7EB', minHeight: '14px', margin: '3px 0' }}/>
-                    <div style={{ width: '7px', height: '7px', borderRadius: '2px', background: T.accent, transform: 'rotate(45deg)' }}/>
+              <div style={{background:'rgba(255,255,255,.05)',border:'1px solid rgba(255,255,255,.1)',borderRadius:'14px',padding:'12px',marginBottom:'12px'}}>
+                <div style={{display:'flex',gap:'11px',alignItems:'flex-start'}}>
+                  <div style={{display:'flex',flexDirection:'column',alignItems:'center',paddingTop:'2px',flexShrink:0}}>
+                    <div style={{width:'6px',height:'6px',borderRadius:'50%',background:'#64748B'}}/>
+                    <div style={{width:'1px',flex:1,background:'rgba(255,255,255,.1)',minHeight:'12px',margin:'2px 0'}}/>
+                    <div style={{width:'6px',height:'6px',borderRadius:'2px',background:'#22C55E',transform:'rotate(45deg)'}}/>
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#374151', marginBottom: '7px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:'11px',fontWeight:700,color:'#E2E8F0',marginBottom:'6px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
                       {pickup}
                     </div>
-                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{fontSize:'11px',fontWeight:700,color:'#E2E8F0',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
                       {dropoff}
                     </div>
                   </div>
-                  <div style={{
-                    flexShrink: 0, background: '#F0FDF4',
-                    border: `1px solid ${T.accentBorder}`,
-                    borderRadius: '8px', padding: '4px 9px',
-                    fontFamily: '"JetBrains Mono", monospace',
-                    fontSize: '13px', fontWeight: 700, color: T.accent,
-                  }}>
+                  <div style={{flexShrink:0,background:'rgba(34,197,74,.15)',border:'1px solid rgba(34,197,74,.3)',borderRadius:'6px',padding:'2px 7px',fontFamily:'"JetBrains Mono",monospace',fontSize:'11px',fontWeight:700,color:'#22C55E'}}>
                     ${total}
                   </div>
                 </div>
               </div>
 
-              <div style={{
-                fontSize: '10px', fontWeight: 800, letterSpacing: '1.1px',
-                textTransform: 'uppercase', color: '#9CA3AF',
-                marginBottom: '10px',
-                animation: 'slideUpIn .38s ease .08s both',
-              }}>
+              <div style={{fontSize:'9px',fontWeight:800,letterSpacing:'1.1px',textTransform:'uppercase',color:'#64748B',marginBottom:'10px'}}>
                 What would you like to do?
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '9px', animation: 'slideUpIn .4s ease .1s both' }}>
+              <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
                 <button
-                  className="timeout-retry-btn"
                   onClick={handleWaitMore}
                   disabled={actionLoading || cancelLoading}
                   style={{
-                    width: '100%', padding: '15px 0',
-                    borderRadius: '16px', border: 'none',
-                    background: (actionLoading || cancelLoading)
-                      ? '#D1FAE5'
-                      : 'linear-gradient(135deg, #22C55E, #15803D)',
-                    color: '#fff',
-                    fontSize: '15px', fontWeight: 800,
-                    cursor: (actionLoading || cancelLoading) ? 'not-allowed' : 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                    transition: 'filter .15s, transform .15s, box-shadow .15s',
-                    boxShadow: (actionLoading || cancelLoading) ? 'none' : '0 4px 18px rgba(22,163,74,.28)',
+                    width:'100%',padding:'12px 0',borderRadius:'12px',border:'none',
+                    background:(actionLoading || cancelLoading)?'rgba(34,197,74,.2)':'linear-gradient(135deg,#22C55E,#15803D)',
+                    color:'#fff',fontSize:'14px',fontWeight:800,cursor:(actionLoading || cancelLoading)?'not-allowed':'pointer',
+                    display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',
+                    transition:'filter .15s',opacity:(actionLoading || cancelLoading)?0.6:1,
                   }}
                 >
                   {actionLoading
-                    ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }}/> Extending search…</>
-                    : <><RotateCcw size={16} strokeWidth={2.5}/> Keep searching</>
+                    ? <><Loader2 size={14} style={{animation:'spin 1s linear infinite'}}/> Extending…</>
+                    : <><RotateCcw size={14} strokeWidth={2.5}/> Keep searching</>
                   }
                 </button>
 
                 <button
-                  className="timeout-cancel-btn"
                   onClick={handleCancelRide}
                   disabled={actionLoading || cancelLoading}
                   style={{
-                    width: '100%', padding: '14px 0',
-                    borderRadius: '16px',
-                    border: '1.5px solid #E5E7EB',
-                    background: '#fff',
-                    color: '#6B7280',
-                    fontSize: '14px', fontWeight: 700,
-                    cursor: (actionLoading || cancelLoading) ? 'not-allowed' : 'pointer',
-                    opacity: (actionLoading || cancelLoading) ? 0.5 : 1,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
-                    transition: 'background .12s, border-color .12s, color .12s',
+                    width:'100%',padding:'11px 0',borderRadius:'12px',
+                    border:'1.5px solid rgba(255,255,255,.1)',
+                    background:'rgba(255,255,255,.05)',
+                    color:'#94A3B8',fontSize:'13px',fontWeight:700,cursor:(actionLoading || cancelLoading)?'not-allowed':'pointer',
+                    opacity:(actionLoading || cancelLoading)?0.5:1,
+                    display:'flex',alignItems:'center',justifyContent:'center',gap:'7px',
+                    transition:'all .12s',
                   }}
                 >
                   {cancelLoading
-                    ? <><Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }}/> Cancelling…</>
+                    ? <><Loader2 size={13} style={{animation:'spin 1s linear infinite'}}/> Cancelling…</>
                     : 'Cancel this ride'
                   }
                 </button>
               </div>
             </div>
-          </>
-        )}
+          )}
 
-        <style>{`
-          @keyframes radarRing  { 0%{transform:scale(0.55);opacity:.8} 100%{transform:scale(1.75);opacity:0} }
-          @keyframes burstRing  { 0%{transform:translate(-50%,-50%) scale(0.5);opacity:.5} 100%{transform:translate(-50%,-50%) scale(1.5);opacity:0} }
-          @keyframes spin       { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
-        `}</style>
+          <style>{`
+            @keyframes spin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
+          `}</style>
+        </div>
       </div>
     </div>
   );
