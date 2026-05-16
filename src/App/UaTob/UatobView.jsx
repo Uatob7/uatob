@@ -34,7 +34,7 @@ function statusInfo(status) {
   return { label: 'Busy', color: '#60A5FA' };
 }
 
-// UATOB letter dot-matrix (unchanged)
+// UATOB letter dot-matrix
 const LETTER_SLOTS = (() => {
   const letters = {
     U: [[1,0,1],[1,0,1],[1,0,1],[1,0,1],[0,1,0]],
@@ -87,11 +87,11 @@ function fmtRelative(ms) {
 
 function paymentInfo(method) {
   const m = (method || '').toLowerCase();
-  if (m === 'card')      return { label: 'Card',      color: '#60A5FA', bg: 'rgba(96,165,250,.14)',  border: 'rgba(96,165,250,.32)', Icon: CreditCard };
-  if (m === 'cashapp')   return { label: 'Cash App',  color: '#86EFAC', bg: 'rgba(134,239,172,.14)', border: 'rgba(134,239,172,.32)', Icon: Smartphone };
-  if (m === 'cash')      return { label: 'Cash',      color: '#FCD34D', bg: 'rgba(252,211,77,.14)',  border: 'rgba(252,211,77,.32)',  Icon: Banknote };
-  if (m === 'apple_pay') return { label: 'Apple Pay', color: '#E5E7EB', bg: 'rgba(229,231,235,.14)', border: 'rgba(229,231,235,.32)', Icon: Wallet };
-  if (m === 'google_pay')return { label: 'Google Pay',color: '#F87171', bg: 'rgba(248,113,113,.14)', border: 'rgba(248,113,113,.32)', Icon: Wallet };
+  if (m === 'card')       return { label: 'Card',       color: '#60A5FA', bg: 'rgba(96,165,250,.14)',  border: 'rgba(96,165,250,.32)',  Icon: CreditCard };
+  if (m === 'cashapp')    return { label: 'Cash App',   color: '#86EFAC', bg: 'rgba(134,239,172,.14)', border: 'rgba(134,239,172,.32)', Icon: Smartphone };
+  if (m === 'cash')       return { label: 'Cash',       color: '#FCD34D', bg: 'rgba(252,211,77,.14)',  border: 'rgba(252,211,77,.32)',  Icon: Banknote };
+  if (m === 'apple_pay')  return { label: 'Apple Pay',  color: '#E5E7EB', bg: 'rgba(229,231,235,.14)', border: 'rgba(229,231,235,.32)', Icon: Wallet };
+  if (m === 'google_pay') return { label: 'Google Pay', color: '#F87171', bg: 'rgba(248,113,113,.14)', border: 'rgba(248,113,113,.32)', Icon: Wallet };
   return { label: 'Payment', color: '#94A3B8', bg: 'rgba(148,163,184,.14)', border: 'rgba(148,163,184,.3)', Icon: Wallet };
 }
 
@@ -105,8 +105,8 @@ function tripOutcome(trip) {
   }
   if (status === 'cancelled' && ps === 'refunded') {
     return {
-      label:  'Fully refunded',
-      copy:   cancelReason === 'timeout_auto_cancel' ? 'No match — we refunded automatically' : 'Refunded in full to your card',
+      label: 'Fully refunded',
+      copy:  cancelReason === 'timeout_auto_cancel' ? 'No match — we refunded automatically' : 'Refunded in full to your card',
       accent: '#5EEAD4', bg: 'rgba(94,234,212,.10)', border: 'rgba(94,234,212,.28)', Icon: ShieldCheck,
     };
   }
@@ -122,49 +122,18 @@ function tripOutcome(trip) {
   return { label: status || 'In progress', copy: 'In progress', accent: '#94A3B8', bg: 'rgba(148,163,184,.10)', border: 'rgba(148,163,184,.24)', Icon: Car };
 }
 
-// ─── MASKED ADDRESS ─────────────────────────────────────────────────
-// Render an address as a row of dots that loosely mirrors the
-// shape (number of words, length of each word) without exposing
-// the actual characters. Each "word" becomes a cluster of dots.
-function maskAddress(address, maxWords = 4) {
-  if (!address) return [];
-  // Pull just the street part (everything before the first comma)
-  const street = address.split(',')[0].trim();
-  // Split into words
-  const words = street.split(/\s+/).filter(Boolean).slice(0, maxWords);
-  // For each word, return its character length (capped at 7 for visual rhythm)
-  return words.map(w => Math.min(7, Math.max(2, w.length)));
+// ─── ADDRESS PARSER ──────────────────────────────────────────────────
+// "1372 Bay Harbor Drive, Palm Harbor, FL, USA" → { street: "1372 Bay Harbor Drive", city: "Palm Harbor" }
+function parseAddress(address) {
+  if (!address) return { street: '', city: '' };
+  const parts = address.split(',').map(p => p.trim());
+  return {
+    street: parts[0] || '',
+    city:   parts[1] || '',
+  };
 }
 
-function MaskedAddressDots({ wordLengths = [], color = '#5EEAD4', dotSize = 5 }) {
-  if (wordLengths.length === 0) {
-    return (
-      <div style={{ display: 'inline-flex', gap: 4, alignItems: 'center', height: dotSize + 2 }}>
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} style={{ width: dotSize, height: dotSize, borderRadius: '50%', background: 'rgba(255,255,255,.15)' }}/>
-        ))}
-      </div>
-    );
-  }
-  return (
-    <div style={{ display: 'inline-flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-      {wordLengths.map((len, wi) => (
-        <div key={wi} style={{ display: 'inline-flex', gap: 3 }}>
-          {Array.from({ length: len }).map((_, di) => (
-            <div key={di} style={{
-              width: dotSize, height: dotSize, borderRadius: '50%',
-              background: color,
-              opacity: 0.55 + ((di % 3) * 0.15),
-              boxShadow: `0 0 4px ${color}55`,
-            }}/>
-          ))}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// Magnitude dots — for the fare value (kept from v2)
+// ─── MAGNITUDE DOTS ──────────────────────────────────────────────────
 function MagnitudeDots({ value, max = 5, color = '#5EEAD4', dotSize = 5 }) {
   const n = Math.max(0, Math.min(max, Math.ceil(Number(value) || 0)));
   return (
@@ -192,11 +161,11 @@ const STYLES = `
   @keyframes bgFloat    { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(20px,-15px) scale(1.08); } }
   @keyframes badgePulse { 0%,100% { box-shadow: 0 0 0 0 rgba(34,211,165,0); } 50% { box-shadow: 0 0 0 10px rgba(34,211,165,.18); } }
   @keyframes tripIn     { 0% { opacity: 0; transform: translateY(14px) scale(.97); filter: blur(4px); } 100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); } }
-  @keyframes dotsFlow   { 0% { opacity: 0; transform: translateX(-6px); } 100% { opacity: 1; transform: translateX(0); } }
+  @keyframes fareIn     { 0% { opacity: 0; transform: translateY(4px); } 100% { opacity: 1; transform: translateY(0); } }
 `;
 
 // ═══════════════════════════════════════════════════════════════════════
-// FRONT — Driver constellation (unchanged from your original)
+// FRONT — Driver constellation
 // ═══════════════════════════════════════════════════════════════════════
 function DriverFace({ driverPins, onlinePins, offlinePins, counts, constellationLines, loading, hasOnline, tripsCount }) {
   return (
@@ -300,7 +269,6 @@ function TripFace({ trips, tripsCount, currentIndex, totalTrips }) {
 
   return (
     <div style={{ position: 'absolute', inset: 0, borderRadius: 24, overflow: 'hidden', background: 'linear-gradient(155deg, #0F0A1E 0%, #160F2C 35%, #1A1338 75%, #221547 100%)' }}>
-      {/* Ambient blobs */}
       <div style={{ position: 'absolute', top: -80, left: -80, width: 280, height: 280, borderRadius: '50%', background: 'radial-gradient(circle, rgba(167,139,250,.28) 0%, transparent 70%)', filter: 'blur(40px)', animation: 'bgFloat 9s ease-in-out infinite', pointerEvents: 'none', zIndex: 1 }}/>
       <div style={{ position: 'absolute', bottom: -60, right: -60, width: 240, height: 240, borderRadius: '50%', background: 'radial-gradient(circle, rgba(244,114,182,.20) 0%, transparent 70%)', filter: 'blur(36px)', animation: 'bgFloat 11s ease-in-out infinite reverse', pointerEvents: 'none', zIndex: 1 }}/>
 
@@ -313,7 +281,6 @@ function TripFace({ trips, tripsCount, currentIndex, totalTrips }) {
         <rect width="100%" height="100%" fill="url(#tf-dotgrid)"/>
       </svg>
 
-      {/* Top-left: which trip we're on */}
       <div style={{ position: 'absolute', top: 14, left: 14, zIndex: 20, display: 'flex', alignItems: 'center', gap: 7, padding: '7px 12px', background: 'rgba(167,139,250,.14)', border: '1px solid rgba(167,139,250,.32)', borderRadius: 99, backdropFilter: 'blur(12px)' }}>
         <Activity size={11} color="#C4B5FD" />
         <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.06em', color: '#DDD6FE', textTransform: 'uppercase' }}>
@@ -321,13 +288,11 @@ function TripFace({ trips, tripsCount, currentIndex, totalTrips }) {
         </span>
       </div>
 
-      {/* Top-right brand */}
       <div style={{ position: 'absolute', top: 14, right: 14, zIndex: 20, display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 10, backdropFilter: 'blur(12px)' }}>
         <Car size={11} color="#C4B5FD"/>
         <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,.7)', letterSpacing: '.05em' }}>HISTORY</span>
       </div>
 
-      {/* Empty state */}
       {!trip ? (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 5 }}>
           <div style={{ width: 48, height: 48, borderRadius: 14, background: 'rgba(167,139,250,.1)', border: '1px solid rgba(167,139,250,.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
@@ -340,7 +305,6 @@ function TripFace({ trips, tripsCount, currentIndex, totalTrips }) {
         </div>
       ) : (
         <>
-          {/* ONE trip — full card, animates in on each flip */}
           <div
             key={trip.id || currentIndex}
             style={{
@@ -353,8 +317,6 @@ function TripFace({ trips, tripsCount, currentIndex, totalTrips }) {
           >
             <SingleTripCard trip={trip}/>
           </div>
-
-          {/* Bottom strip */}
           <BottomStrip trips={sortedTrips} tripsCount={tripsCount}/>
         </>
       )}
@@ -369,11 +331,17 @@ function SingleTripCard({ trip }) {
   const OutIcon = outcome.Icon;
   const PayIcon = pay.Icon;
 
-  const pickupMask  = useMemo(() => maskAddress(trip.pickup),  [trip.pickup]);
-  const dropoffMask = useMemo(() => maskAddress(trip.dropoff), [trip.dropoff]);
+  const pickup  = useMemo(() => parseAddress(trip.pickup),  [trip.pickup]);
+  const dropoff = useMemo(() => parseAddress(trip.dropoff), [trip.dropoff]);
 
-  // Fare → magnitude (each $10 = 1 dot, capped at 5)
-  const fareMagnitude = Math.min(5, Math.ceil((trip.fareTotal ?? 0) / 10));
+  // Resolve fare from fareBreakdown.fareTotal or top-level fareTotal
+  const fareStr = useMemo(() => {
+    const raw = trip.fareBreakdown?.fareTotal ?? trip.fareTotal ?? null;
+    if (raw == null || isNaN(Number(raw))) return null;
+    return `$${Number(raw).toFixed(2)}`;
+  }, [trip]);
+
+  const timeStr = fmtRelative(tsToMillis(trip.createdAt));
 
   return (
     <div style={{
@@ -386,20 +354,21 @@ function SingleTripCard({ trip }) {
       display: 'flex', flexDirection: 'column',
       position: 'relative', overflow: 'hidden',
     }}>
-      {/* Accent stripe at top */}
+      {/* Accent stripe */}
       <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0,
-        height: 2,
+        position: 'absolute', top: 0, left: 0, right: 0, height: 2,
         background: `linear-gradient(90deg, ${outcome.accent}, transparent 70%)`,
       }}/>
 
-      {/* TOP — status pill + payment pill + time */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+      {/* TOP ROW — status + payment pills, then time+fare stacked on the right */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+
+        {/* Status pill */}
         <div style={{
           display: 'inline-flex', alignItems: 'center', gap: 4,
           padding: '4px 9px', borderRadius: 99,
-          background: outcome.bg,
-          border: `1px solid ${outcome.border}`,
+          background: outcome.bg, border: `1px solid ${outcome.border}`,
+          flexShrink: 0,
         }}>
           <OutIcon size={11} color={outcome.accent} strokeWidth={2.4}/>
           <span style={{ fontSize: 11, fontWeight: 800, color: outcome.accent, letterSpacing: '.03em' }}>
@@ -407,11 +376,12 @@ function SingleTripCard({ trip }) {
           </span>
         </div>
 
+        {/* Payment pill */}
         <div style={{
           display: 'inline-flex', alignItems: 'center', gap: 4,
           padding: '4px 9px', borderRadius: 99,
-          background: pay.bg,
-          border: `1px solid ${pay.border}`,
+          background: pay.bg, border: `1px solid ${pay.border}`,
+          flexShrink: 0,
         }}>
           <PayIcon size={10} color={pay.color} strokeWidth={2.4}/>
           <span style={{ fontSize: 11, fontWeight: 700, color: pay.color, letterSpacing: '.02em' }}>
@@ -419,14 +389,40 @@ function SingleTripCard({ trip }) {
           </span>
         </div>
 
-        <div style={{ marginLeft: 'auto', fontFamily: '"JetBrains Mono", monospace', fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,.4)' }}>
-          {fmtRelative(tsToMillis(trip.createdAt))}
+        {/* Time + fare stacked — pushed to the right */}
+        <div style={{
+          marginLeft: 'auto',
+          display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4,
+          flexShrink: 0,
+        }}>
+          {/* Relative time */}
+          <span style={{
+            fontFamily: '"JetBrains Mono", monospace',
+            fontSize: 11, fontWeight: 600,
+            color: 'rgba(255,255,255,.4)',
+            lineHeight: 1,
+          }}>
+            {timeStr}
+          </span>
+          {/* Fare — below the time, in accent color */}
+          {fareStr && (
+            <span style={{
+              fontFamily: '"JetBrains Mono", monospace',
+              fontSize: 14, fontWeight: 700,
+              color: outcome.accent,
+              lineHeight: 1,
+              letterSpacing: '-.01em',
+              animation: 'fareIn .5s ease-out .2s both',
+            }}>
+              {fareStr}
+            </span>
+          )}
         </div>
       </div>
 
-      {/* MIDDLE — route with masked addresses */}
-      <div style={{ display: 'flex', alignItems: 'stretch', gap: 12, marginBottom: 16, flex: 1 }}>
-        {/* Vertical line w/ pickup + dropoff endpoints */}
+      {/* MIDDLE — route with real street + city text */}
+      <div style={{ display: 'flex', alignItems: 'stretch', gap: 12, marginBottom: 16, flex: 1, minHeight: 0 }}>
+        {/* Vertical connector */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 6, flexShrink: 0 }}>
           <div style={{ width: 9, height: 9, borderRadius: '50%', background: '#5EEAD4', boxShadow: '0 0 8px rgba(94,234,212,.6)' }}/>
           <div style={{
@@ -437,41 +433,75 @@ function SingleTripCard({ trip }) {
           <div style={{ width: 9, height: 9, borderRadius: 2, background: '#C4B5FD', transform: 'rotate(45deg)', boxShadow: '0 0 8px rgba(196,181,253,.6)' }}/>
         </div>
 
-        {/* Masked address dots */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', paddingTop: 2, paddingBottom: 2 }}>
-          <div>
-            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(94,234,212,.6)', marginBottom: 6 }}>
+        {/* Address text blocks */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', paddingTop: 2, paddingBottom: 2, minWidth: 0 }}>
+
+          {/* Pickup */}
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(94,234,212,.6)', marginBottom: 3 }}>
               Pickup
             </div>
-            <div style={{ animation: 'dotsFlow .55s ease-out .15s both' }}>
-              <MaskedAddressDots wordLengths={pickupMask} color="#5EEAD4" dotSize={5}/>
-            </div>
+            {pickup.street ? (
+              <>
+                <div style={{
+                  fontSize: 13, fontWeight: 700, color: '#E2E8F0', lineHeight: 1.2,
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                }}>
+                  {pickup.street}
+                </div>
+                {pickup.city && (
+                  <div style={{
+                    fontSize: 11, fontWeight: 500, color: 'rgba(94,234,212,.55)',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    marginTop: 1,
+                  }}>
+                    {pickup.city}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,.25)' }}>—</div>
+            )}
           </div>
-          <div>
-            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(196,181,253,.6)', marginBottom: 6 }}>
+
+          {/* Dropoff */}
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(196,181,253,.6)', marginBottom: 3 }}>
               Dropoff
             </div>
-            <div style={{ animation: 'dotsFlow .55s ease-out .3s both' }}>
-              <MaskedAddressDots wordLengths={dropoffMask} color="#C4B5FD" dotSize={5}/>
-            </div>
+            {dropoff.street ? (
+              <>
+                <div style={{
+                  fontSize: 13, fontWeight: 700, color: '#E2E8F0', lineHeight: 1.2,
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                }}>
+                  {dropoff.street}
+                </div>
+                {dropoff.city && (
+                  <div style={{
+                    fontSize: 11, fontWeight: 500, color: 'rgba(196,181,253,.55)',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    marginTop: 1,
+                  }}>
+                    {dropoff.city}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,.25)' }}>—</div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* BOTTOM — outcome copy + fare dots */}
+      {/* BOTTOM — outcome copy */}
       <div style={{
         paddingTop: 12,
         borderTop: '1px solid rgba(255,255,255,.06)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+        display: 'flex', alignItems: 'center',
       }}>
-        <div style={{ fontSize: 12, color: outcome.accent, fontWeight: 700, flex: 1, minWidth: 0, lineHeight: 1.4 }}>
+        <div style={{ fontSize: 12, color: outcome.accent, fontWeight: 700, lineHeight: 1.4 }}>
           {outcome.copy}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
-          <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.1em', color: 'rgba(255,255,255,.32)', textTransform: 'uppercase' }}>
-            Fare
-          </span>
-          <MagnitudeDots value={fareMagnitude} color={outcome.accent} dotSize={6}/>
         </div>
       </div>
     </div>
@@ -518,12 +548,10 @@ function DarkPill({ color, label, value, glow, dim }) {
 // ═══════════════════════════════════════════════════════════════════════
 export default function UatobView({ trips }) {
   const { drivers, loading } = useAllDrivers();
-  const [face,      setFace]      = useState('drivers'); // 'drivers' | 'trips'
+  const [face,      setFace]      = useState('drivers');
   const [tripIndex, setTripIndex] = useState(0);
-
   const flipTimerRef = useRef(null);
 
-  // ── Sorted trips (newest first) ───────────────────────────────────
   const sortedTrips = useMemo(() => {
     return [...(trips || [])].sort((a, b) => tsToMillis(b.createdAt) - tsToMillis(a.createdAt));
   }, [trips]);
@@ -531,7 +559,6 @@ export default function UatobView({ trips }) {
   const tripsCount = sortedTrips.length;
   const hasTrips   = tripsCount > 0;
 
-  // ── Driver pins (unchanged from your original) ────────────────────
   const driverPins = useMemo(() => drivers.map(d => {
     const hasGps = Number.isFinite(Number(d.lat)) && Number.isFinite(Number(d.lng));
     const pos = hasGps
@@ -546,8 +573,8 @@ export default function UatobView({ trips }) {
     };
   }), [drivers]);
 
-  const onlinePins  = useMemo(() => driverPins.filter(d => d.label === 'Online'), [driverPins]);
-  const offlinePins = useMemo(() => driverPins.filter(d => d.label !== 'Online'), [driverPins]);
+  const onlinePins  = useMemo(() => driverPins.filter(d => d.label === 'Online'),  [driverPins]);
+  const offlinePins = useMemo(() => driverPins.filter(d => d.label !== 'Online'),  [driverPins]);
 
   const counts = useMemo(() => ({
     total:   driverPins.length,
@@ -562,44 +589,30 @@ export default function UatobView({ trips }) {
 
   const hasOnline = counts.online > 0;
 
-  // ── Auto-flip with trip rotation ──────────────────────────────────
-  // Cycle: drivers → trip1 → drivers → trip2 → drivers → trip3 → drivers → trip1 …
   useEffect(() => {
     if (!hasTrips) {
       setFace('drivers');
       clearInterval(flipTimerRef.current);
       return;
     }
-
     clearInterval(flipTimerRef.current);
     flipTimerRef.current = setInterval(() => {
       setFace(prevFace => {
-        if (prevFace === 'drivers') {
-          // Going to trips — keep current tripIndex
-          return 'trips';
-        } else {
-          // Coming back to drivers — advance trip index for next time
-          setTripIndex(i => (i + 1) % tripsCount);
-          return 'drivers';
-        }
+        if (prevFace === 'drivers') return 'trips';
+        setTripIndex(i => (i + 1) % tripsCount);
+        return 'drivers';
       });
     }, 7000);
-
     return () => clearInterval(flipTimerRef.current);
   }, [hasTrips, tripsCount]);
 
-  // ── Manual tap — flip + advance ───────────────────────────────────
   const handleFlip = () => {
     if (!hasTrips) return;
     setFace(prevFace => {
-      if (prevFace === 'drivers') {
-        return 'trips';
-      } else {
-        setTripIndex(i => (i + 1) % tripsCount);
-        return 'drivers';
-      }
+      if (prevFace === 'drivers') return 'trips';
+      setTripIndex(i => (i + 1) % tripsCount);
+      return 'drivers';
     });
-    // Reset auto-flip timer
     clearInterval(flipTimerRef.current);
     flipTimerRef.current = setInterval(() => {
       setFace(prevFace => {
@@ -644,7 +657,7 @@ export default function UatobView({ trips }) {
             />
           </div>
 
-          {/* BACK — rotates to next trip on each cycle */}
+          {/* BACK */}
           <div style={{ position: 'absolute', inset: 0, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'rotateY(180deg)', boxShadow: '0 16px 48px rgba(15,10,30,.32), 0 2px 6px rgba(15,10,30,.12)', borderRadius: 24 }}>
             <TripFace
               trips={trips}
