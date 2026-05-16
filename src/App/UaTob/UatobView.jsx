@@ -101,25 +101,24 @@ function tripOutcome(trip) {
   const cancelReason = trip?.cancelReason || '';
 
   if (status === 'completed') {
-    return { label: 'Completed', copy: 'Paid in full', accent: '#22D3A5', bg: 'rgba(34,211,165,.10)', border: 'rgba(34,211,165,.28)', Icon: CheckCircle2 };
+    return { label: 'Completed', accent: '#22D3A5', bg: 'rgba(34,211,165,.10)', border: 'rgba(34,211,165,.28)', Icon: CheckCircle2 };
   }
   if (status === 'cancelled' && ps === 'refunded') {
     return {
       label: 'Fully refunded',
-      copy:  cancelReason === 'timeout_auto_cancel' ? 'No driver found — automatically refunded' : 'Refunded in full to your card',
       accent: '#5EEAD4', bg: 'rgba(94,234,212,.10)', border: 'rgba(94,234,212,.28)', Icon: ShieldCheck,
     };
   }
   if (status === 'cancelled') {
-    return { label: 'Cancelled', copy: 'Trip was cancelled', accent: '#CBD5E1', bg: 'rgba(203,213,225,.08)', border: 'rgba(203,213,225,.22)', Icon: RotateCcw };
+    return { label: 'Cancelled', accent: '#CBD5E1', bg: 'rgba(203,213,225,.08)', border: 'rgba(203,213,225,.22)', Icon: RotateCcw };
   }
   if (status === 'pending_payment') {
-    return { label: 'Awaiting payment', copy: 'Payment in progress', accent: '#FBBF24', bg: 'rgba(251,191,36,.10)', border: 'rgba(251,191,36,.28)', Icon: Clock };
+    return { label: 'Awaiting payment', accent: '#FBBF24', bg: 'rgba(251,191,36,.10)', border: 'rgba(251,191,36,.28)', Icon: Clock };
   }
   if (status === 'searching_driver' || status === 'searching') {
-    return { label: 'Searching', copy: 'Looking for a driver', accent: '#60A5FA', bg: 'rgba(96,165,250,.10)', border: 'rgba(96,165,250,.28)', Icon: Activity };
+    return { label: 'Searching', accent: '#60A5FA', bg: 'rgba(96,165,250,.10)', border: 'rgba(96,165,250,.28)', Icon: Activity };
   }
-  return { label: status || 'In progress', copy: 'In progress', accent: '#94A3B8', bg: 'rgba(148,163,184,.10)', border: 'rgba(148,163,184,.24)', Icon: Car };
+  return { label: status || 'In progress', accent: '#94A3B8', bg: 'rgba(148,163,184,.10)', border: 'rgba(148,163,184,.24)', Icon: Car };
 }
 
 // ─── ADDRESS PARSER ──────────────────────────────────────────────────
@@ -160,7 +159,7 @@ const STYLES = `
   @keyframes bgFloat    { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(20px,-15px) scale(1.08); } }
   @keyframes badgePulse { 0%,100% { box-shadow: 0 0 0 0 rgba(34,211,165,0); } 50% { box-shadow: 0 0 0 10px rgba(34,211,165,.18); } }
   @keyframes tripIn     { 0% { opacity: 0; transform: translateY(14px) scale(.97); filter: blur(4px); } 100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); } }
-  @keyframes fareGlow   { 0% { text-shadow: 0 0 0px rgba(34,211,165,0); } 50% { text-shadow: 0 0 12px rgba(34,211,165,0.6); } 100% { text-shadow: 0 0 0px rgba(34,211,165,0); } }
+  @keyframes fareGlow   { 0%,100% { text-shadow: 0 0 8px rgba(34,211,165,0.2); } 40% { text-shadow: 0 0 28px rgba(34,211,165,0.9), 0 0 60px rgba(34,211,165,0.4); } }
   @keyframes farePulse  { 0% { transform: scale(1); opacity: 0.7; } 100% { transform: scale(1.08); opacity: 1; } }
 `;
 
@@ -324,7 +323,7 @@ function TripFace({ trips, tripsCount, currentIndex, totalTrips }) {
   );
 }
 
-// ─── ONE big trip card — with enhanced fare glow ─────────────────────
+// ─── ONE big trip card ────────────────────────────────────────────────
 function SingleTripCard({ trip }) {
   const outcome = tripOutcome(trip);
   const pay     = paymentInfo(trip.paymentMethod);
@@ -360,8 +359,8 @@ function SingleTripCard({ trip }) {
         background: `linear-gradient(90deg, ${outcome.accent}, ${outcome.accent}88, transparent 80%)`,
       }}/>
 
-      {/* TOP ROW — status + payment pills, then time+fare stacked on the right */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+      {/* TOP ROW — status + payment pills */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
 
         {/* Status pill */}
         <div style={{
@@ -389,45 +388,46 @@ function SingleTripCard({ trip }) {
           </span>
         </div>
 
-        {/* Time + fare — with enhanced glow for fare */}
-        <div style={{
+        {/* Relative time — pushed to the right */}
+        <span style={{
           marginLeft: 'auto',
-          display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6,
+          fontFamily: '"JetBrains Mono", monospace',
+          fontSize: 10, fontWeight: 600,
+          color: 'rgba(255,255,255,.35)',
+          lineHeight: 1,
           flexShrink: 0,
         }}>
-          {/* Relative time */}
-          <span style={{
-            fontFamily: '"JetBrains Mono", monospace',
-            fontSize: 10, fontWeight: 600,
-            color: 'rgba(255,255,255,.35)',
-            lineHeight: 1,
-          }}>
-            {timeStr}
-          </span>
-          {/* Fare — bigger, bolder, with glow animation */}
-          {fareStr && (
-            <div style={{
-              animation: isCompleted ? 'farePulse 0.6s ease-out forwards' : 'none',
-            }}>
-              <span style={{
-                fontFamily: '"JetBrains Mono", monospace',
-                fontSize: 22, fontWeight: 900,
-                color: outcome.accent,
-                lineHeight: 1,
-                letterSpacing: '-.02em',
-                display: 'inline-block',
-                textShadow: `0 0 8px ${outcome.accent}88`,
-                animation: isCompleted ? 'fareGlow 1.8s ease-in-out 0.3s infinite' : 'none',
-              }}>
-                {fareStr}
-              </span>
-            </div>
-          )}
-        </div>
+          {timeStr}
+        </span>
       </div>
 
+      {/* FARE — big, centered, dominant */}
+      {fareStr && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginBottom: 16,
+          animation: isCompleted ? 'farePulse 0.6s ease-out forwards' : 'none',
+        }}>
+          <span style={{
+            fontFamily: '"JetBrains Mono", monospace',
+            fontSize: 48,
+            fontWeight: 900,
+            color: outcome.accent,
+            lineHeight: 1,
+            letterSpacing: '-.03em',
+            display: 'inline-block',
+            textShadow: `0 0 18px ${outcome.accent}cc, 0 0 36px ${outcome.accent}55`,
+            animation: `fareGlow 4s ease-in-out 0.3s infinite`,
+          }}>
+            {fareStr}
+          </span>
+        </div>
+      )}
+
       {/* MIDDLE — route with real street + city text */}
-      <div style={{ display: 'flex', alignItems: 'stretch', gap: 12, marginBottom: 16, flex: 1, minHeight: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'stretch', gap: 12, flex: 1, minHeight: 0 }}>
         {/* Vertical connector */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 6, flexShrink: 0 }}>
           <div style={{ width: 9, height: 9, borderRadius: '50%', background: '#5EEAD4', boxShadow: '0 0 10px rgba(94,234,212,.7)' }}/>
@@ -497,17 +497,6 @@ function SingleTripCard({ trip }) {
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,.25)' }}>—</div>
             )}
           </div>
-        </div>
-      </div>
-
-      {/* BOTTOM — outcome copy (refined messaging) */}
-      <div style={{
-        paddingTop: 12,
-        borderTop: '1px solid rgba(255,255,255,.06)',
-        display: 'flex', alignItems: 'center',
-      }}>
-        <div style={{ fontSize: 12, color: outcome.accent, fontWeight: 700, lineHeight: 1.4, letterSpacing: '.02em' }}>
-          {outcome.copy}
         </div>
       </div>
     </div>
