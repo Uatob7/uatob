@@ -68,7 +68,7 @@ function RadarOverlay({ sweepAngle }) {
   const toRad = deg => (deg * Math.PI) / 180;
   const R = 55;
   const trailAngle = sweepAngle;
-  const leadAngle  = (sweepAngle + 72) % 360;
+  const leadAngle  = (sweepAngle + 90) % 360;
   const trailX = 50 + R * Math.cos(toRad(trailAngle));
   const trailY = 50 + R * Math.sin(toRad(trailAngle));
   const leadX  = 50 + R * Math.cos(toRad(leadAngle));
@@ -80,29 +80,24 @@ function RadarOverlay({ sweepAngle }) {
       viewBox="0 0 100 100" preserveAspectRatio="none">
       <defs>
         <radialGradient id="cmSweepGrad" cx="50%" cy="50%" r="50%">
-          <stop offset="0%"   stopColor="rgba(34,197,94,0.75)"/>
-          <stop offset="55%"  stopColor="rgba(34,197,94,0.22)"/>
+          <stop offset="0%"   stopColor="rgba(34,197,94,0.35)"/>
+          <stop offset="40%"  stopColor="rgba(34,197,94,0.10)"/>
           <stop offset="100%" stopColor="rgba(34,197,94,0)"/>
         </radialGradient>
-        <radialGradient id="cmVig" cx="50%" cy="50%" r="60%">
-          <stop offset="30%" stopColor="transparent"/>
-          <stop offset="100%" stopColor="rgba(0,0,0,0.72)"/>
-        </radialGradient>
       </defs>
-      <rect width="100" height="100" fill="url(#cmVig)"/>
       {[14,26,38,50].map((r,i) => (
         <circle key={i} cx="50" cy="50" r={r} fill="none"
-          stroke="rgba(34,197,94,0.18)" strokeWidth="0.3" strokeDasharray="1.2 2.2"/>
+          stroke="rgba(34,197,94,0.09)" strokeWidth="0.25" strokeDasharray="1.2 2.2"/>
       ))}
       <path d={`M 50 50 L ${trailX} ${trailY} A ${R} ${R} 0 0 1 ${leadX} ${leadY} Z`}
-        fill="url(#cmSweepGrad)" opacity="0.72"/>
+        fill="url(#cmSweepGrad)" opacity="0.5"/>
       <line x1="50" y1="50" x2={leadX} y2={leadY}
-        stroke="#4ADE80" strokeWidth="0.55" strokeLinecap="round" opacity="0.95"/>
-      <circle cx={tipX} cy={tipY} r="1.3" fill="#4ADE80" opacity="0.95"/>
-      <circle cx={tipX} cy={tipY} r="2.4" fill="rgba(74,222,128,0.25)" opacity="0.9"/>
-      <line x1="47.5" y1="50" x2="52.5" y2="50" stroke="rgba(34,197,94,0.55)" strokeWidth="0.3"/>
-      <line x1="50" y1="47.5" x2="50" y2="52.5" stroke="rgba(34,197,94,0.55)" strokeWidth="0.3"/>
-      <circle cx="50" cy="50" r="0.9" fill="rgba(74,222,128,0.85)"/>
+        stroke="#4ADE80" strokeWidth="0.35" strokeLinecap="round" opacity="0.7"/>
+      <circle cx={tipX} cy={tipY} r="1.1" fill="#4ADE80" opacity="0.8"/>
+      <circle cx={tipX} cy={tipY} r="2.0" fill="rgba(74,222,128,0.18)" opacity="0.8"/>
+      <line x1="47.5" y1="50" x2="52.5" y2="50" stroke="rgba(34,197,94,0.35)" strokeWidth="0.25"/>
+      <line x1="50" y1="47.5" x2="50" y2="52.5" stroke="rgba(34,197,94,0.35)" strokeWidth="0.25"/>
+      <circle cx="50" cy="50" r="0.8" fill="rgba(74,222,128,0.7)"/>
     </svg>
   );
 }
