@@ -106,12 +106,12 @@ function tripOutcome(trip) {
   if (status === 'cancelled' && ps === 'refunded') {
     return {
       label: 'Fully refunded',
-      copy:  cancelReason === 'timeout_auto_cancel' ? 'No match — we refunded automatically' : 'Refunded in full to your card',
+      copy:  cancelReason === 'timeout_auto_cancel' ? 'No driver found — automatically refunded' : 'Refunded in full to your card',
       accent: '#5EEAD4', bg: 'rgba(94,234,212,.10)', border: 'rgba(94,234,212,.28)', Icon: ShieldCheck,
     };
   }
   if (status === 'cancelled') {
-    return { label: 'Cancelled', copy: 'Ride did not proceed', accent: '#CBD5E1', bg: 'rgba(203,213,225,.08)', border: 'rgba(203,213,225,.22)', Icon: RotateCcw };
+    return { label: 'Cancelled', copy: 'Trip was cancelled', accent: '#CBD5E1', bg: 'rgba(203,213,225,.08)', border: 'rgba(203,213,225,.22)', Icon: RotateCcw };
   }
   if (status === 'pending_payment') {
     return { label: 'Awaiting payment', copy: 'Payment in progress', accent: '#FBBF24', bg: 'rgba(251,191,36,.10)', border: 'rgba(251,191,36,.28)', Icon: Clock };
@@ -123,7 +123,6 @@ function tripOutcome(trip) {
 }
 
 // ─── ADDRESS PARSER ──────────────────────────────────────────────────
-// "1372 Bay Harbor Drive, Palm Harbor, FL, USA" → { street: "1372 Bay Harbor Drive", city: "Palm Harbor" }
 function parseAddress(address) {
   if (!address) return { street: '', city: '' };
   const parts = address.split(',').map(p => p.trim());
@@ -142,7 +141,7 @@ function MagnitudeDots({ value, max = 5, color = '#5EEAD4', dotSize = 5 }) {
         <div key={i} style={{
           width: dotSize, height: dotSize, borderRadius: '50%',
           background: i < n ? color : 'rgba(255,255,255,.12)',
-          boxShadow: i < n ? `0 0 4px ${color}88` : 'none',
+          boxShadow: i < n ? `0 0 6px ${color}` : 'none',
         }}/>
       ))}
     </div>
@@ -161,7 +160,8 @@ const STYLES = `
   @keyframes bgFloat    { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(20px,-15px) scale(1.08); } }
   @keyframes badgePulse { 0%,100% { box-shadow: 0 0 0 0 rgba(34,211,165,0); } 50% { box-shadow: 0 0 0 10px rgba(34,211,165,.18); } }
   @keyframes tripIn     { 0% { opacity: 0; transform: translateY(14px) scale(.97); filter: blur(4px); } 100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); } }
-  @keyframes fareIn     { 0% { opacity: 0; transform: translateY(4px); } 100% { opacity: 1; transform: translateY(0); } }
+  @keyframes fareGlow   { 0% { text-shadow: 0 0 0px rgba(34,211,165,0); } 50% { text-shadow: 0 0 12px rgba(34,211,165,0.6); } 100% { text-shadow: 0 0 0px rgba(34,211,165,0); } }
+  @keyframes farePulse  { 0% { transform: scale(1); opacity: 0.7; } 100% { transform: scale(1.08); opacity: 1; } }
 `;
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -324,7 +324,7 @@ function TripFace({ trips, tripsCount, currentIndex, totalTrips }) {
   );
 }
 
-// ─── ONE big trip card ─────────────────────────────────────────────
+// ─── ONE big trip card — with enhanced fare glow ─────────────────────
 function SingleTripCard({ trip }) {
   const outcome = tripOutcome(trip);
   const pay     = paymentInfo(trip.paymentMethod);
@@ -334,7 +334,6 @@ function SingleTripCard({ trip }) {
   const pickup  = useMemo(() => parseAddress(trip.pickup),  [trip.pickup]);
   const dropoff = useMemo(() => parseAddress(trip.dropoff), [trip.dropoff]);
 
-  // Resolve fare from fareBreakdown.fareTotal or top-level fareTotal
   const fareStr = useMemo(() => {
     const raw = trip.fareBreakdown?.fareTotal ?? trip.fareTotal ?? null;
     if (raw == null || isNaN(Number(raw))) return null;
@@ -342,6 +341,7 @@ function SingleTripCard({ trip }) {
   }, [trip]);
 
   const timeStr = fmtRelative(tsToMillis(trip.createdAt));
+  const isCompleted = outcome.label === 'Completed';
 
   return (
     <div style={{
@@ -356,8 +356,8 @@ function SingleTripCard({ trip }) {
     }}>
       {/* Accent stripe */}
       <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0, height: 2,
-        background: `linear-gradient(90deg, ${outcome.accent}, transparent 70%)`,
+        position: 'absolute', top: 0, left: 0, right: 0, height: 3,
+        background: `linear-gradient(90deg, ${outcome.accent}, ${outcome.accent}88, transparent 80%)`,
       }}/>
 
       {/* TOP ROW — status + payment pills, then time+fare stacked on the right */}
@@ -389,33 +389,39 @@ function SingleTripCard({ trip }) {
           </span>
         </div>
 
-        {/* Time + fare stacked — pushed to the right */}
+        {/* Time + fare — with enhanced glow for fare */}
         <div style={{
           marginLeft: 'auto',
-          display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4,
+          display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6,
           flexShrink: 0,
         }}>
           {/* Relative time */}
           <span style={{
             fontFamily: '"JetBrains Mono", monospace',
-            fontSize: 11, fontWeight: 600,
-            color: 'rgba(255,255,255,.4)',
+            fontSize: 10, fontWeight: 600,
+            color: 'rgba(255,255,255,.35)',
             lineHeight: 1,
           }}>
             {timeStr}
           </span>
-          {/* Fare — below the time, in accent color */}
+          {/* Fare — bigger, bolder, with glow animation */}
           {fareStr && (
-            <span style={{
-              fontFamily: '"JetBrains Mono", monospace',
-              fontSize: 14, fontWeight: 700,
-              color: outcome.accent,
-              lineHeight: 1,
-              letterSpacing: '-.01em',
-              animation: 'fareIn .5s ease-out .2s both',
+            <div style={{
+              animation: isCompleted ? 'farePulse 0.6s ease-out forwards' : 'none',
             }}>
-              {fareStr}
-            </span>
+              <span style={{
+                fontFamily: '"JetBrains Mono", monospace',
+                fontSize: 22, fontWeight: 900,
+                color: outcome.accent,
+                lineHeight: 1,
+                letterSpacing: '-.02em',
+                display: 'inline-block',
+                textShadow: `0 0 8px ${outcome.accent}88`,
+                animation: isCompleted ? 'fareGlow 1.8s ease-in-out 0.3s infinite' : 'none',
+              }}>
+                {fareStr}
+              </span>
+            </div>
           )}
         </div>
       </div>
@@ -424,13 +430,13 @@ function SingleTripCard({ trip }) {
       <div style={{ display: 'flex', alignItems: 'stretch', gap: 12, marginBottom: 16, flex: 1, minHeight: 0 }}>
         {/* Vertical connector */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 6, flexShrink: 0 }}>
-          <div style={{ width: 9, height: 9, borderRadius: '50%', background: '#5EEAD4', boxShadow: '0 0 8px rgba(94,234,212,.6)' }}/>
+          <div style={{ width: 9, height: 9, borderRadius: '50%', background: '#5EEAD4', boxShadow: '0 0 10px rgba(94,234,212,.7)' }}/>
           <div style={{
             width: 1.5, flex: 1, minHeight: 28,
-            background: 'linear-gradient(to bottom, rgba(94,234,212,.4), rgba(167,139,250,.4))',
+            background: 'linear-gradient(to bottom, rgba(94,234,212,.5), rgba(167,139,250,.5))',
             margin: '3px 0',
           }}/>
-          <div style={{ width: 9, height: 9, borderRadius: 2, background: '#C4B5FD', transform: 'rotate(45deg)', boxShadow: '0 0 8px rgba(196,181,253,.6)' }}/>
+          <div style={{ width: 9, height: 9, borderRadius: 2, background: '#C4B5FD', transform: 'rotate(45deg)', boxShadow: '0 0 10px rgba(196,181,253,.7)' }}/>
         </div>
 
         {/* Address text blocks */}
@@ -438,7 +444,7 @@ function SingleTripCard({ trip }) {
 
           {/* Pickup */}
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(94,234,212,.6)', marginBottom: 3 }}>
+            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(94,234,212,.7)', marginBottom: 3 }}>
               Pickup
             </div>
             {pickup.street ? (
@@ -451,7 +457,7 @@ function SingleTripCard({ trip }) {
                 </div>
                 {pickup.city && (
                   <div style={{
-                    fontSize: 11, fontWeight: 500, color: 'rgba(94,234,212,.55)',
+                    fontSize: 11, fontWeight: 500, color: 'rgba(94,234,212,.65)',
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                     marginTop: 1,
                   }}>
@@ -466,7 +472,7 @@ function SingleTripCard({ trip }) {
 
           {/* Dropoff */}
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(196,181,253,.6)', marginBottom: 3 }}>
+            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(196,181,253,.7)', marginBottom: 3 }}>
               Dropoff
             </div>
             {dropoff.street ? (
@@ -479,7 +485,7 @@ function SingleTripCard({ trip }) {
                 </div>
                 {dropoff.city && (
                   <div style={{
-                    fontSize: 11, fontWeight: 500, color: 'rgba(196,181,253,.55)',
+                    fontSize: 11, fontWeight: 500, color: 'rgba(196,181,253,.65)',
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                     marginTop: 1,
                   }}>
@@ -494,13 +500,13 @@ function SingleTripCard({ trip }) {
         </div>
       </div>
 
-      {/* BOTTOM — outcome copy */}
+      {/* BOTTOM — outcome copy (refined messaging) */}
       <div style={{
         paddingTop: 12,
         borderTop: '1px solid rgba(255,255,255,.06)',
         display: 'flex', alignItems: 'center',
       }}>
-        <div style={{ fontSize: 12, color: outcome.accent, fontWeight: 700, lineHeight: 1.4 }}>
+        <div style={{ fontSize: 12, color: outcome.accent, fontWeight: 700, lineHeight: 1.4, letterSpacing: '.02em' }}>
           {outcome.copy}
         </div>
       </div>
@@ -536,7 +542,7 @@ function BottomStrip({ trips, tripsCount }) {
 function DarkPill({ color, label, value, glow, dim }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-      <div style={{ width: 7, height: 7, borderRadius: '50%', background: color, boxShadow: glow ? `0 0 6px ${color}` : 'none', opacity: dim ? .6 : 1, flexShrink: 0 }}/>
+      <div style={{ width: 7, height: 7, borderRadius: '50%', background: color, boxShadow: glow ? `0 0 8px ${color}` : 'none', opacity: dim ? .6 : 1, flexShrink: 0 }}/>
       <span style={{ fontSize: 14, fontWeight: 800, color: dim ? 'rgba(255,255,255,.55)' : '#fff', fontVariantNumeric: 'tabular-nums', letterSpacing: '-.02em', lineHeight: 1 }}>{value}</span>
       <span style={{ fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,.55)' }}>{label}</span>
     </div>
@@ -688,9 +694,9 @@ export default function UatobView({ trips }) {
                     : 'rgba(255,255,255,.22)',
                 transition: 'all .35s ease',
                 boxShadow: face === 'trips' && i === tripIndex
-                  ? '0 0 8px rgba(196,181,253,.6)'
+                  ? '0 0 10px rgba(196,181,253,.7)'
                   : face === 'drivers' && i === 0
-                    ? '0 0 8px rgba(34,211,165,.6)'
+                    ? '0 0 10px rgba(34,211,165,.7)'
                     : 'none',
               }}/>
             ))}
