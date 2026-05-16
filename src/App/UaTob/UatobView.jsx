@@ -486,3 +486,6 @@ function DarkPill({ color, label, value, glow, dim }) {
     </div>
   );
 }
+
+
+Trips in UatobView: 

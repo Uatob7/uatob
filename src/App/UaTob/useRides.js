@@ -22,6 +22,7 @@ const ACTIVE_STATUSES = [
   'arrived',
   'in_progress',
   'completed',
+  'cancelled',
   'timeout',
 ];
 
@@ -40,8 +41,6 @@ export function useRides() {
       const q = query(
         collection(db, 'Rides'),
         where('status', 'in', ACTIVE_STATUSES),
-        orderBy('createdAt', 'desc'),
-        limit(50)
       );
 
       const unsub = onSnapshot(
