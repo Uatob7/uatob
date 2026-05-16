@@ -222,7 +222,7 @@ function CyclingCard({
   // Copy invite
   const [copied, setCopied] = useState(false);
   const handleCopy = () => {
-    navigator.clipboard?.writeText('https://uatob.com/invite').catch(() => {});
+    navigator.clipboard?.writeText('https://uatob.com').catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -381,7 +381,7 @@ function CyclingCard({
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,.9)', marginBottom: 3 }}>
-                          {count} {count === 1 ? 'driver' : 'drivers'} noticed
+                          {count} {count === 1 ? 'driver' : 'drivers'} pinged
                         </div>
                         {closest && (
                           <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -520,7 +520,7 @@ function CyclingCard({
                 <div style={{ display: 'flex', gap: 6 }}>
                   <div style={{ flex: 1, padding: '8px 11px', borderRadius: 9, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', minWidth: 0 }}>
                     <div style={{ fontSize: 9, color: 'rgba(255,255,255,.3)', fontWeight: 700, marginBottom: 1 }}>Invite link</div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(167,139,250,.85)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>uatob.com/invite</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(167,139,250,.85)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>uatob.com</div>
                   </div>
                   <button onClick={handleCopy} style={{
                     padding: '0 12px', borderRadius: 9, border: 'none',
@@ -616,14 +616,19 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
     }, err => console.warn('[ConfirmationModal] snapshot error:', err));
   }, [rideId]);
 
-  // Account snapshot
+  // Account snapshot — also detects existing phone + token to skip panels
   useEffect(() => {
     if (!riderUid) return;
     try { accountUnsubRef.current?.(); } catch {}
     try {
       accountUnsubRef.current = onSnapshot(doc(db, 'Accounts', riderUid), (snap) => {
         if (!mountedRef.current) return;
-        setAccountPhone(snap.exists() ? (snap.data()?.phone ?? '') : '');
+        const data = snap.exists() ? snap.data() : null;
+        setAccountPhone(data?.phone ?? '');
+        if (data?.token && !notifDoneRef.current) {
+          setNotifDone(true);
+          notifDoneRef.current = true;
+        }
       }, err => { console.warn(err); setAccountPhone(''); });
     } catch { setAccountPhone(''); }
     return () => { try { accountUnsubRef.current?.(); } catch {} };
@@ -680,7 +685,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
     return () => clearTimeout(t);
   }, [status]);
 
-  // Auto-register FCM if already granted
+  // Auto-register FCM if already granted (browser permission already given, no token saved yet)
   useEffect(() => {
     if (status !== 'searching' || notifDoneRef.current || !('Notification' in window)) return;
     if (window.Notification.permission === 'granted' && rideId && riderUid && !currentRide?.riderFcmToken) {
