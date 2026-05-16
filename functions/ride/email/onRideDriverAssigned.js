@@ -7,7 +7,7 @@ const db = getFirestore();
 const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 
 exports.onRideDriverAssigned = onDocumentUpdated(
-  { document: "Rides/{rideId}", region: "us-east1" },
+  { document: "Rides/{rideId}", region: "us-central1" },
   async (event) => {
     try {
       const before = event.data.before.data();

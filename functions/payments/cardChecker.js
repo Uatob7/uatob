@@ -18,7 +18,7 @@ const STRIPE_SECRET_KEY = defineSecret("STRIPE_SECRET_KEY");
 exports.cardChecker = onSchedule(
   {
     schedule: "every 1 minutes",
-    region: "us-east1",
+    region: "us-central1",
     secrets: [STRIPE_SECRET_KEY],
   },
   async (event) => {

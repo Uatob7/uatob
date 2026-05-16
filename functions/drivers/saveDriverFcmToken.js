@@ -2,7 +2,7 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { getFirestore }       = require("firebase-admin/firestore");
 
 exports.saveDriverFcmToken = onCall(
-  { region: "us-east1" },
+  { region: "us-central1" },
   async (request) => {
     const { driverId, token } = request.data;
 

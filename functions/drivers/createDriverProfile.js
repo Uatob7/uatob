@@ -7,7 +7,7 @@ const db = getFirestore();
 
 exports.createDriverProfile = onCall(
   {
-    region: "us-east1",
+    region: "us-central1",
     invoker: "public",  // 👈 this is what's missing
   },
   async (request) => {

@@ -6,7 +6,7 @@ const db = admin.firestore();
 
 exports.cashAppPayment = onCall(
   {
-    region: "us-east1",
+    region: "us-central1",
     secrets: ["STRIPE_SECRET_KEY"],
   },
   async (request) => {

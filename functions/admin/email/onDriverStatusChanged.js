@@ -17,7 +17,7 @@ const ADMIN_EMAIL = "support@uatob.com";
 exports.onDriverStatusChanged = onDocumentUpdated(
   {
     document: "Drivers/{uid}",
-    region:   "us-east1",
+    region:   "us-central1",
     secrets:  ["SENDGRID_API_KEY"],
   },
   async (event) => {

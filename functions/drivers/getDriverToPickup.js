@@ -6,7 +6,7 @@ const GOOGLE_MAPS_KEY = defineSecret("GOOGLE_MAPS_KEY");
 
 exports.getDriverToPickup = onCall(
   {
-    region: "us-east1",
+    region: "us-central1",
     secrets: [GOOGLE_MAPS_KEY],
   },
   async (request) => {

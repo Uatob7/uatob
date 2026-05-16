@@ -396,7 +396,7 @@ function isWithinSendWindow() {
 exports.thankYouAnnouncement = onSchedule(
   {
     schedule: "every 1 minutes",
-    region:   "us-east1",
+    region:   "us-central1",
     secrets:  [SENDGRID_API_KEY],
     timeZone: "America/New_York",
   },

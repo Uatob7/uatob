@@ -15,6 +15,15 @@ const { rideTimeoutChecker } = require("./ride/rideTimeoutChecker");
 const { findDrivers } = require("./ride/findDrivers");
 const { onRidePaymentSucceeded } = require("./ride/email/onRidePaymentSucceeded");
 const { onRideCompleted } = require("./ride/email/onRideCompleted");
+const { onRideCancelled } = require("./ride/email/onRideCancelled");
+const { onRideDriverArrived } = require("./ride/email/onRideDriverArrived");
+const { onRideDriverArriving } = require("./ride/email/onRideDriverArriving");
+const { onRideDriverAssigned } = require("./ride/email/onRideDriverAssigned");
+const { onRideInProgress } = require("./ride/email/onRideInProgress");
+
+
+
+
 const { saveRiderFcmToken } = require("./ride/saveRiderFcmToken");
 const { onRideStatusChangedNotifyRider } = require("./ride/onRideStatusChangedNotifyRider");
 const { trackView } = require("./ride/trackView");
@@ -92,6 +101,17 @@ exports.cancelRide = cancelRide;
 exports.extendRideSearch = extendRideSearch;
 exports.Geo = Geo;
 exports.autoRefundTimeoutRides = autoRefundTimeoutRides;
+exports.onRideCancelled = onRideCancelled;
+exports.onRideDriverArrived = onRideDriverArrived;
+exports.onRideDriverArriving = onRideDriverArriving;
+exports.onRideDriverAssigned = onRideDriverAssigned;
+exports.onRideInProgress = onRideInProgress;
+
+
+
+
+
+
 exports.onRidePaymentSucceeded = onRidePaymentSucceeded;
 exports.cardPayment = cardPayment;
 exports.cashPayment = cashPayment;
