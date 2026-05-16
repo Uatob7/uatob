@@ -372,7 +372,7 @@ function CyclingCard({
   // Copy invite
   const [copied, setCopied] = useState(false);
   const handleCopy = () => {
-    navigator.clipboard?.writeText('https://uatob.com/invite').catch(() => {});
+    navigator.clipboard?.writeText('https://uatob.com').catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
