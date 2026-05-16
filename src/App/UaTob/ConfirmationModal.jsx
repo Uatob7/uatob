@@ -17,7 +17,6 @@ const callableUpdateRiderPhone = httpsCallable(functions, "updateRiderPhone");
 const VAPID_KEY = "BJ_sRHZonSGCKk2mB2i9ofTRS8ouFVMV-I15FX4sqdUXHyVb1lo6H-N4GMPrlcIIshRlykQicaxkxxFxcYcI4JQ";
 const SEARCH_LIMIT_SEC = 7 * 60;
 
-// Per-ride sticky skip key
 const PHONE_SKIP_KEY = (rideId) => `uatob_phone_skipped_${rideId}`;
 
 function getSecondsRemaining(expiresAt) {
@@ -39,7 +38,6 @@ async function registerRiderFcmToken(rideId, uid) {
   await callableSaveRiderToken({ rideId, uid, token });
 }
 
-// Format a string of digits as US phone: "5551234567" → "(555) 123-4567"
 function formatUsPhone(raw) {
   const digits = String(raw ?? "").replace(/\D/g, "").slice(0, 10);
   if (digits.length <= 3) return digits;
@@ -47,9 +45,199 @@ function formatUsPhone(raw) {
   return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
 }
 
-// Strip down to digits for validation
 function digitsOnly(s) {
   return String(s ?? "").replace(/\D/g, "");
+}
+
+// ─── NEW: Ride Search Radar ─────────────────────────────────────────────
+// A live "scanning for drivers" radar with sweeping beam, concentric grid,
+// and floating driver silhouettes that fade in/out at the perimeter.
+function RideSearchRadar({ isUrgent }) {
+  const [sweepAngle, setSweepAngle] = useState(0);
+
+  useEffect(() => {
+    let raf;
+    let last = performance.now();
+    let angle = 0;
+    const tick = (now) => {
+      const dt = now - last;
+      last = now;
+      // ~360° per 4 seconds → 90°/sec, scaled by dt
+      angle = (angle + (dt * 0.09)) % 360;
+      setSweepAngle(angle);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const accent  = isUrgent ? "#EF4444" : "#16A34A";
+  const accent2 = isUrgent ? "#F59E0B" : "#22C55E";
+  const ringRGB = isUrgent ? "239,68,68" : "22,163,74";
+
+  // Sweep geometry (SVG viewBox 0 0 200 200, center 100,100)
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const R = 92;
+  const trailAng = sweepAngle;
+  const leadAng  = (sweepAngle + 60) % 360;
+  const trailX = 100 + R * Math.cos(toRad(trailAng));
+  const trailY = 100 + R * Math.sin(toRad(trailAng));
+  const leadX  = 100 + R * Math.cos(toRad(leadAng));
+  const leadY  = 100 + R * Math.sin(toRad(leadAng));
+  const tipX   = 100 + 88 * Math.cos(toRad(leadAng));
+  const tipY   = 100 + 88 * Math.sin(toRad(leadAng));
+
+  // Driver silhouettes around perimeter — each pulses on its own phase
+  const driverPositions = [
+    { angle: 25,  r: 70, delay: 0.0 },
+    { angle: 115, r: 76, delay: 0.6 },
+    { angle: 200, r: 68, delay: 1.1 },
+    { angle: 295, r: 78, delay: 1.6 },
+  ];
+
+  return (
+    <div style={{
+      position: 'relative',
+      width: 152, height: 152,
+      margin: '0 auto 18px',
+    }}>
+      <style>{`
+        @keyframes radarExpand {
+          0%   { transform: scale(.5);  opacity: .85; }
+          100% { transform: scale(2.2); opacity: 0;   }
+        }
+        @keyframes radarDriverPulse {
+          0%, 100% { opacity: .25; transform: scale(.85); }
+          50%      { opacity: 1;    transform: scale(1.1); }
+        }
+        @keyframes radarCenterPulse {
+          0%, 100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(${ringRGB},.5); }
+          50%      { transform: scale(1.06); box-shadow: 0 0 0 10px rgba(${ringRGB},0); }
+        }
+      `}</style>
+
+      {/* Expanding pulse rings (behind everything) */}
+      {[0, 1, 2].map((i) => (
+        <div key={i} style={{
+          position: 'absolute', inset: 0,
+          borderRadius: '50%',
+          border: `1.5px solid rgba(${ringRGB},.35)`,
+          animation: `radarExpand 3s ease-out ${i * 1}s infinite`,
+          pointerEvents: 'none',
+        }}/>
+      ))}
+
+      {/* SVG radar canvas */}
+      <svg
+        viewBox="0 0 200 200"
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+      >
+        <defs>
+          {/* Sweep beam gradient */}
+          <radialGradient id="radarSweep" cx="50%" cy="50%" r="50%">
+            <stop offset="0%"   stopColor={accent}  stopOpacity="0"/>
+            <stop offset="40%"  stopColor={accent}  stopOpacity=".25"/>
+            <stop offset="100%" stopColor={accent2} stopOpacity=".75"/>
+          </radialGradient>
+
+          {/* Disc background */}
+          <radialGradient id="radarDisc" cx="50%" cy="50%" r="50%">
+            <stop offset="0%"   stopColor={accent} stopOpacity=".10"/>
+            <stop offset="60%"  stopColor={accent} stopOpacity=".04"/>
+            <stop offset="100%" stopColor={accent} stopOpacity="0"/>
+          </radialGradient>
+
+          {/* Subtle disc tint */}
+          <linearGradient id="radarTint" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%"   stopColor="#FAFAFA"/>
+            <stop offset="100%" stopColor="#F3F4F6"/>
+          </linearGradient>
+        </defs>
+
+        {/* Disc background */}
+        <circle cx="100" cy="100" r="94" fill="url(#radarTint)" />
+        <circle cx="100" cy="100" r="94" fill="url(#radarDisc)" />
+
+        {/* Concentric grid rings */}
+        {[30, 55, 80].map((r) => (
+          <circle
+            key={r}
+            cx="100" cy="100" r={r}
+            fill="none"
+            stroke={`rgba(${ringRGB},.18)`}
+            strokeWidth="0.6"
+            strokeDasharray="2 3"
+          />
+        ))}
+
+        {/* Cross hairs */}
+        <line x1="100" y1="6"  x2="100" y2="194" stroke={`rgba(${ringRGB},.12)`} strokeWidth="0.5"/>
+        <line x1="6"   y1="100" x2="194" y2="100" stroke={`rgba(${ringRGB},.12)`} strokeWidth="0.5"/>
+
+        {/* Sweep wedge */}
+        <path
+          d={`M 100 100 L ${trailX} ${trailY} A ${R} ${R} 0 0 1 ${leadX} ${leadY} Z`}
+          fill="url(#radarSweep)"
+          opacity="0.85"
+        />
+
+        {/* Leading beam line */}
+        <line
+          x1="100" y1="100" x2={leadX} y2={leadY}
+          stroke={accent}
+          strokeWidth="1.2"
+          strokeLinecap="round"
+          opacity="0.95"
+        />
+
+        {/* Tip flare */}
+        <circle cx={tipX} cy={tipY} r="2.6" fill={accent2} opacity="0.95"/>
+        <circle cx={tipX} cy={tipY} r="5"   fill={accent}  opacity="0.20"/>
+
+        {/* Outer border ring */}
+        <circle cx="100" cy="100" r="94" fill="none" stroke={`rgba(${ringRGB},.5)`} strokeWidth="1.5"/>
+      </svg>
+
+      {/* Driver silhouettes drifting at the perimeter */}
+      {driverPositions.map((p, i) => {
+        const px = 76 + p.r * Math.cos(toRad(p.angle)) * (152 / 200) - 12;
+        const py = 76 + p.r * Math.sin(toRad(p.angle)) * (152 / 200) - 12;
+        return (
+          <div key={i} style={{
+            position: 'absolute',
+            left: px, top: py,
+            width: 24, height: 24,
+            borderRadius: '50%',
+            background: '#fff',
+            border: `1.5px solid rgba(${ringRGB},.4)`,
+            boxShadow: `0 2px 6px rgba(${ringRGB},.15)`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            animation: `radarDriverPulse 2.4s ease-in-out ${p.delay}s infinite`,
+            zIndex: 2,
+          }}>
+            <Car size={11} color={accent} strokeWidth={2.2}/>
+          </div>
+        );
+      })}
+
+      {/* Center "you are here" pin */}
+      <div style={{
+        position: 'absolute',
+        top: '50%', left: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: 44, height: 44,
+        borderRadius: '50%',
+        background: `linear-gradient(135deg, ${accent2}, ${accent})`,
+        border: '3px solid #fff',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        boxShadow: `0 4px 14px rgba(${ringRGB},.45)`,
+        animation: 'radarCenterPulse 2s ease-in-out infinite',
+        zIndex: 3,
+      }}>
+        <Navigation size={18} color="#fff" strokeWidth={2.4} style={{ marginTop: -1 }}/>
+      </div>
+    </div>
+  );
 }
 
 // ─── Phone Capture Card (inline, shows during searching) ────────────────────
@@ -76,7 +264,6 @@ function PhoneCaptureCard({ uid, onSkip, onSaved }) {
       const { data } = await callableUpdateRiderPhone({ uid, phone: digits });
       if (data?.success) {
         setSuccess(true);
-        // Brief celebration then notify parent
         setTimeout(() => onSaved?.(data.phone), 900);
       } else {
         throw new Error("Update failed");
@@ -156,8 +343,6 @@ function PhoneCaptureCard({ uid, onSkip, onSaved }) {
         animation: "phoneSlideIn .35s cubic-bezier(.34,1.56,.64,1) both",
         position: "relative",
       }}>
-
-        {/* Skip × in top-right */}
         <button
           className="phone-skip-btn"
           onClick={onSkip}
@@ -175,7 +360,6 @@ function PhoneCaptureCard({ uid, onSkip, onSaved }) {
           <X size={13} strokeWidth={2.5} />
         </button>
 
-        {/* Header */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, paddingRight: 22 }}>
           <div style={{
             width: 32, height: 32, borderRadius: 9,
@@ -196,7 +380,6 @@ function PhoneCaptureCard({ uid, onSkip, onSaved }) {
           </div>
         </div>
 
-        {/* Input row */}
         <div style={{ display: "flex", gap: 7 }}>
           <input
             className="phone-input"
@@ -253,7 +436,6 @@ function PhoneCaptureCard({ uid, onSkip, onSaved }) {
           </button>
         </div>
 
-        {/* Error row */}
         {error && (
           <div style={{
             marginTop: 8,
@@ -265,7 +447,6 @@ function PhoneCaptureCard({ uid, onSkip, onSaved }) {
           </div>
         )}
 
-        {/* Privacy footnote */}
         {!error && (
           <div style={{
             marginTop: 8,
@@ -405,7 +586,6 @@ function NotificationPopup({ notifLoading, notifError, onAllow, onSkip }) {
     </>
   );
 }
-// ──────────────────────────────────────────────────────────────────────────
 
 export default function ConfirmationModal({
   onClose,
@@ -426,8 +606,7 @@ export default function ConfirmationModal({
   const [notifLoading, setNotifLoading] = useState(false);
   const [notifError, setNotifError] = useState("");
 
-  // ── Phone capture state ────────────────────────────────────────
-  const [accountPhone, setAccountPhone] = useState(null);   // null = unknown, "" = no phone, string = has phone
+  const [accountPhone, setAccountPhone] = useState(null);
   const [phoneSkipped, setPhoneSkipped] = useState(false);
 
   const timerRef = useRef(null);
@@ -478,7 +657,6 @@ export default function ConfirmationModal({
     );
   }, [rideId]);
 
-  // ── Subscribe to Accounts/{uid} for live phone status ──
   useEffect(() => {
     if (!riderUid) return;
     try { accountUnsubRef.current?.(); } catch {}
@@ -492,7 +670,6 @@ export default function ConfirmationModal({
         },
         (err) => {
           console.warn("[ConfirmationModal] account snapshot error:", err);
-          // Don't lock the user out of phone capture if read fails
           setAccountPhone("");
         }
       );
@@ -505,7 +682,6 @@ export default function ConfirmationModal({
     };
   }, [riderUid]);
 
-  // ── Restore "skipped this ride" preference from session ──
   useEffect(() => {
     if (!rideId) { setPhoneSkipped(false); return; }
     try {
@@ -516,7 +692,6 @@ export default function ConfirmationModal({
     }
   }, [rideId]);
 
-  // ── allow transitioning back out of timeout after extend ──
   useEffect(() => {
     if (!currentRide) return;
     const s = currentRide.status;
@@ -633,12 +808,6 @@ export default function ConfirmationModal({
   const dropoff = currentRide?.dropoff ?? '—';
   const rideLabel = currentRide?.rideLabel ?? currentRide?.rideType ?? 'Ride';
 
-  // Show phone card only when:
-  //  - status is searching
-  //  - we know the account state (accountPhone !== null)
-  //  - account has no phone yet
-  //  - rider hasn't skipped this ride
-  //  - we have a uid to write to
   const shouldShowPhoneCapture =
     status === 'searching' &&
     accountPhone !== null &&
@@ -654,7 +823,6 @@ export default function ConfirmationModal({
   };
 
   const handlePhoneSaved = (savedPhone) => {
-    // accountPhone will update via onSnapshot, this just hides instantly
     setAccountPhone(savedPhone);
   };
 
@@ -773,22 +941,10 @@ export default function ConfirmationModal({
               </div>
             )}
             <div style={{padding:'28px 24px 24px',textAlign:'center'}}>
-              <div style={{position:'relative',width:'96px',height:'96px',margin:'0 auto 20px'}}>
-                {[0,1,2].map(i=>(
-                  <div key={i} style={{
-                    position:'absolute',inset:0,borderRadius:'50%',
-                    border:`2px solid ${isUrgent?'rgba(239,68,68,.3)':'rgba(22,163,74,.28)'}`,
-                    animation:`radarRing 2.2s ease-out ${i*0.72}s infinite`,
-                  }}/>
-                ))}
-                <div style={{
-                  position:'absolute',inset:'14px',
-                  background:isUrgent?'linear-gradient(135deg,#F59E0B,#EF4444)':'linear-gradient(135deg,#22C55E,#15803D)',
-                  borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',
-                }}>
-                  <Car size={24} color="#fff"/>
-                </div>
-              </div>
+
+              {/* ── NEW RADAR ── */}
+              <RideSearchRadar isUrgent={isUrgent} />
+
               <h3 style={{fontSize:'22px',fontWeight:900,color:T.text,marginBottom:'6px'}}>
                 {isUrgent?'Almost out of time…':'Finding your driver'}
               </h3>
@@ -837,13 +993,11 @@ export default function ConfirmationModal({
                 </div>
               </div>
 
-              {/* Fare row */}
               <div style={{background:'#F0FDF4',border:`1px solid ${T.accentBorder}`,borderRadius:'12px',padding:'10px 14px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                 <span style={{fontSize:'12px',fontWeight:600,color:T.textMuted}}>{rideLabel} · {miles} mi</span>
                 <span style={{fontFamily:'"JetBrains Mono",monospace',fontSize:'15px',fontWeight:700,color:T.accent}}>${total}</span>
               </div>
 
-              {/* ── PHONE CAPTURE — UNDER FEE ── */}
               {shouldShowPhoneCapture && (
                 <PhoneCaptureCard
                   uid={riderUid}
