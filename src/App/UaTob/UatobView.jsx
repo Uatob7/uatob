@@ -1,8 +1,10 @@
-import React, { useMemo } from 'react';
-import { Car, Sparkles, Activity } from 'lucide-react';
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
+import { Activity } from 'lucide-react';
 import { useAllDrivers } from "@/App/UaTob/useAllDrivers";
 
-// ─── BOUNDS / coords ──────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Geo helpers
+// ─────────────────────────────────────────────────────────────────────────────
 const BOUNDS = { minLat: 28.30, maxLat: 28.78, minLng: -81.62, maxLng: -81.10 };
 
 function latLngToPct(lat, lng) {
@@ -31,86 +33,80 @@ function statusInfo(status) {
   return { label: 'Busy', color: '#60A5FA' };
 }
 
-// ── UATOB letter dot-matrix positions (x%, y%) ──
+// ─────────────────────────────────────────────────────────────────────────────
+// Trip / fare helpers
+// ─────────────────────────────────────────────────────────────────────────────
+function tripDotColor(status) {
+  const s = (status || '').toLowerCase();
+  if (s === 'completed')                                              return '#22D3A5';
+  if (s === 'cancelled')                                              return '#475569';
+  if (s === 'in_progress' || s === 'driver_assigned' || s === 'driver_arriving') return '#60A5FA';
+  return '#94A3B8';
+}
+
+function timeAgo(ts) {
+  if (!ts) return '';
+  const d = ts?.toDate?.() ?? (ts instanceof Date ? ts : new Date(ts));
+  if (!d || isNaN(d.getTime())) return '';
+  const diff = Date.now() - d.getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1)  return 'now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)  return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function shortPay(method) {
+  if (!method) return null;
+  const m = method.toLowerCase();
+  if (m === 'card')       return 'Card';
+  if (m === 'cashapp')    return 'Cash App';
+  if (m === 'apple_pay')  return 'Apple Pay';
+  if (m === 'google_pay') return 'GPay';
+  return method;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UATOB dot-matrix letter slots
+// ─────────────────────────────────────────────────────────────────────────────
 const LETTER_SLOTS = (() => {
   const letters = {
-    U: [
-      [1,0,1],
-      [1,0,1],
-      [1,0,1],
-      [1,0,1],
-      [0,1,0],
-    ],
-    A: [
-      [0,1,0],
-      [1,0,1],
-      [1,1,1],
-      [1,0,1],
-      [1,0,1],
-    ],
-    T: [
-      [1,1,1],
-      [0,1,0],
-      [0,1,0],
-      [0,1,0],
-      [0,1,0],
-    ],
-    O: [
-      [0,1,0],
-      [1,0,1],
-      [1,0,1],
-      [1,0,1],
-      [0,1,0],
-    ],
-    B: [
-      [1,1,0],
-      [1,0,1],
-      [1,1,0],
-      [1,0,1],
-      [1,1,0],
-    ],
+    U: [[1,0,1],[1,0,1],[1,0,1],[1,0,1],[0,1,0]],
+    A: [[0,1,0],[1,0,1],[1,1,1],[1,0,1],[1,0,1]],
+    T: [[1,1,1],[0,1,0],[0,1,0],[0,1,0],[0,1,0]],
+    O: [[0,1,0],[1,0,1],[1,0,1],[1,0,1],[0,1,0]],
+    B: [[1,1,0],[1,0,1],[1,1,0],[1,0,1],[1,1,0]],
   };
-
   const slots = [];
-  const letterKeys = ['U', 'A', 'T', 'O', 'B'];
-  const startX  = 8;
-  const colStep = 6;
-  const letterW = 19;
-  const startY  = 18;
-  const rowStep = 12;
-
-  letterKeys.forEach((key, li) => {
-    const matrix = letters[key];
-    const lx = startX + li * letterW;
-    matrix.forEach((row, ri) => {
+  ['U','A','T','O','B'].forEach((key, li) => {
+    const lx = 8 + li * 19;
+    letters[key].forEach((row, ri) => {
       row.forEach((filled, ci) => {
-        if (filled) {
-          slots.push({
-            x: lx + ci * colStep,
-            y: startY + ri * rowStep,
-          });
-        }
+        if (filled) slots.push({ x: lx + ci * 6, y: 18 + ri * 12 });
       });
     });
   });
-
   return slots;
 })();
 
-// Constellation lines between consecutive online dots
 function buildConstellationLines(onlineCount) {
   if (onlineCount < 2) return [];
-  const lines = [];
   const slots = LETTER_SLOTS.slice(0, Math.min(onlineCount, LETTER_SLOTS.length));
-  for (let i = 0; i < slots.length - 1; i++) {
-    lines.push({
-      x1: slots[i].x,     y1: slots[i].y,
-      x2: slots[i + 1].x, y2: slots[i + 1].y,
-    });
-  }
-  return lines;
+  return slots.slice(0, -1).map((s, i) => ({
+    x1: s.x, y1: s.y, x2: slots[i + 1].x, y2: slots[i + 1].y,
+  }));
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────────────────────────────────────
+const CARD_H   = 112; // px — shared height for both flip faces
+const FLIP_MS  = 8000; // auto-flip interval
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Global styles
+// ─────────────────────────────────────────────────────────────────────────────
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap');
 
@@ -135,35 +131,412 @@ const STYLES = `
     100% { transform: translateX(100%);  opacity: 0;   }
   }
   @keyframes liveDot {
-    0%, 100% { opacity: 1; transform: scale(1);     }
+    0%, 100% { opacity: 1; transform: scale(1);    }
     50%       { opacity: 0.4; transform: scale(.85); }
   }
   @keyframes constellationDraw {
     0%   { stroke-dashoffset: 100; opacity: 0;   }
-    50%  { opacity: .4;                         }
+    50%  { opacity: .4;                          }
     100% { stroke-dashoffset: 0;   opacity: .4; }
   }
   @keyframes bgFloat {
-    0%, 100% { transform: translate(0, 0)     scale(1);    }
+    0%, 100% { transform: translate(0, 0)        scale(1);    }
     50%       { transform: translate(20px, -15px) scale(1.08); }
   }
   @keyframes badgePulse {
     0%, 100% { box-shadow: 0 0 0 0    rgba(34,211,165,0);   }
     50%       { box-shadow: 0 0 0 10px rgba(34,211,165,.18); }
   }
+  @keyframes fareReveal {
+    0%   { opacity: 0; transform: translateY(-3px) scale(.88); }
+    100% { opacity: 1; transform: none; }
+  }
+  @keyframes tripRowIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: none; }
+  }
 `;
 
-export default function UatobView({ trips }) {
+// ─────────────────────────────────────────────────────────────────────────────
+// DriversPanel  (front face)
+// ─────────────────────────────────────────────────────────────────────────────
+function DriversPanel({ counts }) {
+  const onlinePct = counts.total > 0
+    ? Math.round((counts.online / counts.total) * 100)
+    : 0;
 
-  console.log('Trips in UatobView:', trips);
+  return (
+    <div style={{
+      position: 'absolute', inset: 0,
+      backfaceVisibility: 'hidden',
+      WebkitBackfaceVisibility: 'hidden',
+      background: 'rgba(255,255,255,.06)',
+      backdropFilter: 'blur(16px)',
+      border: '1px solid rgba(255,255,255,.1)',
+      borderRadius: 16,
+      padding: '12px 14px',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'space-between',
+    }}>
+
+      {/* ── Top row: fleet total + online ratio chip ── */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{
+            fontSize: 9, fontWeight: 800, letterSpacing: '.12em',
+            textTransform: 'uppercase', color: 'rgba(255,255,255,.35)',
+            marginBottom: 2,
+          }}>
+            Fleet
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+            <span style={{
+              fontSize: 28, fontWeight: 900, color: '#fff',
+              fontVariantNumeric: 'tabular-nums',
+              letterSpacing: '-.03em', lineHeight: 1,
+            }}>
+              {counts.total}
+            </span>
+            <span style={{ fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,.35)' }}>
+              drivers
+            </span>
+          </div>
+        </div>
+
+        {/* Online % chip */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 5,
+          padding: '5px 10px', borderRadius: 99,
+          background: counts.online > 0
+            ? 'rgba(34,211,165,.12)'
+            : 'rgba(255,255,255,.05)',
+          border: `1px solid ${counts.online > 0
+            ? 'rgba(34,211,165,.3)'
+            : 'rgba(255,255,255,.08)'}`,
+        }}>
+          <div style={{
+            width: 6, height: 6, borderRadius: '50%',
+            background: counts.online > 0 ? '#22D3A5' : '#475569',
+            boxShadow: counts.online > 0 ? '0 0 6px #22D3A5' : 'none',
+            animation: counts.online > 0
+              ? 'liveDot 1.6s ease-in-out infinite'
+              : 'none',
+          }}/>
+          <span style={{
+            fontFamily: '"JetBrains Mono", monospace',
+            fontSize: 11, fontWeight: 700,
+            color: counts.online > 0 ? '#5EEAD4' : 'rgba(255,255,255,.3)',
+          }}>
+            {onlinePct}% live
+          </span>
+        </div>
+      </div>
+
+      {/* ── Bottom row: status pills ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <DarkPill color="#22D3A5" label="Online"  value={counts.online}  glow />
+        <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,.1)' }}/>
+        <DarkPill color="#A78BFA" label="Trips"   value={counts.trips}   />
+        <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,.1)' }}/>
+        <DarkPill color="#94A3B8" label="Offline" value={counts.offline} dim />
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TripsPanel  (back face — rotateY(180deg))
+// ─────────────────────────────────────────────────────────────────────────────
+function TripsPanel({ trips, revealedFares, onToggleFare }) {
+  const isEmpty = !trips || trips.length === 0;
+
+  return (
+    <div style={{
+      position: 'absolute', inset: 0,
+      backfaceVisibility: 'hidden',
+      WebkitBackfaceVisibility: 'hidden',
+      transform: 'rotateY(180deg)',
+      background: 'rgba(255,255,255,.06)',
+      backdropFilter: 'blur(16px)',
+      border: '1px solid rgba(255,255,255,.1)',
+      borderRadius: 16,
+      padding: '10px 14px',
+      overflow: 'hidden',
+      display: 'flex',
+      flexDirection: 'column',
+    }}>
+
+      {/* ── Header ── */}
+      <div style={{
+        display: 'flex', alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 8, flexShrink: 0,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{
+            fontSize: 9, fontWeight: 800, letterSpacing: '.12em',
+            textTransform: 'uppercase', color: 'rgba(255,255,255,.4)',
+          }}>
+            Recent Trips
+          </span>
+          {trips.length > 0 && (
+            <span style={{
+              fontSize: 8, fontWeight: 800,
+              color: 'rgba(167,139,250,.7)',
+              background: 'rgba(167,139,250,.1)',
+              border: '1px solid rgba(167,139,250,.2)',
+              borderRadius: 4, padding: '1px 5px',
+              fontFamily: '"JetBrains Mono", monospace',
+            }}>
+              {trips.length}
+            </span>
+          )}
+        </div>
+        <span style={{
+          fontSize: 8, fontWeight: 600,
+          color: 'rgba(255,255,255,.2)',
+          letterSpacing: '.04em',
+        }}>
+          tap •••• to reveal
+        </span>
+      </div>
+
+      {/* ── Trip rows ── */}
+      {isEmpty ? (
+        <div style={{
+          flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: 'rgba(255,255,255,.2)', fontSize: 11, fontWeight: 600,
+        }}>
+          No trips yet
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {trips.map((trip, i) => {
+            const revealed    = revealedFares.has(trip.id);
+            const isRefunded  = trip.paymentStatus === 'refunded'
+                             || trip.autoRefundStatus === 'succeeded';
+            const isCancelled = trip.status === 'cancelled';
+            const dotColor    = tripDotColor(trip.status);
+            const fare        = Number(trip.fareTotal ?? 0).toFixed(2);
+            const pay         = shortPay(trip.paymentMethod);
+            const ago         = timeAgo(trip.createdAt);
+            const from        = trip.pickupCity
+                             ?? trip.pickup?.split(',')[0]
+                             ?? '—';
+            const to          = trip.dropoffCity
+                             ?? trip.dropoff?.split(',')[0]
+                             ?? '—';
+
+            return (
+              <div
+                key={trip.id}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  animation: `tripRowIn .3s ease ${i * 0.07}s both`,
+                }}
+              >
+                {/* Status dot */}
+                <div style={{
+                  width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+                  background: dotColor,
+                  opacity: isCancelled ? 0.45 : 1,
+                  boxShadow: isCancelled ? 'none' : `0 0 6px ${dotColor}bb`,
+                }}/>
+
+                {/* Route + meta */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    overflow: 'hidden',
+                  }}>
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, lineHeight: 1.2,
+                      color: isCancelled ? 'rgba(255,255,255,.42)' : 'rgba(255,255,255,.82)',
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      maxWidth: 90,
+                    }}>
+                      {from}
+                    </span>
+                    <span style={{ color: 'rgba(255,255,255,.2)', fontSize: 9, flexShrink: 0 }}>→</span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, lineHeight: 1.2,
+                      color: isCancelled ? 'rgba(255,255,255,.42)' : 'rgba(255,255,255,.82)',
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      maxWidth: 90,
+                    }}>
+                      {to}
+                    </span>
+                  </div>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 4, marginTop: 2,
+                  }}>
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, textTransform: 'uppercase',
+                      letterSpacing: '.05em', color: 'rgba(255,255,255,.28)',
+                    }}>
+                      {trip.rideLabel ?? trip.rideType ?? 'Ride'}
+                    </span>
+                    {pay && (
+                      <>
+                        <span style={{ fontSize: 8, color: 'rgba(255,255,255,.14)' }}>·</span>
+                        <span style={{ fontSize: 9, fontWeight: 600, color: 'rgba(255,255,255,.28)' }}>
+                          {pay}
+                        </span>
+                      </>
+                    )}
+                    <span style={{ fontSize: 8, color: 'rgba(255,255,255,.14)' }}>·</span>
+                    <span style={{ fontSize: 9, fontWeight: 600, color: 'rgba(255,255,255,.22)' }}>
+                      {ago}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Fare + badges */}
+                <div style={{
+                  display: 'flex', flexDirection: 'column',
+                  alignItems: 'flex-end', gap: 3, flexShrink: 0,
+                }}>
+                  {/* Fare — dots until tapped */}
+                  <button
+                    onClick={e => { e.stopPropagation(); onToggleFare(trip.id); }}
+                    title={revealed ? 'Hide fare' : 'Reveal fare'}
+                    style={{
+                      background: 'none', border: 'none',
+                      padding: '1px 0', cursor: 'pointer',
+                      fontFamily: revealed
+                        ? '"JetBrains Mono", monospace'
+                        : 'inherit',
+                      fontSize:      revealed ? 12 : 13,
+                      fontWeight:    800,
+                      letterSpacing: revealed ? '-.02em' : '.18em',
+                      lineHeight:    1,
+                      color: revealed
+                        ? '#5EEAD4'
+                        : 'rgba(255,255,255,.28)',
+                      animation: revealed ? 'fareReveal .2s ease both' : 'none',
+                      transition: 'color .15s, letter-spacing .15s',
+                    }}
+                  >
+                    {revealed ? `$${fare}` : '••••'}
+                  </button>
+
+                  {/* Fully Refunded badge */}
+                  {isRefunded && (
+                    <div style={{
+                      fontSize: 7, fontWeight: 900,
+                      letterSpacing: '.08em', textTransform: 'uppercase',
+                      color: '#93C5FD',
+                      background: 'rgba(96,165,250,.1)',
+                      border: '1px solid rgba(96,165,250,.22)',
+                      borderRadius: 4, padding: '2px 5px',
+                      lineHeight: 1.4,
+                      whiteSpace: 'nowrap',
+                    }}>
+                      Fully Refunded
+                    </div>
+                  )}
+
+                  {/* Completed badge (non-refunded, non-cancelled) */}
+                  {!isRefunded && !isCancelled && trip.status === 'completed' && (
+                    <div style={{
+                      fontSize: 7, fontWeight: 900,
+                      letterSpacing: '.08em', textTransform: 'uppercase',
+                      color: '#6EE7B7',
+                      background: 'rgba(34,211,165,.08)',
+                      border: '1px solid rgba(34,211,165,.18)',
+                      borderRadius: 4, padding: '2px 5px',
+                      lineHeight: 1.4,
+                    }}>
+                      Completed
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DarkPill
+// ─────────────────────────────────────────────────────────────────────────────
+function DarkPill({ color, label, value, glow, dim }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+      <div style={{
+        width: 7, height: 7, borderRadius: '50%',
+        background: color, flexShrink: 0,
+        opacity: dim ? .6 : 1,
+        boxShadow: glow ? `0 0 6px ${color}` : 'none',
+      }}/>
+      <span style={{
+        fontSize: 14, fontWeight: 800,
+        color: dim ? 'rgba(255,255,255,.55)' : '#fff',
+        fontVariantNumeric: 'tabular-nums',
+        letterSpacing: '-.02em', lineHeight: 1,
+      }}>
+        {value}
+      </span>
+      <span style={{ fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,.55)' }}>
+        {label}
+      </span>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main component
+// ─────────────────────────────────────────────────────────────────────────────
+export default function UatobView({ trips }) {
   const { drivers, loading } = useAllDrivers();
 
+  // ── Flip state ──
+  const [flipped, setFlipped]             = useState(false);
+  const [revealedFares, setRevealedFares] = useState(new Set());
+  const flipTimerRef = useRef(null);
+
+  const resetFlipTimer = useCallback(() => {
+    clearInterval(flipTimerRef.current);
+    flipTimerRef.current = setInterval(
+      () => setFlipped(f => !f),
+      FLIP_MS,
+    );
+  }, []);
+
+  useEffect(() => {
+    resetFlipTimer();
+    return () => clearInterval(flipTimerRef.current);
+  }, [resetFlipTimer]);
+
+  const handleFlip = useCallback(() => {
+    setFlipped(f => !f);
+    resetFlipTimer();
+  }, [resetFlipTimer]);
+
+  const goFace = useCallback((face) => {
+    setFlipped(face);
+    resetFlipTimer();
+  }, [resetFlipTimer]);
+
+  const toggleFare = useCallback((id) => {
+    setRevealedFares(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  // ── Driver pins ──
   const driverPins = useMemo(() => drivers.map(d => {
     const hasGps = Number.isFinite(Number(d.lat)) && Number.isFinite(Number(d.lng));
-    const pos = hasGps
+    const pos    = hasGps
       ? latLngToPct(Number(d.lat), Number(d.lng))
       : addressToCoords(d.city || d.email || d.id);
-    const info = statusInfo(d.status);
+    const info   = statusInfo(d.status);
     return {
       id:     d.id,
       name:   d.firstName ? `${d.firstName} ${d.lastName}` : 'Driver',
@@ -174,8 +547,8 @@ export default function UatobView({ trips }) {
     };
   }), [drivers]);
 
-  const onlinePins  = useMemo(() => driverPins.filter(d => d.label === 'Online'),  [driverPins]);
-  const offlinePins = useMemo(() => driverPins.filter(d => d.label !== 'Online'),  [driverPins]);
+  const onlinePins  = useMemo(() => driverPins.filter(d => d.label === 'Online'), [driverPins]);
+  const offlinePins = useMemo(() => driverPins.filter(d => d.label !== 'Online'), [driverPins]);
 
   const counts = useMemo(() => {
     const online    = onlinePins.length;
@@ -186,14 +559,31 @@ export default function UatobView({ trips }) {
 
   const constellationLines = useMemo(
     () => buildConstellationLines(onlinePins.length),
-    [onlinePins.length]
+    [onlinePins.length],
   );
+
+  // ── Recent trips (sorted newest-first, max 3) ──
+  const recentTrips = useMemo(() => {
+    if (!Array.isArray(trips)) return [];
+    return [...trips]
+      .sort((a, b) => {
+        const ta = a.createdAt?.toDate?.()?.getTime?.() ?? 0;
+        const tb = b.createdAt?.toDate?.()?.getTime?.() ?? 0;
+        return tb - ta;
+      })
+      .slice(0, 3);
+  }, [trips]);
 
   const hasOnline = counts.online > 0;
 
+  // ── Face accent colors ──
+  const faceColor = flipped ? '#A78BFA' : '#22D3A5';
+
+  // ─────────────────────────────────────────────────────────────────────────
   return (
     <>
       <style>{STYLES}</style>
+
       <div style={{
         position:     'relative',
         height:       'clamp(260px, 40vh, 320px)',
@@ -204,7 +594,7 @@ export default function UatobView({ trips }) {
         fontFamily:   'Outfit, system-ui, sans-serif',
       }}>
 
-        {/* ── Ambient color blobs ── */}
+        {/* ── Ambient blobs ── */}
         <div style={{
           position: 'absolute', top: -80, right: -80,
           width: 280, height: 280, borderRadius: '50%',
@@ -222,7 +612,7 @@ export default function UatobView({ trips }) {
           pointerEvents: 'none', zIndex: 1,
         }}/>
 
-        {/* ── Subtle grid pattern (very low opacity) ── */}
+        {/* ── Dot grid ── */}
         <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 2, opacity: .15 }}>
           <defs>
             <pattern id="mv-dotgrid" width="36" height="36" patternUnits="userSpaceOnUse">
@@ -232,7 +622,7 @@ export default function UatobView({ trips }) {
           <rect width="100%" height="100%" fill="url(#mv-dotgrid)"/>
         </svg>
 
-        {/* ── Constellation lines between online dots ── */}
+        {/* ── Constellation lines ── */}
         {constellationLines.length > 0 && (
           <svg style={{
             position: 'absolute', inset: 0, width: '100%', height: '100%',
@@ -255,21 +645,20 @@ export default function UatobView({ trips }) {
           </svg>
         )}
 
-        {/* ── Radar sweep overlay ── */}
+        {/* ── Radar sweep ── */}
         <div style={{
           position: 'absolute', inset: 0,
           zIndex: 4, pointerEvents: 'none', overflow: 'hidden',
         }}>
           <div style={{
-            position: 'absolute', top: 0, bottom: 0,
-            width: '40%',
+            position: 'absolute', top: 0, bottom: 0, width: '40%',
             background: 'linear-gradient(90deg, transparent 0%, rgba(34,211,165,.16) 50%, transparent 100%)',
             animation: 'radarSweep 6s ease-in-out infinite',
             animationDelay: '1.5s',
           }}/>
         </div>
 
-        {/* ── Top trust badge ── */}
+        {/* ── Top-left trust badge ── */}
         {!loading && (
           <div style={{
             position: 'absolute', top: 14, left: 14, zIndex: 20,
@@ -297,7 +686,7 @@ export default function UatobView({ trips }) {
           </div>
         )}
 
-        {/* ── Top-right: brand mark ── */}
+        {/* ── Top-right LIVE badge ── */}
         <div style={{
           position: 'absolute', top: 14, right: 14, zIndex: 20,
           display: 'flex', alignItems: 'center', gap: 6,
@@ -307,15 +696,16 @@ export default function UatobView({ trips }) {
           borderRadius: 10,
           backdropFilter: 'blur(12px)',
         }}>
-          <Activity size={11} color="#5EEAD4" />
+          <Activity size={11} color="#5EEAD4"/>
           <span style={{
             fontFamily: '"JetBrains Mono", monospace',
-            fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,.7)',
+            fontSize: 10, fontWeight: 700,
+            color: 'rgba(255,255,255,.7)',
             letterSpacing: '.05em',
           }}>LIVE</span>
         </div>
 
-        {/* Loading */}
+        {/* ── Loading overlay ── */}
         {loading && (
           <div style={{
             position: 'absolute', inset: 0, zIndex: 30,
@@ -343,344 +733,144 @@ export default function UatobView({ trips }) {
           </div>
         )}
 
-        {/* ── Offline / busy pins — ghost-quiet, scattered ── */}
+        {/* ── Offline / busy pins ── */}
         {offlinePins.map(d => (
           <div
             key={d.id}
             title={`${d.name} · ${d.label}`}
             style={{
-              position:  'absolute',
-              left:      `${d.pos.x}%`,
-              top:       `${d.pos.y}%`,
+              position: 'absolute',
+              left: `${d.pos.x}%`, top: `${d.pos.y}%`,
               transform: 'translate(-50%,-50%)',
-              zIndex:    5,
-              opacity:   d.label === 'Busy' ? 0.7 : 0.28,
+              zIndex: 5,
+              opacity: d.label === 'Busy' ? 0.7 : 0.28,
             }}
           >
             <div style={{
-              width:          '11px',
-              height:         '11px',
-              background:     d.color,
-              borderRadius:   '50%',
-              border:         '1.5px solid rgba(255,255,255,.5)',
-              boxShadow:      d.label === 'Busy' ? `0 0 8px ${d.color}aa` : 'none',
+              width: '11px', height: '11px',
+              background: d.color, borderRadius: '50%',
+              border: '1.5px solid rgba(255,255,255,.5)',
+              boxShadow: d.label === 'Busy' ? `0 0 8px ${d.color}aa` : 'none',
             }}/>
           </div>
         ))}
 
-        {/* ── Online pins — letter slots, glowing, breathing ── */}
+        {/* ── Online pins — letter slots ── */}
         {onlinePins.map((d, i) => {
           const slot = LETTER_SLOTS[i % LETTER_SLOTS.length];
           return (
             <React.Fragment key={d.id}>
-              {/* Outer ripple halo */}
-              <div
-                style={{
-                  position: 'absolute',
-                  left: `${slot.x}%`,
-                  top:  `${slot.y}%`,
-                  width: 24, height: 24,
-                  borderRadius: '50%',
-                  border: '1.5px solid rgba(94,234,212,.5)',
-                  pointerEvents: 'none',
-                  zIndex: 6,
-                  animation: `haloRipple 2.4s ease-out ${i * 0.15}s infinite`,
-                }}
-              />
-              {/* Inner pin */}
+              <div style={{
+                position: 'absolute',
+                left: `${slot.x}%`, top: `${slot.y}%`,
+                width: 24, height: 24,
+                borderRadius: '50%',
+                border: '1.5px solid rgba(94,234,212,.5)',
+                pointerEvents: 'none', zIndex: 6,
+                animation: `haloRipple 2.4s ease-out ${i * 0.15}s infinite`,
+              }}/>
               <div
                 title={`${d.name} · Online`}
                 style={{
-                  position:  'absolute',
-                  left:      `${slot.x}%`,
-                  top:       `${slot.y}%`,
-                  zIndex:    7,
-                  animation: `pinDrop .55s cubic-bezier(.34,1.56,.64,1) ${i * 0.06}s both, pinBreathe 3.2s ease-in-out ${0.6 + i * 0.12}s infinite`,
+                  position: 'absolute',
+                  left: `${slot.x}%`, top: `${slot.y}%`,
+                  zIndex: 7,
+                  animation: `pinDrop .55s cubic-bezier(.34,1.56,.64,1) ${i * 0.06}s both,
+                               pinBreathe 3.2s ease-in-out ${0.6 + i * 0.12}s infinite`,
                 }}
               >
                 <div style={{
-                  width:          14,
-                  height:         14,
-                  background:     'radial-gradient(circle, #5EEAD4 0%, #14B8A6 100%)',
-                  borderRadius:   '50%',
-                  border:         '2px solid #ECFDF5',
-                  boxShadow:      '0 0 16px rgba(94,234,212,.65), 0 2px 6px rgba(0,0,0,.3)',
+                  width: 14, height: 14,
+                  background: 'radial-gradient(circle, #5EEAD4 0%, #14B8A6 100%)',
+                  borderRadius: '50%',
+                  border: '2px solid #ECFDF5',
+                  boxShadow: '0 0 16px rgba(94,234,212,.65), 0 2px 6px rgba(0,0,0,.3)',
                 }}/>
               </div>
             </React.Fragment>
           );
         })}
 
-        {/* ── Bottom strip — refined ── */}
+        {/* ══════════════════════════════════════════
+            Bottom flip card section
+        ══════════════════════════════════════════ */}
         <div style={{
-          position:    'absolute',
-          bottom: 0, left: 0, right: 0,
-          zIndex:      15,
-          background:  'linear-gradient(180deg, rgba(10,22,40,.0) 0%, rgba(10,22,40,.85) 35%, rgba(10,22,40,.95) 100%)',
-          padding:     '24px 16px 14px',
+          position: 'absolute', bottom: 0, left: 0, right: 0,
+          zIndex: 15,
+          background: 'linear-gradient(180deg, transparent 0%, rgba(10,22,40,.88) 30%, rgba(10,22,40,.97) 100%)',
+          padding: '28px 14px 14px',
         }}>
+
+          {/* ── Face indicator dots + flip label ── */}
           <div style={{
-            display: 'flex', alignItems: 'center', gap: 12,
-            background:     'rgba(255,255,255,.06)',
-            backdropFilter: 'blur(16px)',
-            border:         '1px solid rgba(255,255,255,.1)',
-            borderRadius:   16,
-            padding:        '11px 14px',
+            display: 'flex', alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 8,
           }}>
-            {/* Total */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              <span style={{
-                fontSize: 9, fontWeight: 800, letterSpacing: '.1em',
-                color: 'rgba(255,255,255,.45)', textTransform: 'uppercase',
-              }}>Drivers</span>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                <span style={{
-                  fontSize: 18, fontWeight: 800, color: '#fff',
-                  fontVariantNumeric: 'tabular-nums', letterSpacing: '-.02em', lineHeight: 1,
-                }}>
-                  {counts.total}
-                </span>
-              </div>
+            {/* Dots */}
+            <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+              {[false, true].map((face, i) => (
+                <button
+                  key={i}
+                  onClick={() => goFace(face)}
+                  style={{
+                    width: flipped === face ? 18 : 6,
+                    height: 6, borderRadius: 3,
+                    background: flipped === face
+                      ? faceColor
+                      : 'rgba(255,255,255,.18)',
+                    border: 'none', padding: 0,
+                    cursor: 'pointer',
+                    transition: 'all .3s ease',
+                    flexShrink: 0,
+                  }}
+                />
+              ))}
             </div>
 
-            <div style={{ width: 1, height: 26, background: 'rgba(255,255,255,.1)' }}/>
-
-            {/* Status pills */}
-            <DarkPill color="#22D3A5" label="Online"  value={counts.online}  glow />
-            <DarkPill color="#A78BFA" label="Trips"   value={counts.trips}   />
-            <DarkPill color="#94A3B8" label="Offline" value={counts.offline} dim />
-
+            {/* Flip label button */}
+            <button
+              onClick={handleFlip}
+              style={{
+                fontSize: 9, fontWeight: 800, letterSpacing: '.1em',
+                textTransform: 'uppercase',
+                color: flipped
+                  ? 'rgba(167,139,250,.65)'
+                  : 'rgba(34,211,165,.65)',
+                background: 'none', border: 'none',
+                cursor: 'pointer', padding: '2px 4px',
+                display: 'flex', alignItems: 'center', gap: 4,
+                transition: 'color .3s',
+              }}
+            >
+              {flipped ? '← Drivers' : 'Trips →'}
+            </button>
           </div>
-        </div>
 
+          {/* ── 3D flip card ── */}
+          <div
+            style={{ perspective: '900px', cursor: 'pointer' }}
+            onClick={handleFlip}
+          >
+            <div style={{
+              position: 'relative',
+              height: CARD_H,
+              transformStyle: 'preserve-3d',
+              WebkitTransformStyle: 'preserve-3d',
+              transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+              transition: 'transform 0.65s cubic-bezier(0.4, 0, 0.2, 1)',
+            }}>
+              <DriversPanel counts={counts} />
+              <TripsPanel
+                trips={recentTrips}
+                revealedFares={revealedFares}
+                onToggleFare={toggleFare}
+              />
+            </div>
+          </div>
+
+        </div>
       </div>
     </>
   );
 }
-
-function DarkPill({ color, label, value, glow, dim }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-      <div style={{
-        width: 7, height: 7, borderRadius: '50%',
-        background: color,
-        boxShadow: glow ? `0 0 6px ${color}` : 'none',
-        opacity: dim ? .6 : 1,
-        flexShrink: 0,
-      }}/>
-      <span style={{
-        fontSize: 14, fontWeight: 800,
-        color: dim ? 'rgba(255,255,255,.55)' : '#fff',
-        fontVariantNumeric: 'tabular-nums',
-        letterSpacing: '-.02em',
-        lineHeight: 1,
-      }}>
-        {value}
-      </span>
-      <span style={{
-        fontSize: 10, fontWeight: 600,
-        color: 'rgba(255,255,255,.55)',
-      }}>
-        {label}
-      </span>
-    </div>
-  );
-}
-
-
-Trips in UatobView: 
-(4) [{…}, {…}, {…}, {…}]
-0
-: 
-{id: '1T0rQvkIpRYQaNyTm8lx', timedOutAt: Timestamp, emailDispatchAt: Timestamp, offlineDriversNotified: {…}, pickupLng: -82.7099003, …}
-1
-: 
-adminNotified
-: 
-true
-apologyEmailSent
-: 
-true
-apologyEmailSentAt
-: 
-Timestamp {seconds: 1778526962, nanoseconds: 854000000}
-approvedDriversEmailedAt
-: 
-Timestamp {seconds: 1778469001, nanoseconds: 929000000}
-approvedDriversNotified
-: 
-{KeQ8Y5kHGmQzXe5ALo80LoVGtTk2: true, OWrtmINIsHZcCCFyPgVzrxnMPw73: true, 1tw4E15GBGgNsYlvfMFQudJveke2: true, 5u2TDlnyxDSTqIENyxmaPB3SeAt1: true, 4gmxZQmeFQYIzj4x2ZKI6K1EdB02: true, …}
-autoRefundProcessedAt
-: 
-Timestamp {seconds: 1778526962, nanoseconds: 303000000}
-autoRefundStatus
-: 
-"succeeded"
-cancelReason
-: 
-"timeout_auto_cancel"
-cancelledAt
-: 
-Timestamp {seconds: 1778526962, nanoseconds: 303000000}
-candidateDriverUids
-: 
-(6) ['7Uh6WlBZ0wYCZqF8OTrwpkODG7F2', 'at5VxbnwfXWAzsXVdKOwHMQCnOb2', '0Kh5xBvMgPNTN1WSpfBVOWRiVHe2', 'x6XldJOfWcbG5RRqocOfCs0u1m12', 'khfZ88XTF8TjI9dBcbqY0730MQA3', 'rr5rvgmy8HQcWLdAyOKssV9LdRv2']
-candidateDrivers
-: 
-(6) [{…}, {…}, {…}, {…}, {…}, {…}]
-createdAt
-: 
-Timestamp {seconds: 1778470943, nanoseconds: 235000000}
-currentDriverIndex
-: 
-0
-driverInfo
-: 
-null
-driverPayout
-: 
-16.94
-dropoff
-: 
-"8134 International Drive, Orlando, FL, USA"
-dropoffCity
-: 
-"Orlando"
-dropoffLat
-: 
-28.4480048
-dropoffLng
-: 
--81.4725685
-dropoffZip
-: 
-"32819"
-emailDispatchAt
-: 
-Timestamp {seconds: 1778469002, nanoseconds: 194000000}
-emailDispatchStarted
-: 
-true
-emailSentToDrivers
-: 
-{khfZ88XTF8TjI9dBcbqY0730MQA3: true, 0Kh5xBvMgPNTN1WSpfBVOWRiVHe2: true, x6XldJOfWcbG5RRqocOfCs0u1m12: true, at5VxbnwfXWAzsXVdKOwHMQCnOb2: true, 7Uh6WlBZ0wYCZqF8OTrwpkODG7F2: true, …}
-expiresAt
-: 
-Timestamp {seconds: 1778471363, nanoseconds: 235000000}
-fareBreakdown
-: 
-{}
-fareTotal
-: 
-22.59
-id
-: 
-"BCCx17PgJoEmjMnJZ6dK"
-lastPushAt
-: 
-Timestamp {seconds: 1778469004, nanoseconds: 193000000}
-offlineDriversEmailedAt
-: 
-Timestamp {seconds: 1778470984, nanoseconds: 960000000}
-offlineDriversNotified
-: 
-{CBmYmBLg5PN2I2BEdQQGRTDYcx92: true, gmikoLPXOnRTf0T0AUgDog8VYUr1: true, ShwYtnVgnmYHYOv3i7J2KIwuCPh2: true, Z0SucKpv8iNCuNO1haW7Qe0rUSQ2: true, 2L1vviHxDaUoub2V1FbMbQfdt0I2: true, …}
-paymentIntentId
-: 
-"pi_3TVkCzJhpOy6wtDq0g21GOlr"
-paymentMethod
-: 
-"card"
-paymentStatus
-: 
-"refunded"
-payoutStatus
-: 
-"pending"
-pickup
-: 
-"2325 West Fairbanks Avenue, Winter Park, FL, USA"
-pickupCity
-: 
-"Winter Park"
-pickupLat
-: 
-28.5933398
-pickupLng
-: 
--81.3807973
-pickupZip
-: 
-"32789"
-platformFee
-: 
-5.65
-polyline
-: 
-"msomDnvuoNQ?ICAS?{@fACFjJVTp@SpD_FdDcFBa@~HuJlBoBxBeBvBsArBaAlC_AxBk@~Cg@`CQvYw@hDB|CNhDb@tInAdCPzCHpWA`QP~BJxBVnBd@tBv@bAf@zBzA`JlH`DtBpDrBpD`BnDpArBn@nCl@xGbAxQdCjDZrFVrFHzGIrYc@xCIhMErFF|BLzD\\rEn@~Cp@zC~@lBt@pPvHbBn@xC~@nCl@xB^hDXvCJni@ArBDbCR`BVbDr@lC~@zBbAjBhAdAt@|BvBxAbBdAvAbNvT|DxG~AhDbBhElAtEr@xDd@fDXhDLdCHzDN~tADnAXjDd@~Cv@jDdA`DdAbCtAbCpAhBnBzBp@l@xR`PbKjIzVzSnTzQjXzT|DrDtCzC|E`Gf`@hg@zPlTtBpCnL~PfBbCrNrQzPbT|LpNjH`JxUpZHd@pEnG~CpEpDhFlBtBxBnBjBlAfB|@dBn@xA^vCh@vF\\~GVfDLhAJxJn@N@`@KZO\\g@Lo@BaDPa@\\oBB_AAeAj@Dn@j@|@z@dAj@\\Jj@JRO@CAg@CeCt@A"
-pushDispatchAt
-: 
-Timestamp {seconds: 1778468944, nanoseconds: 260000000}
-pushDispatchStarted
-: 
-true
-pushDriverIndex
-: 
-10
-pushSentToDrivers
-: 
-{khfZ88XTF8TjI9dBcbqY0730MQA3: true}
-receiptEmailSent
-: 
-true
-refundId
-: 
-"re_3TVkCzJhpOy6wtDq0IlSAZFH"
-requestSentAt
-: 
-Timestamp {seconds: 1778471343, nanoseconds: 637000000}
-rideLabel
-: 
-"Economy"
-rideType
-: 
-"economy"
-searchExtended
-: 
-1
-status
-: 
-"cancelled"
-timedOutAt
-: 
-Timestamp {seconds: 1778471401, nanoseconds: 428000000}
-timeoutMinutes
-: 
-10
-tripDistanceMiles
-: 
-13.6
-tripDurationMin
-: 
-21
-uid
-: 
-"NaraNDRmxpYegriNTrUo5h3rGVI3"
-updatedAt
-: 
-Timestamp {seconds: 1778526962, nanoseconds: 303000000}
-[[Prototype]]
-: 
-Object
-2
-: 
-{id: 'PlzVo8BNK7YNtJxqkYEP', cancelledAt: Timestamp, platformFee: 3.89, uid: 'TA5V8QslrMRxQ7xcUheGJrJJ9EG3', lastDispatchAt: Timestamp, …}
-3
-: 
-{id: 'vBxXLEArYcXWayvUmBBc', candidateDriverUids: Array(6), paymentStatus: 'succeeded', dropoffLng: -79.8865932, timeoutMinutes: 10, …}
-length
-: 
-4
-[[Prototype]]
-: 
-Array(0)
