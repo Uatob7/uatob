@@ -153,7 +153,9 @@ const STYLES = `
   }
 `;
 
-export default function MapView() {
+export default function UatobView({ trips }) {
+
+  console.log('Trips in UatobView:', trips);
   const { drivers, loading } = useAllDrivers();
 
   const driverPins = useMemo(() => drivers.map(d => {

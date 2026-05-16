@@ -22,6 +22,7 @@ import { firebase_app } from '@/firebase/config';
 import signIn from '@/firebase/auth/signin';
 import signUp from '@/firebase/auth/signup';
 import { useUserRides } from '@/App/UaTob/useUserRides';
+import { useRides } from '@/App/UaTob/useRides';
 import { useActiveRides } from '@/App/UaTob/useActiveRides';
 import { useUserAccount } from '@/App/UaTob/useUserAccount';
 import { useCompletedRides } from '@/App/UaTob/useCompletedRides';
@@ -270,6 +271,7 @@ export default function UaTobApp({ uid }) {
   // ── Data hooks ────────────────────────────────────────────────────
   const { completedRides }               = useCompletedRides(resolvedUid);
   const { rides, loading: ridesLoading } = useUserRides(resolvedUid);
+  const { trips } = useRides();
   const { active }                       = useActiveRides(resolvedUid);
   const { account }                      = useUserAccount(resolvedUid);
 
@@ -502,7 +504,7 @@ export default function UaTobApp({ uid }) {
             )}
 
             <div style={{ marginBottom:'36px' }}>
-              <UatobView bookingPayload={null} />
+              <UatobView trips={trips} />
             </div>
           </>
         )}
