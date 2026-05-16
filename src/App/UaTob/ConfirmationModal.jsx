@@ -22,7 +22,6 @@ const callableUpdateRiderPhone = httpsCallable(functions, 'updateRiderPhone');
 const VAPID_KEY        = 'BJ_sRHZonSGCKk2mB2i9ofTRS8ouFVMV-I15FX4sqdUXHyVb1lo6H-N4GMPrlcIIshRlykQicaxkxxFxcYcI4JQ';
 const SEARCH_LIMIT_SEC = 7 * 60;
 const PHONE_SKIP_KEY   = (rideId) => `uatob_phone_skipped_${rideId}`;
-const PANEL_COUNT      = 6; // timer, candidates, notifications, location, phone, share
 const PANEL_INTERVAL   = 4500;
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -44,11 +43,18 @@ function formatUsPhone(raw) {
 
 function digitsOnly(s) { return String(s ?? '').replace(/\D/g, ''); }
 
-function formatTs(ts) {
+function formatTime(ts) {
   if (!ts) return null;
   const d = ts instanceof Date ? ts : ts?.toDate?.() ?? new Date(ts);
   if (isNaN(d)) return null;
-  return d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function formatDateTime(ts) {
+  if (!ts) return null;
+  const d = ts instanceof Date ? ts : ts?.toDate?.() ?? new Date(ts);
+  if (isNaN(d)) return null;
+  return d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
 function paymentLabel(method) {
@@ -101,9 +107,27 @@ function RadarOverlay({ sweepAngle }) {
   );
 }
 
+// ── Meta chip (compact stat for the strip) ─────────────────────────────────
+function MetaChip({ label, value, align = 'flex-start' }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: align, flexShrink: 0 }}>
+      <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,.28)' }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,.55)', fontFamily: 'monospace' }}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function MetaDivider() {
+  return <div style={{ width: 1, height: 22, background: 'rgba(255,255,255,.06)' }}/>;
+}
+
 // ── Cycling info card (searching state) ───────────────────────────────────
 function CyclingCard({
-  secondsLeft, isUrgent, progress,
+  secondsLeft, isUrgent, progress, total, miles,
   candidateDrivers,
   rideId, riderUid,
   accountPhone, phoneSkipped,
@@ -112,24 +136,22 @@ function CyclingCard({
   notifDone, locationDone,
   onNotifAllow, onLocationAllow,
 }) {
-  const [panel, setPanel] = useState(0);
   const autoRef = useRef(null);
 
   const minutes = Math.floor(secondsLeft / 60);
   const seconds = secondsLeft % 60;
 
-  const needsPhone  = accountPhone !== null && !accountPhone && !phoneSkipped && !!riderUid;
-  const needsNotif  = !notifDone;
-  const needsLoc    = !locationDone;
+  const needsPhone = accountPhone !== null && !accountPhone && !phoneSkipped && !!riderUid;
+  const needsNotif = !notifDone;
+  const needsLoc   = !locationDone;
 
-  // Build active panel list: always start with timer (0), then add panels that still need action
+  // Build active panel list
   const activePanels = useMemo(() => {
-    const list = [0]; // 0 = timer
-    list.push(1);     // 1 = candidates (always show)
+    const list = [0, 1]; // timer + candidates always
     if (needsNotif) list.push(2);
     if (needsLoc)   list.push(3);
     if (needsPhone) list.push(4);
-    list.push(5);     // 5 = share
+    list.push(5);
     return list;
   }, [needsNotif, needsLoc, needsPhone]);
 
@@ -159,11 +181,11 @@ function CyclingCard({
 
   const panelLabels = ['Timer','Nearby','Alerts','Location','Phone','Share'];
 
-  // ── Panel 4: Phone ─────────────────────────────────────────────────────
-  const [phoneVal, setPhoneVal]     = useState('');
+  // Phone state
+  const [phoneVal, setPhoneVal]       = useState('');
   const [phoneSaving, setPhoneSaving] = useState(false);
-  const [phoneErr, setPhoneErr]     = useState('');
-  const [phoneDone, setPhoneDone]   = useState(false);
+  const [phoneErr, setPhoneErr]       = useState('');
+  const [phoneDone, setPhoneDone]     = useState(false);
 
   const phoneDigits = digitsOnly(phoneVal);
   const phoneValid  = phoneDigits.length === 10 || (phoneDigits.length === 11 && phoneDigits[0] === '1');
@@ -180,7 +202,7 @@ function CyclingCard({
     finally { setPhoneSaving(false); }
   };
 
-  // ── Panel 2: Notifications ─────────────────────────────────────────────
+  // Notif state
   const [notifLoading, setNotifLoading] = useState(false);
   const [notifErr, setNotifErr]         = useState('');
 
@@ -191,7 +213,7 @@ function CyclingCard({
     finally { setNotifLoading(false); }
   };
 
-  // ── Panel 3: Location ──────────────────────────────────────────────────
+  // Location state
   const [locLoading, setLocLoading] = useState(false);
   const [locErr, setLocErr]         = useState('');
 
@@ -202,7 +224,7 @@ function CyclingCard({
     finally { setLocLoading(false); }
   };
 
-  // ── Copy invite link ───────────────────────────────────────────────────
+  // Copy invite
   const [copied, setCopied] = useState(false);
   const handleCopy = () => {
     navigator.clipboard?.writeText('https://uatob.com/invite').catch(() => {});
@@ -212,22 +234,23 @@ function CyclingCard({
 
   const topDrivers = (candidateDrivers ?? [])
     .slice()
-    .sort((a, b) => a.distance - b.distance)
+    .sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0))
     .slice(0, 3);
 
   function driverDistLabel(mi) {
-    if (mi < 0.1) return `${Math.round(mi * 5280)} ft`;
-    return `${mi.toFixed(1)} mi`;
+    const v = Number(mi ?? 0);
+    if (v < 0.1) return `${Math.round(v * 5280)} ft`;
+    return `${v.toFixed(1)} mi`;
   }
 
-  const INNER_MIN_H = 118;
+  const PANEL_MIN_H = 96;
 
   return (
     <div style={{
       background: accentBg,
       border: `1px solid ${accentBorder}`,
-      borderRadius: 18,
-      padding: '16px 17px',
+      borderRadius: 16,
+      padding: '14px 16px',
       position: 'relative',
       overflow: 'hidden',
       animation: isUrgent ? 'timerBeat 1s ease-in-out infinite' : 'none',
@@ -243,71 +266,63 @@ function CyclingCard({
 
       <div style={{ position: 'relative' }}>
 
-        {/* ── Top row: timer + meta ── */}
-        <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom: 12 }}>
-          <div>
-            <div style={{ fontSize:10, fontWeight:800, letterSpacing:'.13em', textTransform:'uppercase', color: accentMuted, marginBottom:5 }}>
+        {/* ── Top row: timer | fare ── */}
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.13em', textTransform: 'uppercase', color: accentMuted, marginBottom: 3 }}>
               {isUrgent ? '⚡ Almost out of time' : 'Time remaining'}
             </div>
             <div style={{
               fontFamily: '"JetBrains Mono","Courier New",monospace',
-              fontSize: 48, fontWeight: 700, lineHeight: 1, letterSpacing: '-4px',
+              fontSize: 42, fontWeight: 700, lineHeight: 1, letterSpacing: '-3px',
               color: accentColor,
             }}>
               {String(minutes).padStart(2,'0')}
-              <span style={{ opacity:.45, animation:'timerBeat .5s ease-in-out infinite' }}>:</span>
+              <span style={{ opacity: .45, animation: 'timerBeat .5s ease-in-out infinite' }}>:</span>
               {String(seconds).padStart(2,'0')}
             </div>
           </div>
-          <div style={{ textAlign:'right', display:'flex', flexDirection:'column', gap:7, marginTop:2 }}>
-            <div>
-              <div style={{ fontSize:9, fontWeight:800, letterSpacing:'.12em', textTransform:'uppercase', color: accentMuted, marginBottom:2 }}>Fare locked</div>
-              <div style={{ fontFamily:'monospace', fontSize:17, fontWeight:700, color: accentColor }}>
-                {/* fare passed from parent via prop — shown in route card below */}
-              </div>
+          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.13em', textTransform: 'uppercase', color: accentMuted, marginBottom: 2 }}>
+              Fare
             </div>
-            {paymentMethod && (
-              <div>
-                <div style={{ fontSize:9, fontWeight:800, letterSpacing:'.12em', textTransform:'uppercase', color: accentMuted, marginBottom:2 }}>Via</div>
-                <div style={{ fontSize:11, fontWeight:700, color:'rgba(255,255,255,.55)' }}>{paymentLabel(paymentMethod)}</div>
-              </div>
-            )}
-            {createdAt && (
-              <div>
-                <div style={{ fontSize:9, fontWeight:800, letterSpacing:'.12em', textTransform:'uppercase', color: accentMuted, marginBottom:2 }}>Created</div>
-                <div style={{ fontSize:10, fontWeight:600, color:'rgba(255,255,255,.4)' }}>{formatTs(createdAt)}</div>
-              </div>
-            )}
-            {requestSentAt && (
-              <div>
-                <div style={{ fontSize:9, fontWeight:800, letterSpacing:'.12em', textTransform:'uppercase', color: accentMuted, marginBottom:2 }}>Sent at</div>
-                <div style={{ fontSize:10, fontWeight:600, color:'rgba(255,255,255,.4)' }}>{formatTs(requestSentAt)}</div>
-              </div>
-            )}
+            <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 20, fontWeight: 700, color: accentColor, lineHeight: 1 }}>
+              ${total}
+            </div>
           </div>
         </div>
 
         {/* Timer progress bar */}
-        <div style={{ height:3, borderRadius:99, background:'rgba(255,255,255,.07)', marginBottom:13, overflow:'hidden' }}>
+        <div style={{ height: 3, borderRadius: 99, background: 'rgba(255,255,255,.07)', marginBottom: 10, overflow: 'hidden' }}>
           <div style={{
-            height:'100%', width:`${progress}%`,
+            height: '100%', width: `${progress}%`,
             background: isUrgent ? 'linear-gradient(90deg,#F59E0B,#EF4444)' : 'linear-gradient(90deg,#22C55E,#16A34A)',
-            borderRadius:99, transition:'width 1s linear',
+            borderRadius: 99, transition: 'width 1s linear',
           }}/>
         </div>
 
-        {/* ── Divider + panel switcher ── */}
-        <div style={{ borderTop:'1px solid rgba(255,255,255,.07)', paddingTop:13 }}>
+        {/* ── Thin meta strip ── */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+          paddingBottom: 11, borderBottom: '1px solid rgba(255,255,255,.07)',
+        }}>
+          <MetaChip label="Created" value={formatTime(createdAt) ?? '—'} />
+          <MetaDivider />
+          <MetaChip label="Sent"    value={formatTime(requestSentAt) ?? '—'} />
+          <MetaDivider />
+          <MetaChip label="Trip"    value={`${miles} mi`} align="flex-end" />
+        </div>
 
-          {/* Dots + label */}
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:11 }}>
-            <div style={{ display:'flex', gap:5, alignItems:'center' }}>
+        {/* ── Panel switcher ── */}
+        <div style={{ paddingTop: 11 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
               {activePanels.map((_, i) => (
                 <button
                   key={i}
                   onClick={() => goIdx(i)}
                   style={{
-                    width: i === activeIdx ? 18 : 6,
+                    width: i === activeIdx ? 16 : 6,
                     height: 6,
                     borderRadius: i === activeIdx ? 3 : '50%',
                     background: i === activeIdx ? accentColor : 'rgba(255,255,255,.18)',
@@ -318,37 +333,37 @@ function CyclingCard({
                 />
               ))}
             </div>
-            <div style={{ fontSize:10, fontWeight:800, letterSpacing:'.12em', textTransform:'uppercase', color:'rgba(255,255,255,.22)' }}>
+            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.13em', textTransform: 'uppercase', color: 'rgba(255,255,255,.25)' }}>
               {panelLabels[panelId]}
             </div>
           </div>
 
           {/* Panel content */}
-          <div style={{ minHeight: INNER_MIN_H }}>
+          <div style={{ minHeight: PANEL_MIN_H }}>
 
-            {/* 0 — Timer / searching status */}
+            {/* 0 — Timer status */}
             {panelId === 0 && (
-              <div key="p0" style={{ animation:'fadeUp .28s ease', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight: INNER_MIN_H, textAlign:'center', gap:8 }}>
-                <div style={{ fontSize:11, color:'rgba(255,255,255,.3)', fontWeight:600, lineHeight:1.6, maxWidth:240 }}>
+              <div key="p0" style={{ animation: 'fadeUp .28s ease', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: PANEL_MIN_H, textAlign: 'center', gap: 6 }}>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', fontWeight: 600, lineHeight: 1.5, maxWidth: 240 }}>
                   Sit tight — we're pinging nearby drivers.<br/>You'll hear from us the moment one accepts.
                 </div>
-                <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:4 }}>
-                  <span style={{ width:6, height:6, borderRadius:'50%', background:'#22C55E', display:'inline-block', animation:'blink 1.2s ease-in-out infinite' }}/>
-                  <span style={{ fontSize:11, fontWeight:800, color:'#4ADE80', letterSpacing:'.06em' }}>Searching nearby</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22C55E', display: 'inline-block', animation: 'blink 1.2s ease-in-out infinite' }}/>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#4ADE80', letterSpacing: '.06em' }}>Searching nearby</span>
                 </div>
               </div>
             )}
 
             {/* 1 — Candidate drivers */}
             {panelId === 1 && (
-              <div key="p1" style={{ animation:'fadeUp .28s ease' }}>
-                <div style={{ fontSize:10, fontWeight:800, letterSpacing:'.1em', textTransform:'uppercase', color:'rgba(255,255,255,.25)', marginBottom:9 }}>
-                  {topDrivers.length > 0 ? `${(candidateDrivers ?? []).length} drivers in your area` : 'Scanning for drivers…'}
+              <div key="p1" style={{ animation: 'fadeUp .28s ease' }}>
+                <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,.28)', marginBottom: 8 }}>
+                  {topDrivers.length > 0 ? `${(candidateDrivers ?? []).length} drivers in your area` : 'Scanning…'}
                 </div>
                 {topDrivers.length === 0 && (
-                  <div style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 0' }}>
-                    <Loader2 size={14} color="rgba(255,255,255,.3)" style={{ animation:'spin 1s linear infinite' }}/>
-                    <span style={{ fontSize:12, color:'rgba(255,255,255,.3)' }}>No candidates yet, keep waiting…</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0' }}>
+                    <Loader2 size={13} color="rgba(255,255,255,.3)" style={{ animation: 'spin 1s linear infinite' }}/>
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,.3)' }}>No candidates yet</span>
                   </div>
                 )}
                 {topDrivers.map((d, i) => {
@@ -357,27 +372,27 @@ function CyclingCard({
                   const borderColors = ['rgba(34,197,94,.25)','rgba(245,158,11,.2)','rgba(100,116,139,.18)'];
                   const c = colors[i] ?? '#64748B';
                   return (
-                    <div key={d.uid ?? i} style={{ display:'flex', alignItems:'center', gap:9, padding:'6px 0', borderBottom: i < topDrivers.length - 1 ? '1px solid rgba(255,255,255,.05)' : 'none' }}>
-                      <span style={{ width:6, height:6, borderRadius:'50%', background:c, flexShrink:0, animation:`blink ${1.2 + i*.3}s ease-in-out infinite` }}/>
-                      <div style={{ width:24, height:24, borderRadius:6, background: bgColors[i], border:`1px solid ${borderColors[i]}`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, fontWeight:800, color:c, flexShrink:0 }}>
+                    <div key={d.uid ?? i} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '5px 0', borderBottom: i < topDrivers.length - 1 ? '1px solid rgba(255,255,255,.05)' : 'none' }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: c, flexShrink: 0, animation: `blink ${1.2 + i*.3}s ease-in-out infinite` }}/>
+                      <div style={{ width: 22, height: 22, borderRadius: 6, background: bgColors[i], border: `1px solid ${borderColors[i]}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800, color: c, flexShrink: 0 }}>
                         D{i+1}
                       </div>
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ fontSize:12, fontWeight:700, color:`rgba(255,255,255,${0.85 - i*.15})`, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: `rgba(255,255,255,${0.85 - i*.15})`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {d.uid?.slice(0,8)}…
                         </div>
-                        <div style={{ fontSize:10, color:'rgba(255,255,255,.22)', marginTop:1 }}>
+                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,.22)', marginTop: 1 }}>
                           {d.lat?.toFixed(4)}, {d.lng?.toFixed(4)}
                         </div>
                       </div>
-                      <div style={{ fontFamily:'monospace', fontSize:12, fontWeight:700, color:c, flexShrink:0 }}>
+                      <div style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: c, flexShrink: 0 }}>
                         {driverDistLabel(d.distance ?? 0)}
                       </div>
                     </div>
                   );
                 })}
                 {(candidateDrivers ?? []).length > 3 && (
-                  <div style={{ fontSize:10, color:'rgba(255,255,255,.18)', textAlign:'center', marginTop:7 }}>
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,.18)', textAlign: 'center', marginTop: 6 }}>
                     +{(candidateDrivers ?? []).length - 3} more in your area
                   </div>
                 )}
@@ -386,82 +401,78 @@ function CyclingCard({
 
             {/* 2 — Notifications */}
             {panelId === 2 && (
-              <div key="p2" style={{ animation:'fadeUp .28s ease' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:11 }}>
-                  <div style={{ width:32, height:32, borderRadius:9, background:'rgba(59,130,246,.1)', border:'1px solid rgba(59,130,246,.18)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                    <Bell size={15} color="#93C5FD" strokeWidth={2.2}/>
+              <div key="p2" style={{ animation: 'fadeUp .28s ease' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(59,130,246,.1)', border: '1px solid rgba(59,130,246,.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Bell size={13} color="#93C5FD" strokeWidth={2.2}/>
                   </div>
                   <div>
-                    <div style={{ fontSize:13, fontWeight:800, color:'rgba(255,255,255,.88)' }}>Get notified instantly</div>
-                    <div style={{ fontSize:11, color:'rgba(255,255,255,.32)', marginTop:2 }}>Know the second a driver accepts</div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: 'rgba(255,255,255,.88)' }}>Get notified instantly</div>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,.32)', marginTop: 1 }}>Know the second a driver accepts</div>
                   </div>
                 </div>
                 <button onClick={handleNotifAllow} disabled={notifLoading} style={{
-                  width:'100%', padding:'10px', borderRadius:11, border:'none',
+                  width: '100%', padding: '9px', borderRadius: 10, border: 'none',
                   background: notifLoading ? 'rgba(29,78,216,.4)' : '#1D4ED8',
-                  color:'#fff', fontSize:13, fontWeight:800, cursor: notifLoading ? 'not-allowed' : 'pointer',
-                  display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+                  color: '#fff', fontSize: 12, fontWeight: 800,
+                  cursor: notifLoading ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
                 }}>
-                  {notifLoading ? <Loader2 size={13} style={{ animation:'spin 1s linear infinite' }}/> : <Bell size={13}/>}
+                  {notifLoading ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }}/> : <Bell size={12}/>}
                   {notifLoading ? 'Connecting…' : 'Allow notifications'}
                 </button>
-                {notifErr && <div style={{ marginTop:6, fontSize:11, color:'#FCA5A5', textAlign:'center' }}>{notifErr}</div>}
-                <button onClick={() => goIdx(activeIdx + 1 < activePanels.length ? activeIdx + 1 : 0)} style={{ width:'100%', marginTop:6, padding:'8px', borderRadius:11, border:'1px solid rgba(255,255,255,.08)', background:'transparent', color:'rgba(255,255,255,.35)', fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                  Not now
-                </button>
+                {notifErr && <div style={{ marginTop: 5, fontSize: 10, color: '#FCA5A5', textAlign: 'center' }}>{notifErr}</div>}
               </div>
             )}
 
             {/* 3 — Location */}
             {panelId === 3 && (
-              <div key="p3" style={{ animation:'fadeUp .28s ease' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:11 }}>
-                  <div style={{ width:32, height:32, borderRadius:9, background:'rgba(34,197,94,.09)', border:'1px solid rgba(34,197,94,.18)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                    <MapPin size={15} color="#4ADE80" strokeWidth={2.2}/>
+              <div key="p3" style={{ animation: 'fadeUp .28s ease' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(34,197,94,.09)', border: '1px solid rgba(34,197,94,.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <MapPin size={13} color="#4ADE80" strokeWidth={2.2}/>
                   </div>
                   <div>
-                    <div style={{ fontSize:13, fontWeight:800, color:'rgba(255,255,255,.88)' }}>Share your location</div>
-                    <div style={{ fontSize:11, color:'rgba(255,255,255,.32)', marginTop:2 }}>So your driver can find you faster</div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: 'rgba(255,255,255,.88)' }}>Share your location</div>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,.32)', marginTop: 1 }}>So your driver can find you faster</div>
                   </div>
                 </div>
                 <button onClick={handleLocAllow} disabled={locLoading} style={{
-                  width:'100%', padding:'10px', borderRadius:11, border:'none',
+                  width: '100%', padding: '9px', borderRadius: 10, border: 'none',
                   background: locLoading ? 'rgba(21,128,61,.4)' : '#15803D',
-                  color:'#fff', fontSize:13, fontWeight:800, cursor: locLoading ? 'not-allowed' : 'pointer',
-                  display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+                  color: '#fff', fontSize: 12, fontWeight: 800,
+                  cursor: locLoading ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
                 }}>
-                  {locLoading ? <Loader2 size={13} style={{ animation:'spin 1s linear infinite' }}/> : <MapPin size={13}/>}
+                  {locLoading ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }}/> : <MapPin size={12}/>}
                   {locLoading ? 'Getting location…' : 'Enable location'}
                 </button>
-                {locErr && <div style={{ marginTop:6, fontSize:11, color:'#FCA5A5', textAlign:'center' }}>{locErr}</div>}
-                <button onClick={() => goIdx(activeIdx + 1 < activePanels.length ? activeIdx + 1 : 0)} style={{ width:'100%', marginTop:6, padding:'8px', borderRadius:11, border:'1px solid rgba(255,255,255,.08)', background:'transparent', color:'rgba(255,255,255,.35)', fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                  Skip
-                </button>
+                {locErr && <div style={{ marginTop: 5, fontSize: 10, color: '#FCA5A5', textAlign: 'center' }}>{locErr}</div>}
               </div>
             )}
 
             {/* 4 — Phone */}
             {panelId === 4 && (
-              <div key="p4" style={{ animation:'fadeUp .28s ease' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:11 }}>
-                  <div style={{ width:32, height:32, borderRadius:9, background:'rgba(96,165,250,.09)', border:'1px solid rgba(96,165,250,.18)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                    <Phone size={15} color="#93C5FD" strokeWidth={2.2}/>
+              <div key="p4" style={{ animation: 'fadeUp .28s ease' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(96,165,250,.09)', border: '1px solid rgba(96,165,250,.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Phone size={13} color="#93C5FD" strokeWidth={2.2}/>
                   </div>
                   <div>
-                    <div style={{ fontSize:13, fontWeight:800, color:'rgba(255,255,255,.88)' }}>Add your phone number</div>
-                    <div style={{ fontSize:11, color:'rgba(255,255,255,.32)', marginTop:2 }}>So your driver can reach you</div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: 'rgba(255,255,255,.88)' }}>Add your phone number</div>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,.32)', marginTop: 1 }}>So your driver can reach you</div>
                   </div>
                 </div>
                 {phoneDone ? (
-                  <div style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 0' }}>
-                    <div style={{ width:26, height:26, borderRadius:'50%', background:'#15803D', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                      <Check size={13} color="#fff" strokeWidth={3}/>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0' }}>
+                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#15803D', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Check size={11} color="#fff" strokeWidth={3}/>
                     </div>
-                    <div style={{ fontSize:12, fontWeight:800, color:'#86EFAC' }}>Phone saved!</div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: '#86EFAC' }}>Phone saved!</div>
                   </div>
                 ) : (
                   <>
-                    <div style={{ display:'flex', gap:7 }}>
+                    <div style={{ display: 'flex', gap: 6 }}>
                       <input
                         type="tel" inputMode="tel" autoComplete="tel"
                         placeholder="(555) 123-4567"
@@ -470,25 +481,24 @@ function CyclingCard({
                         onKeyDown={e => { if (e.key === 'Enter' && canSavePhone) { e.preventDefault(); handleSavePhone(); } }}
                         disabled={phoneSaving}
                         style={{
-                          flex:1, padding:'9px 12px', borderRadius:10,
-                          border:`1.5px solid ${phoneErr ? 'rgba(239,68,68,.5)' : 'rgba(255,255,255,.12)'}`,
-                          background:'rgba(255,255,255,.05)',
-                          fontSize:13, fontWeight:600, color:'rgba(255,255,255,.9)',
-                          fontFamily:'inherit', outline:'none',
+                          flex: 1, padding: '8px 11px', borderRadius: 9,
+                          border: `1.5px solid ${phoneErr ? 'rgba(239,68,68,.5)' : 'rgba(255,255,255,.12)'}`,
+                          background: 'rgba(255,255,255,.05)',
+                          fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,.9)',
+                          fontFamily: 'inherit', outline: 'none',
                         }}
                       />
                       <button onClick={handleSavePhone} disabled={!canSavePhone} style={{
-                        padding:'0 14px', borderRadius:10, border:'none',
+                        padding: '0 12px', borderRadius: 9, border: 'none',
                         background: canSavePhone ? '#15803D' : 'rgba(255,255,255,.07)',
                         color: canSavePhone ? '#fff' : 'rgba(255,255,255,.25)',
-                        fontSize:12, fontWeight:800, cursor: canSavePhone ? 'pointer' : 'not-allowed',
-                        display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0,
+                        fontSize: 11, fontWeight: 800, cursor: canSavePhone ? 'pointer' : 'not-allowed',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                       }}>
-                        {phoneSaving ? <Loader2 size={12} style={{ animation:'spin 1s linear infinite' }}/> : 'Save'}
+                        {phoneSaving ? <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }}/> : 'Save'}
                       </button>
                     </div>
-                    {phoneErr && <div style={{ marginTop:6, fontSize:11, color:'#FCA5A5' }}>{phoneErr}</div>}
-                    <button onClick={onPhoneSkip} style={{ width:'100%', marginTop:6, padding:'8px', borderRadius:11, border:'1px solid rgba(255,255,255,.08)', background:'transparent', color:'rgba(255,255,255,.35)', fontSize:12, fontWeight:700, cursor:'pointer' }}>Skip</button>
+                    {phoneErr && <div style={{ marginTop: 5, fontSize: 10, color: '#FCA5A5' }}>{phoneErr}</div>}
                   </>
                 )}
               </div>
@@ -496,30 +506,30 @@ function CyclingCard({
 
             {/* 5 — Share */}
             {panelId === 5 && (
-              <div key="p5" style={{ animation:'fadeUp .28s ease' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:11 }}>
-                  <div style={{ width:32, height:32, borderRadius:9, background:'rgba(167,139,250,.09)', border:'1px solid rgba(167,139,250,.18)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                    <Share2 size={15} color="#C4B5FD" strokeWidth={2.2}/>
+              <div key="p5" style={{ animation: 'fadeUp .28s ease' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(167,139,250,.09)', border: '1px solid rgba(167,139,250,.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Share2 size={13} color="#C4B5FD" strokeWidth={2.2}/>
                   </div>
                   <div>
-                    <div style={{ fontSize:13, fontWeight:800, color:'rgba(255,255,255,.88)' }}>Help UaTob grow</div>
-                    <div style={{ fontSize:11, color:'rgba(255,255,255,.32)', marginTop:2 }}>Share with anyone you know</div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: 'rgba(255,255,255,.88)' }}>Help UaTob grow</div>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,.32)', marginTop: 1 }}>Share with anyone you know</div>
                   </div>
                 </div>
-                <div style={{ display:'flex', gap:7 }}>
-                  <div style={{ flex:1, padding:'9px 11px', borderRadius:10, border:'1px solid rgba(255,255,255,.08)', background:'rgba(255,255,255,.04)' }}>
-                    <div style={{ fontSize:10, color:'rgba(255,255,255,.3)', fontWeight:700, marginBottom:2 }}>Invite link</div>
-                    <div style={{ fontSize:12, fontWeight:700, color:'rgba(167,139,250,.8)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>uatob.com/invite</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <div style={{ flex: 1, padding: '8px 11px', borderRadius: 9, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', minWidth: 0 }}>
+                    <div style={{ fontSize: 9, color: 'rgba(255,255,255,.3)', fontWeight: 700, marginBottom: 1 }}>Invite link</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(167,139,250,.85)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>uatob.com/invite</div>
                   </div>
                   <button onClick={handleCopy} style={{
-                    padding:'0 14px', borderRadius:10, border:'none',
+                    padding: '0 12px', borderRadius: 9, border: 'none',
                     background: copied ? 'rgba(34,197,94,.2)' : 'rgba(167,139,250,.18)',
                     color: copied ? '#4ADE80' : '#C4B5FD',
-                    fontSize:12, fontWeight:800, cursor:'pointer', flexShrink:0,
-                    display:'flex', alignItems:'center', justifyContent:'center',
-                    transition:'all .2s',
+                    fontSize: 11, fontWeight: 800, cursor: 'pointer', flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'all .2s',
                   }}>
-                    {copied ? <Check size={14} strokeWidth={3}/> : 'Copy'}
+                    {copied ? <Check size={13} strokeWidth={3}/> : 'Copy'}
                   </button>
                 </div>
               </div>
@@ -844,17 +854,17 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
             transition: 'transform .35s cubic-bezier(.34,1.2,.64,1)',
           }}>
 
-            {/* ── Drag handle row with collapse toggle ── */}
+            {/* ── Drag handle with collapse toggle ── */}
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              paddingTop: 10, paddingBottom: 6, gap: 10, position: 'relative',
+              paddingTop: 10, paddingBottom: 6, position: 'relative',
             }}>
               <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.15)' }}/>
               <button
                 onClick={() => setCollapsed(c => !c)}
                 style={{
-                  position: 'absolute', right: 16,
-                  width: 28, height: 28, borderRadius: '50%',
+                  position: 'absolute', right: 14,
+                  width: 26, height: 26, borderRadius: '50%',
                   border: '1px solid rgba(255,255,255,.12)',
                   background: 'rgba(255,255,255,.06)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -869,24 +879,22 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
               </button>
             </div>
 
-            {/* Collapsed pill — just the timer */}
+            {/* Collapsed pill */}
             {collapsed && (
               <div style={{ padding: '6px 20px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ fontSize:10, fontWeight:800, letterSpacing:'.12em', textTransform:'uppercase', color:'rgba(134,239,172,.55)' }}>
+                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(134,239,172,.55)' }}>
                   {status === 'searching' ? 'Searching' : status === 'checking_payment' ? 'Verifying' : status}
                 </div>
                 {status === 'searching' && (
-                  <div style={{ fontFamily:'monospace', fontSize:22, fontWeight:700, color: isUrgent ? '#EF4444' : '#22C55E', letterSpacing:'-2px' }}>
+                  <div style={{ fontFamily: 'monospace', fontSize: 22, fontWeight: 700, color: isUrgent ? '#EF4444' : '#22C55E', letterSpacing: '-2px' }}>
                     {String(minutes).padStart(2,'0')}:{String(seconds).padStart(2,'0')}
                   </div>
                 )}
               </div>
             )}
 
-            {/* ══ FULL CONTENT (not collapsed) ══ */}
             {!collapsed && (
               <>
-
                 {/* ══ CHECKING PAYMENT ══ */}
                 {status === 'checking_payment' && (
                   <div style={{ padding: '20px 24px 32px', textAlign: 'center' }}>
@@ -928,32 +936,34 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                       }}/>
                     </div>
 
-                    <div style={{ padding: '18px 20px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div style={{ padding: '14px 18px 22px', display: 'flex', flexDirection: 'column', gap: 10 }}>
 
-                      {/* Meta row */}
+                      {/* Header row */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div>
-                          <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.28)', marginBottom: 3 }}>
+                          <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.3)', marginBottom: 3 }}>
                             Searching for driver
                           </div>
-                          <div style={{ fontSize: 11, color: 'rgba(255,255,255,.28)' }}>
-                            {formatTs(createdAt) ?? '—'}
+                          <div style={{ fontSize: 11, color: 'rgba(255,255,255,.3)' }}>
+                            {formatDateTime(createdAt) ?? '—'}
                             {paymentMethod && (
                               <> &nbsp;·&nbsp; <span style={{ color: 'rgba(96,165,250,.65)' }}>{paymentLabel(paymentMethod)}</span></>
                             )}
                           </div>
                         </div>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 99, background: 'rgba(34,197,94,.12)', border: '1px solid rgba(34,197,94,.22)', fontSize: 10, fontWeight: 800, color: '#4ADE80' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 99, background: 'rgba(34,197,94,.12)', border: '1px solid rgba(34,197,94,.22)', fontSize: 10, fontWeight: 800, color: '#4ADE80' }}>
                           <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#4ADE80', animation: 'blink 1.5s ease-in-out infinite', display: 'inline-block' }}/>
                           Live
                         </div>
                       </div>
 
-                      {/* The one cycling card */}
+                      {/* The compact cycling card */}
                       <CyclingCard
                         secondsLeft={secondsLeft}
                         isUrgent={isUrgent}
                         progress={progress}
+                        total={total}
+                        miles={miles}
                         candidateDrivers={candidateDrivers}
                         rideId={rideId}
                         riderUid={riderUid}
@@ -970,35 +980,31 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                         onLocationAllow={handleLocationAllow}
                       />
 
-                      {/* Route card */}
-                      <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '13px 14px' }}>
-                        <div style={{ display: 'flex', gap: 12, alignItems: 'stretch' }}>
+                      {/* Compact route card */}
+                      <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '11px 13px' }}>
+                        <div style={{ display: 'flex', gap: 11, alignItems: 'stretch' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 3, flexShrink: 0 }}>
-                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#60A5FA' }}/>
-                            <div style={{ width: 1, flex: 1, minHeight: 14, background: 'linear-gradient(to bottom, rgba(96,165,250,0.4), rgba(34,197,94,0.4))', margin: '3px 0' }}/>
-                            <div style={{ width: 8, height: 8, borderRadius: 2, background: '#22C55E', transform: 'rotate(45deg)' }}/>
+                            <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#60A5FA' }}/>
+                            <div style={{ width: 1, flex: 1, minHeight: 12, background: 'linear-gradient(to bottom, rgba(96,165,250,0.4), rgba(34,197,94,0.4))', margin: '3px 0' }}/>
+                            <div style={{ width: 7, height: 7, borderRadius: 2, background: '#22C55E', transform: 'rotate(45deg)' }}/>
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,.85)', marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pickup}</div>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,.6)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dropoff}</div>
-                          </div>
-                          <div style={{ flexShrink: 0, alignSelf: 'center', textAlign: 'right' }}>
-                            <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 16, fontWeight: 700, color: '#22C55E' }}>${total}</div>
-                            <div style={{ fontSize: 10, color: 'rgba(255,255,255,.3)', marginTop: 2 }}>{miles} mi</div>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,.85)', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pickup}</div>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,.55)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dropoff}</div>
                           </div>
                         </div>
                       </div>
 
                       {/* Cancel */}
                       <button onClick={handleCancelRide} disabled={cancelLoading} style={{
-                        width: '100%', padding: '11px 0', borderRadius: 12,
+                        width: '100%', padding: '10px 0', borderRadius: 11,
                         border: '1px solid rgba(255,255,255,0.07)', background: 'transparent',
-                        color: 'rgba(255,255,255,.3)', fontSize: 13, fontWeight: 600,
+                        color: 'rgba(255,255,255,.32)', fontSize: 12, fontWeight: 600,
                         cursor: cancelLoading ? 'not-allowed' : 'pointer',
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                       }}>
                         {cancelLoading
-                          ? <><Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }}/> Cancelling…</>
+                          ? <><Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }}/> Cancelling…</>
                           : 'Cancel ride'
                         }
                       </button>
@@ -1182,7 +1188,6 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                     {cancelError && <div style={{ marginTop: 10, fontSize: 11, color: '#FCA5A5', textAlign: 'center' }}>{cancelError}</div>}
                   </div>
                 )}
-
               </>
             )}
           </div>
