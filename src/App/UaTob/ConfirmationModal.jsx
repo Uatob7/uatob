@@ -63,46 +63,191 @@ function paymentLabel(method) {
   return map[method.toLowerCase()] ?? method;
 }
 
-// ── Radar SVG overlay ──────────────────────────────────────────────────────
-function RadarOverlay({ sweepAngle }) {
+// ── Radar SVG overlay — animated, dramatic ────────────────────────────────
+function RadarOverlay({ sweepAngle, candidateDrivers }) {
   const toRad = deg => (deg * Math.PI) / 180;
-  const R = 55;
-  const trailAngle = sweepAngle;
-  const leadAngle  = (sweepAngle + 72) % 360;
+  const R = 48;
+
+  // Sweep cone — wider trail for that "comet" feel
+  const TRAIL_DEG = 90;
+  const trailAngle = (sweepAngle - TRAIL_DEG + 360) % 360;
+  const leadAngle  = sweepAngle;
   const trailX = 50 + R * Math.cos(toRad(trailAngle));
   const trailY = 50 + R * Math.sin(toRad(trailAngle));
   const leadX  = 50 + R * Math.cos(toRad(leadAngle));
   const leadY  = 50 + R * Math.sin(toRad(leadAngle));
-  const tipX   = 50 + 52 * Math.cos(toRad(leadAngle));
-  const tipY   = 50 + 52 * Math.sin(toRad(leadAngle));
+  const tipX   = 50 + 46 * Math.cos(toRad(leadAngle));
+  const tipY   = 50 + 46 * Math.sin(toRad(leadAngle));
+
+  // Map candidate drivers into deterministic positions on the radar plane
+  // Use uid hash so they stay put as data updates
+  const driverBlips = useMemo(() => {
+    if (!candidateDrivers?.length) return [];
+    return candidateDrivers.slice(0, 8).map((d, i) => {
+      const seed = String(d.uid ?? i).split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+      const blipAngle = (seed * 37) % 360;
+      // Closer drivers (lower distance) sit nearer to center
+      const dist = Number(d.distance ?? 5);
+      const normalized = Math.min(1, dist / 50);
+      const radius = 6 + normalized * 38;
+      const x = 50 + radius * Math.cos(toRad(blipAngle));
+      const y = 50 + radius * Math.sin(toRad(blipAngle));
+      return { x, y, angle: blipAngle, uid: d.uid ?? i, key: i };
+    });
+  }, [candidateDrivers]);
+
+  // Check which blips are "lit" by the current sweep
+  const sweepActiveRange = (angle) => {
+    const diff = ((angle - sweepAngle + 540) % 360) - 180;
+    return diff > -TRAIL_DEG && diff <= 5;
+  };
+
   return (
-    <svg style={{ position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none',zIndex:2 }}
-      viewBox="0 0 100 100" preserveAspectRatio="none">
+    <svg
+      style={{ position:'absolute', inset:0, width:'100%', height:'100%', pointerEvents:'none', zIndex:2 }}
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
+    >
       <defs>
         <radialGradient id="cmSweepGrad" cx="50%" cy="50%" r="50%">
-          <stop offset="0%"   stopColor="rgba(34,197,94,0.75)"/>
-          <stop offset="55%"  stopColor="rgba(34,197,94,0.22)"/>
+          <stop offset="0%"   stopColor="rgba(34,197,94,0.85)"/>
+          <stop offset="40%"  stopColor="rgba(34,197,94,0.45)"/>
+          <stop offset="75%"  stopColor="rgba(34,197,94,0.12)"/>
           <stop offset="100%" stopColor="rgba(34,197,94,0)"/>
         </radialGradient>
-        <radialGradient id="cmVig" cx="50%" cy="50%" r="60%">
-          <stop offset="30%" stopColor="transparent"/>
-          <stop offset="100%" stopColor="rgba(0,0,0,0.72)"/>
+        <radialGradient id="cmCenterGlow" cx="50%" cy="50%" r="20%">
+          <stop offset="0%"   stopColor="rgba(74,222,128,0.4)"/>
+          <stop offset="100%" stopColor="rgba(74,222,128,0)"/>
         </radialGradient>
+        <radialGradient id="cmVig" cx="50%" cy="50%" r="65%">
+          <stop offset="25%" stopColor="transparent"/>
+          <stop offset="100%" stopColor="rgba(0,0,0,0.85)"/>
+        </radialGradient>
+        <radialGradient id="cmBlipGlow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%"   stopColor="rgba(74,222,128,0.9)"/>
+          <stop offset="100%" stopColor="rgba(74,222,128,0)"/>
+        </radialGradient>
+        <filter id="cmGlow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="0.6" result="blur"/>
+          <feMerge>
+            <feMergeNode in="blur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+
+        <style>{`
+          @keyframes cmPingRing {
+            0%   { r: 4;  opacity: 0.9; stroke-width: 0.4; }
+            100% { r: 48; opacity: 0;   stroke-width: 0.15; }
+          }
+          @keyframes cmGridPulse {
+            0%, 100% { opacity: 0.12; }
+            50%      { opacity: 0.28; }
+          }
+          @keyframes cmCenterPulse {
+            0%, 100% { r: 0.9; opacity: 0.85; }
+            50%      { r: 1.4; opacity: 1; }
+          }
+          @keyframes cmBlipPulse {
+            0%, 100% { opacity: 0.35; }
+            50%      { opacity: 0.7;  }
+          }
+          .cmPingRing1 { animation: cmPingRing 4s ease-out infinite; }
+          .cmPingRing2 { animation: cmPingRing 4s ease-out 1.33s infinite; }
+          .cmPingRing3 { animation: cmPingRing 4s ease-out 2.66s infinite; }
+          .cmGridLine  { animation: cmGridPulse 3s ease-in-out infinite; }
+          .cmCenterDot { animation: cmCenterPulse 1.8s ease-in-out infinite; }
+          .cmBlipIdle  { animation: cmBlipPulse 2.5s ease-in-out infinite; }
+        `}</style>
       </defs>
+
+      {/* Vignette */}
       <rect width="100" height="100" fill="url(#cmVig)"/>
-      {[14,26,38,50].map((r,i) => (
-        <circle key={i} cx="50" cy="50" r={r} fill="none"
-          stroke="rgba(34,197,94,0.18)" strokeWidth="0.3" strokeDasharray="1.2 2.2"/>
-      ))}
-      <path d={`M 50 50 L ${trailX} ${trailY} A ${R} ${R} 0 0 1 ${leadX} ${leadY} Z`}
-        fill="url(#cmSweepGrad)" opacity="0.72"/>
-      <line x1="50" y1="50" x2={leadX} y2={leadY}
-        stroke="#4ADE80" strokeWidth="0.55" strokeLinecap="round" opacity="0.95"/>
-      <circle cx={tipX} cy={tipY} r="1.3" fill="#4ADE80" opacity="0.95"/>
-      <circle cx={tipX} cy={tipY} r="2.4" fill="rgba(74,222,128,0.25)" opacity="0.9"/>
-      <line x1="47.5" y1="50" x2="52.5" y2="50" stroke="rgba(34,197,94,0.55)" strokeWidth="0.3"/>
-      <line x1="50" y1="47.5" x2="50" y2="52.5" stroke="rgba(34,197,94,0.55)" strokeWidth="0.3"/>
-      <circle cx="50" cy="50" r="0.9" fill="rgba(74,222,128,0.85)"/>
+
+      {/* Center radial glow */}
+      <circle cx="50" cy="50" r="20" fill="url(#cmCenterGlow)"/>
+
+      {/* Dashed radar rings — staggered pulse */}
+      <circle cx="50" cy="50" r="12" fill="none"
+        stroke="rgba(34,197,94,0.22)" strokeWidth="0.25"
+        strokeDasharray="1 2.5" className="cmGridLine"/>
+      <circle cx="50" cy="50" r="22" fill="none"
+        stroke="rgba(34,197,94,0.2)" strokeWidth="0.25"
+        strokeDasharray="1 2.5" className="cmGridLine"
+        style={{ animationDelay: '0.5s' }}/>
+      <circle cx="50" cy="50" r="34" fill="none"
+        stroke="rgba(34,197,94,0.18)" strokeWidth="0.25"
+        strokeDasharray="1 2.5" className="cmGridLine"
+        style={{ animationDelay: '1s' }}/>
+      <circle cx="50" cy="50" r="46" fill="none"
+        stroke="rgba(34,197,94,0.15)" strokeWidth="0.25"
+        strokeDasharray="1 2.5" className="cmGridLine"
+        style={{ animationDelay: '1.5s' }}/>
+
+      {/* Cardinal grid lines (N/S/E/W) */}
+      <line x1="50" y1="4"  x2="50" y2="96" stroke="rgba(34,197,94,0.08)" strokeWidth="0.2"/>
+      <line x1="4"  y1="50" x2="96" y2="50" stroke="rgba(34,197,94,0.08)" strokeWidth="0.2"/>
+      {/* Diagonal */}
+      <line x1="15" y1="15" x2="85" y2="85" stroke="rgba(34,197,94,0.05)" strokeWidth="0.15"/>
+      <line x1="85" y1="15" x2="15" y2="85" stroke="rgba(34,197,94,0.05)" strokeWidth="0.15"/>
+
+      {/* Cardinal markers */}
+      <text x="50" y="3.2"  textAnchor="middle" fill="rgba(34,197,94,0.4)" fontSize="2.2" fontFamily="monospace" fontWeight="700">N</text>
+      <text x="97.2" y="51" textAnchor="middle" fill="rgba(34,197,94,0.4)" fontSize="2.2" fontFamily="monospace" fontWeight="700">E</text>
+      <text x="50" y="98.5" textAnchor="middle" fill="rgba(34,197,94,0.4)" fontSize="2.2" fontFamily="monospace" fontWeight="700">S</text>
+      <text x="2.8" y="51"  textAnchor="middle" fill="rgba(34,197,94,0.4)" fontSize="2.2" fontFamily="monospace" fontWeight="700">W</text>
+
+      {/* Continuous ping rings emanating from center */}
+      <circle cx="50" cy="50" fill="none" stroke="#4ADE80" className="cmPingRing1"/>
+      <circle cx="50" cy="50" fill="none" stroke="#4ADE80" className="cmPingRing2"/>
+      <circle cx="50" cy="50" fill="none" stroke="#4ADE80" className="cmPingRing3"/>
+
+      {/* Driver blips — pulse when not lit, glow brightly when sweep hits */}
+      {driverBlips.map(b => {
+        const lit = sweepActiveRange(b.angle);
+        return (
+          <g key={b.key}>
+            {lit && (
+              <circle cx={b.x} cy={b.y} r="3.5" fill="url(#cmBlipGlow)" opacity="0.9"/>
+            )}
+            <circle
+              cx={b.x} cy={b.y}
+              r={lit ? 1.1 : 0.7}
+              fill={lit ? '#86EFAC' : '#22C55E'}
+              opacity={lit ? 1 : 0.55}
+              filter={lit ? 'url(#cmGlow)' : undefined}
+              className={lit ? undefined : 'cmBlipIdle'}
+              style={{ transition: 'r .3s ease, opacity .3s ease' }}
+            />
+          </g>
+        );
+      })}
+
+      {/* Sweep cone — bigger, more dramatic */}
+      <path
+        d={`M 50 50 L ${trailX} ${trailY} A ${R} ${R} 0 0 1 ${leadX} ${leadY} Z`}
+        fill="url(#cmSweepGrad)"
+        opacity="0.85"
+      />
+
+      {/* Leading-edge beam */}
+      <line
+        x1="50" y1="50" x2={leadX} y2={leadY}
+        stroke="#86EFAC" strokeWidth="0.7"
+        strokeLinecap="round" opacity="1"
+        filter="url(#cmGlow)"
+      />
+
+      {/* Tip flare */}
+      <circle cx={tipX} cy={tipY} r="1.6" fill="#86EFAC" opacity="1" filter="url(#cmGlow)"/>
+      <circle cx={tipX} cy={tipY} r="3.5" fill="rgba(134,239,172,0.25)" opacity="0.9"/>
+      <circle cx={tipX} cy={tipY} r="6"   fill="rgba(134,239,172,0.1)" opacity="0.7"/>
+
+      {/* Center crosshair + pulsing dot */}
+      <line x1="46" y1="50" x2="54" y2="50" stroke="rgba(34,197,94,0.65)" strokeWidth="0.35"/>
+      <line x1="50" y1="46" x2="50" y2="54" stroke="rgba(34,197,94,0.65)" strokeWidth="0.35"/>
+      <circle cx="50" cy="50" r="2.5" fill="none" stroke="rgba(74,222,128,0.6)" strokeWidth="0.3"/>
+      <circle cx="50" cy="50" fill="#86EFAC" className="cmCenterDot" filter="url(#cmGlow)"/>
     </svg>
   );
 }
@@ -602,11 +747,11 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
     };
   }, []);
 
-  // Radar sweep
+  // Radar sweep — smooth, ~4 second full rotation
   useEffect(() => {
     if (status !== 'searching') return;
     let angle = 0;
-    const id = setInterval(() => { angle = (angle + 2) % 360; setSweepAngle(angle); }, 30);
+    const id = setInterval(() => { angle = (angle + 1.5) % 360; setSweepAngle(angle); }, 16);
     return () => clearInterval(id);
   }, [status]);
 
@@ -721,7 +866,14 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
       map.on('load', () => {
         mapRef.current = map; setMapReady(true);
         let bearing = -20;
-        const drift = setInterval(() => { bearing += 0.04; map.setBearing(bearing); }, 100);
+        let zoomPhase = 0;
+        const drift = setInterval(() => {
+          bearing += 0.06;
+          zoomPhase += 0.008;
+          map.setBearing(bearing);
+          // Subtle breathing zoom — ~0.15 amplitude
+          map.setZoom(14 + Math.sin(zoomPhase) * 0.15);
+        }, 80);
         map.on('remove', () => clearInterval(drift));
       });
     };
@@ -832,7 +984,9 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
         <div ref={mapContainerRef} style={{ position: 'absolute', inset: 0 }}/>
 
         {/* Radar */}
-        {mapReady && status === 'searching' && <RadarOverlay sweepAngle={sweepAngle}/>}
+        {mapReady && status === 'searching' && (
+          <RadarOverlay sweepAngle={sweepAngle} candidateDrivers={candidateDrivers}/>
+        )}
 
         {/* Scrim */}
         <div style={{
