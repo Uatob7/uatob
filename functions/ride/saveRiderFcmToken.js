@@ -21,7 +21,7 @@ exports.saveRiderFcmToken = onCall(
     await db.collection("Accounts").doc(uid).set(
       {
         token,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        tokenUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
       },
       { merge: true }
     );
