@@ -486,3 +486,201 @@ function DarkPill({ color, label, value, glow, dim }) {
     </div>
   );
 }
+
+
+Trips in UatobView: 
+(4) [{…}, {…}, {…}, {…}]
+0
+: 
+{id: '1T0rQvkIpRYQaNyTm8lx', timedOutAt: Timestamp, emailDispatchAt: Timestamp, offlineDriversNotified: {…}, pickupLng: -82.7099003, …}
+1
+: 
+adminNotified
+: 
+true
+apologyEmailSent
+: 
+true
+apologyEmailSentAt
+: 
+Timestamp {seconds: 1778526962, nanoseconds: 854000000}
+approvedDriversEmailedAt
+: 
+Timestamp {seconds: 1778469001, nanoseconds: 929000000}
+approvedDriversNotified
+: 
+{KeQ8Y5kHGmQzXe5ALo80LoVGtTk2: true, OWrtmINIsHZcCCFyPgVzrxnMPw73: true, 1tw4E15GBGgNsYlvfMFQudJveke2: true, 5u2TDlnyxDSTqIENyxmaPB3SeAt1: true, 4gmxZQmeFQYIzj4x2ZKI6K1EdB02: true, …}
+autoRefundProcessedAt
+: 
+Timestamp {seconds: 1778526962, nanoseconds: 303000000}
+autoRefundStatus
+: 
+"succeeded"
+cancelReason
+: 
+"timeout_auto_cancel"
+cancelledAt
+: 
+Timestamp {seconds: 1778526962, nanoseconds: 303000000}
+candidateDriverUids
+: 
+(6) ['7Uh6WlBZ0wYCZqF8OTrwpkODG7F2', 'at5VxbnwfXWAzsXVdKOwHMQCnOb2', '0Kh5xBvMgPNTN1WSpfBVOWRiVHe2', 'x6XldJOfWcbG5RRqocOfCs0u1m12', 'khfZ88XTF8TjI9dBcbqY0730MQA3', 'rr5rvgmy8HQcWLdAyOKssV9LdRv2']
+candidateDrivers
+: 
+(6) [{…}, {…}, {…}, {…}, {…}, {…}]
+createdAt
+: 
+Timestamp {seconds: 1778470943, nanoseconds: 235000000}
+currentDriverIndex
+: 
+0
+driverInfo
+: 
+null
+driverPayout
+: 
+16.94
+dropoff
+: 
+"8134 International Drive, Orlando, FL, USA"
+dropoffCity
+: 
+"Orlando"
+dropoffLat
+: 
+28.4480048
+dropoffLng
+: 
+-81.4725685
+dropoffZip
+: 
+"32819"
+emailDispatchAt
+: 
+Timestamp {seconds: 1778469002, nanoseconds: 194000000}
+emailDispatchStarted
+: 
+true
+emailSentToDrivers
+: 
+{khfZ88XTF8TjI9dBcbqY0730MQA3: true, 0Kh5xBvMgPNTN1WSpfBVOWRiVHe2: true, x6XldJOfWcbG5RRqocOfCs0u1m12: true, at5VxbnwfXWAzsXVdKOwHMQCnOb2: true, 7Uh6WlBZ0wYCZqF8OTrwpkODG7F2: true, …}
+expiresAt
+: 
+Timestamp {seconds: 1778471363, nanoseconds: 235000000}
+fareBreakdown
+: 
+{}
+fareTotal
+: 
+22.59
+id
+: 
+"BCCx17PgJoEmjMnJZ6dK"
+lastPushAt
+: 
+Timestamp {seconds: 1778469004, nanoseconds: 193000000}
+offlineDriversEmailedAt
+: 
+Timestamp {seconds: 1778470984, nanoseconds: 960000000}
+offlineDriversNotified
+: 
+{CBmYmBLg5PN2I2BEdQQGRTDYcx92: true, gmikoLPXOnRTf0T0AUgDog8VYUr1: true, ShwYtnVgnmYHYOv3i7J2KIwuCPh2: true, Z0SucKpv8iNCuNO1haW7Qe0rUSQ2: true, 2L1vviHxDaUoub2V1FbMbQfdt0I2: true, …}
+paymentIntentId
+: 
+"pi_3TVkCzJhpOy6wtDq0g21GOlr"
+paymentMethod
+: 
+"card"
+paymentStatus
+: 
+"refunded"
+payoutStatus
+: 
+"pending"
+pickup
+: 
+"2325 West Fairbanks Avenue, Winter Park, FL, USA"
+pickupCity
+: 
+"Winter Park"
+pickupLat
+: 
+28.5933398
+pickupLng
+: 
+-81.3807973
+pickupZip
+: 
+"32789"
+platformFee
+: 
+5.65
+polyline
+: 
+"msomDnvuoNQ?ICAS?{@fACFjJVTp@SpD_FdDcFBa@~HuJlBoBxBeBvBsArBaAlC_AxBk@~Cg@`CQvYw@hDB|CNhDb@tInAdCPzCHpWA`QP~BJxBVnBd@tBv@bAf@zBzA`JlH`DtBpDrBpD`BnDpArBn@nCl@xGbAxQdCjDZrFVrFHzGIrYc@xCIhMErFF|BLzD\\rEn@~Cp@zC~@lBt@pPvHbBn@xC~@nCl@xB^hDXvCJni@ArBDbCR`BVbDr@lC~@zBbAjBhAdAt@|BvBxAbBdAvAbNvT|DxG~AhDbBhElAtEr@xDd@fDXhDLdCHzDN~tADnAXjDd@~Cv@jDdA`DdAbCtAbCpAhBnBzBp@l@xR`PbKjIzVzSnTzQjXzT|DrDtCzC|E`Gf`@hg@zPlTtBpCnL~PfBbCrNrQzPbT|LpNjH`JxUpZHd@pEnG~CpEpDhFlBtBxBnBjBlAfB|@dBn@xA^vCh@vF\\~GVfDLhAJxJn@N@`@KZO\\g@Lo@BaDPa@\\oBB_AAeAj@Dn@j@|@z@dAj@\\Jj@JRO@CAg@CeCt@A"
+pushDispatchAt
+: 
+Timestamp {seconds: 1778468944, nanoseconds: 260000000}
+pushDispatchStarted
+: 
+true
+pushDriverIndex
+: 
+10
+pushSentToDrivers
+: 
+{khfZ88XTF8TjI9dBcbqY0730MQA3: true}
+receiptEmailSent
+: 
+true
+refundId
+: 
+"re_3TVkCzJhpOy6wtDq0IlSAZFH"
+requestSentAt
+: 
+Timestamp {seconds: 1778471343, nanoseconds: 637000000}
+rideLabel
+: 
+"Economy"
+rideType
+: 
+"economy"
+searchExtended
+: 
+1
+status
+: 
+"cancelled"
+timedOutAt
+: 
+Timestamp {seconds: 1778471401, nanoseconds: 428000000}
+timeoutMinutes
+: 
+10
+tripDistanceMiles
+: 
+13.6
+tripDurationMin
+: 
+21
+uid
+: 
+"NaraNDRmxpYegriNTrUo5h3rGVI3"
+updatedAt
+: 
+Timestamp {seconds: 1778526962, nanoseconds: 303000000}
+[[Prototype]]
+: 
+Object
+2
+: 
+{id: 'PlzVo8BNK7YNtJxqkYEP', cancelledAt: Timestamp, platformFee: 3.89, uid: 'TA5V8QslrMRxQ7xcUheGJrJJ9EG3', lastDispatchAt: Timestamp, …}
+3
+: 
+{id: 'vBxXLEArYcXWayvUmBBc', candidateDriverUids: Array(6), paymentStatus: 'succeeded', dropoffLng: -79.8865932, timeoutMinutes: 10, …}
+length
+: 
+4
+[[Prototype]]
+: 
+Array(0)
