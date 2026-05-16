@@ -140,8 +140,9 @@ function CyclingCard({
   const needsNotif = !notifDone;
   const needsLoc   = !locationDone;
 
+  // Build active panel list
   const activePanels = useMemo(() => {
-    const list = [0, 1];
+    const list = [0, 1]; // timer + candidates always
     if (needsNotif) list.push(2);
     if (needsLoc)   list.push(3);
     if (needsPhone) list.push(4);
@@ -175,6 +176,7 @@ function CyclingCard({
 
   const panelLabels = ['Timer','Nearby','Alerts','Location','Phone','Share'];
 
+  // Phone state
   const [phoneVal, setPhoneVal]       = useState('');
   const [phoneSaving, setPhoneSaving] = useState(false);
   const [phoneErr, setPhoneErr]       = useState('');
@@ -195,6 +197,7 @@ function CyclingCard({
     finally { setPhoneSaving(false); }
   };
 
+  // Notif state
   const [notifLoading, setNotifLoading] = useState(false);
   const [notifErr, setNotifErr]         = useState('');
 
@@ -205,6 +208,7 @@ function CyclingCard({
     finally { setNotifLoading(false); }
   };
 
+  // Location state
   const [locLoading, setLocLoading] = useState(false);
   const [locErr, setLocErr]         = useState('');
 
@@ -215,6 +219,7 @@ function CyclingCard({
     finally { setLocLoading(false); }
   };
 
+  // Copy invite
   const [copied, setCopied] = useState(false);
   const handleCopy = () => {
     navigator.clipboard?.writeText('https://uatob.com/invite').catch(() => {});
@@ -812,69 +817,48 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
         @keyframes blink       { 0%,100%{opacity:1} 50%{opacity:.2} }
       `}</style>
 
-      {/* ── Full-screen fixed overlay ── */}
       <div style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 999,
+        position: 'fixed', inset: 0, zIndex: 999,
         transition: 'opacity .28s ease',
         opacity: visible ? 1 : 0,
         pointerEvents: visible ? 'auto' : 'none',
-        overflow: 'hidden',            // never let the overlay itself scroll
       }}>
-        {/* Mapbox bg — fills the entire screen */}
+        {/* Mapbox bg */}
         <div ref={mapContainerRef} style={{ position: 'absolute', inset: 0 }}/>
 
-        {/* Radar sweep */}
+        {/* Radar */}
         {mapReady && status === 'searching' && <RadarOverlay sweepAngle={sweepAngle}/>}
 
-        {/* Gradient scrim */}
+        {/* Scrim */}
         <div style={{
           position: 'absolute', inset: 0, zIndex: 3,
           background: 'linear-gradient(to bottom, rgba(0,0,0,.18) 0%, rgba(0,0,0,.05) 35%, rgba(0,0,0,.65) 100%)',
           pointerEvents: 'none',
         }}/>
 
-        {/* ── Sheet — takes full viewport height, slides in from bottom ── */}
+        {/* Bottom sheet */}
         <div style={{
-          position: 'absolute',
-          // anchor to all four edges so the sheet fills the screen
-          inset: 0,
+          position: 'absolute', bottom: 0, left: 0, right: 0,
+          display: 'flex', justifyContent: 'center', alignItems: 'flex-end',
           zIndex: 10,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'flex-end',     // keep bottom-sheet feel
-          pointerEvents: 'none',      // pass clicks through the transparent part
         }}>
           <div style={{
-            width: '100%',
-            maxWidth: 440,
-            // FULL HEIGHT — the key change
-            height: '100dvh',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',        // nothing escapes the sheet
+            width: '100%', maxWidth: 440,
             background: 'rgba(10,14,20,0.96)',
             backdropFilter: 'blur(24px)',
             borderRadius: '24px 24px 0 0',
             border: '1px solid rgba(255,255,255,0.07)',
             borderBottom: 'none',
             boxShadow: '0 -24px 80px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,0.08)',
-            // Slide-up animation — works perfectly with full height
+            overflow: 'hidden',
             transform: visible ? 'translateY(0)' : 'translateY(100%)',
             transition: 'transform .35s cubic-bezier(.34,1.2,.64,1)',
-            pointerEvents: 'auto',     // re-enable clicks on the sheet itself
           }}>
 
-            {/* ── Drag handle + collapse toggle — always visible, never scrolls ── */}
+            {/* ── Drag handle with collapse toggle ── */}
             <div style={{
-              flexShrink: 0,            // never shrink; always pinned at top
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              paddingTop: 10,
-              paddingBottom: 6,
-              position: 'relative',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              paddingTop: 10, paddingBottom: 6, position: 'relative',
             }}>
               <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.15)' }}/>
               <button
@@ -890,19 +874,15 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                 }}
               >
                 {collapsed
-                  ? <ChevronUp   size={14} color="rgba(255,255,255,.5)"/>
+                  ? <ChevronUp size={14} color="rgba(255,255,255,.5)"/>
                   : <ChevronDown size={14} color="rgba(255,255,255,.5)"/>
                 }
               </button>
             </div>
 
-            {/* ── Collapsed pill — pinned, never inside scroll area ── */}
+            {/* Collapsed pill */}
             {collapsed && (
-              <div style={{
-                flexShrink: 0,
-                padding: '6px 20px 16px',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              }}>
+              <div style={{ padding: '6px 20px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(134,239,172,.55)' }}>
                   {status === 'searching' ? 'Searching' : status === 'checking_payment' ? 'Verifying' : status}
                 </div>
@@ -914,19 +894,8 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
               </div>
             )}
 
-            {/* ── Scrollable body — flex: 1 fills remaining height, overflowY scrolls ── */}
             {!collapsed && (
-              <div style={{
-                flex: 1,
-                overflowY: 'auto',
-                WebkitOverflowScrolling: 'touch',
-                // Hide scrollbar visually but keep functionality
-                scrollbarWidth: 'none',
-                msOverflowStyle: 'none',
-              }}>
-                {/* Hide webkit scrollbar */}
-                <style>{`::-webkit-scrollbar { display: none; }`}</style>
-
+              <>
                 {/* ══ CHECKING PAYMENT ══ */}
                 {status === 'checking_payment' && (
                   <div style={{ padding: '20px 24px 32px', textAlign: 'center' }}>
@@ -989,7 +958,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                         </div>
                       </div>
 
-                      {/* Cycling card */}
+                      {/* The compact cycling card */}
                       <CyclingCard
                         secondsLeft={secondsLeft}
                         isUrgent={isUrgent}
@@ -1220,8 +1189,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                     {cancelError && <div style={{ marginTop: 10, fontSize: 11, color: '#FCA5A5', textAlign: 'center' }}>{cancelError}</div>}
                   </div>
                 )}
-
-              </div>
+              </>
             )}
           </div>
         </div>
