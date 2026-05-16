@@ -486,6 +486,20 @@ function DarkPill({ color, label, value, glow, dim }) {
     </div>
   );
 }
-
-
 Trips in UatobView: 
+(4) [{…}, {…}, {…}, {…}]
+0
+: 
+{id: '1T0rQvkIpRYQaNyTm8lx', timedOutAt: Timestamp, emailDispatchAt: Timestamp, offlineDriversNotified: {…}, pickupLng: -82.7099003, …}
+1
+: 
+{id: 'BCCx17PgJoEmjMnJZ6dK', pickupZip: '32789', adminNotified: true, payoutStatus: 'pending', pickupLng: -81.3807973, …}
+2
+: 
+{id: 'PlzVo8BNK7YNtJxqkYEP', cancelledAt: Timestamp, platformFee: 3.89, uid: 'TA5V8QslrMRxQ7xcUheGJrJJ9EG3', lastDispatchAt: Timestamp, …}
+3
+: 
+{id: 'vBxXLEArYcXWayvUmBBc', candidateDriverUids: Array(6), paymentStatus: 'succeeded', dropoffLng: -79.8865932, timeoutMinutes: 10, …}
+length
+: 
+4
