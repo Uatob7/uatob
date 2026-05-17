@@ -6,8 +6,9 @@
 //   Go to Firestore → Admin/onlineDriversBlasts → change sendCount
 //   from 1 to 2 (or any higher number). Within ~1 minute, the function will:
 //     • Email every driver with status "approved" or "offline" who has an email
-//     • Push every same driver who has an fcmToken (shorter version)
-//   The function then records that sendCount as "lastBlastedCount".
+//     • Push every same driver who has an fcmToken (drivers without one are skipped)
+//   The function then records that sendCount as "lastBlastedCount" and saves
+//   all emailed driver UIDs in "lastBlastedDrivers".
 //   Next time you change sendCount to 3, it blasts again. And so on.
 //
 // FIRST-RUN BEHAVIOR:
@@ -88,7 +89,6 @@ function buildOnlineRecruitEmail({ driver, onlineCount, sendCount }) {
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const year = new Date().getFullYear();
 
-  // Headline adjusts by current online count — every flavor still pulls them in
   let onlineCopy;
   if (onlineCount === 0) {
     onlineCopy = `<strong style="color:#FBBF24;">No one's online right now.</strong> That means whoever flips on first catches every request.`;
@@ -172,7 +172,7 @@ function buildOnlineRecruitEmail({ driver, onlineCount, sendCount }) {
             </td>
           </tr></table>
 
-          <!-- BIG STAT — online driver count -->
+          <!-- BIG STAT -->
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
             <td align="center"
                 style="padding:36px 40px 28px;border-bottom:1px solid #1f1f1f;">
@@ -334,7 +334,6 @@ function buildOnlineRecruitEmail({ driver, onlineCount, sendCount }) {
 </body>
 </html>`.trim();
 
-  // Plain-text variant — count-aware
   let textOnlineLine;
   if (onlineCount === 0)      textOnlineLine = `No drivers are online right now. Whoever flips on first catches every request.`;
   else if (onlineCount === 1) textOnlineLine = `Only 1 driver is online right now. If you go online, you double the supply.`;
@@ -370,7 +369,7 @@ function buildOnlineRecruitEmail({ driver, onlineCount, sendCount }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Push notification builder — short message
+// Push notification builder
 // ─────────────────────────────────────────────────────────────
 function buildOnlinePushMessage({ driver, onlineCount, sendCount }) {
   let title, body;
@@ -459,15 +458,11 @@ exports.announceOnlineDrivers = onSchedule(
     const stateSnap = await STATE_REF.get();
     const state = stateSnap.exists ? stateSnap.data() : {};
 
-    const sendCount         = state.sendCount         ?? 1;
-    const lastBlastedCount  = state.lastBlastedCount  ?? null;
-    const initialBlastDone  = state.initialBlastDone  ?? false;
-    const todayStr          = new Date().toISOString().slice(0, 10);
+    const sendCount        = state.sendCount        ?? 1;
+    const lastBlastedCount = state.lastBlastedCount ?? null;
+    const todayStr         = new Date().toISOString().slice(0, 10);
 
     // ── 2. First-run initialization ─────────────────────────
-    // Set up the doc on first execution so admin has fields to edit.
-    // Don't blast — initialize lastBlastedCount = sendCount so we wait
-    // for admin to actively increment it.
     if (!stateSnap.exists) {
       await STATE_REF.set({
         sendCount:         1,
@@ -480,8 +475,7 @@ exports.announceOnlineDrivers = onSchedule(
       return;
     }
 
-    // ── 3. Decide whether to run ───────────────────────────
-    // Blast only when admin has incremented sendCount past what we last sent.
+    // ── 3. Decide whether to run ────────────────────────────
     if (lastBlastedCount !== null && sendCount <= lastBlastedCount) {
       console.log(
         `[announceOnlineDrivers] sendCount (${sendCount}) <= lastBlastedCount (${lastBlastedCount}). Skipping.`
@@ -493,22 +487,20 @@ exports.announceOnlineDrivers = onSchedule(
       `[announceOnlineDrivers] sendCount ${sendCount} > lastBlastedCount ${lastBlastedCount}. Blasting.`
     );
 
-    // ── 4. Pull all drivers, bucket by status ──────────────
+    // ── 4. Pull all drivers, bucket by status ───────────────
     const driversSnap = await db.collection("Drivers").get();
     const targets = [];
     let onlineCount = 0;
 
     driversSnap.docs.forEach((doc) => {
-      const data = doc.data();
+      const data   = doc.data();
       const status = (data.status || "").toLowerCase();
       if (status === "online") {
         onlineCount++;
         return; // online drivers don't need recruiting
       }
-      if (status === "approved" || status === "offline") {
-        if (data.email) {
-          targets.push({ uid: doc.id, ...data });
-        }
+      if ((status === "approved" || status === "offline") && data.email) {
+        targets.push({ uid: doc.id, ...data });
       }
     });
 
@@ -517,18 +509,18 @@ exports.announceOnlineDrivers = onSchedule(
     );
 
     if (targets.length === 0) {
-      // Still record the blast so we don't loop on it
       await STATE_REF.set(
         {
-          lastBlastedCount: sendCount,
-          lastBlastAt:      admin.firestore.FieldValue.serverTimestamp(),
-          lastOnlineCount:  onlineCount,
-          lastTargetCount:  0,
-          lastEmailSuccess: 0,
-          lastEmailFailed:  0,
-          lastPushSuccess:  0,
-          lastPushFailed:   0,
-          nextBlastDate:    todayStr,
+          lastBlastedCount:   sendCount,
+          lastBlastAt:        admin.firestore.FieldValue.serverTimestamp(),
+          lastOnlineCount:    onlineCount,
+          lastTargetCount:    0,
+          lastEmailSuccess:   0,
+          lastEmailFailed:    0,
+          lastPushSuccess:    0,
+          lastPushFailed:     0,
+          lastBlastedDrivers: [],
+          nextBlastDate:      todayStr,
         },
         { merge: true }
       );
@@ -536,17 +528,24 @@ exports.announceOnlineDrivers = onSchedule(
       return;
     }
 
-    // ── 5. Send emails ─────────────────────────────────────
+    // ── 5. Send emails ──────────────────────────────────────
     const emailResults = await Promise.allSettled(
       targets.map((driver) =>
         sgMail.send(buildOnlineRecruitEmail({ driver, onlineCount, sendCount }))
       )
     );
-    const emailSent   = emailResults.filter((r) => r.status === "fulfilled").length;
-    const emailFailed = emailResults.filter((r) => r.status === "rejected").length;
+
+    // Build UID array from every driver successfully emailed this blast
+    const lastBlastedDrivers = [];
+    let emailSent   = 0;
+    let emailFailed = 0;
 
     emailResults.forEach((r, i) => {
-      if (r.status === "rejected") {
+      if (r.status === "fulfilled") {
+        emailSent++;
+        lastBlastedDrivers.push(targets[i].uid);  // ← record UID on success
+      } else {
+        emailFailed++;
         console.error(
           `[announceOnlineDrivers] Email failed for ${targets[i]?.email}:`,
           r.reason?.message
@@ -554,14 +553,14 @@ exports.announceOnlineDrivers = onSchedule(
       }
     });
 
-    // ── 6. Send FCM push (only drivers with a token) ───────
+    // ── 6. Send FCM push (drivers without fcmToken are silently skipped) ──
     const pushTargets = targets.filter((d) => !!d.fcmToken);
 
-    let pushSent = 0;
+    let pushSent   = 0;
     let pushFailed = 0;
 
     if (pushTargets.length > 0) {
-      const messaging = admin.messaging();
+      const messaging  = admin.messaging();
       const pushResults = await Promise.allSettled(
         pushTargets.map((driver) =>
           messaging.send(buildOnlinePushMessage({ driver, onlineCount, sendCount }))
@@ -586,18 +585,19 @@ exports.announceOnlineDrivers = onSchedule(
       });
     }
 
-    // ── 7. Persist state ──────────────────────────────────
+    // ── 7. Persist state ────────────────────────────────────
     await STATE_REF.set(
       {
-        lastBlastedCount:  sendCount,
-        lastBlastAt:       admin.firestore.FieldValue.serverTimestamp(),
-        lastOnlineCount:   onlineCount,
-        lastTargetCount:   targets.length,
-        lastEmailSuccess:  emailSent,
-        lastEmailFailed:   emailFailed,
-        lastPushSuccess:   pushSent,
-        lastPushFailed:    pushFailed,
-        nextBlastDate:     todayStr,
+        lastBlastedCount:   sendCount,
+        lastBlastAt:        admin.firestore.FieldValue.serverTimestamp(),
+        lastOnlineCount:    onlineCount,
+        lastTargetCount:    targets.length,
+        lastEmailSuccess:   emailSent,
+        lastEmailFailed:    emailFailed,
+        lastPushSuccess:    pushSent,
+        lastPushFailed:     pushFailed,
+        lastBlastedDrivers,           // ← array of UIDs emailed this blast
+        nextBlastDate:      todayStr,
       },
       { merge: true }
     );
@@ -606,7 +606,8 @@ exports.announceOnlineDrivers = onSchedule(
       `[announceOnlineDrivers] Blast #${sendCount} done | ` +
       `Email: ${emailSent} sent, ${emailFailed} failed | ` +
       `Push: ${pushSent} sent, ${pushFailed} failed | ` +
-      `Online: ${onlineCount} | Targets: ${targets.length}`
+      `Online: ${onlineCount} | Targets: ${targets.length} | ` +
+      `Blasted UIDs (${lastBlastedDrivers.length}): [${lastBlastedDrivers.join(", ")}]`
     );
   }
 );
