@@ -53,19 +53,38 @@ function loadSeenReviews()    { try { return new Set(JSON.parse(localStorage.get
 function saveSeenReviews(set) { try { localStorage.setItem(LS_SEEN_REVIEWS_KEY, JSON.stringify([...set])); } catch (_) {} }
 
 // ── FCM Push Registration ─────────────────────────────────────────────
+// Saves the driver's FCM token to Firestore. Returns boolean for the
+// caller to inspect. Logs every outcome so DevTools makes failures obvious.
+//
+// IMPORTANT: this function does NOT prompt for permission. It only proceeds
+// if permission is already "granted". The popup flow in handleEnableNotifications
+// is responsible for the OS-level prompt.
 async function registerFcmToken(uid) {
   try {
-    if (!("Notification" in window)) return;
-    const permission = await window.Notification.requestPermission();
-    if (permission !== "granted") return;
+    if (!("Notification" in window)) {
+      console.warn("[UaTob] Push not supported in this browser");
+      return false;
+    }
+    if (window.Notification.permission !== "granted") {
+      return false;
+    }
+
     const messaging = getMessaging(firebase_app);
     const token = await getToken(messaging, {
       vapidKey: "BJ_sRHZonSGCKk2mB2i9ofTRS8ouFVMV-I15FX4sqdUXHyVb1lo6H-N4GMPrlcIIshRlykQicaxkxxFxcYcI4JQ",
     });
-    if (!token) return;
-    await callSaveFcmToken({ driverId: uid, token });
+
+    if (!token) {
+      console.warn("[UaTob] FCM returned empty token");
+      return false;
+    }
+
+    const { data } = await callSaveFcmToken({ driverId: uid, token });
+    console.log("[UaTob] FCM token saved:", { updated: data?.updated });
+    return true;
   } catch (err) {
-    console.warn("[UaTob] Push registration failed:", err.message);
+    console.error("[UaTob] Push registration failed:", err?.message || err);
+    return false;
   }
 }
 
@@ -165,9 +184,9 @@ const NOTIF_STYLES = `
 
 function getNotifTheme(title) {
   const t = (title || "").toLowerCase();
-  if (t.includes("accept")||t.includes("online")||t.includes("complete")||t.includes("trip"))
+  if (t.includes("accept")||t.includes("online")||t.includes("complete")||t.includes("trip")||t.includes("enabled"))
     return { color:"#16A34A",bg:"rgba(22,163,74,.10)",border:"rgba(22,163,74,.30)",ring:"rgba(22,163,74,.06)",Icon:CheckCircle2 };
-  if (t.includes("offline")||t.includes("declin")||t.includes("error")||t.includes("fail")||t.includes("expired"))
+  if (t.includes("offline")||t.includes("declin")||t.includes("error")||t.includes("fail")||t.includes("expired")||t.includes("couldn't")||t.includes("skipped"))
     return { color:"#DC2626",bg:"rgba(220,38,38,.08)",border:"rgba(220,38,38,.25)",ring:"rgba(220,38,38,.05)",Icon:AlertCircle };
   return { color:"#2563EB",bg:"rgba(37,99,235,.08)",border:"rgba(37,99,235,.25)",ring:"rgba(37,99,235,.05)",Icon:Info };
 }
@@ -384,7 +403,7 @@ function DriverAppInner({ uid }) {
   const { reviews }                       = useDriverReviews(uid);
   const supportUnread                     = useSupportUnread(uid);
   const { searches } = useSearch();
-    
+
 
   const isRejected    = driver?.status === "rejected";
   const driverOnTrip  = driver?.trip === true;
@@ -439,23 +458,40 @@ function DriverAppInner({ uid }) {
     }
   }, [driver?.status, online]);
 
+  // ── FCM foreground message handler ────────────────────────────────
+  // Reads payload.data.* first because pushCandidateDrivers sends data-only
+  // payloads (so the service worker's onBackgroundMessage fires). Falls back
+  // to payload.notification.* for any legacy/transitional messages.
   useEffect(() => {
     if (!uid) return;
     let unsub = () => {};
     try {
       const messaging = getMessaging(firebase_app);
       unsub = onMessage(messaging, async (payload) => {
-        const title = payload.notification?.title ?? "New Ride";
-        const body  = payload.notification?.body  ?? "";
+        const title  = payload.data?.title  ?? payload.notification?.title ?? "New Ride";
+        const body   = payload.data?.body   ?? payload.notification?.body  ?? "";
+        const rideId = payload.data?.rideId;
+
         showNotif(title, body);
+
         if ("serviceWorker" in navigator) {
           try {
             const reg = await navigator.serviceWorker.ready;
-            reg.showNotification(title, { body, icon:"/icon.png", tag:payload.data?.rideId??"uatob-driver", renotify:true, data:payload.data||{} });
-          } catch(e) {}
+            reg.showNotification(title, {
+              body,
+              icon: "/icon.png",
+              tag: rideId ?? "uatob-driver",
+              renotify: true,
+              data: payload.data || {},
+            });
+          } catch (e) {
+            console.warn("[UaTob] SW showNotification failed:", e?.message);
+          }
         }
       });
-    } catch(e) {}
+    } catch (e) {
+      console.warn("[UaTob] onMessage setup failed:", e?.message);
+    }
     return () => {
       try { if (typeof unsub === "function") unsub(); } catch (e) {}
     };
@@ -580,32 +616,81 @@ function DriverAppInner({ uid }) {
     return data;
   }, [uid]);
 
+  // ── Request location + go online + refresh FCM token ──────────────
+  // After a successful go-online, ALWAYS attempt to refresh the FCM token:
+  //   - permission "default" → show popup (user hasn't decided yet)
+  //   - permission "granted" → save token (refresh in case it rotated)
+  //   - permission "denied"  → registerFcmToken returns false silently
+  // The server-side function is idempotent (skips the write if the token
+  // hasn't changed), so calling this on every go-online is cheap.
   const requestLocationAndGoOnline = useCallback(async () => {
-    setLocationError(""); setLocationLoading(true);
+    setLocationError("");
+    setLocationLoading(true);
     try {
       if (!("geolocation" in navigator)) {
         throw new Error("Geolocation is not supported in this browser.");
       }
-      const position = await new Promise((res,rej) => navigator.geolocation.getCurrentPosition(res,rej,{ enableHighAccuracy:true,timeout:10000,maximumAge:0 }));
-      const { latitude:lat, longitude:lng } = position.coords;
+      const position = await new Promise((res, rej) =>
+        navigator.geolocation.getCurrentPosition(res, rej, {
+          enableHighAccuracy: true, timeout: 10000, maximumAge: 0,
+        })
+      );
+      const { latitude: lat, longitude: lng } = position.coords;
+
       await callDriverStatusFn("online", lat, lng);
-      setOnline(true); setShowLocationPopup(false); setLocationError("");
-      showNotif("Online","Ready for rides");
-      if ("Notification" in window && window.Notification.permission === "default") setShowNotifPopup(true);
-      else if ("Notification" in window && window.Notification.permission === "granted") registerFcmToken(uid);
-    } catch(err) {
-      if      (err?.code===1) setLocationError("Location access was denied. Allow location in your browser settings.");
-      else if (err?.code===2) setLocationError("Could not detect your location. Check your device settings.");
-      else if (err?.code===3) setLocationError("Location request timed out. Please try again.");
-      else                    setLocationError(err?.message || "Could not get your location.");
-    } finally { setLocationLoading(false); }
+      setOnline(true);
+      setShowLocationPopup(false);
+      setLocationError("");
+      showNotif("Online", "Ready for rides");
+
+      // Refresh FCM token on every go-online
+      if ("Notification" in window) {
+        if (window.Notification.permission === "default") {
+          setShowNotifPopup(true);
+        } else if (window.Notification.permission === "granted") {
+          registerFcmToken(uid);
+        }
+        // permission === "denied" → do nothing
+      }
+    } catch (err) {
+      if      (err?.code === 1) setLocationError("Location access was denied. Allow location in your browser settings.");
+      else if (err?.code === 2) setLocationError("Could not detect your location. Check your device settings.");
+      else if (err?.code === 3) setLocationError("Location request timed out. Please try again.");
+      else                      setLocationError(err?.message || "Could not get your location.");
+    } finally {
+      setLocationLoading(false);
+    }
   }, [callDriverStatusFn, uid, showNotif]);
 
+  // ── Enable notifications from the popup ───────────────────────────
+  // Explicitly prompts for permission, then registers the token,
+  // then surfaces a clear toast about what happened.
   const handleEnableNotifications = useCallback(async () => {
     setNotifLoading(true);
-    await registerFcmToken(uid);
-    setNotifLoading(false); setShowNotifPopup(false);
-  }, [uid]);
+    try {
+      if (window.Notification.permission === "default") {
+        const permission = await window.Notification.requestPermission();
+        if (permission !== "granted") {
+          showNotif("Notifications skipped", "You can enable them later in profile");
+          setShowNotifPopup(false);
+          return;
+        }
+      }
+
+      const ok = await registerFcmToken(uid);
+      if (ok) {
+        showNotif("Notifications enabled", "You'll get alerts for new rides");
+      } else {
+        showNotif("Couldn't enable", "Try again from your profile");
+      }
+    } catch (err) {
+      console.error("[UaTob] Enable notifications failed:", err?.message);
+      showNotif("Couldn't enable", "Try again from your profile");
+    } finally {
+      setNotifLoading(false);
+      setShowNotifPopup(false);
+    }
+  }, [uid, showNotif]);
 
   const handleSkipNotifications = useCallback(() => setShowNotifPopup(false), []);
 
@@ -797,7 +882,7 @@ function DriverAppInner({ uid }) {
 
         {isRejected && <RejectedBanner />}
 
-        {activeTab === "home"     && !isRejected && <HomeTab driver={driver} online={online} rides={rides} activeTrip={activeTrip} tripStage={tripStage} tripStageColor={tripStageColor} tripBtnLabel={tripBtnLabel} earnings={earnings} onToggleOnline={handleToggleOnline} onAdvanceTrip={handleAdvanceTrip} advancePending={advancePending}searches={searches} />}
+        {activeTab === "home"     && !isRejected && <HomeTab driver={driver} online={online} rides={rides} activeTrip={activeTrip} tripStage={tripStage} tripStageColor={tripStageColor} tripBtnLabel={tripBtnLabel} earnings={earnings} onToggleOnline={handleToggleOnline} onAdvanceTrip={handleAdvanceTrip} advancePending={advancePending} searches={searches} />}
         {activeTab === "earnings" && !isRejected && <EarningsTab earnings={earnings} driver={driver} online={online} />}
         {activeTab === "trips"    && !isRejected && <TripsTab    completedRides={completedRides} online={online} />}
         {activeTab === "profile"  &&                <ProfileTab  driver={driver} online={online} />}
