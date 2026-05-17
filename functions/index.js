@@ -87,7 +87,7 @@ const { rejectDriver } = require("./admin/rejectDriver");
 const { computeRideAnalytics } = require("./admin/computeRideAnalytics");
 const { adminSendDriverMessage } = require("./admin/adminSendDriverMessage");
 const { announceCashRides } = require("./admin/email/announceCashRides");
-const { midnightDriverOffline } = require("./admin/midnightDriverOffline");
+const { announceOnlineDrivers } = require("./admin/announceOnlineDrivers");
 
 
 // Exports
@@ -168,4 +168,4 @@ exports.saveAdminFcmToken = saveAdminFcmToken;
 exports.approveDriver = approveDriver;
 exports.rejectDriver = rejectDriver;
 exports.computeRideAnalytics = computeRideAnalytics;
-exports.midnightDriverOffline = midnightDriverOffline;
+exports.announceOnlineDrivers = announceOnlineDrivers;
