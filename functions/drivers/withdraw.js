@@ -19,31 +19,30 @@ function tsToMs(ts) {
 /**
  * Decide if a ride should count toward this payout cycle.
  *
- * STRIPE-COLLECTED rides (card / cashapp / applepay / googlepay):
+ * STRIPE-COLLECTED (card / cashapp / applepay / googlepay):
  *   - status === "completed"
- *   - paymentStatus === "succeeded"  (Stripe captured the money)
- *   - payoutStatus is empty OR "pending"
+ *   - paymentStatus === "succeeded"
+ *   - payoutStatus is empty, "pending", or "processing"
  *
- * CASH rides:
- *   - status === "completed"  (driver delivered the rider)
+ * CASH:
+ *   - status === "completed"
  *   - paymentMethod === "cash"
- *   - payoutStatus is empty OR "pending"
- *   - paymentStatus is IGNORED — there's no Stripe paymentStatus for cash;
- *     the proof of "money received" is that the driver completed the trip
- *     (we trust the driver tapped "Cash collected" to mark complete)
+ *   - payoutStatus is empty, "pending", or "processing"
+ *   - paymentStatus is ignored
+ *
+ * NOTE: We now also INCLUDE "processing" rides — because a ride that's
+ * currently in a pending withdrawal IS still a real ride that should
+ * remain on the withdrawal. If we excluded them, the reconcile step
+ * would think they were deleted and remove them from the breakdown.
  */
-function isReadyForPayout(ride) {
+function isLiveForPayout(ride) {
   if (ride.status !== "completed") return false;
 
-  // Already processed or paid — skip
-  if (ride.payoutStatus && ride.payoutStatus !== "pending") return false;
+  // Already paid out — done, not part of any live withdrawal
+  if (ride.payoutStatus === "paid") return false;
 
-  if (ride.paymentMethod === "cash") {
-    // Cash: completed status IS the proof of collection
-    return true;
-  }
+  if (ride.paymentMethod === "cash") return true;
 
-  // Stripe-collected: must show captured payment
   return ride.paymentStatus === "succeeded";
 }
 
@@ -57,15 +56,22 @@ exports.withdraw = onSchedule(
     try {
       // ─────────────────────────────────────────────────────
       // 1) Pull every completed ride
-      //    (Note: removed paymentStatus filter — we filter
-      //     in JS so cash rides don't get excluded)
       // ─────────────────────────────────────────────────────
       const snap = await db.collection("Rides")
         .where("status", "==", "completed")
         .get();
 
       // ─────────────────────────────────────────────────────
-      // 2) Group rides per driver, separating Stripe vs cash
+      // 2) Group LIVE rides per driver.
+      //
+      //    A ride is "live" if it should appear in the driver's
+      //    current pending withdrawal. This now includes both:
+      //      - new rides (payoutStatus empty / pending)
+      //      - rides already being processed (payoutStatus processing)
+      //
+      //    By doing this, we can fully RECONSTRUCT the withdrawal
+      //    from scratch every run instead of appending — which means
+      //    deleted rides naturally drop out.
       // ─────────────────────────────────────────────────────
       const driverMap = {};
 
@@ -73,12 +79,12 @@ exports.withdraw = onSchedule(
         const data = { id: doc.id, ...doc.data() };
         const uid  = data.driverUid;
         if (!uid) return;
-        if (!isReadyForPayout(data)) return;
+        if (!isLiveForPayout(data)) return;
 
         if (!driverMap[uid]) {
           driverMap[uid] = {
-            stripeRides:    [],   // card | cashapp | applepay | googlepay (we owe driver)
-            cashRides:      [],   // cash (driver owes us platform fee)
+            stripeRides:     [],
+            cashRides:       [],
             stripePayoutSum: 0,
             cashFeeOwedSum:  0,
           };
@@ -97,42 +103,36 @@ exports.withdraw = onSchedule(
         }
       });
 
-      const now    = admin.firestore.Timestamp.now();
-      const batch  = db.batch();
+      const now     = admin.firestore.Timestamp.now();
+      const batch   = db.batch();
       const summary = [];
 
       // ─────────────────────────────────────────────────────
-      // 3) Zero out drivers who were "paid" and have no new rides
-      //    (so the dashboard shows $0 and not stale numbers)
-      //    BUT preserve any carried-forward cashOwedBalance.
+      // 3) Find every driver that has a non-paid withdrawal
+      //    so we can reconcile them — even if they currently
+      //    have zero live rides (i.e. all their rides were
+      //    deleted). This is the key fix: we don't only look
+      //    at drivers in driverMap, we look at every driver
+      //    that has an outstanding withdrawal.
       // ─────────────────────────────────────────────────────
-      const allDriversWithWithdrawal = await db.collection("Drivers")
-        .where("withdrawal.status", "==", "paid")
+      const driversWithWithdrawal = await db.collection("Drivers")
+        .where("withdrawal.status", "in", ["pending", "paid"])
         .get();
 
-      allDriversWithWithdrawal.forEach((doc) => {
-        const uid = doc.id;
-        if (!driverMap[uid]) {
-          batch.update(db.collection("Drivers").doc(uid), {
-            "withdrawal.totalPayout":       0,
-            "withdrawal.netPayout":         0,
-            "withdrawal.cashFeeOwed":       0,
-            "withdrawal.rideCount":         0,
-            "withdrawal.rideIds":           [],
-            "withdrawal.rideBreakdown":     [],
-            "withdrawal.cashRideCount":     0,
-            "withdrawal.cashRideIds":       [],
-            "withdrawal.cashRideBreakdown": [],
-            "withdrawal.updatedAt":         now,
-            // ⚠️ cashOwedBalance NOT zeroed — that's a long-running ledger
-          });
-        }
-      });
+      const reconcileSet = new Set();
+      driversWithWithdrawal.forEach((d) => reconcileSet.add(d.id));
+      Object.keys(driverMap).forEach((uid) => reconcileSet.add(uid));
 
       // ─────────────────────────────────────────────────────
-      // 4) Process each driver
+      // 4) Process each driver in the reconcile set
       // ─────────────────────────────────────────────────────
-      for (const [uid, group] of Object.entries(driverMap)) {
+      for (const uid of reconcileSet) {
+        const group = driverMap[uid] || {
+          stripeRides:     [],
+          cashRides:       [],
+          stripePayoutSum: 0,
+          cashFeeOwedSum:  0,
+        };
         const { stripeRides, cashRides, stripePayoutSum, cashFeeOwedSum } = group;
 
         const driverSnap = await db.collection("Drivers").doc(uid).get();
@@ -141,22 +141,18 @@ exports.withdraw = onSchedule(
           continue;
         }
 
-        const driver         = driverSnap.data();
-        const existing       = driver.withdrawal || {};
-        const driverRef      = db.collection("Drivers").doc(uid);
+        const driver    = driverSnap.data();
+        const existing  = driver.withdrawal || {};
+        const driverRef = db.collection("Drivers").doc(uid);
 
         // ─── Carry-forward balance ──────────────────────────
-        // cashOwedBalance is a long-lived ledger. If a driver did 5 cash rides
-        // and 0 stripe rides, they owe us $X. That doesn't get wiped by a
-        // payout event — it carries forward and gets deducted from their NEXT
-        // stripe payout.
         const carriedCashOwed = round2(driver.cashOwedBalance ?? 0);
 
-        // ─── Look up rider names ────────────────────────────
+        // ─── Reconstruct breakdowns from live rides ─────────
         const allRides  = [...stripeRides, ...cashRides];
-        const riderUids = [...new Set(allRides.map(r => r.uid).filter(Boolean))];
+        const riderUids = [...new Set(allRides.map((r) => r.uid).filter(Boolean))];
         const riderDocs = await Promise.all(
-          riderUids.map(ruid => db.collection("Accounts").doc(ruid).get())
+          riderUids.map((ruid) => db.collection("Accounts").doc(ruid).get())
         );
         const riderNameMap = {};
         riderDocs.forEach((d) => {
@@ -166,8 +162,7 @@ exports.withdraw = onSchedule(
           }
         });
 
-        // ─── Build rich breakdowns ──────────────────────────
-        const stripeRideBreakdown = stripeRides.map(r => ({
+        const stripeRideBreakdown = stripeRides.map((r) => ({
           rideId:        r.id,
           riderUid:      r.uid          ?? null,
           riderName:     riderNameMap[r.uid] ?? "Unknown",
@@ -180,29 +175,21 @@ exports.withdraw = onSchedule(
           paymentMethod: r.paymentMethod ?? "card",
         }));
 
-        const cashRideBreakdown = cashRides.map(r => ({
-          rideId:          r.id,
-          riderUid:        r.uid          ?? null,
-          riderName:       riderNameMap[r.uid] ?? "Unknown",
-          pickup:          r.pickup       ?? "",
-          dropoff:         r.dropoff      ?? "",
-          fareTotal:       r.fareTotal    ?? 0,
-          driverPayout:    r.driverPayout ?? 0, // already in driver's pocket
-          platformFee:     r.platformFee  ?? 0, // ← what they owe us
-          completedAt:     r.completedAt  ?? null,
-          rideType:        r.rideType     ?? "standard",
-          paymentMethod:   "cash",
+        const cashRideBreakdown = cashRides.map((r) => ({
+          rideId:        r.id,
+          riderUid:      r.uid          ?? null,
+          riderName:     riderNameMap[r.uid] ?? "Unknown",
+          pickup:        r.pickup       ?? "",
+          dropoff:       r.dropoff      ?? "",
+          fareTotal:     r.fareTotal    ?? 0,
+          driverPayout:  r.driverPayout ?? 0,
+          platformFee:   r.platformFee  ?? 0,
+          completedAt:   r.completedAt  ?? null,
+          rideType:      r.rideType     ?? "standard",
+          paymentMethod: "cash",
         }));
 
-        // ─── Net the math ───────────────────────────────────
-        // stripePayoutSum  = $$$ we OWE driver (card/cashapp/etc)
-        // cashFeeOwedSum   = $$$ driver OWES us this cycle (cash platform fees)
-        // carriedCashOwed  = $$$ driver still owes from earlier cycles
-        //
-        //   netPayout = stripePayout - cashFeeOwed (this run) - carriedCashOwed
-        //
-        // If positive → we transfer that amount to their bank
-        // If zero/negative → we transfer nothing, leftover carries forward.
+        // ─── Net math ───────────────────────────────────────
         const totalCashOwed = round2(cashFeeOwedSum + carriedCashOwed);
         let   netPayout     = round2(stripePayoutSum - totalCashOwed);
         let   newCashOwedBalance = 0;
@@ -210,117 +197,124 @@ exports.withdraw = onSchedule(
         if (netPayout < 0) {
           newCashOwedBalance = round2(-netPayout);
           netPayout = 0;
-        } else {
-          newCashOwedBalance = 0;
         }
 
-        // ─── Decide: fresh withdrawal vs accumulate ─────────
-        const isPaidOrEmpty = !existing.status || existing.status === "paid";
+        const hasAnyLiveRides = stripeRides.length > 0 || cashRides.length > 0;
+        const existingStatus  = existing.status;
 
-        if (isPaidOrEmpty) {
-          // Fresh
-          batch.update(driverRef, {
-            cashOwedBalance: newCashOwedBalance,
-            withdrawal: {
-              // STRIPE side (what we owe driver)
-              totalPayout:       stripePayoutSum,
-              rideCount:         stripeRides.length,
-              rideIds:           stripeRides.map(r => r.id),
-              rideBreakdown:     stripeRideBreakdown,
+        // ─── Decide branch ──────────────────────────────────
+        // Three cases:
+        //
+        // A) Driver has no live rides AND existing withdrawal is "paid"
+        //    or empty → zero everything out (preserve cashOwedBalance ledger).
+        //
+        // B) Driver has no live rides AND existing withdrawal is "pending"
+        //    → all rides on this withdrawal got deleted. Cancel/clear it.
+        //
+        // C) Driver has live rides → fully REBUILD withdrawal from those
+        //    rides (regardless of whether existing is paid/pending/empty).
+        //    This is the fix: we no longer "append" — we always rebuild,
+        //    so deleted rides naturally fall off.
+        // ───────────────────────────────────────────────────
 
-              // CASH side (what driver owes us this cycle)
-              cashFeeOwed:       cashFeeOwedSum,
-              cashRideCount:     cashRides.length,
-              cashRideIds:       cashRides.map(r => r.id),
-              cashRideBreakdown,
-
-              // Carried debt from earlier cycles
-              carriedCashOwed,
-
-              // Net (what actually transfers to driver's bank)
-              netPayout,
-
-              // After settlement, what's left on the ledger
-              cashOwedAfter: newCashOwedBalance,
-
-              status:    "pending",
-              createdAt: now,
+        if (!hasAnyLiveRides) {
+          // No live rides for this driver at all
+          if (existingStatus === "pending") {
+            // CASE B — existing pending withdrawal got emptied by deletions
+            batch.update(driverRef, {
+              cashOwedBalance: carriedCashOwed, // unchanged; nothing settled
+              withdrawal: {
+                totalPayout:       0,
+                rideCount:         0,
+                rideIds:           [],
+                rideBreakdown:     [],
+                cashFeeOwed:       0,
+                cashRideCount:     0,
+                cashRideIds:       [],
+                cashRideBreakdown: [],
+                carriedCashOwed,
+                netPayout:         0,
+                cashOwedAfter:     carriedCashOwed,
+                status:            "cancelled",
+                createdAt:         existing.createdAt ?? now,
+                updatedAt:         now,
+              },
               updatedAt: now,
-            },
-            updatedAt: now,
-          });
-        } else {
-          // Accumulate into existing pending withdrawal
-          const mergedStripePayout =
-            round2((existing.totalPayout ?? 0) + stripePayoutSum);
-          const mergedCashFeeOwed =
-            round2((existing.cashFeeOwed ?? 0) + cashFeeOwedSum);
-          const mergedStripeIds =
-            [...(existing.rideIds ?? []), ...stripeRides.map(r => r.id)];
-          const mergedStripeCount =
-            (existing.rideCount ?? 0) + stripeRides.length;
-          const mergedStripeBreakdown =
-            [...(existing.rideBreakdown ?? []), ...stripeRideBreakdown];
-          const mergedCashIds =
-            [...(existing.cashRideIds ?? []), ...cashRides.map(r => r.id)];
-          const mergedCashCount =
-            (existing.cashRideCount ?? 0) + cashRides.length;
-          const mergedCashBreakdown =
-            [...(existing.cashRideBreakdown ?? []), ...cashRideBreakdown];
-
-          // Recompute net using merged totals + (still-carried) cash debt
-          const totalCashOwedMerged =
-            round2(mergedCashFeeOwed + carriedCashOwed);
-          let   netPayoutMerged =
-            round2(mergedStripePayout - totalCashOwedMerged);
-          let   mergedCashOwedAfter = 0;
-
-          if (netPayoutMerged < 0) {
-            mergedCashOwedAfter = round2(-netPayoutMerged);
-            netPayoutMerged = 0;
+            });
+          } else {
+            // CASE A — was paid (or empty), zero out display fields
+            batch.update(driverRef, {
+              "withdrawal.totalPayout":       0,
+              "withdrawal.netPayout":         0,
+              "withdrawal.cashFeeOwed":       0,
+              "withdrawal.rideCount":         0,
+              "withdrawal.rideIds":           [],
+              "withdrawal.rideBreakdown":     [],
+              "withdrawal.cashRideCount":     0,
+              "withdrawal.cashRideIds":       [],
+              "withdrawal.cashRideBreakdown": [],
+              "withdrawal.updatedAt":         now,
+              // cashOwedBalance untouched (ledger)
+            });
           }
-
-          batch.update(driverRef, {
-            cashOwedBalance: mergedCashOwedAfter,
-
-            "withdrawal.totalPayout":       mergedStripePayout,
-            "withdrawal.rideCount":         mergedStripeCount,
-            "withdrawal.rideIds":           mergedStripeIds,
-            "withdrawal.rideBreakdown":     mergedStripeBreakdown,
-
-            "withdrawal.cashFeeOwed":       mergedCashFeeOwed,
-            "withdrawal.cashRideCount":     mergedCashCount,
-            "withdrawal.cashRideIds":       mergedCashIds,
-            "withdrawal.cashRideBreakdown": mergedCashBreakdown,
-
-            "withdrawal.carriedCashOwed":   carriedCashOwed,
-            "withdrawal.netPayout":         netPayoutMerged,
-            "withdrawal.cashOwedAfter":     mergedCashOwedAfter,
-
-            "withdrawal.updatedAt":         now,
-            updatedAt:                      now,
-          });
+          continue;
         }
 
-        // ─── Mark every ride as processing ──────────────────
+        // CASE C — Driver has live rides. Rebuild entirely.
+        batch.update(driverRef, {
+          cashOwedBalance: newCashOwedBalance,
+          withdrawal: {
+            // Stripe (we owe driver)
+            totalPayout:       stripePayoutSum,
+            rideCount:         stripeRides.length,
+            rideIds:           stripeRides.map((r) => r.id),
+            rideBreakdown:     stripeRideBreakdown,
+
+            // Cash (driver owes us this cycle)
+            cashFeeOwed:       cashFeeOwedSum,
+            cashRideCount:     cashRides.length,
+            cashRideIds:       cashRides.map((r) => r.id),
+            cashRideBreakdown,
+
+            // Carried debt
+            carriedCashOwed,
+
+            // Net to transfer
+            netPayout,
+
+            // Post-settlement ledger
+            cashOwedAfter:     newCashOwedBalance,
+
+            status:    "pending",
+            createdAt: existingStatus === "pending"
+              ? (existing.createdAt ?? now)
+              : now,
+            updatedAt: now,
+          },
+          updatedAt: now,
+        });
+
+        // ─── Mark rides as processing ────────────────────────
         for (const ride of allRides) {
-          batch.update(db.collection("Rides").doc(ride.id), {
-            payoutStatus: "processing",
-            updatedAt:    now,
-          });
+          if (ride.payoutStatus !== "processing") {
+            batch.update(db.collection("Rides").doc(ride.id), {
+              payoutStatus: "processing",
+              updatedAt:    now,
+            });
+          }
         }
 
         summary.push({
-          driverUid:       uid,
-          name:            `${driver.firstName ?? ""} ${driver.lastName ?? ""}`.trim(),
-          stripeCount:     stripeRides.length,
-          cashCount:       cashRides.length,
+          driverUid:           uid,
+          name:                `${driver.firstName ?? ""} ${driver.lastName ?? ""}`.trim(),
+          stripeCount:         stripeRides.length,
+          cashCount:           cashRides.length,
           stripePayoutSum,
           cashFeeOwedSum,
           carriedCashOwed,
           netPayout,
           newCashOwedBalance,
-          merged:          !isPaidOrEmpty,
+          rebuilt:             true,
           stripeRideBreakdown,
           cashRideBreakdown,
         });
@@ -332,7 +326,7 @@ exports.withdraw = onSchedule(
       await batch.commit();
 
       if (summary.length === 0) {
-        console.log("ℹ️  [withdraw] No new payouts to process.");
+        console.log("ℹ️  [withdraw] No active withdrawals — only reconciles ran.");
         return;
       }
 
@@ -340,27 +334,27 @@ exports.withdraw = onSchedule(
       // 6) Pretty log
       // ─────────────────────────────────────────────────────
       console.log(
-        `✅ [withdraw] Processed ${summary.length} driver(s)\n` +
-        summary.map(d => {
+        `✅ [withdraw] Reconciled ${summary.length} driver(s)\n` +
+        summary.map((d) => {
           const lines = [];
-          lines.push(`  → ${d.name} (${d.driverUid}) ${d.merged ? "[merged]" : "[new]"}`);
+          lines.push(`  → ${d.name} (${d.driverUid}) [rebuilt]`);
 
           if (d.stripeCount > 0) {
             lines.push(`    💳 Stripe payout: $${d.stripePayoutSum.toFixed(2)} (${d.stripeCount} rides)`);
-            d.stripeRideBreakdown.forEach(r => {
+            d.stripeRideBreakdown.forEach((r) => {
               lines.push(`      · [${r.paymentMethod}] ${r.riderName} — ${(r.pickup||"").split(",")[0]} → ${(r.dropoff||"").split(",")[0]} — $${(r.driverPayout||0).toFixed(2)}`);
             });
           }
 
           if (d.cashCount > 0) {
             lines.push(`    💵 Cash collected: ${d.cashCount} ride(s) — $${d.cashFeeOwedSum.toFixed(2)} fee owed to UaTob`);
-            d.cashRideBreakdown.forEach(r => {
+            d.cashRideBreakdown.forEach((r) => {
               lines.push(`      · ${r.riderName} — ${(r.pickup||"").split(",")[0]} → ${(r.dropoff||"").split(",")[0]} — $${(r.fareTotal||0).toFixed(2)} fare → $${(r.platformFee||0).toFixed(2)} fee`);
             });
           }
 
           if (d.carriedCashOwed > 0) {
-            lines.push(`    📋 Previous balance: -$${d.carriedCashOwed.toFixed(2)} (carried from prior cycle)`);
+            lines.push(`    📋 Previous balance: -$${d.carriedCashOwed.toFixed(2)} (carried)`);
           }
 
           lines.push(`    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
@@ -374,7 +368,6 @@ exports.withdraw = onSchedule(
           return lines.join("\n");
         }).join("\n\n")
       );
-
     } catch (err) {
       console.error("❌ [withdraw]", err);
     }
