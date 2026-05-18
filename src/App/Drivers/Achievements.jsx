@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import {
-  Car, Wallet, Award, MessageSquare, Trophy, Star,
-  Flame, Sparkles, Lock, ChevronRight, Target, CheckCircle2,
-  Zap, Crown,
+  Car, Wallet, Star, Sparkles, Trophy, Crown,
+  ChevronRight, Target, CheckCircle2, Lock,
+  CreditCard, Banknote, Smartphone,
 } from 'lucide-react';
 import { C } from '@/App/Drivers/constants.js';
 
@@ -10,125 +10,148 @@ import { C } from '@/App/Drivers/constants.js';
  * Achievements — gamified milestone tracker.
  *
  * Props:
- *   driver        — driver doc
- *   onSeeAll      — (optional) handler for "See all" tap
+ *   driver    — driver doc
+ *   onSeeAll  — (optional) handler for "See all" tap
  */
 export default function Achievements({ driver, onSeeAll }) {
   if (!driver) return null;
 
-  const totalTrips    = driver.totalRides   || 0;
-  const reviewsCount  = driver.totalReviews || 0;
+  const totalTrips    = driver.totalRides    || 0;
+  const reviewsCount  = driver.totalReviews  || 0;
   const avgRating     = driver.averageRating || 0;
   const payoutReady   = !!driver.payoutMethod || driver.transferCapability === "enabled";
   const monthEarnings = driver.earnings?.month?.earnings ?? 0;
-  const online        = driver.status === "online";
 
-  // ── Achievement definitions with progress targets ───────────────────
+  // Payment method flags — adjust field names to match your driver doc
+  const hasCashApp    = driver.paymentMethods?.cashApp    === true || driver.cashAppConnected    === true;
+  const hasCard       = driver.paymentMethods?.card       === true || driver.cardConnected       === true;
+  const acceptsCash   = driver.paymentMethods?.cash       === true || driver.cashEnabled         === true;
+
+  // Top driver: e.g. avgRating >= 4.9 AND 50+ rides
+  const isTopDriver   = avgRating >= 4.9 && totalTrips >= 50;
+
+  // ── Badge definitions ────────────────────────────────────────────────
   const BADGES = useMemo(() => [
+    // 1 — First Ride
     {
-      id: "first_ride",
-      icon: Car,
-      label: "First Ride",
-      sub: "Complete 1 ride",
-      color: "#3B82F6",
-      target: 1,
+      id:      "first_ride",
+      icon:    Car,
+      label:   "First Ride",
+      sub:     "Complete your first ride",
+      color:   "#3B82F6",
+      target:  1,
       current: totalTrips,
-      tier: "starter",
+      tier:    "starter",
     },
+    // 2 — Payout Ready (bank connected)
     {
-      id: "deposit",
-      icon: Wallet,
-      label: "Payout Ready",
-      sub: "Connect your bank",
-      color: "#16A34A",
-      target: 1,
+      id:      "payout_ready",
+      icon:    Wallet,
+      label:   "Payout Ready",
+      sub:     "Connect your bank account",
+      color:   "#16A34A",
+      target:  1,
       current: payoutReady ? 1 : 0,
-      tier: "starter",
+      tier:    "starter",
     },
+    // 3 — Cash App
     {
-      id: "first_review",
-      icon: Star,
-      label: "5 Stars",
-      sub: "Earn your first review",
-      color: "#D97706",
-      target: 1,
-      current: reviewsCount,
-      tier: "starter",
+      id:      "cash_app",
+      icon:    Smartphone,
+      label:   "Cash App",
+      sub:     "Link your Cash App",
+      color:   "#00D632",   // Cash App green
+      target:  1,
+      current: hasCashApp ? 1 : 0,
+      tier:    "bronze",
     },
+    // 4 — Card
     {
-      id: "ten_rides",
-      icon: Flame,
-      label: "Hot Streak",
-      sub: "10 completed rides",
-      color: "#EA580C",
-      target: 10,
-      current: totalTrips,
-      tier: "bronze",
+      id:      "card",
+      icon:    CreditCard,
+      label:   "Card Ready",
+      sub:     "Accept card payments",
+      color:   "#6366F1",
+      target:  1,
+      current: hasCard ? 1 : 0,
+      tier:    "bronze",
     },
+    // 5 — Cash
     {
-      id: "fifty_rides",
-      icon: Trophy,
-      label: "Veteran",
-      sub: "50 completed rides",
-      color: "#7C3AED",
-      target: 50,
-      current: totalTrips,
-      tier: "silver",
+      id:      "cash",
+      icon:    Banknote,
+      label:   "Cash Ready",
+      sub:     "Accept cash payments",
+      color:   "#D97706",
+      target:  1,
+      current: acceptsCash ? 1 : 0,
+      tier:    "bronze",
     },
+    // 6 — 5 Stars
     {
-      id: "hundred_rides",
-      icon: Award,
-      label: "Centurion",
-      sub: "100 completed rides",
-      color: "#DC2626",
-      target: 100,
-      current: totalTrips,
-      tier: "gold",
+      id:       "five_stars",
+      icon:     Star,
+      label:    "5 Stars",
+      sub:      "Earn your first review",
+      color:    "#F59E0B",
+      target:   1,
+      current:  reviewsCount,
+      tier:     "starter",
     },
+    // 7 — Big Month ($1 000)
     {
-      id: "month_earner",
-      icon: Sparkles,
-      label: "Big Month",
-      sub: "$500 in a month",
-      color: "#0891B2",
-      target: 500,
+      id:      "big_month",
+      icon:    Sparkles,
+      label:   "Big Month",
+      sub:     "$1,000 in a month",
+      color:   "#0891B2",
+      target:  1000,
       current: monthEarnings,
-      tier: "silver",
+      tier:    "silver",
       isMoney: true,
     },
+    // 8 — Top Driver
     {
-      id: "elite_rating",
-      icon: Crown,
-      label: "Elite",
-      sub: "4.9★ avg rating",
-      color: "#B45309",
-      target: 4.9,
-      current: avgRating,
-      tier: "gold",
-      isRating: true,
+      id:       "top_driver",
+      icon:     Crown,
+      label:    "Top Driver",
+      sub:      "4.9★ avg & 50 rides",
+      color:    "#B45309",
+      target:   1,
+      current:  isTopDriver ? 1 : 0,
+      tier:     "gold",
+      isCustomProgress: true,
+      // For display we'll show a blended progress
+      displayProgress: Math.min(
+        ((avgRating / 4.9) * 0.5) + ((Math.min(totalTrips, 50) / 50) * 0.5),
+        1
+      ),
+      displayLabel: `${Number(avgRating).toFixed(1)}★ · ${Math.min(totalTrips, 50)}/50 rides`,
     },
   ].map(b => {
     const earned   = b.current >= b.target;
-    const progress = Math.min(b.current / b.target, 1);
+    const progress = b.isCustomProgress
+      ? b.displayProgress
+      : Math.min(b.current / b.target, 1);
     return { ...b, earned, progress };
-  }), [totalTrips, reviewsCount, avgRating, payoutReady, monthEarnings]);
+  }), [totalTrips, reviewsCount, avgRating, payoutReady, monthEarnings, hasCashApp, hasCard, acceptsCash, isTopDriver]);
 
   const earnedCount = BADGES.filter(b => b.earned).length;
   const totalCount  = BADGES.length;
   const overallPct  = Math.round((earnedCount / totalCount) * 100);
 
-  // Find "next up" — the unearned badge closest to completion
+  // "Next up" — unearned badge closest to completion
   const nextUp = useMemo(() => {
     const unearned = BADGES.filter(b => !b.earned);
     if (!unearned.length) return null;
     return unearned.sort((a, b) => b.progress - a.progress)[0];
   }, [BADGES]);
 
-  // Sort: earned first (most recent likely first in array), then by progress
+  // Sort: earned first, then by progress descending
   const sortedBadges = useMemo(() => {
     return [...BADGES].sort((a, b) => {
-      if (a.earned && !b.earned) return -1;
-      if (!a.earned && b.earned) return 1;
+      if (a.earned && !b.earned)  return -1;
+      if (!a.earned && b.earned)  return  1;
       if (!a.earned && !b.earned) return b.progress - a.progress;
       return 0;
     });
@@ -136,12 +159,12 @@ export default function Achievements({ driver, onSeeAll }) {
 
   return (
     <div style={{
-      background: C.surface,
-      border: `1px solid ${C.border}`,
+      background:   C.surface,
+      border:       `1px solid ${C.border}`,
       borderRadius: 22,
-      padding: "20px",
-      boxShadow: `0 2px 10px ${C.shadow}`,
-      animation: "achReveal .4s ease-out both",
+      padding:      "20px",
+      boxShadow:    `0 2px 10px ${C.shadow}`,
+      animation:    "achReveal .4s ease-out both",
     }}>
       <style>{`
         @keyframes achReveal {
@@ -150,7 +173,7 @@ export default function Achievements({ driver, onSeeAll }) {
         }
         @keyframes achShimmer {
           0%   { background-position: -200% 0; }
-          100% { background-position: 200% 0; }
+          100% { background-position:  200% 0; }
         }
         @keyframes achEarnedPulse {
           0%, 100% { transform: scale(1); }
@@ -158,14 +181,14 @@ export default function Achievements({ driver, onSeeAll }) {
         }
         @keyframes achStarTwinkle {
           0%, 100% { opacity: 0.7; transform: rotate(-12deg) scale(1); }
-          50%      { opacity: 1; transform: rotate(-12deg) scale(1.15); }
+          50%      { opacity: 1;   transform: rotate(-12deg) scale(1.15); }
         }
         @keyframes achProgressGrow {
           from { width: 0%; }
         }
       `}</style>
 
-      {/* ── Header row ── */}
+      {/* ── Header ── */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
         marginBottom: 14,
@@ -207,19 +230,17 @@ export default function Achievements({ driver, onSeeAll }) {
           }}
           onMouseEnter={e => {
             if (!onSeeAll) return;
-            e.currentTarget.style.background = C.text;
-            e.currentTarget.style.color = "#fff";
-            e.currentTarget.style.borderColor = C.text;
+            e.currentTarget.style.background   = C.text;
+            e.currentTarget.style.color        = "#fff";
+            e.currentTarget.style.borderColor  = C.text;
           }}
           onMouseLeave={e => {
-            e.currentTarget.style.background = C.surfaceAlt;
-            e.currentTarget.style.color = "";
+            e.currentTarget.style.background  = C.surfaceAlt;
+            e.currentTarget.style.color       = "";
             e.currentTarget.style.borderColor = C.border;
           }}
         >
-          <span style={{ fontSize: 11, fontWeight: 800, color: "inherit" }}>
-            See all
-          </span>
+          <span style={{ fontSize: 11, fontWeight: 800, color: "inherit" }}>See all</span>
           <ChevronRight size={11} strokeWidth={2.4}/>
         </div>
       </div>
@@ -227,10 +248,8 @@ export default function Achievements({ driver, onSeeAll }) {
       {/* ── Overall progress bar ── */}
       <div style={{ marginBottom: 16 }}>
         <div style={{
-          height: 8,
-          background: C.surfaceAlt,
+          height: 8, background: C.surfaceAlt,
           borderRadius: 100, overflow: "hidden",
-          position: "relative",
         }}>
           <div style={{
             height: "100%",
@@ -238,13 +257,13 @@ export default function Achievements({ driver, onSeeAll }) {
             background: "linear-gradient(90deg,#FCD34D,#F59E0B,#FCD34D)",
             backgroundSize: "200% 100%",
             borderRadius: 100,
-            animation: `achProgressGrow .8s cubic-bezier(.34,1.2,.64,1), achShimmer 3s linear infinite`,
+            animation: "achProgressGrow .8s cubic-bezier(.34,1.2,.64,1), achShimmer 3s linear infinite",
             boxShadow: "0 1px 4px rgba(245,158,11,0.4)",
           }}/>
         </div>
       </div>
 
-      {/* ── Next up hero (if any unearned) ── */}
+      {/* ── Next Up hero card ── */}
       {nextUp && (
         <div style={{
           background: `linear-gradient(135deg, ${nextUp.color}0E, ${nextUp.color}05)`,
@@ -255,11 +274,9 @@ export default function Achievements({ driver, onSeeAll }) {
           display: "flex", alignItems: "center", gap: 12,
           position: "relative", overflow: "hidden",
         }}>
-          {/* Subtle stripe pattern */}
           <div style={{
-            position: "absolute", inset: 0,
+            position: "absolute", inset: 0, pointerEvents: "none",
             backgroundImage: `repeating-linear-gradient(45deg,transparent,transparent 30px,${nextUp.color}08 30px,${nextUp.color}08 31px)`,
-            pointerEvents: "none",
           }}/>
 
           <div style={{
@@ -274,9 +291,7 @@ export default function Achievements({ driver, onSeeAll }) {
           </div>
 
           <div style={{ flex: 1, minWidth: 0, position: "relative" }}>
-            <div style={{
-              display: "flex", alignItems: "center", gap: 6, marginBottom: 4,
-            }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
               <Target size={10} color={nextUp.color} strokeWidth={2.4}/>
               <span className="mono" style={{
                 fontSize: 9.5, fontWeight: 800, letterSpacing: ".08em",
@@ -291,12 +306,7 @@ export default function Achievements({ driver, onSeeAll }) {
             }}>
               {nextUp.label}
             </div>
-            {/* Inline progress */}
-            <div style={{
-              height: 5,
-              background: `${nextUp.color}15`,
-              borderRadius: 100, overflow: "hidden",
-            }}>
+            <div style={{ height: 5, background: `${nextUp.color}15`, borderRadius: 100, overflow: "hidden" }}>
               <div style={{
                 height: "100%",
                 width: `${Math.max(nextUp.progress * 100, 4)}%`,
@@ -307,18 +317,15 @@ export default function Achievements({ driver, onSeeAll }) {
             </div>
             <div style={{
               fontSize: 10.5, fontWeight: 700, color: nextUp.color,
-              marginTop: 4,
-              fontVariantNumeric: "tabular-nums",
+              marginTop: 4, fontVariantNumeric: "tabular-nums",
             }}>
-              {nextUp.isRating
-                ? `${Number(nextUp.current).toFixed(1)}★ / ${nextUp.target}★`
+              {nextUp.isCustomProgress
+                ? nextUp.displayLabel
                 : nextUp.isMoney
                   ? `$${Number(nextUp.current).toFixed(0)} / $${nextUp.target}`
-                  : `${Math.floor(nextUp.current)} / ${nextUp.target}`}
-              <span style={{ color: C.textDim, fontWeight: 600, marginLeft: 5 }}>
-                · {Math.max(nextUp.target - nextUp.current, 0).toFixed(nextUp.isRating ? 1 : 0)}
-                {nextUp.isMoney ? "" : nextUp.isRating ? "★" : ""} to go
-              </span>
+                  : nextUp.target === 1
+                    ? nextUp.sub
+                    : `${Math.floor(nextUp.current)} / ${nextUp.target}`}
             </div>
           </div>
         </div>
@@ -346,9 +353,7 @@ export default function Achievements({ driver, onSeeAll }) {
           display: "flex", alignItems: "center", gap: 10,
         }}>
           <Crown size={16} color="#D97706" fill="#FCD34D" strokeWidth={2}/>
-          <span className="condensed" style={{
-            fontSize: 13, fontWeight: 800, color: "#92400E",
-          }}>
+          <span className="condensed" style={{ fontSize: 13, fontWeight: 800, color: "#92400E" }}>
             All achievements unlocked — legendary!
           </span>
         </div>
@@ -357,17 +362,26 @@ export default function Achievements({ driver, onSeeAll }) {
   );
 }
 
-// ── Single badge card ──────────────────────────────────────────────
+// ── Single badge card ──────────────────────────────────────────────────
 function BadgeCard({ badge, index }) {
   const Icon = badge.icon;
-  const { color, label, earned, progress, target, current, isRating, isMoney } = badge;
+  const { color, label, earned, progress, target, current, isMoney, isCustomProgress, displayLabel } = badge;
 
   const tierMeta = {
-    starter: { ring: "transparent",   tier: "" },
-    bronze:  { ring: "#CD7F32",       tier: "B" },
-    silver:  { ring: "#94A3B8",       tier: "S" },
-    gold:    { ring: "#F59E0B",       tier: "G" },
+    starter: { ring: "transparent", tier: "" },
+    bronze:  { ring: "#CD7F32",     tier: "B" },
+    silver:  { ring: "#94A3B8",     tier: "S" },
+    gold:    { ring: "#F59E0B",     tier: "G" },
   }[badge.tier] || {};
+
+  // Progress display string for unearned badges
+  let progressLabel = "";
+  if (!earned) {
+    if (isCustomProgress)      progressLabel = displayLabel;
+    else if (isMoney)          progressLabel = `$${Math.floor(current)}/$${target}`;
+    else if (target === 1)     progressLabel = "Not yet";
+    else                       progressLabel = `${Math.floor(current)}/${target}`;
+  }
 
   return (
     <div
@@ -389,8 +403,8 @@ function BadgeCard({ badge, index }) {
         overflow: "hidden",
       }}
       onMouseEnter={e => {
-        e.currentTarget.style.transform = "translateY(-2px)";
-        e.currentTarget.style.boxShadow = earned
+        e.currentTarget.style.transform  = "translateY(-2px)";
+        e.currentTarget.style.boxShadow  = earned
           ? `0 6px 16px ${color}25`
           : `0 4px 12px rgba(0,0,0,0.06)`;
       }}
@@ -431,8 +445,7 @@ function BadgeCard({ badge, index }) {
       {/* Icon medallion */}
       <div style={{
         position: "relative",
-        width: 38, height: 38,
-        borderRadius: "50%",
+        width: 38, height: 38, borderRadius: "50%",
         background: earned
           ? `linear-gradient(135deg, ${color}, ${color}CC)`
           : C.border,
@@ -441,19 +454,16 @@ function BadgeCard({ badge, index }) {
         boxShadow: earned ? `0 4px 12px ${color}50` : "none",
         animation: earned && index === 0 ? "achEarnedPulse 2.5s ease-in-out infinite" : "none",
       }}>
-        {earned ? (
-          <Icon size={17} color="#fff" strokeWidth={2.2}/>
-        ) : (
-          <Lock size={14} color={C.textDim} strokeWidth={2}/>
-        )}
+        {earned
+          ? <Icon size={17} color="#fff" strokeWidth={2.2}/>
+          : <Lock size={14} color={C.textDim} strokeWidth={2}/>
+        }
 
-        {/* Sparkle decoration on earned */}
         {earned && (
           <Sparkles
             size={9}
             style={{
-              position: "absolute",
-              top: -2, right: -2,
+              position: "absolute", top: -2, right: -2,
               color: "#FCD34D",
               filter: "drop-shadow(0 1px 2px rgba(245,158,11,0.5))",
               animation: "achStarTwinkle 2s ease-in-out infinite",
@@ -468,8 +478,7 @@ function BadgeCard({ badge, index }) {
       <div className="condensed" style={{
         fontSize: 10.5, fontWeight: 800,
         color: earned ? color : C.textDim,
-        letterSpacing: ".2px",
-        lineHeight: 1.15,
+        letterSpacing: ".2px", lineHeight: 1.15,
         marginBottom: earned ? 0 : 6,
         height: 22,
         display: "flex", alignItems: "center", justifyContent: "center",
@@ -481,11 +490,9 @@ function BadgeCard({ badge, index }) {
       {!earned && (
         <>
           <div style={{
-            height: 3,
-            background: C.border,
+            height: 3, background: C.border,
             borderRadius: 100, overflow: "hidden",
-            margin: "0 auto",
-            width: "85%",
+            margin: "0 auto", width: "85%",
           }}>
             <div style={{
               height: "100%",
@@ -497,14 +504,9 @@ function BadgeCard({ badge, index }) {
           </div>
           <div style={{
             fontSize: 9, fontWeight: 700, color: C.textDim,
-            marginTop: 4,
-            fontVariantNumeric: "tabular-nums",
+            marginTop: 4, fontVariantNumeric: "tabular-nums",
           }}>
-            {isRating
-              ? `${Number(current).toFixed(1)}/${target}`
-              : isMoney
-                ? `$${Math.floor(current)}/$${target}`
-                : `${Math.floor(current)}/${target}`}
+            {progressLabel}
           </div>
         </>
       )}
