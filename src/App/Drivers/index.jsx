@@ -17,7 +17,7 @@ import DriverReviewModal from '@/App/Drivers/DriverReviewModal.jsx';
 import SupportOverlay, { SupportIcon } from '@/App/Drivers/SupportOverlay.jsx';
 import { useDriverAccount }   from "@/App/Drivers/useDriverAccount";
 import { useDriverRides }     from '@/App/Drivers/useDriverRides';
-import { useSearch }  from "@/App/Drivers/useSearch";
+import { useSearch }          from "@/App/Drivers/useSearch";
 import { useActiveRides }     from "@/App/Drivers/useActiveRides";
 import { useDriverEarnings }  from "@/App/Drivers/useDriverEarnings";
 import { useCompletedRides }  from "@/App/Drivers/useCompletedRides";
@@ -44,7 +44,7 @@ const TRIP_BUTTON_LABELS = {
   in_progress:     "Complete Trip",
 };
 
-// Maximum size for dismissed-requests memory (LRU-ish cap)
+// Maximum size for dismissed-requests memory
 const MAX_DISMISSED = 100;
 
 // ── localStorage helpers ──────────────────────────────────────────────
@@ -53,31 +53,20 @@ function loadSeenReviews()    { try { return new Set(JSON.parse(localStorage.get
 function saveSeenReviews(set) { try { localStorage.setItem(LS_SEEN_REVIEWS_KEY, JSON.stringify([...set])); } catch (_) {} }
 
 // ── FCM Push Registration ─────────────────────────────────────────────
-// Saves the driver's FCM token to Firestore. Returns boolean for the
-// caller to inspect. Logs every outcome so DevTools makes failures obvious.
-//
-// IMPORTANT: this function does NOT prompt for permission. It only proceeds
-// if permission is already "granted". The popup flow in handleEnableNotifications
-// is responsible for the OS-level prompt.
 async function registerFcmToken(uid) {
   try {
     if (!("Notification" in window)) {
       console.warn("[UaTob] Push not supported in this browser");
       return false;
     }
-    if (window.Notification.permission !== "granted") {
-      return false;
-    }
+    if (window.Notification.permission !== "granted") return false;
 
     const messaging = getMessaging(firebase_app);
     const token = await getToken(messaging, {
       vapidKey: "BJ_sRHZonSGCKk2mB2i9ofTRS8ouFVMV-I15FX4sqdUXHyVb1lo6H-N4GMPrlcIIshRlykQicaxkxxFxcYcI4JQ",
     });
 
-    if (!token) {
-      console.warn("[UaTob] FCM returned empty token");
-      return false;
-    }
+    if (!token) { console.warn("[UaTob] FCM returned empty token"); return false; }
 
     const { data } = await callSaveFcmToken({ driverId: uid, token });
     console.log("[UaTob] FCM token saved:", { updated: data?.updated });
@@ -88,7 +77,7 @@ async function registerFcmToken(uid) {
   }
 }
 
-// ── Audio helpers (with shared singleton context) ─────────────────────
+// ── Audio helpers ─────────────────────────────────────────────────────
 let _audioCtx = null;
 function getAudioCtx() {
   try {
@@ -145,10 +134,10 @@ function playAcceptSound() {
       osc.start(start); osc.stop(start+duration);
     };
     const now = ctx.currentTime+0.02;
-    playTone({freq:784, type:"sine",    start:now,       duration:0.14,volume:0.28});
-    playTone({freq:1568,type:"triangle",start:now,       duration:0.14,volume:0.10});
-    playTone({freq:1047,type:"sine",    start:now+0.13,  duration:0.22,volume:0.32});
-    playTone({freq:2093,type:"triangle",start:now+0.13,  duration:0.22,volume:0.08});
+    playTone({freq:784, type:"sine",    start:now,      duration:0.14,volume:0.28});
+    playTone({freq:1568,type:"triangle",start:now,      duration:0.14,volume:0.10});
+    playTone({freq:1047,type:"sine",    start:now+0.13, duration:0.22,volume:0.32});
+    playTone({freq:2093,type:"triangle",start:now+0.13, duration:0.22,volume:0.08});
   } catch(e) {}
 }
 
@@ -169,26 +158,100 @@ function playDeclineSound() {
       osc.start(start); osc.stop(start+duration);
     };
     const now = ctx.currentTime+0.02;
-    playTone({freq:330,type:"sine",  start:now,     duration:0.16,volume:0.22});
-    playTone({freq:247,type:"sine",  start:now+0.13,duration:0.20,volume:0.18});
+    playTone({freq:330,type:"sine",start:now,     duration:0.16,volume:0.22});
+    playTone({freq:247,type:"sine",start:now+0.13,duration:0.20,volume:0.18});
   } catch(e) {}
 }
 
-// ── APP NOTIFICATION ──────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────
+// ── REDESIGNED APP NOTIFICATION ──────────────────────────────────────
+// Full-width banner, 16px inset from all screen edges. Dark card with
+// left accent stripe, shimmer, icon pill, and progress rail.
+// ─────────────────────────────────────────────────────────────────────
+
 const NOTIF_STYLES = `
-  @keyframes notifSlideDown { from{opacity:0;transform:translateY(-20px) scale(.96)} to{opacity:1;transform:translateY(0) scale(1)} }
-  @keyframes notifSlideUp   { from{opacity:1;transform:translateY(0) scale(1)} to{opacity:0;transform:translateY(-16px) scale(.97)} }
-  @keyframes notifProgress  { from{width:100%} to{width:0%} }
-  @keyframes badgePop       { 0%{transform:scale(0)} 60%{transform:scale(1.18)} 100%{transform:scale(1)} }
+  @keyframes notifSlideDown {
+    from { opacity: 0; transform: translateY(-32px) scale(.95); }
+    to   { opacity: 1; transform: translateY(0)     scale(1);   }
+  }
+  @keyframes notifSlideUp {
+    from { opacity: 1; transform: translateY(0)     scale(1);   }
+    to   { opacity: 0; transform: translateY(-20px) scale(.96); }
+  }
+  @keyframes notifProgress {
+    from { transform: scaleX(1); }
+    to   { transform: scaleX(0); }
+  }
+  @keyframes iconPop {
+    0%   { transform: scale(0.4) rotate(-15deg); opacity: 0; }
+    65%  { transform: scale(1.2) rotate(4deg);   opacity: 1; }
+    100% { transform: scale(1)   rotate(0deg);   opacity: 1; }
+  }
+  @keyframes notifShimmer {
+    0%   { background-position: -400% center; }
+    100% { background-position:  400% center; }
+  }
+  @keyframes badgePop { 0%{transform:scale(0)} 60%{transform:scale(1.18)} 100%{transform:scale(1)} }
 `;
 
 function getNotifTheme(title) {
   const t = (title || "").toLowerCase();
-  if (t.includes("accept")||t.includes("online")||t.includes("complete")||t.includes("trip")||t.includes("enabled"))
-    return { color:"#16A34A",bg:"rgba(22,163,74,.10)",border:"rgba(22,163,74,.30)",ring:"rgba(22,163,74,.06)",Icon:CheckCircle2 };
-  if (t.includes("offline")||t.includes("declin")||t.includes("error")||t.includes("fail")||t.includes("expired")||t.includes("couldn't")||t.includes("skipped"))
-    return { color:"#DC2626",bg:"rgba(220,38,38,.08)",border:"rgba(220,38,38,.25)",ring:"rgba(220,38,38,.05)",Icon:AlertCircle };
-  return { color:"#2563EB",bg:"rgba(37,99,235,.08)",border:"rgba(37,99,235,.25)",ring:"rgba(37,99,235,.05)",Icon:Info };
+
+  if (
+    t.includes("online")   || t.includes("accept")  ||
+    t.includes("complete") || t.includes("enabled")  ||
+    t.includes("trip")     || t.includes("earning")  ||
+    t.includes("ready")    || t.includes("start")
+  ) {
+    return {
+      accent:     "#22C55E",
+      dimAccent:  "#16A34A",
+      bg:         "#020d07",
+      stripeGrad: "linear-gradient(180deg,#4ADE80,#16A34A 60%,#052e16)",
+      glow:       "rgba(34,197,94,.30)",
+      titleColor: "#F0FDF4",
+      subColor:   "#86EFAC",
+      pillBg:     "rgba(34,197,94,.12)",
+      pillBorder: "rgba(34,197,94,.30)",
+      icon:       "✦",
+      shimmer:    "rgba(74,222,128,.08)",
+    };
+  }
+
+  if (
+    t.includes("offline")  || t.includes("declin")   ||
+    t.includes("error")    || t.includes("fail")      ||
+    t.includes("expired")  || t.includes("couldn't")  ||
+    t.includes("skipped")  || t.includes("suspended")
+  ) {
+    return {
+      accent:     "#F87171",
+      dimAccent:  "#DC2626",
+      bg:         "#0d0202",
+      stripeGrad: "linear-gradient(180deg,#FCA5A5,#DC2626 60%,#2d0a0a)",
+      glow:       "rgba(248,113,113,.28)",
+      titleColor: "#FFF1F2",
+      subColor:   "#FCA5A5",
+      pillBg:     "rgba(248,113,113,.12)",
+      pillBorder: "rgba(248,113,113,.30)",
+      icon:       "✕",
+      shimmer:    "rgba(252,165,165,.07)",
+    };
+  }
+
+  return {
+    accent:     "#60A5FA",
+    dimAccent:  "#2563EB",
+    bg:         "#020514",
+    stripeGrad: "linear-gradient(180deg,#93C5FD,#2563EB 60%,#0a1040)",
+    glow:       "rgba(96,165,250,.26)",
+    titleColor: "#EFF6FF",
+    subColor:   "#93C5FD",
+    pillBg:     "rgba(96,165,250,.12)",
+    pillBorder: "rgba(96,165,250,.28)",
+    icon:       "ℹ",
+    shimmer:    "rgba(147,197,253,.07)",
+  };
 }
 
 function AppNotification({ notificationOverride }) {
@@ -199,32 +262,178 @@ function AppNotification({ notificationOverride }) {
 
   useEffect(() => {
     if (!notif) { setVisible(false); setLeaving(false); return; }
-    setLeaving(false); setVisible(true);
+    setLeaving(false);
+    setVisible(true);
     clearTimeout(hideTimer.current);
     hideTimer.current = setTimeout(() => {
       setLeaving(true);
-      setTimeout(() => setVisible(false), 280);
+      setTimeout(() => setVisible(false), 340);
     }, 2800);
     return () => clearTimeout(hideTimer.current);
   }, [notif?.title, notif?.msg]);
 
   if (!visible || !notif) return null;
+
   const theme = getNotifTheme(notif.title);
-  const { Icon } = theme;
 
   return (
     <>
       <style>{NOTIF_STYLES}</style>
-      <div style={{ position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",zIndex:1200,width:"calc(100% - 32px)",maxWidth:400,animation:leaving?"notifSlideUp .28s cubic-bezier(.4,0,.6,1) forwards":"notifSlideDown .32s cubic-bezier(.34,1.56,.64,1) forwards" }}>
-        <div style={{ background:"#fff",borderRadius:20,padding:"14px 16px 14px 14px",boxShadow:"0 8px 32px rgba(0,0,0,.13),0 2px 8px rgba(0,0,0,.07)",border:`1.5px solid ${theme.border}`,display:"flex",alignItems:"center",gap:12,overflow:"hidden",position:"relative" }}>
-          <div style={{ flexShrink:0,width:42,height:42,borderRadius:"50%",background:theme.bg,border:`1.5px solid ${theme.border}`,boxShadow:`0 0 0 6px ${theme.ring}`,display:"flex",alignItems:"center",justifyContent:"center" }}>
-            <Icon size={18} color={theme.color} strokeWidth={2.2} />
+
+      {/* Positioner — 16px from every screen edge, full width within that */}
+      <div
+        style={{
+          position:  "fixed",
+          top:       16,
+          left:      16,
+          right:     16,
+          zIndex:    1200,
+          maxWidth:  640,
+          margin:    "0 auto",
+          animation: leaving
+            ? "notifSlideUp .34s cubic-bezier(.4,0,.6,1) forwards"
+            : "notifSlideDown .40s cubic-bezier(.22,1.35,.64,1) forwards",
+        }}
+      >
+        {/* Card */}
+        <div
+          style={{
+            position:     "relative",
+            background:   theme.bg,
+            borderRadius: 18,
+            overflow:     "hidden",
+            display:      "flex",
+            alignItems:   "stretch",
+            boxShadow:    `0 0 0 1px rgba(255,255,255,.07), 0 4px 6px rgba(0,0,0,.4), 0 20px 40px rgba(0,0,0,.55), 0 0 60px ${theme.glow}`,
+          }}
+        >
+          {/* Left accent stripe */}
+          <div
+            style={{
+              width:        5,
+              flexShrink:   0,
+              background:   theme.stripeGrad,
+              borderRadius: "18px 0 0 18px",
+            }}
+          />
+
+          {/* Shimmer sweep */}
+          <div
+            style={{
+              position:       "absolute",
+              inset:          0,
+              background:     `linear-gradient(105deg, transparent 30%, ${theme.shimmer} 50%, transparent 70%)`,
+              backgroundSize: "400% 100%",
+              animation:      "notifShimmer 3s ease-in-out infinite",
+              pointerEvents:  "none",
+              borderRadius:   18,
+            }}
+          />
+
+          {/* Content row */}
+          <div
+            style={{
+              flex:        1,
+              display:     "flex",
+              alignItems:  "center",
+              gap:         14,
+              padding:     "14px 16px 18px 14px",
+              minWidth:    0,
+            }}
+          >
+            {/* Icon pill */}
+            <div
+              style={{
+                flexShrink:     0,
+                width:          44,
+                height:         44,
+                borderRadius:   13,
+                background:     theme.pillBg,
+                border:         `1.5px solid ${theme.pillBorder}`,
+                display:        "flex",
+                alignItems:     "center",
+                justifyContent: "center",
+                fontSize:       20,
+                boxShadow:      `0 0 16px ${theme.glow}`,
+                animation:      "iconPop .45s cubic-bezier(.22,1.35,.64,1) forwards",
+              }}
+            >
+              <span style={{ lineHeight: 1 }}>{theme.icon}</span>
+            </div>
+
+            {/* Text */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  fontFamily:    "'Barlow Condensed', 'Arial Narrow', sans-serif",
+                  fontSize:      17,
+                  fontWeight:    900,
+                  letterSpacing: "-.1px",
+                  color:         theme.titleColor,
+                  lineHeight:    1.15,
+                  marginBottom:  3,
+                  whiteSpace:    "nowrap",
+                  overflow:      "hidden",
+                  textOverflow:  "ellipsis",
+                  textTransform: "uppercase",
+                }}
+              >
+                {notif.title}
+              </div>
+              <div
+                style={{
+                  fontFamily:   "'Barlow', system-ui, sans-serif",
+                  fontSize:     13,
+                  fontWeight:   600,
+                  color:        theme.subColor,
+                  whiteSpace:   "nowrap",
+                  overflow:     "hidden",
+                  textOverflow: "ellipsis",
+                  opacity:      0.9,
+                }}
+              >
+                {notif.msg}
+              </div>
+            </div>
+
+            {/* Status dot */}
+            <div
+              style={{
+                flexShrink:   0,
+                width:        8,
+                height:       8,
+                borderRadius: "50%",
+                background:   theme.accent,
+                boxShadow:    `0 0 10px ${theme.accent}`,
+                marginRight:  2,
+              }}
+            />
           </div>
-          <div style={{ flex:1,minWidth:0 }}>
-            <div style={{ fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,color:"#111827",letterSpacing:"-.2px",lineHeight:1.2,marginBottom:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{notif.title}</div>
-            <div style={{ fontSize:13,color:"#6B7280",fontWeight:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{notif.msg}</div>
+
+          {/* Progress rail */}
+          <div
+            style={{
+              position:     "absolute",
+              bottom:       0,
+              left:         5,
+              right:        0,
+              height:       3,
+              background:   "rgba(255,255,255,.06)",
+              borderRadius: "0 0 18px 0",
+              overflow:     "hidden",
+            }}
+          >
+            <div
+              style={{
+                height:          "100%",
+                width:           "100%",
+                background:      `linear-gradient(90deg, ${theme.dimAccent}, ${theme.accent})`,
+                transformOrigin: "left center",
+                animation:       "notifProgress 3.1s linear forwards",
+                borderRadius:    "0 0 18px 0",
+              }}
+            />
           </div>
-          <div style={{ position:"absolute",bottom:0,left:0,height:3,borderRadius:"0 0 20px 20px",background:theme.color,opacity:.35,animation:"notifProgress 3s linear forwards" }} />
         </div>
       </div>
     </>
@@ -343,15 +552,10 @@ function LocationPopup({ onAllow, onDeny, loading, error }) {
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────
 export default function UaTobDriverApp({ uid }) {
-
-  // null = loading, true = exists, false = not found (redirecting)
   const [driverExists, setDriverExists] = useState(null);
 
   useEffect(() => {
-    if (!uid) {
-      window.location.replace("https://uatob.com");
-      return;
-    }
+    if (!uid) { window.location.replace("https://uatob.com"); return; }
 
     let unsub = null;
     try {
@@ -359,40 +563,21 @@ export default function UaTobDriverApp({ uid }) {
       unsub = onSnapshot(
         ref,
         (snap) => {
-          if (!snap.exists()) {
-            setDriverExists(false);
-            window.location.replace("https://uatob.com");
-          } else {
-            setDriverExists(true);
-          }
+          if (!snap.exists()) { setDriverExists(false); window.location.replace("https://uatob.com"); }
+          else { setDriverExists(true); }
         },
-        (err) => {
-          console.error("[UaTob] Driver doc subscribe failed:", err);
-          setDriverExists(false);
-          window.location.replace("https://uatob.com");
-        }
+        (err) => { console.error("[UaTob] Driver doc subscribe failed:", err); setDriverExists(false); window.location.replace("https://uatob.com"); }
       );
-    } catch (err) {
-      console.error("[UaTob] Failed to subscribe to driver doc:", err);
-      setDriverExists(false);
-      window.location.replace("https://uatob.com");
-    }
+    } catch (err) { console.error("[UaTob] Failed to subscribe to driver doc:", err); setDriverExists(false); window.location.replace("https://uatob.com"); }
 
-    return () => {
-      try {
-        if (typeof unsub === "function") unsub();
-      } catch (err) {
-        console.warn("[UaTob] unsub cleanup threw:", err);
-      }
-    };
+    return () => { try { if (typeof unsub === "function") unsub(); } catch (err) { console.warn("[UaTob] unsub cleanup threw:", err); } };
   }, [uid]);
 
   if (driverExists !== true) return null;
-
   return <DriverAppInner uid={uid} />;
 }
 
-// ── Inner component — all hooks live here ─────────────────────────────
+// ── Inner component ───────────────────────────────────────────────────
 function DriverAppInner({ uid }) {
   const { driver }                        = useDriverAccount(uid);
   const { earnings, refetch }             = useDriverEarnings(uid);
@@ -402,11 +587,10 @@ function DriverAppInner({ uid }) {
   const { completedRides }                = useCompletedRides(uid);
   const { reviews }                       = useDriverReviews(uid);
   const supportUnread                     = useSupportUnread(uid);
-  const { searches } = useSearch();
+  const { searches }                      = useSearch();
 
-
-  const isRejected    = driver?.status === "rejected";
-  const driverOnTrip  = driver?.trip === true;
+  const isRejected   = driver?.status === "rejected";
+  const driverOnTrip = driver?.trip === true;
   const sourceLoading = driverOnTrip ? reqLoading  : ridesLoading;
   const sourceRides   = driverOnTrip ? requests    : rides;
 
@@ -439,29 +623,20 @@ function DriverAppInner({ uid }) {
 
   useEffect(() => { if (isRejected) setActiveTab("profile"); }, [isRejected]);
 
-  // Initialize online state ONCE from server. After that, server status is informational only —
-  // the user's local toggle controls UI state.
   useEffect(() => {
     if (!driver || onlineInitialized.current) return;
     onlineInitialized.current = true;
     setOnline(driver.status === "online");
   }, [driver]);
 
-  // Sync DOWN: if server force-offlines the driver (admin action), reflect locally
   useEffect(() => {
     if (!onlineInitialized.current || !driver) return;
     if (online && driver.status !== "online" && driver.status !== "in_progress") {
-      setOnline(false);
-      setActiveTrip(null);
-      setDismissedRequests(new Set());
-      setAcceptedRequestId(null);
+      setOnline(false); setActiveTrip(null); setDismissedRequests(new Set()); setAcceptedRequestId(null);
     }
   }, [driver?.status, online]);
 
   // ── FCM foreground message handler ────────────────────────────────
-  // Reads payload.data.* first because pushCandidateDrivers sends data-only
-  // payloads (so the service worker's onBackgroundMessage fires). Falls back
-  // to payload.notification.* for any legacy/transitional messages.
   useEffect(() => {
     if (!uid) return;
     let unsub = () => {};
@@ -471,30 +646,16 @@ function DriverAppInner({ uid }) {
         const title  = payload.data?.title  ?? payload.notification?.title ?? "New Ride";
         const body   = payload.data?.body   ?? payload.notification?.body  ?? "";
         const rideId = payload.data?.rideId;
-
         showNotif(title, body);
-
         if ("serviceWorker" in navigator) {
           try {
             const reg = await navigator.serviceWorker.ready;
-            reg.showNotification(title, {
-              body,
-              icon: "/icon.png",
-              tag: rideId ?? "uatob-driver",
-              renotify: true,
-              data: payload.data || {},
-            });
-          } catch (e) {
-            console.warn("[UaTob] SW showNotification failed:", e?.message);
-          }
+            reg.showNotification(title, { body, icon:"/icon.png", tag:rideId??"uatob-driver", renotify:true, data:payload.data||{} });
+          } catch (e) { console.warn("[UaTob] SW showNotification failed:", e?.message); }
         }
       });
-    } catch (e) {
-      console.warn("[UaTob] onMessage setup failed:", e?.message);
-    }
-    return () => {
-      try { if (typeof unsub === "function") unsub(); } catch (e) {}
-    };
+    } catch (e) { console.warn("[UaTob] onMessage setup failed:", e?.message); }
+    return () => { try { if (typeof unsub === "function") unsub(); } catch (e) {} };
   }, [uid]);
 
   const tripRequest = online && !isRejected && !sourceLoading
@@ -526,61 +687,38 @@ function DriverAppInner({ uid }) {
 
   const handleDismissReview = useCallback(() => {
     if (!pendingReview) return;
-    setSeenReviewIds(prev => {
-      const updated = new Set(prev);
-      updated.add(pendingReview.id);
-      saveSeenReviews(updated);
-      return updated;
-    });
+    setSeenReviewIds(prev => { const updated = new Set(prev); updated.add(pendingReview.id); saveSeenReviews(updated); return updated; });
     setPendingReview(null);
   }, [pendingReview]);
 
   useEffect(() => { setTripBtnLabel(TRIP_BUTTON_LABELS[activeTrip?.status] ?? ""); }, [activeTrip?.status]);
 
   useEffect(() => {
-    if (!tripRequest) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-      setRequestTimer(60);
-      return;
-    }
-    // Use timeout from request (in minutes) or default to 1 minute (60 seconds)
+    if (!tripRequest) { clearInterval(timerRef.current); timerRef.current = null; setRequestTimer(60); return; }
     const timeoutSeconds = (tripRequest.timeoutMinutes ?? 1) * 60;
     setRequestTimer(timeoutSeconds);
     timerRef.current = setInterval(async () => {
       setRequestTimer(t => {
         if (t <= 1) {
-          clearInterval(timerRef.current);
-          timerRef.current = null;
-          // Record the auto-decline when request times out
-          if (tripRequest?.id) {
-            callDeclineRide({ rideId: tripRequest.id, uid }).catch(() => {});
-          }
+          clearInterval(timerRef.current); timerRef.current = null;
+          if (tripRequest?.id) callDeclineRide({ rideId: tripRequest.id, uid }).catch(() => {});
           setDismissedRequests(prev => {
             const next = new Set(prev);
             if (tripRequest?.id) next.add(tripRequest.id);
-            // Cap memory: if too many, drop oldest by recreating from last N entries
-            if (next.size > MAX_DISMISSED) {
-              const arr = Array.from(next);
-              return new Set(arr.slice(arr.length - MAX_DISMISSED));
-            }
+            if (next.size > MAX_DISMISSED) { const arr = Array.from(next); return new Set(arr.slice(arr.length - MAX_DISMISSED)); }
             return next;
           });
-          showNotif("Request expired","Looking for next...");
+          showNotif("Request expired", "Looking for next...");
           return 60;
         }
         return t - 1;
       });
     }, 1000);
-    return () => {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    };
+    return () => { clearInterval(timerRef.current); timerRef.current = null; };
   }, [tripRequest?.id]);
 
   useEffect(() => {
-    clearInterval(locationPingRef.current);
-    locationPingRef.current = null;
+    clearInterval(locationPingRef.current); locationPingRef.current = null;
     if (!online || isRejected) return;
     locationPingRef.current = setInterval(async () => {
       try {
@@ -589,18 +727,10 @@ function DriverAppInner({ uid }) {
         await callDriverStatus({ uid, status:"location_ping", lat, lng });
       } catch(e) {}
     }, 60_000);
-    return () => {
-      clearInterval(locationPingRef.current);
-      locationPingRef.current = null;
-    };
+    return () => { clearInterval(locationPingRef.current); locationPingRef.current = null; };
   }, [online, uid, isRejected]);
 
-  // Cleanup notification timer on unmount
-  useEffect(() => {
-    return () => {
-      if (notifTimerRef.current) clearTimeout(notifTimerRef.current);
-    };
-  }, []);
+  useEffect(() => { return () => { if (notifTimerRef.current) clearTimeout(notifTimerRef.current); }; }, []);
 
   const showNotif = useCallback((title, msg) => {
     setNotification({ title, msg });
@@ -616,80 +746,41 @@ function DriverAppInner({ uid }) {
     return data;
   }, [uid]);
 
-  // ── Request location + go online + refresh FCM token ──────────────
-  // After a successful go-online, ALWAYS attempt to refresh the FCM token:
-  //   - permission "default" → show popup (user hasn't decided yet)
-  //   - permission "granted" → save token (refresh in case it rotated)
-  //   - permission "denied"  → registerFcmToken returns false silently
-  // The server-side function is idempotent (skips the write if the token
-  // hasn't changed), so calling this on every go-online is cheap.
   const requestLocationAndGoOnline = useCallback(async () => {
-    setLocationError("");
-    setLocationLoading(true);
+    setLocationError(""); setLocationLoading(true);
     try {
-      if (!("geolocation" in navigator)) {
-        throw new Error("Geolocation is not supported in this browser.");
-      }
+      if (!("geolocation" in navigator)) throw new Error("Geolocation is not supported in this browser.");
       const position = await new Promise((res, rej) =>
-        navigator.geolocation.getCurrentPosition(res, rej, {
-          enableHighAccuracy: true, timeout: 10000, maximumAge: 0,
-        })
+        navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy:true, timeout:10000, maximumAge:0 })
       );
-      const { latitude: lat, longitude: lng } = position.coords;
-
+      const { latitude:lat, longitude:lng } = position.coords;
       await callDriverStatusFn("online", lat, lng);
-      setOnline(true);
-      setShowLocationPopup(false);
-      setLocationError("");
+      setOnline(true); setShowLocationPopup(false); setLocationError("");
       showNotif("Online", "Ready for rides");
-
-      // Refresh FCM token on every go-online
       if ("Notification" in window) {
-        if (window.Notification.permission === "default") {
-          setShowNotifPopup(true);
-        } else if (window.Notification.permission === "granted") {
-          registerFcmToken(uid);
-        }
-        // permission === "denied" → do nothing
+        if (window.Notification.permission === "default") setShowNotifPopup(true);
+        else if (window.Notification.permission === "granted") registerFcmToken(uid);
       }
     } catch (err) {
       if      (err?.code === 1) setLocationError("Location access was denied. Allow location in your browser settings.");
       else if (err?.code === 2) setLocationError("Could not detect your location. Check your device settings.");
       else if (err?.code === 3) setLocationError("Location request timed out. Please try again.");
       else                      setLocationError(err?.message || "Could not get your location.");
-    } finally {
-      setLocationLoading(false);
-    }
+    } finally { setLocationLoading(false); }
   }, [callDriverStatusFn, uid, showNotif]);
 
-  // ── Enable notifications from the popup ───────────────────────────
-  // Explicitly prompts for permission, then registers the token,
-  // then surfaces a clear toast about what happened.
   const handleEnableNotifications = useCallback(async () => {
     setNotifLoading(true);
     try {
       if (window.Notification.permission === "default") {
         const permission = await window.Notification.requestPermission();
-        if (permission !== "granted") {
-          showNotif("Notifications skipped", "You can enable them later in profile");
-          setShowNotifPopup(false);
-          return;
-        }
+        if (permission !== "granted") { showNotif("Notifications skipped","You can enable them later in profile"); setShowNotifPopup(false); return; }
       }
-
       const ok = await registerFcmToken(uid);
-      if (ok) {
-        showNotif("Notifications enabled", "You'll get alerts for new rides");
-      } else {
-        showNotif("Couldn't enable", "Try again from your profile");
-      }
-    } catch (err) {
-      console.error("[UaTob] Enable notifications failed:", err?.message);
-      showNotif("Couldn't enable", "Try again from your profile");
-    } finally {
-      setNotifLoading(false);
-      setShowNotifPopup(false);
-    }
+      if (ok) showNotif("Notifications enabled","You'll get alerts for new rides");
+      else    showNotif("Couldn't enable","Try again from your profile");
+    } catch (err) { console.error("[UaTob] Enable notifications failed:", err?.message); showNotif("Couldn't enable","Try again from your profile"); }
+    finally { setNotifLoading(false); setShowNotifPopup(false); }
   }, [uid, showNotif]);
 
   const handleSkipNotifications = useCallback(() => setShowNotifPopup(false), []);
@@ -748,12 +839,9 @@ function DriverAppInner({ uid }) {
       if (data?.error) throw new Error(data.error);
       if (action === "complete") {
         await refetch();
-        // Show driver's actual cut (75/25 split), not the gross fare
-        const driverCut = activeTrip.driverPayout
-                       ?? (activeTrip.fareTotal != null ? activeTrip.fareTotal * 0.75 : 0);
+        const driverCut = activeTrip.driverPayout ?? (activeTrip.fareTotal != null ? activeTrip.fareTotal * 0.75 : 0);
         showNotif("Trip complete", `+$${driverCut.toFixed(2)}`);
-      }
-      else showNotif("Updating trip…","Please wait");
+      } else showNotif("Updating trip…","Please wait");
     } catch(e) { showNotif("Error","Update failed"); }
     finally { setAdvancePending(false); }
   };
@@ -761,68 +849,23 @@ function DriverAppInner({ uid }) {
   const tripStage      = activeTrip?.status;
   const tripStageColor = { driver_assigned:C.blue, arrived:C.onlineGreen, in_progress:C.green }[tripStage] || C.green;
 
-  // ── Support button with unread badge ────────────────────────────
+  // ── Support button ────────────────────────────────────────────────
   const SupportBtn = () => {
     const showBadge = supportUnread > 0;
     const badgeText = supportUnread > 99 ? "99+" : String(supportUnread);
-
     return (
       <button
         onClick={() => setShowSupport(true)}
-        style={{
-          position: "relative",
-          width: 36, height: 36, borderRadius: 10,
-          background: C.surface,
-          border: `1.5px solid ${showBadge ? "#FECACA" : C.border}`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          cursor: "pointer",
-          transition: "background .15s, border-color .15s, transform .12s",
-          flexShrink: 0,
-          overflow: "visible",
-        }}
-        onMouseEnter={e => {
-          e.currentTarget.style.borderColor = showBadge ? "#FCA5A5" : "#93C5FD";
-          e.currentTarget.style.background  = "#EFF6FF";
-        }}
-        onMouseLeave={e => {
-          e.currentTarget.style.borderColor = showBadge ? "#FECACA" : C.border;
-          e.currentTarget.style.background  = C.surface;
-        }}
-        onMouseDown={e  => { e.currentTarget.style.transform = "scale(.92)"; }}
-        onMouseUp={e    => { e.currentTarget.style.transform = "scale(1)"; }}
-        aria-label={
-          showBadge
-            ? `Open support — ${supportUnread} unread message${supportUnread === 1 ? "" : "s"}`
-            : "Open support"
-        }
+        style={{ position:"relative",width:36,height:36,borderRadius:10,background:C.surface,border:`1.5px solid ${showBadge?"#FECACA":C.border}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"background .15s, border-color .15s, transform .12s",flexShrink:0,overflow:"visible" }}
+        onMouseEnter={e => { e.currentTarget.style.borderColor=showBadge?"#FCA5A5":"#93C5FD"; e.currentTarget.style.background="#EFF6FF"; }}
+        onMouseLeave={e => { e.currentTarget.style.borderColor=showBadge?"#FECACA":C.border; e.currentTarget.style.background=C.surface; }}
+        onMouseDown={e  => { e.currentTarget.style.transform="scale(.92)"; }}
+        onMouseUp={e    => { e.currentTarget.style.transform="scale(1)"; }}
+        aria-label={showBadge?`Open support — ${supportUnread} unread message${supportUnread===1?"":"s"}`:"Open support"}
       >
         <SupportIcon size={18} color="#2563EB" />
-
         {showBadge && (
-          <span
-            style={{
-              position: "absolute",
-              top: -5, right: -5,
-              minWidth: badgeText.length > 1 ? 20 : 18,
-              height: 18,
-              padding: badgeText.length > 1 ? "0 5px" : 0,
-              borderRadius: 9,
-              background: "linear-gradient(135deg,#EF4444,#DC2626)",
-              color: "#fff",
-              fontSize: 10,
-              fontWeight: 800,
-              lineHeight: 1,
-              fontFamily: '"Barlow",system-ui,sans-serif',
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              border: "2px solid #fff",
-              boxShadow: "0 2px 6px rgba(220,38,38,.45)",
-              letterSpacing: ".02em",
-              pointerEvents: "none",
-              animation: "badgePop .3s cubic-bezier(.34,1.56,.64,1)",
-            }}
-          >
+          <span style={{ position:"absolute",top:-5,right:-5,minWidth:badgeText.length>1?20:18,height:18,padding:badgeText.length>1?"0 5px":0,borderRadius:9,background:"linear-gradient(135deg,#EF4444,#DC2626)",color:"#fff",fontSize:10,fontWeight:800,lineHeight:1,fontFamily:'"Barlow",system-ui,sans-serif',display:"flex",alignItems:"center",justifyContent:"center",border:"2px solid #fff",boxShadow:"0 2px 6px rgba(220,38,38,.45)",letterSpacing:".02em",pointerEvents:"none",animation:"badgePop .3s cubic-bezier(.34,1.56,.64,1)" }}>
             {badgeText}
           </span>
         )}
@@ -836,17 +879,15 @@ function DriverAppInner({ uid }) {
       <style>{NOTIF_STYLES}</style>
 
       {showSupport && <SupportOverlay onClose={() => setShowSupport(false)} driver={driver} />}
-
       {driver?.status === "suspended" && <SuspendedModal />}
-
       {showLocationPopup && !isRejected && (
         <LocationPopup loading={locationLoading} error={locationError} onAllow={requestLocationAndGoOnline} onDeny={handleLocationDeny} />
       )}
-
       {showNotifPopup && (
         <NotificationPopup loading={notifLoading} onEnable={handleEnableNotifications} onSkip={handleSkipNotifications} />
       )}
 
+      {/* ── REDESIGNED NOTIFICATION BANNER ── */}
       <AppNotification notificationOverride={notification} />
 
       {!isRejected && (
