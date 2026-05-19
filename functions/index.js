@@ -68,6 +68,8 @@ const { reassignRide } = require("./drivers/reassignRide");
 const { onPaymentSucceeded } = require("./drivers/email/onPaymentSucceeded");
 const { pushOfflineDriver } = require("./drivers/notification/pushOfflineDriver");
 const { updateDriverSetting } = require("./drivers/updateDriverSetting");
+const { driverReportEmail } = require("./drivers/email/driverReportEmail");
+const { driverInProgressEmail } = require("./drivers/email/driverInProgressEmail");
 
 
 
@@ -156,6 +158,8 @@ exports.checkDriverStripeCapability = checkDriverStripeCapability;
 exports.onPaymentSucceeded = onPaymentSucceeded;
 exports.pushOfflineDriver = pushOfflineDriver;
 exports.updateDriverSetting = updateDriverSetting;
+exports.driverReportEmail = driverReportEmail;
+exports.driverInProgressEmail = driverInProgressEmail;
 
 exports.onAccountCreatedNotifyAdmin = onAccountCreatedNotifyAdmin;
 exports.thankYouAnnouncement = thankYouAnnouncement;
