@@ -7927,3 +7927,598 @@ For more troubleshooting guidance, see https://cloud.google.com/run/docs/trouble
 [error] - Error Failed to update function checkDriverStripeCapability in region us-central1
 [error] - Error Failed to update function thankYouAnnouncement in region us-central1
 [error] - Error Failed to update function onRideCreatedNotifyAdmin in region us-central1
+[debug] [2026-05-29T23:33:02.212Z] ----------------------------------------------------------------------
+[debug] [2026-05-29T23:33:02.215Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only functions:createDriverProfile
+[debug] [2026-05-29T23:33:02.215Z] CLI Version:   15.15.0
+[debug] [2026-05-29T23:33:02.215Z] Platform:      win32
+[debug] [2026-05-29T23:33:02.215Z] Node Version:  v24.14.0
+[debug] [2026-05-29T23:33:02.215Z] Time:          Fri May 29 2026 19:33:02 GMT-0400 (Eastern Daylight Time)
+[debug] [2026-05-29T23:33:02.216Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-05-29T23:33:04.172Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-05-29T23:33:04.172Z] > authorizing via signed-in user (support@calltelo.com)
+[debug] [2026-05-29T23:33:04.172Z] [iam] checking project uatob-e7b4b for permissions ["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]
+[debug] [2026-05-29T23:33:04.174Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:33:04.174Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:33:04.175Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions [none]
+[debug] [2026-05-29T23:33:04.175Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions  x-goog-user-project=uatob-e7b4b
+[debug] [2026-05-29T23:33:04.175Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2026-05-29T23:33:04.430Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions 200
+[debug] [2026-05-29T23:33:04.430Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2026-05-29T23:33:04.430Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:33:04.430Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:33:04.430Z] >>> [apiv2][query] POST https://iam.googleapis.com/v1/projects/uatob-e7b4b/serviceAccounts/uatob-e7b4b@appspot.gserviceaccount.com:testIamPermissions [none]
+[debug] [2026-05-29T23:33:04.430Z] >>> [apiv2][body] POST https://iam.googleapis.com/v1/projects/uatob-e7b4b/serviceAccounts/uatob-e7b4b@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[debug] [2026-05-29T23:33:04.677Z] <<< [apiv2][status] POST https://iam.googleapis.com/v1/projects/uatob-e7b4b/serviceAccounts/uatob-e7b4b@appspot.gserviceaccount.com:testIamPermissions 200
+[debug] [2026-05-29T23:33:04.677Z] <<< [apiv2][body] POST https://iam.googleapis.com/v1/projects/uatob-e7b4b/serviceAccounts/uatob-e7b4b@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[info] 
+[info] === Deploying to 'uatob-e7b4b'...
+[info] 
+[info] i  deploying functions 
+[debug] [2026-05-29T23:33:04.687Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:33:04.688Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:33:04.688Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b [none]
+[debug] [2026-05-29T23:33:04.783Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b 200
+[debug] [2026-05-29T23:33:04.783Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b {"projectNumber":"714931905484","projectId":"uatob-e7b4b","lifecycleState":"ACTIVE","name":"Uatob","labels":{"firebase":"enabled","firebase-core":"disabled"},"createTime":"2026-03-29T14:39:16.148Z"}
+[info] i  functions: preparing codebase default for deployment 
+[info] i  functions: ensuring required API cloudfunctions.googleapis.com is enabled... 
+[info] i  functions: ensuring required API cloudbuild.googleapis.com is enabled... 
+[info] i  artifactregistry: ensuring required API artifactregistry.googleapis.com is enabled... 
+[debug] [2026-05-29T23:33:04.787Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:33:04.787Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:33:04.787Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/uatob-e7b4b/adminSdkConfig [none]
+[debug] [2026-05-29T23:33:05.151Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/uatob-e7b4b/adminSdkConfig 200
+[debug] [2026-05-29T23:33:05.152Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/uatob-e7b4b/adminSdkConfig {"projectId":"uatob-e7b4b","storageBucket":"uatob-e7b4b.firebasestorage.app"}
+[debug] [2026-05-29T23:33:05.157Z] Validating nodejs source
+[warn] !  functions: Couldn't find firebase-functions package in your source code. Have you run 'npm install'? 
+[debug] [2026-05-29T23:33:05.161Z] getFunctionsSDKVersion encountered error: Cannot find module 'firebase-functions'
+Require stack:
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\versioning.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\prepare.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorShared.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\frameworks\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\hosting\prepare.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\hosting\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\commands\deploy.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\commands\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\cli.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js {"code":"MODULE_NOT_FOUND","requireStack":["C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\functions\\runtimes\\node\\versioning.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\functions\\runtimes\\node\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\functions\\runtimes\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\functions\\prepare.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\emulator\\functionsEmulatorShared.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\frameworks\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\hosting\\prepare.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\hosting\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\commands\\deploy.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\commands\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\bin\\cli.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\bin\\firebase.js"]}
+[debug] [2026-05-29T23:33:05.165Z] checkFunctionsSDKVersion encountered error: Invalid Version:  {}
+[debug] [2026-05-29T23:33:05.166Z] > [functions] package.json contents: {
+  "name": "functions",
+  "description": "Cloud Functions for Firebase",
+  "scripts": {
+    "serve": "firebase emulators:start --only functions",
+    "shell": "firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "24"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "@sendgrid/mail": "^8.1.6",
+    "axios": "^1.14.0",
+    "cors": "^2.8.6",
+    "firebase-admin": "^13.10.0",
+    "firebase-functions": "^7.2.5",
+    "stripe": "^12.18.0"
+  },
+  "devDependencies": {
+    "firebase-functions-test": "^3.4.1"
+  },
+  "private": true
+}
+[debug] [2026-05-29T23:33:05.166Z] Building nodejs source
+[info] i  functions: Loading and analyzing source code for codebase default to determine what to deploy 
+[debug] [2026-05-29T23:33:05.167Z] Could not parse firebase-functions version '' into semver.
+[debug] [2026-05-29T23:33:05.168Z] Could not find functions.yaml. Must use http discovery
+[debug] [2026-05-29T23:33:05.304Z] Error: Cannot find module 'firebase-functions'
+Require stack:
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\prepare.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorShared.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\frameworks\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\hosting\prepare.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\hosting\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\commands\deploy.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\commands\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\cli.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1456:15)
+    at require.resolve (node:internal/modules/helpers:163:19)
+    at Delegate.findFunctionsBinary (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:101:33)
+    at Delegate.spawnFunctionsProcess (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:131:30)
+    at Delegate.serveAdmin (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:152:35)
+    at Delegate.discoverBuild (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:192:41)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async loadCodebases (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\prepare.js:380:33)
+    at async prepare (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\prepare.js:73:24)
+    at async chain (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\index.js:45:9)
+[error] 
+[error] Error: An unexpected error has occurred.
+[debug] [2026-05-29T23:33:12.624Z] ----------------------------------------------------------------------
+[debug] [2026-05-29T23:33:12.627Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only functions:createDriverProfile
+[debug] [2026-05-29T23:33:12.628Z] CLI Version:   15.15.0
+[debug] [2026-05-29T23:33:12.628Z] Platform:      win32
+[debug] [2026-05-29T23:33:12.628Z] Node Version:  v24.14.0
+[debug] [2026-05-29T23:33:12.628Z] Time:          Fri May 29 2026 19:33:12 GMT-0400 (Eastern Daylight Time)
+[debug] [2026-05-29T23:33:12.628Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-05-29T23:33:14.317Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-05-29T23:33:14.318Z] > authorizing via signed-in user (support@calltelo.com)
+[debug] [2026-05-29T23:33:14.318Z] [iam] checking project uatob-e7b4b for permissions ["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]
+[debug] [2026-05-29T23:33:14.319Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:33:14.319Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:33:14.320Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions [none]
+[debug] [2026-05-29T23:33:14.320Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions  x-goog-user-project=uatob-e7b4b
+[debug] [2026-05-29T23:33:14.320Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2026-05-29T23:33:14.564Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions 200
+[debug] [2026-05-29T23:33:14.565Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2026-05-29T23:33:14.565Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:33:14.566Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:33:14.566Z] >>> [apiv2][query] POST https://iam.googleapis.com/v1/projects/uatob-e7b4b/serviceAccounts/uatob-e7b4b@appspot.gserviceaccount.com:testIamPermissions [none]
+[debug] [2026-05-29T23:33:14.566Z] >>> [apiv2][body] POST https://iam.googleapis.com/v1/projects/uatob-e7b4b/serviceAccounts/uatob-e7b4b@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[debug] [2026-05-29T23:33:14.779Z] <<< [apiv2][status] POST https://iam.googleapis.com/v1/projects/uatob-e7b4b/serviceAccounts/uatob-e7b4b@appspot.gserviceaccount.com:testIamPermissions 200
+[debug] [2026-05-29T23:33:14.779Z] <<< [apiv2][body] POST https://iam.googleapis.com/v1/projects/uatob-e7b4b/serviceAccounts/uatob-e7b4b@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[info] 
+[info] === Deploying to 'uatob-e7b4b'...
+[info] 
+[info] i  deploying functions 
+[debug] [2026-05-29T23:33:14.786Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:33:14.786Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:33:14.786Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b [none]
+[debug] [2026-05-29T23:33:14.865Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b 200
+[debug] [2026-05-29T23:33:14.865Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b {"projectNumber":"714931905484","projectId":"uatob-e7b4b","lifecycleState":"ACTIVE","name":"Uatob","labels":{"firebase":"enabled","firebase-core":"disabled"},"createTime":"2026-03-29T14:39:16.148Z"}
+[info] i  functions: preparing codebase default for deployment 
+[info] i  functions: ensuring required API cloudfunctions.googleapis.com is enabled... 
+[info] i  functions: ensuring required API cloudbuild.googleapis.com is enabled... 
+[info] i  artifactregistry: ensuring required API artifactregistry.googleapis.com is enabled... 
+[debug] [2026-05-29T23:33:14.869Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:33:14.869Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:33:14.869Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/uatob-e7b4b/adminSdkConfig [none]
+[debug] [2026-05-29T23:33:15.125Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/uatob-e7b4b/adminSdkConfig 200
+[debug] [2026-05-29T23:33:15.125Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/uatob-e7b4b/adminSdkConfig {"projectId":"uatob-e7b4b","storageBucket":"uatob-e7b4b.firebasestorage.app"}
+[debug] [2026-05-29T23:33:15.126Z] Validating nodejs source
+[warn] !  functions: Couldn't find firebase-functions package in your source code. Have you run 'npm install'? 
+[debug] [2026-05-29T23:33:15.128Z] getFunctionsSDKVersion encountered error: Cannot find module 'firebase-functions'
+Require stack:
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\versioning.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\prepare.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorShared.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\frameworks\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\hosting\prepare.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\hosting\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\commands\deploy.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\commands\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\cli.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js {"code":"MODULE_NOT_FOUND","requireStack":["C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\functions\\runtimes\\node\\versioning.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\functions\\runtimes\\node\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\functions\\runtimes\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\functions\\prepare.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\emulator\\functionsEmulatorShared.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\frameworks\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\hosting\\prepare.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\hosting\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\commands\\deploy.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\commands\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\bin\\cli.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\bin\\firebase.js"]}
+[debug] [2026-05-29T23:33:15.128Z] checkFunctionsSDKVersion encountered error: Invalid Version:  {}
+[debug] [2026-05-29T23:33:15.129Z] > [functions] package.json contents: {
+  "name": "functions",
+  "description": "Cloud Functions for Firebase",
+  "scripts": {
+    "serve": "firebase emulators:start --only functions",
+    "shell": "firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "24"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "@sendgrid/mail": "^8.1.6",
+    "axios": "^1.14.0",
+    "cors": "^2.8.6",
+    "firebase-admin": "^13.10.0",
+    "firebase-functions": "^7.2.5",
+    "stripe": "^12.18.0"
+  },
+  "devDependencies": {
+    "firebase-functions-test": "^3.4.1"
+  },
+  "private": true
+}
+[debug] [2026-05-29T23:33:15.129Z] Building nodejs source
+[info] i  functions: Loading and analyzing source code for codebase default to determine what to deploy 
+[debug] [2026-05-29T23:33:15.130Z] Could not parse firebase-functions version '' into semver.
+[debug] [2026-05-29T23:33:15.130Z] Could not find functions.yaml. Must use http discovery
+[debug] [2026-05-29T23:33:15.225Z] Error: Cannot find module 'firebase-functions'
+Require stack:
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\prepare.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorShared.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\frameworks\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\hosting\prepare.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\hosting\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\commands\deploy.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\commands\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\cli.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1456:15)
+    at require.resolve (node:internal/modules/helpers:163:19)
+    at Delegate.findFunctionsBinary (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:101:33)
+    at Delegate.spawnFunctionsProcess (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:131:30)
+    at Delegate.serveAdmin (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:152:35)
+    at Delegate.discoverBuild (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:192:41)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async loadCodebases (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\prepare.js:380:33)
+    at async prepare (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\prepare.js:73:24)
+    at async chain (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\index.js:45:9)
+[error] 
+[error] Error: An unexpected error has occurred.
+[debug] [2026-05-29T23:33:54.477Z] ----------------------------------------------------------------------
+[debug] [2026-05-29T23:33:54.480Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only functions:createDriverProfile
+[debug] [2026-05-29T23:33:54.480Z] CLI Version:   15.15.0
+[debug] [2026-05-29T23:33:54.480Z] Platform:      win32
+[debug] [2026-05-29T23:33:54.481Z] Node Version:  v24.14.0
+[debug] [2026-05-29T23:33:54.481Z] Time:          Fri May 29 2026 19:33:54 GMT-0400 (Eastern Daylight Time)
+[debug] [2026-05-29T23:33:54.481Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-05-29T23:33:56.260Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-05-29T23:33:56.260Z] > authorizing via signed-in user (support@calltelo.com)
+[debug] [2026-05-29T23:33:56.260Z] [iam] checking project uatob-e7b4b for permissions ["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]
+[debug] [2026-05-29T23:33:56.261Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:33:56.262Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:33:56.262Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions [none]
+[debug] [2026-05-29T23:33:56.263Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions  x-goog-user-project=uatob-e7b4b
+[debug] [2026-05-29T23:33:56.263Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2026-05-29T23:33:56.542Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions 200
+[debug] [2026-05-29T23:33:56.542Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2026-05-29T23:33:56.543Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:33:56.543Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:33:56.544Z] >>> [apiv2][query] POST https://iam.googleapis.com/v1/projects/uatob-e7b4b/serviceAccounts/uatob-e7b4b@appspot.gserviceaccount.com:testIamPermissions [none]
+[debug] [2026-05-29T23:33:56.544Z] >>> [apiv2][body] POST https://iam.googleapis.com/v1/projects/uatob-e7b4b/serviceAccounts/uatob-e7b4b@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[debug] [2026-05-29T23:33:56.757Z] <<< [apiv2][status] POST https://iam.googleapis.com/v1/projects/uatob-e7b4b/serviceAccounts/uatob-e7b4b@appspot.gserviceaccount.com:testIamPermissions 200
+[debug] [2026-05-29T23:33:56.757Z] <<< [apiv2][body] POST https://iam.googleapis.com/v1/projects/uatob-e7b4b/serviceAccounts/uatob-e7b4b@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[info] 
+[info] === Deploying to 'uatob-e7b4b'...
+[info] 
+[info] i  deploying functions 
+[debug] [2026-05-29T23:33:56.767Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:33:56.767Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:33:56.767Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b [none]
+[debug] [2026-05-29T23:33:56.863Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b 200
+[debug] [2026-05-29T23:33:56.863Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b {"projectNumber":"714931905484","projectId":"uatob-e7b4b","lifecycleState":"ACTIVE","name":"Uatob","labels":{"firebase":"enabled","firebase-core":"disabled"},"createTime":"2026-03-29T14:39:16.148Z"}
+[info] i  functions: preparing codebase default for deployment 
+[info] i  functions: ensuring required API cloudfunctions.googleapis.com is enabled... 
+[info] i  functions: ensuring required API cloudbuild.googleapis.com is enabled... 
+[info] i  artifactregistry: ensuring required API artifactregistry.googleapis.com is enabled... 
+[debug] [2026-05-29T23:33:56.867Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:33:56.867Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:33:56.868Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/uatob-e7b4b/adminSdkConfig [none]
+[debug] [2026-05-29T23:33:57.152Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/uatob-e7b4b/adminSdkConfig 200
+[debug] [2026-05-29T23:33:57.152Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/uatob-e7b4b/adminSdkConfig {"projectId":"uatob-e7b4b","storageBucket":"uatob-e7b4b.firebasestorage.app"}
+[debug] [2026-05-29T23:33:57.154Z] Validating nodejs source
+[warn] !  functions: Couldn't find firebase-functions package in your source code. Have you run 'npm install'? 
+[debug] [2026-05-29T23:33:57.155Z] getFunctionsSDKVersion encountered error: Cannot find module 'firebase-functions'
+Require stack:
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\versioning.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\prepare.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorShared.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\frameworks\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\hosting\prepare.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\hosting\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\commands\deploy.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\commands\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\cli.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js {"code":"MODULE_NOT_FOUND","requireStack":["C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\functions\\runtimes\\node\\versioning.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\functions\\runtimes\\node\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\functions\\runtimes\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\functions\\prepare.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\emulator\\functionsEmulatorShared.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\frameworks\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\hosting\\prepare.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\hosting\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\commands\\deploy.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\commands\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\bin\\cli.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\bin\\firebase.js"]}
+[debug] [2026-05-29T23:33:57.156Z] checkFunctionsSDKVersion encountered error: Invalid Version:  {}
+[debug] [2026-05-29T23:33:57.156Z] > [functions] package.json contents: {
+  "name": "functions",
+  "description": "Cloud Functions for Firebase",
+  "scripts": {
+    "serve": "firebase emulators:start --only functions",
+    "shell": "firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "24"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "@sendgrid/mail": "^8.1.6",
+    "axios": "^1.14.0",
+    "cors": "^2.8.6",
+    "firebase-admin": "^13.10.0",
+    "firebase-functions": "^7.2.5",
+    "stripe": "^12.18.0"
+  },
+  "devDependencies": {
+    "firebase-functions-test": "^3.4.1"
+  },
+  "private": true
+}
+[debug] [2026-05-29T23:33:57.157Z] Building nodejs source
+[info] i  functions: Loading and analyzing source code for codebase default to determine what to deploy 
+[debug] [2026-05-29T23:33:57.157Z] Could not parse firebase-functions version '' into semver.
+[debug] [2026-05-29T23:33:57.158Z] Could not find functions.yaml. Must use http discovery
+[debug] [2026-05-29T23:33:57.287Z] Error: Cannot find module 'firebase-functions'
+Require stack:
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\prepare.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorShared.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\frameworks\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\hosting\prepare.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\hosting\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\commands\deploy.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\commands\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\cli.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1456:15)
+    at require.resolve (node:internal/modules/helpers:163:19)
+    at Delegate.findFunctionsBinary (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:101:33)
+    at Delegate.spawnFunctionsProcess (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:131:30)
+    at Delegate.serveAdmin (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:152:35)
+    at Delegate.discoverBuild (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:192:41)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async loadCodebases (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\prepare.js:380:33)
+    at async prepare (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\prepare.js:73:24)
+    at async chain (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\index.js:45:9)
+[error] 
+[error] Error: An unexpected error has occurred.
+[debug] [2026-05-29T23:34:25.391Z] ----------------------------------------------------------------------
+[debug] [2026-05-29T23:34:25.395Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only functions:createDriverProfile
+[debug] [2026-05-29T23:34:25.395Z] CLI Version:   15.15.0
+[debug] [2026-05-29T23:34:25.395Z] Platform:      win32
+[debug] [2026-05-29T23:34:25.396Z] Node Version:  v24.14.0
+[debug] [2026-05-29T23:34:25.396Z] Time:          Fri May 29 2026 19:34:25 GMT-0400 (Eastern Daylight Time)
+[debug] [2026-05-29T23:34:25.396Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-05-29T23:34:27.208Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-05-29T23:34:27.209Z] > authorizing via signed-in user (support@calltelo.com)
+[debug] [2026-05-29T23:34:27.209Z] [iam] checking project uatob-e7b4b for permissions ["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]
+[debug] [2026-05-29T23:34:27.210Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:34:27.210Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:34:27.211Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions [none]
+[debug] [2026-05-29T23:34:27.211Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions  x-goog-user-project=uatob-e7b4b
+[debug] [2026-05-29T23:34:27.211Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2026-05-29T23:34:27.680Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions 200
+[debug] [2026-05-29T23:34:27.680Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2026-05-29T23:34:27.681Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:34:27.681Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:34:27.682Z] >>> [apiv2][query] POST https://iam.googleapis.com/v1/projects/uatob-e7b4b/serviceAccounts/uatob-e7b4b@appspot.gserviceaccount.com:testIamPermissions [none]
+[debug] [2026-05-29T23:34:27.682Z] >>> [apiv2][body] POST https://iam.googleapis.com/v1/projects/uatob-e7b4b/serviceAccounts/uatob-e7b4b@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[debug] [2026-05-29T23:34:27.907Z] <<< [apiv2][status] POST https://iam.googleapis.com/v1/projects/uatob-e7b4b/serviceAccounts/uatob-e7b4b@appspot.gserviceaccount.com:testIamPermissions 200
+[debug] [2026-05-29T23:34:27.907Z] <<< [apiv2][body] POST https://iam.googleapis.com/v1/projects/uatob-e7b4b/serviceAccounts/uatob-e7b4b@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[info] 
+[info] === Deploying to 'uatob-e7b4b'...
+[info] 
+[info] i  deploying functions 
+[debug] [2026-05-29T23:34:27.921Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:34:27.922Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:34:27.922Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b [none]
+[debug] [2026-05-29T23:34:28.007Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b 200
+[debug] [2026-05-29T23:34:28.007Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b {"projectNumber":"714931905484","projectId":"uatob-e7b4b","lifecycleState":"ACTIVE","name":"Uatob","labels":{"firebase":"enabled","firebase-core":"disabled"},"createTime":"2026-03-29T14:39:16.148Z"}
+[info] i  functions: preparing codebase default for deployment 
+[info] i  functions: ensuring required API cloudfunctions.googleapis.com is enabled... 
+[info] i  functions: ensuring required API cloudbuild.googleapis.com is enabled... 
+[info] i  artifactregistry: ensuring required API artifactregistry.googleapis.com is enabled... 
+[debug] [2026-05-29T23:34:28.010Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:34:28.010Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:34:28.010Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/uatob-e7b4b/adminSdkConfig [none]
+[debug] [2026-05-29T23:34:28.324Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/uatob-e7b4b/adminSdkConfig 200
+[debug] [2026-05-29T23:34:28.324Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/uatob-e7b4b/adminSdkConfig {"projectId":"uatob-e7b4b","storageBucket":"uatob-e7b4b.firebasestorage.app"}
+[debug] [2026-05-29T23:34:28.326Z] Validating nodejs source
+[warn] !  functions: Couldn't find firebase-functions package in your source code. Have you run 'npm install'? 
+[debug] [2026-05-29T23:34:28.337Z] getFunctionsSDKVersion encountered error: Cannot find module 'firebase-functions'
+Require stack:
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\versioning.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\prepare.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorShared.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\frameworks\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\hosting\prepare.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\hosting\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\commands\deploy.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\commands\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\cli.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js {"code":"MODULE_NOT_FOUND","requireStack":["C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\functions\\runtimes\\node\\versioning.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\functions\\runtimes\\node\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\functions\\runtimes\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\functions\\prepare.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\emulator\\functionsEmulatorShared.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\frameworks\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\hosting\\prepare.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\hosting\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\commands\\deploy.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\commands\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\bin\\cli.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\bin\\firebase.js"]}
+[debug] [2026-05-29T23:34:28.338Z] checkFunctionsSDKVersion encountered error: Invalid Version:  {}
+[debug] [2026-05-29T23:34:28.339Z] > [functions] package.json contents: {
+  "name": "functions",
+  "description": "Cloud Functions for Firebase",
+  "scripts": {
+    "serve": "firebase emulators:start --only functions",
+    "shell": "firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "24"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "@sendgrid/mail": "^8.1.6",
+    "axios": "^1.14.0",
+    "cors": "^2.8.6",
+    "firebase-admin": "^13.10.0",
+    "firebase-functions": "^7.2.5",
+    "stripe": "^12.18.0"
+  },
+  "devDependencies": {
+    "firebase-functions-test": "^3.4.1"
+  },
+  "private": true
+}
+[debug] [2026-05-29T23:34:28.339Z] Building nodejs source
+[info] i  functions: Loading and analyzing source code for codebase default to determine what to deploy 
+[debug] [2026-05-29T23:34:28.435Z] Could not parse firebase-functions version '' into semver.
+[debug] [2026-05-29T23:34:28.436Z] Could not find functions.yaml. Must use http discovery
+[debug] [2026-05-29T23:34:28.635Z] Error: Cannot find module 'firebase-functions'
+Require stack:
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\prepare.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorShared.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\frameworks\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\hosting\prepare.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\hosting\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\commands\deploy.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\commands\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\cli.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1456:15)
+    at require.resolve (node:internal/modules/helpers:163:19)
+    at Delegate.findFunctionsBinary (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:101:33)
+    at Delegate.spawnFunctionsProcess (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:131:30)
+    at Delegate.serveAdmin (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:152:35)
+    at Delegate.discoverBuild (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:192:41)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async loadCodebases (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\prepare.js:380:33)
+    at async prepare (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\prepare.js:73:24)
+    at async chain (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\index.js:45:9)
+[error] 
+[error] Error: An unexpected error has occurred.
+[debug] [2026-05-29T23:35:16.146Z] ----------------------------------------------------------------------
+[debug] [2026-05-29T23:35:16.149Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only functions:createDriverProfile
+[debug] [2026-05-29T23:35:16.149Z] CLI Version:   15.15.0
+[debug] [2026-05-29T23:35:16.149Z] Platform:      win32
+[debug] [2026-05-29T23:35:16.150Z] Node Version:  v24.14.0
+[debug] [2026-05-29T23:35:16.150Z] Time:          Fri May 29 2026 19:35:16 GMT-0400 (Eastern Daylight Time)
+[debug] [2026-05-29T23:35:16.150Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-05-29T23:35:17.830Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-05-29T23:35:17.831Z] > authorizing via signed-in user (support@calltelo.com)
+[debug] [2026-05-29T23:35:17.831Z] [iam] checking project uatob-e7b4b for permissions ["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]
+[debug] [2026-05-29T23:35:17.832Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:35:17.832Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:35:17.833Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions [none]
+[debug] [2026-05-29T23:35:17.833Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions  x-goog-user-project=uatob-e7b4b
+[debug] [2026-05-29T23:35:17.833Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2026-05-29T23:35:18.194Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions 200
+[debug] [2026-05-29T23:35:18.194Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2026-05-29T23:35:18.195Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:35:18.195Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:35:18.196Z] >>> [apiv2][query] POST https://iam.googleapis.com/v1/projects/uatob-e7b4b/serviceAccounts/uatob-e7b4b@appspot.gserviceaccount.com:testIamPermissions [none]
+[debug] [2026-05-29T23:35:18.196Z] >>> [apiv2][body] POST https://iam.googleapis.com/v1/projects/uatob-e7b4b/serviceAccounts/uatob-e7b4b@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[debug] [2026-05-29T23:35:18.959Z] <<< [apiv2][status] POST https://iam.googleapis.com/v1/projects/uatob-e7b4b/serviceAccounts/uatob-e7b4b@appspot.gserviceaccount.com:testIamPermissions 200
+[debug] [2026-05-29T23:35:18.960Z] <<< [apiv2][body] POST https://iam.googleapis.com/v1/projects/uatob-e7b4b/serviceAccounts/uatob-e7b4b@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[info] 
+[info] === Deploying to 'uatob-e7b4b'...
+[info] 
+[info] i  deploying functions 
+[debug] [2026-05-29T23:35:18.973Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:35:18.974Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:35:18.974Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b [none]
+[debug] [2026-05-29T23:35:19.078Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b 200
+[debug] [2026-05-29T23:35:19.079Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b {"projectNumber":"714931905484","projectId":"uatob-e7b4b","lifecycleState":"ACTIVE","name":"Uatob","labels":{"firebase":"enabled","firebase-core":"disabled"},"createTime":"2026-03-29T14:39:16.148Z"}
+[info] i  functions: preparing codebase default for deployment 
+[info] i  functions: ensuring required API cloudfunctions.googleapis.com is enabled... 
+[info] i  functions: ensuring required API cloudbuild.googleapis.com is enabled... 
+[info] i  artifactregistry: ensuring required API artifactregistry.googleapis.com is enabled... 
+[debug] [2026-05-29T23:35:19.089Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:35:19.089Z] Checked if tokens are valid: true, expires at: 1780099996608
+[debug] [2026-05-29T23:35:19.090Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/uatob-e7b4b/adminSdkConfig [none]
+[debug] [2026-05-29T23:35:19.428Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/uatob-e7b4b/adminSdkConfig 200
+[debug] [2026-05-29T23:35:19.429Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/uatob-e7b4b/adminSdkConfig {"projectId":"uatob-e7b4b","storageBucket":"uatob-e7b4b.firebasestorage.app"}
+[debug] [2026-05-29T23:35:19.434Z] Validating nodejs source
+[warn] !  functions: Couldn't find firebase-functions package in your source code. Have you run 'npm install'? 
+[debug] [2026-05-29T23:35:19.439Z] getFunctionsSDKVersion encountered error: Cannot find module 'firebase-functions'
+Require stack:
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\versioning.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\prepare.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorShared.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\frameworks\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\hosting\prepare.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\hosting\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\commands\deploy.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\commands\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\cli.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js {"code":"MODULE_NOT_FOUND","requireStack":["C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\functions\\runtimes\\node\\versioning.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\functions\\runtimes\\node\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\functions\\runtimes\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\functions\\prepare.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\emulator\\functionsEmulatorShared.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\frameworks\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\hosting\\prepare.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\hosting\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\deploy\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\commands\\deploy.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\commands\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\index.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\bin\\cli.js","C:\\Users\\UaTob\\AppData\\Roaming\\npm\\node_modules\\firebase-tools\\lib\\bin\\firebase.js"]}
+[debug] [2026-05-29T23:35:19.441Z] checkFunctionsSDKVersion encountered error: Invalid Version:  {}
+[debug] [2026-05-29T23:35:19.443Z] > [functions] package.json contents: {
+  "name": "functions",
+  "description": "Cloud Functions for Firebase",
+  "scripts": {
+    "serve": "firebase emulators:start --only functions",
+    "shell": "firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "24"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "@sendgrid/mail": "^8.1.6",
+    "axios": "^1.14.0",
+    "cors": "^2.8.6",
+    "firebase-admin": "^13.10.0",
+    "firebase-functions": "^7.2.5",
+    "stripe": "^12.18.0"
+  },
+  "devDependencies": {
+    "firebase-functions-test": "^3.4.1"
+  },
+  "private": true
+}
+[debug] [2026-05-29T23:35:19.444Z] Building nodejs source
+[info] i  functions: Loading and analyzing source code for codebase default to determine what to deploy 
+[debug] [2026-05-29T23:35:19.446Z] Could not parse firebase-functions version '' into semver.
+[debug] [2026-05-29T23:35:19.448Z] Could not find functions.yaml. Must use http discovery
+[debug] [2026-05-29T23:35:19.639Z] Error: Cannot find module 'firebase-functions'
+Require stack:
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\prepare.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorShared.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\frameworks\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\hosting\prepare.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\hosting\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\commands\deploy.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\commands\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\index.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\cli.js
+- C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1456:15)
+    at require.resolve (node:internal/modules/helpers:163:19)
+    at Delegate.findFunctionsBinary (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:101:33)
+    at Delegate.spawnFunctionsProcess (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:131:30)
+    at Delegate.serveAdmin (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:152:35)
+    at Delegate.discoverBuild (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:192:41)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async loadCodebases (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\prepare.js:380:33)
+    at async prepare (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\prepare.js:73:24)
+    at async chain (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\index.js:45:9)
+[error] 
+[error] Error: An unexpected error has occurred.
