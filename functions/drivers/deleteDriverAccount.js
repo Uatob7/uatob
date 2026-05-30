@@ -19,7 +19,7 @@ const db = admin.firestore();
  * Returns:
  *   { success: true, driverUid, deletedCounts: { rides, reviews } }
  */
-exports.deleteDriverAccount = onCall({ region: "us-east1" }, async (request) => {
+exports.deleteDriverAccount = onCall({ region: "us-central1" }, async (request) => {
   try {
     // ── Authorization: Only allow users to delete their own account ────────
     if (!request.auth || !request.auth.uid) {

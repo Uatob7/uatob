@@ -20,7 +20,7 @@ const db = admin.firestore();
  * Returns:
  *   { success: true, driverUid, deletedCounts: { rides, reviews } }
  */
-exports.deleteDriver = onCall({ region: "us-east1" }, async (request) => {
+exports.deleteDriver = onCall({ region: "us-central1" }, async (request) => {
   try {
     const { driverUid } = request.data ?? {};
 
