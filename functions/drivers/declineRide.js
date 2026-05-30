@@ -1,8 +1,10 @@
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
-const { initializeApp } = require("firebase-admin/app");
+const { initializeApp, getApps } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 
-initializeApp();
+if (!getApps().length) {
+  initializeApp();
+}
 
 const db = getFirestore();
 
@@ -21,11 +23,21 @@ exports.declineRide = onCall(
         updatedAt: FieldValue.serverTimestamp(),
       });
 
-      return { success: true, message: "Ride declined" };
+      return {
+        success: true,
+        message: "Ride declined",
+      };
     } catch (err) {
       console.error("[declineRide]", err);
-      if (err instanceof HttpsError) throw err;
-      throw new HttpsError("internal", err.message || "Failed to decline ride");
+
+      if (err instanceof HttpsError) {
+        throw err;
+      }
+
+      throw new HttpsError(
+        "internal",
+        err?.message || "Failed to decline ride"
+      );
     }
   }
 );
