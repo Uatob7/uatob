@@ -3,7 +3,7 @@ import {
   ArrowDownToLine, BadgeDollarSign, TrendingUp, TrendingDown,
   CheckCircle2, AlertCircle, Loader2, Sparkles,
   Banknote, Wallet, ChevronRight, Clock, Flame,
-  AlertTriangle, X, CreditCard, ShieldCheck, Calculator,
+  AlertTriangle, X, CreditCard, ShieldCheck, Calculator, Gift,
 } from 'lucide-react';
 import { C } from '@/App/Drivers/constants.js';
 import { getFunctions, httpsCallable } from 'firebase/functions';
@@ -26,7 +26,7 @@ function getTodayLabel() {
 
 // ── Pay Balance Modal ──────────────────────────────────────────────────
 function PayBalanceModal({ owedToUaTob, cashRideBreakdown, driverUid, onClose, onSuccess }) {
-  const [step,     setStep]     = useState("confirm"); // confirm | processing | done | error
+  const [step,     setStep]     = useState("confirm");
   const [errorMsg, setErrorMsg] = useState(null);
 
   const rides = cashRideBreakdown ?? [];
@@ -121,7 +121,6 @@ function PayBalanceModal({ owedToUaTob, cashRideBreakdown, driverUid, onClose, o
 
         {(step === "confirm" || step === "error") && (
           <div style={{ padding: "0 22px" }}>
-
             <div style={{
               background: "linear-gradient(135deg,#FEF2F2,#FEE2E2)",
               border: "1.5px solid rgba(239,68,68,.3)",
@@ -159,9 +158,7 @@ function PayBalanceModal({ owedToUaTob, cashRideBreakdown, driverUid, onClose, o
               <div style={{
                 background: C.surfaceAlt ?? "#1a1a1a",
                 border: `1px solid ${C.border ?? "#333"}`,
-                borderRadius: 14,
-                marginBottom: 16,
-                overflow: "hidden",
+                borderRadius: 14, marginBottom: 16, overflow: "hidden",
               }}>
                 <div className="mono" style={{
                   fontSize: 9.5, fontWeight: 700, letterSpacing: ".1em",
@@ -180,8 +177,7 @@ function PayBalanceModal({ owedToUaTob, cashRideBreakdown, driverUid, onClose, o
                     }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{
-                          fontSize: 12, fontWeight: 700,
-                          color: C.text ?? "#fff",
+                          fontSize: 12, fontWeight: 700, color: C.text ?? "#fff",
                           whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                         }}>
                           {(r.pickup ?? "").split(",")[0]} → {(r.dropoff ?? "").split(",")[0]}
@@ -191,8 +187,7 @@ function PayBalanceModal({ owedToUaTob, cashRideBreakdown, driverUid, onClose, o
                         </div>
                       </div>
                       <div style={{
-                        fontSize: 13, fontWeight: 800,
-                        color: "#EF4444",
+                        fontSize: 13, fontWeight: 800, color: "#EF4444",
                         fontVariantNumeric: "tabular-nums",
                         marginLeft: 10, flexShrink: 0,
                       }}>
@@ -219,16 +214,12 @@ function PayBalanceModal({ owedToUaTob, cashRideBreakdown, driverUid, onClose, o
 
             {step === "error" && errorMsg && (
               <div style={{
-                background: "#FEF2F2",
-                border: "1px solid #FCA5A5",
-                borderRadius: 10, padding: "10px 13px",
-                marginBottom: 14,
+                background: "#FEF2F2", border: "1px solid #FCA5A5",
+                borderRadius: 10, padding: "10px 13px", marginBottom: 14,
                 display: "flex", alignItems: "center", gap: 8,
               }}>
                 <AlertCircle size={14} color="#DC2626"/>
-                <span style={{ fontSize: 12, color: "#991B1B", fontWeight: 600 }}>
-                  {errorMsg}
-                </span>
+                <span style={{ fontSize: 12, color: "#991B1B", fontWeight: 600 }}>{errorMsg}</span>
               </div>
             )}
 
@@ -317,6 +308,220 @@ function PayBalanceModal({ owedToUaTob, cashRideBreakdown, driverUid, onClose, o
   );
 }
 
+// ── Rewards Card ───────────────────────────────────────────────────────
+function RewardsCard({ rewards, rewardsBalance }) {
+  const [expanded, setExpanded] = useState(false);
+
+  // Most recent 3 rewards for preview; all if expanded
+  const rewardsList = rewards ?? [];
+  const visible     = expanded ? rewardsList : rewardsList.slice(0, 3);
+  const hasMore     = rewardsList.length > 3;
+
+  if (rewardsBalance <= 0 && rewardsList.length === 0) return null;
+
+  return (
+    <div style={{
+      background: "linear-gradient(135deg,#0F172A,#1C1917 50%,#0F172A)",
+      border: "1.5px solid rgba(251,191,36,.25)",
+      borderRadius: 22, padding: "22px 20px",
+      position: "relative", overflow: "hidden",
+      boxShadow: "0 8px 28px rgba(251,191,36,.08)",
+      animation: "earnFadeIn .35s ease-out",
+    }}>
+      {/* Glow orb */}
+      <div style={{
+        position: "absolute", top: -60, right: -60,
+        width: 200, height: 200, borderRadius: "50%",
+        background: "radial-gradient(circle, rgba(251,191,36,0.18) 0%, transparent 70%)",
+        pointerEvents: "none",
+      }}/>
+      {/* Subtle dot grid */}
+      <div style={{
+        position: "absolute", inset: 0, opacity: 0.04,
+        backgroundImage:
+          "radial-gradient(circle, rgba(251,191,36,1) 1px, transparent 1px)",
+        backgroundSize: "22px 22px",
+        pointerEvents: "none",
+      }}/>
+
+      <div style={{ position: "relative" }}>
+        {/* Header row */}
+        <div style={{
+          display: "flex", alignItems: "flex-start",
+          justifyContent: "space-between", marginBottom: 14,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{
+              width: 42, height: 42,
+              background: "linear-gradient(135deg,#F59E0B,#D97706)",
+              borderRadius: 12,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              flexShrink: 0,
+              boxShadow: "0 6px 18px rgba(217,119,6,.40)",
+            }}>
+              <Gift size={20} color="#fff" strokeWidth={2.2}/>
+            </div>
+            <div>
+              <div className="mono" style={{
+                fontSize: 9.5, fontWeight: 700, letterSpacing: ".1em",
+                textTransform: "uppercase", color: "rgba(251,191,36,.7)",
+                marginBottom: 2,
+              }}>
+                UaTob Rewards
+              </div>
+              <div className="condensed" style={{
+                fontSize: 10, fontWeight: 600,
+                color: "rgba(255,255,255,.45)",
+                letterSpacing: ".02em",
+              }}>
+                Bonuses sent directly to your bank
+              </div>
+            </div>
+          </div>
+
+          {/* Balance pill */}
+          <div style={{
+            background: "linear-gradient(135deg,#F59E0B,#D97706)",
+            borderRadius: 100, padding: "5px 13px",
+            display: "flex", alignItems: "center", gap: 5,
+            boxShadow: "0 4px 14px rgba(217,119,6,.40)",
+          }}>
+            <Sparkles size={10} color="#fff" fill="#fff" strokeWidth={0}/>
+            <span className="condensed" style={{
+              fontSize: 15, fontWeight: 900, color: "#fff",
+              letterSpacing: "-0.3px",
+              fontVariantNumeric: "tabular-nums",
+            }}>
+              ${fmtMoney(rewardsBalance)}
+            </span>
+          </div>
+        </div>
+
+        {/* Big balance number */}
+        <div style={{ marginBottom: rewardsList.length > 0 ? 16 : 0 }}>
+          <div className="condensed" style={{
+            fontSize: 44, fontWeight: 900,
+            color: "#FCD34D",
+            letterSpacing: "-1px", lineHeight: 1,
+            fontVariantNumeric: "tabular-nums",
+          }}>
+            ${fmtMoney(rewardsBalance)}
+          </div>
+          <div style={{
+            fontSize: 11.5, fontWeight: 600,
+            color: "rgba(251,191,36,.55)",
+            marginTop: 4,
+            display: "flex", alignItems: "center", gap: 5,
+          }}>
+            <CheckCircle2 size={11} color="#F59E0B"/>
+            Already transferred · resets on next payout
+          </div>
+        </div>
+
+        {/* Reward history list */}
+        {rewardsList.length > 0 && (
+          <div style={{
+            background: "rgba(255,255,255,.04)",
+            border: "1px solid rgba(251,191,36,.12)",
+            borderRadius: 14, overflow: "hidden",
+          }}>
+            <div className="mono" style={{
+              fontSize: 9, fontWeight: 700, letterSpacing: ".1em",
+              textTransform: "uppercase",
+              color: "rgba(251,191,36,.5)",
+              padding: "9px 13px 7px",
+              borderBottom: "1px solid rgba(251,191,36,.10)",
+            }}>
+              Recent rewards
+            </div>
+
+            {visible.map((r, i) => {
+              const ts = r.awardedAt?.seconds
+                ? new Date(r.awardedAt.seconds * 1000)
+                : r.awardedAt ? new Date(r.awardedAt) : null;
+
+              const dateStr = ts
+                ? ts.toLocaleDateString([], { month: "short", day: "numeric" })
+                : "";
+
+              return (
+                <div
+                  key={r.id ?? i}
+                  style={{
+                    display: "flex", alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "10px 13px",
+                    borderBottom: i < visible.length - 1
+                      ? "1px solid rgba(251,191,36,.08)"
+                      : "none",
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontSize: 12, fontWeight: 700,
+                      color: "rgba(255,255,255,.85)",
+                      whiteSpace: "nowrap", overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}>
+                      {r.description ?? "Bonus reward"}
+                    </div>
+                    {dateStr && (
+                      <div style={{
+                        fontSize: 10, fontWeight: 500,
+                        color: "rgba(255,255,255,.35)",
+                        marginTop: 1,
+                      }}>
+                        {dateStr}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{
+                    fontSize: 13, fontWeight: 900,
+                    color: "#FCD34D",
+                    fontVariantNumeric: "tabular-nums",
+                    marginLeft: 10, flexShrink: 0,
+                  }}>
+                    +${fmtMoney(r.amount)}
+                  </div>
+                </div>
+              );
+            })}
+
+            {hasMore && (
+              <button
+                onClick={() => setExpanded(v => !v)}
+                style={{
+                  width: "100%", padding: "9px 13px",
+                  background: "transparent",
+                  border: "none",
+                  borderTop: "1px solid rgba(251,191,36,.10)",
+                  color: "rgba(251,191,36,.6)",
+                  fontFamily: "inherit",
+                  fontSize: 11, fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex", alignItems: "center",
+                  justifyContent: "center", gap: 5,
+                }}
+              >
+                {expanded
+                  ? "Show less"
+                  : `See all ${rewardsList.length} rewards`}
+                <ChevronRight
+                  size={12}
+                  style={{
+                    transform: expanded ? "rotate(270deg)" : "rotate(90deg)",
+                    transition: "transform .2s",
+                  }}
+                />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Component ─────────────────────────────────────────────────────
 export default function EarningsTab({ earnings, online, driver, onViewHistory }) {
   const [isSettingUpDeposit, setIsSettingUpDeposit] = useState(false);
@@ -334,34 +539,26 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
   const changePercent  = earnings?.week?.changePercent ?? 0;
   const dailyBreakdown = earnings?.week?.dailyBreakdown ?? [];
 
-  // ─── NEW WITHDRAWAL SCHEMA ────────────────────────────────────────────
+  // ─── Rewards ─────────────────────────────────────────────────────────
+  const rewardsBalance = driver?.rewardsBalance ?? 0;
+  const rewards        = driver?.rewards        ?? [];
+
+  // ─── Withdrawal schema ────────────────────────────────────────────────
   const withdrawal        = driver?.transferCapability === "enabled";
   const w                 = driver?.withdrawal || {};
 
-  // Card side: what we OWE the driver (gross)
   const totalPayout       = w.totalPayout       ?? 0;
   const rideCount         = w.rideCount         ?? 0;
   const cardRideBreakdown = w.rideBreakdown     ?? [];
 
-  // Cash side this cycle: what driver collected, owes UaTob
   const cashFeeOwed       = w.cashFeeOwed       ?? 0;
   const cashRideCount     = w.cashRideCount     ?? 0;
   const cashRideBreakdown = w.cashRideBreakdown ?? [];
 
-  // Carried-forward debt from previous cycles (long-running ledger)
   const carriedCashOwed   = w.carriedCashOwed   ?? 0;
-
-  // ⭐ NET: what actually transfers to the driver's bank
-  // (could be 0 if cash fees > card payout)
   const netPayout         = w.netPayout         ?? 0;
-
-  // After this settlement, what's still on the ledger
   const cashOwedAfter     = w.cashOwedAfter     ?? 0;
-
-  // Long-running balance across all cycles
   const cashOwedBalance   = driver?.cashOwedBalance ?? 0;
-
-  // Total combined cash debt (this cycle + carried)
   const totalCashOwed     = +(cashFeeOwed + carriedCashOwed).toFixed(2);
 
   const lastPaidAt        = w.paidAt;
@@ -369,20 +566,13 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
   const lastPayoutAmt     = (cardRideBreakdown ?? [])
     .reduce((s, r) => s + (Number(r.driverPayout) || 0), 0);
 
-  // ─── State flags ───────────────────────────────────────────────
-  const showSetupGate     = !driver?.accountId || withdrawal !== true;
-  const isPaid            = payoutStatus === "paid";
+  const showSetupGate  = !driver?.accountId || withdrawal !== true;
+  const isPaid         = payoutStatus === "paid";
+  const hasCashOwed    = totalCashOwed > 0 || cashOwedBalance > 0;
+  const nothingPending = totalPayout === 0 && cashRideCount === 0 && netPayout === 0;
+  const isOffsetting   = totalPayout > 0 && totalCashOwed > 0;
 
-  // Has cash debt to pay (this cycle OR carried OR on the long-running ledger)
-  const hasCashOwed       = totalCashOwed > 0 || cashOwedBalance > 0;
-
-  // Combined "anything pending" check
-  const nothingPending    = totalPayout === 0 && cashRideCount === 0 && netPayout === 0;
-
-  // Card payouts get partially or fully eaten by cash debt
-  const isOffsetting      = totalPayout > 0 && totalCashOwed > 0;
-
-  // Streak ─────────────────────────────────────────────────────────────
+  // Streak
   const streak = useMemo(() => {
     if (!dailyBreakdown.length) return 0;
     let count = 0;
@@ -399,7 +589,6 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
   const maxAmount = Math.max(...dailyBreakdown.map(d => d.amount ?? 0), 1);
   const weekAvg   = weekTrips > 0 ? weekEarnings / weekTrips : 0;
 
-  // Setup deposit ─────────────────────────────────────────────────────
   const handleSetupDeposit = async () => {
     setIsSettingUpDeposit(true);
     setFeedback(null);
@@ -412,13 +601,11 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
         setIsSettingUpDeposit(false);
       }
     } catch (err) {
-      console.error(err);
       setFeedback({ type: "error", message: err?.message || "Stripe setup failed. Try again." });
       setIsSettingUpDeposit(false);
     }
   };
 
-  // Process withdrawal ────────────────────────────────────────────────
   const handleWithdraw = async () => {
     if (netPayout === 0 || isWithdrawing) return;
     setIsWithdrawing(true);
@@ -435,7 +622,6 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
         setFeedback({ type: "error", message: data?.error || "Withdrawal failed" });
       }
     } catch (err) {
-      console.error(err);
       setFeedback({ type: "error", message: err?.message || "Withdrawal failed. Try again." });
     } finally {
       setIsWithdrawing(false);
@@ -461,6 +647,10 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
           @keyframes earnPulseRed{ 0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,.4); } 50% { box-shadow: 0 0 0 10px rgba(239,68,68,0); } }
           @keyframes earnGlow    { 0%,100% { opacity:.6;transform:scale(1); } 50% { opacity:1;transform:scale(1.1); } }
           @keyframes earnFadeIn  { from { opacity:0;transform:translateY(-4px); } to { opacity:1;transform:translateY(0); } }
+          @keyframes rewardShimmer {
+            0%   { background-position: -200% center; }
+            100% { background-position:  200% center; }
+          }
         `}</style>
 
         {/* Header */}
@@ -473,7 +663,7 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
           </div>
         </div>
 
-        {/* Hero today's earnings card */}
+        {/* ── Hero today card ─────────────────────────────────────────── */}
         <div style={{
           background: online
             ? "linear-gradient(135deg,#0F172A,#1E293B 50%,#0F172A)"
@@ -575,7 +765,7 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
           </div>
         </div>
 
-        {/* Streak */}
+        {/* ── Streak ──────────────────────────────────────────────────── */}
         {streak >= 2 && (
           <div style={{
             background: "linear-gradient(135deg,#FFFBEB,#FEF3C7)",
@@ -603,9 +793,10 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
           </div>
         )}
 
-        {/* ════════════════════════════════════════════════════════════
-            CASH OWED BANNER (carried + this cycle + ledger)
-        ════════════════════════════════════════════════════════════ */}
+        {/* ── Rewards card (shows when rewardsBalance > 0 OR has history) */}
+        <RewardsCard rewards={rewards} rewardsBalance={rewardsBalance} />
+
+        {/* ── Cash owed banner ─────────────────────────────────────────── */}
         {hasCashOwed && (
           <div style={{
             background: "linear-gradient(135deg,#FEF2F2,#FEE2E2 50%,#FEF2F2)",
@@ -664,13 +855,11 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
                   : "Outstanding from previous cycles"}
               </div>
 
-              {/* Carried-forward note */}
               {carriedCashOwed > 0 && cashFeeOwed > 0 && (
                 <div style={{
                   background: "rgba(217,119,6,.08)",
                   border: "1px solid rgba(217,119,6,.20)",
-                  borderRadius: 10, padding: "8px 12px",
-                  marginBottom: 12,
+                  borderRadius: 10, padding: "8px 12px", marginBottom: 12,
                   display: "flex", alignItems: "center", gap: 8,
                   fontSize: 11.5, color: "#92400E", fontWeight: 600,
                 }}>
@@ -681,13 +870,11 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
                 </div>
               )}
 
-              {/* Auto-offset explainer */}
               {isOffsetting ? (
                 <div style={{
                   background: "rgba(37,99,235,.08)",
                   border: "1px solid rgba(37,99,235,.20)",
-                  borderRadius: 11, padding: "10px 13px",
-                  marginBottom: 16,
+                  borderRadius: 11, padding: "10px 13px", marginBottom: 16,
                   display: "flex", alignItems: "flex-start", gap: 8,
                 }}>
                   <Sparkles size={13} color="#2563EB" style={{ flexShrink: 0, marginTop: 1 }}/>
@@ -710,7 +897,6 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
                 </div>
               )}
 
-              {/* Show pay button only if NOT offsetting */}
               {!isOffsetting && (
                 <>
                   <button
@@ -729,7 +915,6 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
                     <CreditCard size={17} strokeWidth={2.4}/>
                     Pay ${fmtMoney(totalCashOwed || cashOwedBalance)} Balance
                   </button>
-
                   <div style={{
                     marginTop: 10,
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
@@ -744,11 +929,8 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
           </div>
         )}
 
-        {/* ════════════════════════════════════════════════════════════
-            WITHDRAWAL FLOW
-        ════════════════════════════════════════════════════════════ */}
+        {/* ── Withdrawal flow ──────────────────────────────────────────── */}
         {showSetupGate ? (
-          // ─── Stripe setup gate ──────────────────────────────────
           <div style={{
             background: "linear-gradient(135deg,#EFF6FF,#DBEAFE)",
             border: "1.5px solid rgba(37,99,235,.25)",
@@ -760,7 +942,6 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
               width: 140, height: 140, borderRadius: "50%",
               background: "rgba(37,99,235,0.08)", pointerEvents: "none",
             }}/>
-
             <div style={{ position: "relative" }}>
               <div style={{
                 width: 56, height: 56,
@@ -771,14 +952,12 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
               }}>
                 <BadgeDollarSign size={26} color="#fff" strokeWidth={2}/>
               </div>
-
               <div className="condensed" style={{ fontSize: 20, fontWeight: 900, color: "#1E3A8A", marginBottom: 6, letterSpacing: "-0.3px" }}>
                 Set up payouts
               </div>
               <div style={{ fontSize: 13, color: "#1E40AF", fontWeight: 500, marginBottom: 18, lineHeight: 1.5 }}>
                 Connect your bank via Stripe to receive deposits within 24 hours of completing rides.
               </div>
-
               {feedback?.type === "error" && (
                 <div style={{
                   background: "#FEF2F2", border: "1px solid #FCA5A5",
@@ -790,7 +969,6 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
                   <span style={{ fontSize: 12, color: "#991B1B", fontWeight: 600 }}>{feedback.message}</span>
                 </div>
               )}
-
               <button
                 onClick={handleSetupDeposit}
                 disabled={isSettingUpDeposit}
@@ -812,7 +990,6 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
                   <><BadgeDollarSign size={16}/> Connect Stripe Account</>
                 )}
               </button>
-
               <div style={{
                 marginTop: 12,
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
@@ -824,7 +1001,6 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
           </div>
 
         ) : nothingPending ? (
-          // ─── Nothing pending ────────────────────────────────────
           <div style={{
             background: C.surface, border: `1.5px solid ${C.border}`,
             borderRadius: 22, padding: "22px 20px", position: "relative",
@@ -870,7 +1046,6 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
                 )}
               </div>
             </div>
-
             {isPaid && onViewHistory && (
               <button
                 onClick={onViewHistory}
@@ -891,7 +1066,6 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
           </div>
 
         ) : (
-          // ─── Available to withdraw (shows NET payout after offsets) ──
           <div style={{
             background: "linear-gradient(135deg,#F0FDF4,#DCFCE7,#F0FDF4)",
             border: "1.5px solid rgba(22,163,74,.3)",
@@ -929,7 +1103,6 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
                 </div>
               </div>
 
-              {/* NET payout (the actual transfer amount) */}
               <div className="condensed" style={{
                 fontSize: 48, fontWeight: 900, color: C.text,
                 letterSpacing: "-1.2px", lineHeight: 1, marginBottom: 6,
@@ -943,13 +1116,11 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
                 {rideCount} ride{rideCount !== 1 ? "s" : ""} · instant transfer to bank
               </div>
 
-              {/* ─── BREAKDOWN: gross → cash debt → net ─── */}
               {isOffsetting && (
                 <div style={{
                   background: "rgba(255,255,255,.65)",
                   border: "1px solid rgba(22,163,74,.18)",
-                  borderRadius: 12, padding: "12px 14px",
-                  marginBottom: 16,
+                  borderRadius: 12, padding: "12px 14px", marginBottom: 16,
                   display: "flex", flexDirection: "column", gap: 6,
                 }}>
                   <div className="mono" style={{
@@ -958,20 +1129,14 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
                   }}>
                     Settlement
                   </div>
-                  <div style={{
-                    display: "flex", justifyContent: "space-between", alignItems: "center",
-                    fontSize: 12, color: C.textMid, fontWeight: 600,
-                  }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, color: C.textMid, fontWeight: 600 }}>
                     <span>Card payout</span>
                     <span className="mono" style={{ color: C.text, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
                       ${fmtMoney(totalPayout)}
                     </span>
                   </div>
                   {cashFeeOwed > 0 && (
-                    <div style={{
-                      display: "flex", justifyContent: "space-between", alignItems: "center",
-                      fontSize: 12, color: "#991B1B", fontWeight: 600,
-                    }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, color: "#991B1B", fontWeight: 600 }}>
                       <span>Cash fees this cycle</span>
                       <span className="mono" style={{ fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
                         −${fmtMoney(cashFeeOwed)}
@@ -979,24 +1144,15 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
                     </div>
                   )}
                   {carriedCashOwed > 0 && (
-                    <div style={{
-                      display: "flex", justifyContent: "space-between", alignItems: "center",
-                      fontSize: 12, color: "#991B1B", fontWeight: 600,
-                    }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, color: "#991B1B", fontWeight: 600 }}>
                       <span>Carried from previous</span>
                       <span className="mono" style={{ fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
                         −${fmtMoney(carriedCashOwed)}
                       </span>
                     </div>
                   )}
-                  <div style={{
-                    height: 1, background: "rgba(22,163,74,.20)",
-                    margin: "4px 0",
-                  }}/>
-                  <div style={{
-                    display: "flex", justifyContent: "space-between", alignItems: "center",
-                    fontSize: 13, fontWeight: 800,
-                  }}>
+                  <div style={{ height: 1, background: "rgba(22,163,74,.20)", margin: "4px 0" }}/>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, fontWeight: 800 }}>
                     <span style={{ color: "#15803D" }}>Net to bank</span>
                     <span className="mono" style={{ color: "#15803D", fontVariantNumeric: "tabular-nums" }}>
                       ${fmtMoney(netPayout)}
@@ -1077,7 +1233,7 @@ export default function EarningsTab({ earnings, online, driver, onViewHistory })
           </div>
         )}
 
-        {/* Weekly chart */}
+        {/* ── Weekly chart ─────────────────────────────────────────────── */}
         <div style={{
           background: C.surface, border: `1px solid ${C.border}`,
           borderRadius: 20, padding: "22px",
