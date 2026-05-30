@@ -10,6 +10,7 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getMessaging, getToken } from 'firebase/messaging';
 import { firebase_app } from '@/firebase/config';
 
+
 const db        = getFirestore(firebase_app);
 const functions = getFunctions(firebase_app, 'us-east1');
 const callableExtendRideSearch = httpsCallable(functions, 'extendRideSearch');
