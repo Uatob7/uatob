@@ -89,6 +89,7 @@ const { computeRideAnalytics } = require("./admin/computeRideAnalytics");
 const { adminSendDriverMessage } = require("./admin/adminSendDriverMessage");
 const { announceCashRides } = require("./admin/email/announceCashRides");
 const { announceOnlineDrivers } = require("./admin/announceOnlineDrivers");
+const { awardDriverReward } = require("./admin/awardDriverReward");
 
 
 // Exports
@@ -171,3 +172,4 @@ exports.approveDriver = approveDriver;
 exports.rejectDriver = rejectDriver;
 exports.computeRideAnalytics = computeRideAnalytics;
 exports.announceOnlineDrivers = announceOnlineDrivers;
+exports.awardDriverReward = awardDriverReward;

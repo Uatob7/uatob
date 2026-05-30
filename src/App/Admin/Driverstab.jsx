@@ -1088,6 +1088,16 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
     return () => unsub();
   }, [driverId]);
 
+  // ── Reward history from d.rewards array (most recent first) ────────────
+  const rewardHistory = useMemo(() => {
+    if (!Array.isArray(d?.rewards) || d?.rewards?.length === 0) return [];
+    return [...d.rewards].sort((a, b) => {
+      const ta = a.awardedAt?.seconds ?? 0;
+      const tb = b.awardedAt?.seconds ?? 0;
+      return tb - ta;
+    });
+  }, [d?.rewards]);
+
   const handleApprove = async () => {
     if (approving) return;
     setApproving(true);
@@ -1181,16 +1191,6 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
 
   const isPendingReview = d.status === "pending" || d.status === "in_progress";
   const canSuspend      = ["approved", "online", "offline"].includes(d.status);
-
-  // ── Reward history from d.rewards array (most recent first) ────────────
-  const rewardHistory = useMemo(() => {
-    if (!Array.isArray(d.rewards) || d.rewards.length === 0) return [];
-    return [...d.rewards].sort((a, b) => {
-      const ta = a.awardedAt?.seconds ?? 0;
-      const tb = b.awardedAt?.seconds ?? 0;
-      return tb - ta;
-    });
-  }, [d.rewards]);
 
   return (
     <div style={{ padding: "0 16px 24px" }}>

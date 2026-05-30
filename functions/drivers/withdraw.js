@@ -20,7 +20,7 @@ function buildRideIdsMetadata(rideIds) {
   return `${out}...+${rideIds.length - out.split(",").length}more`;
 }
 
-exports.processWithdrawal = onCall(
+exports.withdraw = onCall(
   { region: "us-east1", secrets: ["STRIPE_SECRET_KEY"] },
   async (request) => {
     const { uid } = request.data || {};
