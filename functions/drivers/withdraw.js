@@ -282,3 +282,4 @@ async function logAttempt(uid, payload) {
     console.warn("[processWithdrawal] logAttempt failed:", err.message);
   }
 }
+
