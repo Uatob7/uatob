@@ -1,4 +1,3 @@
-// src/App/UaTob/ConfirmationModal.jsx
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Clock, Car, CheckCircle, RotateCcw, Loader2, Bell,
@@ -26,11 +25,11 @@ const PANEL_INTERVAL   = 4500;
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function getSecondsRemaining(expiresAt) {
-  if (!expiresAt) return 0;
+  if (!expiresAt) return null; // null = not yet set
   const ms = expiresAt instanceof Date
     ? expiresAt.getTime()
     : expiresAt?.toDate?.()?.getTime?.() ?? new Date(expiresAt).getTime();
-  if (!ms || isNaN(ms)) return 0;
+  if (!ms || isNaN(ms)) return null;
   return Math.max(0, Math.floor((ms - Date.now()) / 1000));
 }
 
@@ -59,7 +58,7 @@ function formatDateTime(ts) {
 
 function paymentLabel(method) {
   if (!method) return null;
-  const map = { cashapp: 'Cash App', card: 'Card', apple_pay: 'Apple Pay', google_pay: 'Google Pay' };
+  const map = { cashapp: 'Cash App', card: 'Card', cash: 'Cash', apple_pay: 'Apple Pay', google_pay: 'Google Pay' };
   return map[method.toLowerCase()] ?? method;
 }
 
@@ -102,7 +101,7 @@ function RadarOverlay({ sweepAngle }) {
   );
 }
 
-// ── Meta chip (compact stat for the strip) ─────────────────────────────────
+// ── Meta chip ──────────────────────────────────────────────────────────────
 function MetaChip({ label, value, align = 'flex-start' }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: align, flexShrink: 0 }}>
@@ -120,7 +119,7 @@ function MetaDivider() {
   return <div style={{ width: 1, height: 22, background: 'rgba(255,255,255,.06)' }}/>;
 }
 
-// ── Cycling info card (searching state) ───────────────────────────────────
+// ── Cycling info card ──────────────────────────────────────────────────────
 function CyclingCard({
   secondsLeft, isUrgent, progress, total, miles,
   candidateDrivers,
@@ -133,16 +132,17 @@ function CyclingCard({
 }) {
   const autoRef = useRef(null);
 
-  const minutes = Math.floor(secondsLeft / 60);
-  const seconds = secondsLeft % 60;
+  // secondsLeft === null means expiresAt not yet on the doc
+  const isPending = secondsLeft === null;
+  const minutes   = isPending ? null : Math.floor(secondsLeft / 60);
+  const seconds   = isPending ? null : secondsLeft % 60;
 
   const needsPhone = accountPhone !== null && !accountPhone && !phoneSkipped && !!riderUid;
   const needsNotif = !notifDone;
   const needsLoc   = !locationDone;
 
-  // Build active panel list
   const activePanels = useMemo(() => {
-    const list = [0, 1]; // timer + candidates always
+    const list = [0, 1];
     if (needsNotif) list.push(2);
     if (needsLoc)   list.push(3);
     if (needsPhone) list.push(4);
@@ -169,10 +169,10 @@ function CyclingCard({
     autoRef.current = setInterval(advance, PANEL_INTERVAL);
   };
 
-  const accentColor   = isUrgent ? '#EF4444' : '#22C55E';
-  const accentBg      = isUrgent ? 'rgba(239,68,68,0.08)' : 'rgba(34,197,94,0.06)';
-  const accentBorder  = isUrgent ? 'rgba(239,68,68,0.22)' : 'rgba(34,197,94,0.16)';
-  const accentMuted   = isUrgent ? 'rgba(252,165,165,.55)' : 'rgba(134,239,172,.5)';
+  const accentColor  = isUrgent ? '#EF4444' : '#22C55E';
+  const accentBg     = isUrgent ? 'rgba(239,68,68,0.08)' : 'rgba(34,197,94,0.06)';
+  const accentBorder = isUrgent ? 'rgba(239,68,68,0.22)' : 'rgba(34,197,94,0.16)';
+  const accentMuted  = isUrgent ? 'rgba(252,165,165,.55)' : 'rgba(134,239,172,.5)';
 
   const panelLabels = ['Timer','Nearby','Alerts','Location','Phone','Share'];
 
@@ -182,8 +182,8 @@ function CyclingCard({
   const [phoneErr, setPhoneErr]       = useState('');
   const [phoneDone, setPhoneDone]     = useState(false);
 
-  const phoneDigits = digitsOnly(phoneVal);
-  const phoneValid  = phoneDigits.length === 10 || (phoneDigits.length === 11 && phoneDigits[0] === '1');
+  const phoneDigits  = digitsOnly(phoneVal);
+  const phoneValid   = phoneDigits.length === 10 || (phoneDigits.length === 11 && phoneDigits[0] === '1');
   const canSavePhone = phoneValid && !phoneSaving && !phoneDone;
 
   const handleSavePhone = async () => {
@@ -264,19 +264,41 @@ function CyclingCard({
         {/* ── Top row: timer | fare ── */}
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.13em', textTransform: 'uppercase', color: accentMuted, marginBottom: 3 }}>
-              {isUrgent ? '⚡ Almost out of time' : 'Time remaining'}
-            </div>
             <div style={{
-              fontFamily: '"JetBrains Mono","Courier New",monospace',
-              fontSize: 42, fontWeight: 700, lineHeight: 1, letterSpacing: '-3px',
-              color: accentColor,
+              fontSize: 9, fontWeight: 800, letterSpacing: '.13em',
+              textTransform: 'uppercase', color: accentMuted, marginBottom: 3,
             }}>
-              {String(minutes).padStart(2,'0')}
-              <span style={{ opacity: .45, animation: 'timerBeat .5s ease-in-out infinite' }}>:</span>
-              {String(seconds).padStart(2,'0')}
+              {isPending ? 'Searching' : isUrgent ? '⚡ Almost out of time' : 'Time remaining'}
             </div>
+
+            {/* ── Timer display — pending vs counting ── */}
+            {isPending ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, height: 42 }}>
+                <Loader2
+                  size={18}
+                  color={accentColor}
+                  style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }}
+                />
+                <span style={{
+                  fontFamily: '"JetBrains Mono","Courier New",monospace',
+                  fontSize: 16, fontWeight: 700, color: accentColor, letterSpacing: '-.5px',
+                }}>
+                  Finding drivers…
+                </span>
+              </div>
+            ) : (
+              <div style={{
+                fontFamily: '"JetBrains Mono","Courier New",monospace',
+                fontSize: 42, fontWeight: 700, lineHeight: 1, letterSpacing: '-3px',
+                color: accentColor,
+              }}>
+                {String(minutes).padStart(2,'0')}
+                <span style={{ opacity: .45, animation: 'timerBeat .5s ease-in-out infinite' }}>:</span>
+                {String(seconds).padStart(2,'0')}
+              </div>
+            )}
           </div>
+
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
             <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.13em', textTransform: 'uppercase', color: accentMuted, marginBottom: 2 }}>
               Fare
@@ -287,16 +309,19 @@ function CyclingCard({
           </div>
         </div>
 
-        {/* Timer progress bar */}
-        <div style={{ height: 3, borderRadius: 99, background: 'rgba(255,255,255,.07)', marginBottom: 10, overflow: 'hidden' }}>
-          <div style={{
-            height: '100%', width: `${progress}%`,
-            background: isUrgent ? 'linear-gradient(90deg,#F59E0B,#EF4444)' : 'linear-gradient(90deg,#22C55E,#16A34A)',
-            borderRadius: 99, transition: 'width 1s linear',
-          }}/>
-        </div>
+        {/* Timer progress bar — hide when pending */}
+        {!isPending && (
+          <div style={{ height: 3, borderRadius: 99, background: 'rgba(255,255,255,.07)', marginBottom: 10, overflow: 'hidden' }}>
+            <div style={{
+              height: '100%', width: `${progress}%`,
+              background: isUrgent ? 'linear-gradient(90deg,#F59E0B,#EF4444)' : 'linear-gradient(90deg,#22C55E,#16A34A)',
+              borderRadius: 99, transition: 'width 1s linear',
+            }}/>
+          </div>
+        )}
+        {isPending && <div style={{ height: 3, marginBottom: 10 }}/>}
 
-        {/* ── Thin meta strip ── */}
+        {/* ── Meta strip ── */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
           paddingBottom: 11, borderBottom: '1px solid rgba(255,255,255,.07)',
@@ -322,8 +347,7 @@ function CyclingCard({
                     borderRadius: i === activeIdx ? 3 : '50%',
                     background: i === activeIdx ? accentColor : 'rgba(255,255,255,.18)',
                     border: 'none', padding: 0, cursor: 'pointer',
-                    transition: 'all .25s',
-                    flexShrink: 0,
+                    transition: 'all .25s', flexShrink: 0,
                   }}
                 />
               ))}
@@ -333,7 +357,6 @@ function CyclingCard({
             </div>
           </div>
 
-          {/* Panel content */}
           <div style={{ minHeight: PANEL_MIN_H }}>
 
             {/* 0 — Timer status */}
@@ -349,11 +372,11 @@ function CyclingCard({
               </div>
             )}
 
-            {/* 1 — Candidate drivers summary */}
+            {/* 1 — Candidate drivers */}
             {panelId === 1 && (() => {
-              const count    = (candidateDrivers ?? []).length;
-              const closest  = topDrivers[0];
-              const hasAny   = count > 0;
+              const count   = (candidateDrivers ?? []).length;
+              const closest = topDrivers[0];
+              const hasAny  = count > 0;
               return (
                 <div key="p1" style={{ animation: 'fadeUp .28s ease', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: PANEL_MIN_H }}>
                   {!hasAny ? (
@@ -365,16 +388,11 @@ function CyclingCard({
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <div style={{
                         width: 44, height: 44, borderRadius: 12,
-                        background: 'rgba(34,197,94,.12)',
-                        border: '1px solid rgba(34,197,94,.25)',
-                        display: 'flex', flexDirection: 'column',
-                        alignItems: 'center', justifyContent: 'center',
-                        flexShrink: 0,
-                        boxShadow: '0 0 12px rgba(34,197,94,.15)',
+                        background: 'rgba(34,197,94,.12)', border: '1px solid rgba(34,197,94,.25)',
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0, boxShadow: '0 0 12px rgba(34,197,94,.15)',
                       }}>
-                        <div style={{ fontFamily: 'monospace', fontSize: 18, fontWeight: 800, color: '#4ADE80', lineHeight: 1 }}>
-                          {count}
-                        </div>
+                        <div style={{ fontFamily: 'monospace', fontSize: 18, fontWeight: 800, color: '#4ADE80', lineHeight: 1 }}>{count}</div>
                         <div style={{ fontSize: 7, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', color: 'rgba(74,222,128,.7)', marginTop: 1 }}>
                           {count === 1 ? 'driver' : 'drivers'}
                         </div>
@@ -546,7 +564,7 @@ function CyclingCard({
 // ── Main Modal ─────────────────────────────────────────────────────────────
 export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry, onCancel, account, rides }) {
   const [status, setStatus]               = useState('checking_payment');
-  const [secondsLeft, setSecondsLeft]     = useState(0);
+  const [secondsLeft, setSecondsLeft]     = useState(null); // null = expiresAt not yet known
   const [driver, setDriver]               = useState(null);
   const [visible, setVisible]             = useState(false);
   const [collapsed, setCollapsed]         = useState(false);
@@ -583,6 +601,32 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
   const rideId      = currentRide?.id ?? null;
   const riderUid    = currentRide?.uid ?? null;
 
+  // Derived
+  const total    = useMemo(() => { const v = Number(currentRide?.fareTotal ?? 0); return Number.isFinite(v) ? v.toFixed(2) : '0.00'; }, [currentRide]);
+  const miles    = useMemo(() => { const v = Number(currentRide?.tripDistanceMiles ?? 0); return Number.isFinite(v) ? v.toFixed(1) : '0.0'; }, [currentRide]);
+  const progress = useMemo(() => {
+    if (!currentRide?.createdAt) return 0;
+    const ms = currentRide.createdAt instanceof Date
+      ? currentRide.createdAt.getTime()
+      : currentRide.createdAt?.toDate?.()?.getTime?.() ?? new Date(currentRide.createdAt).getTime();
+    if (isNaN(ms)) return 0;
+    return (Math.min(SEARCH_LIMIT_SEC, Math.floor((Date.now() - ms) / 1000)) / SEARCH_LIMIT_SEC) * 100;
+  }, [currentRide?.createdAt, secondsLeft]);
+
+  // secondsLeft null = expiresAt pending; treat as not urgent
+  const isPending = secondsLeft === null;
+  const isUrgent  = !isPending && secondsLeft < 60;
+  const minutes   = isPending ? null : Math.floor(secondsLeft / 60);
+  const seconds   = isPending ? null : secondsLeft % 60;
+
+  const pickup           = currentRide?.pickup  ?? '—';
+  const dropoff          = currentRide?.dropoff ?? '—';
+  const rideLabel        = currentRide?.rideLabel ?? currentRide?.rideType ?? 'Ride';
+  const candidateDrivers = currentRide?.candidateDrivers ?? [];
+  const paymentMethod    = currentRide?.paymentMethod ?? null;
+  const createdAt        = currentRide?.createdAt ?? null;
+  const requestSentAt    = currentRide?.requestSentAt ?? null;
+
   // Mount / unmount
   useEffect(() => {
     mountedRef.current = true;
@@ -616,7 +660,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
     }, err => console.warn('[ConfirmationModal] snapshot error:', err));
   }, [rideId]);
 
-  // Account snapshot — also detects existing phone + token to skip panels
+  // Account snapshot
   useEffect(() => {
     if (!riderUid) return;
     try { accountUnsubRef.current?.(); } catch {}
@@ -658,34 +702,55 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
       clearInterval(timerRef.current); timerRef.current = null;
       setStatus('timeout');
     }
-  }, [currentRide]);
+  }, [currentRide]); // eslint-disable-line
 
-  // Countdown
+  // ── Countdown — null-safe: never timeout when expiresAt is missing ────────
   useEffect(() => {
-    if (status !== 'searching') { clearInterval(timerRef.current); timerRef.current = null; return; }
+    if (status !== 'searching') {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+      return;
+    }
+
     const update = () => {
-      if (!currentRide?.expiresAt) { setSecondsLeft(0); return; }
+      // expiresAt not yet written by the scheduler — hold at null, never timeout
+      if (!currentRide?.expiresAt) {
+        setSecondsLeft(null);
+        return;
+      }
+
       const remaining = getSecondsRemaining(currentRide.expiresAt);
+
+      // getSecondsRemaining returned null (bad timestamp) — hold, don't timeout
+      if (remaining === null) {
+        setSecondsLeft(null);
+        return;
+      }
+
       setSecondsLeft(remaining);
+
       if (remaining <= 0 && !didTimeoutRef.current) {
         didTimeoutRef.current = true;
-        clearInterval(timerRef.current); timerRef.current = null;
+        clearInterval(timerRef.current);
+        timerRef.current = null;
         setStatus('timeout');
       }
     };
-    update(); clearInterval(timerRef.current);
+
+    update();
+    clearInterval(timerRef.current);
     timerRef.current = setInterval(update, 1000);
     return () => { clearInterval(timerRef.current); timerRef.current = null; };
-  }, [status, currentRide?.expiresAt]);
+  }, [status, currentRide?.expiresAt]); // eslint-disable-line
 
   // Auto-close on assigned
   useEffect(() => {
     if (status !== 'assigned') return;
     const t = setTimeout(() => { if (mountedRef.current) handleClose(); }, 1800);
     return () => clearTimeout(t);
-  }, [status]);
+  }, [status]); // eslint-disable-line
 
-  // Auto-register FCM if already granted (browser permission already given, no token saved yet)
+  // Auto-register FCM if already granted
   useEffect(() => {
     if (status !== 'searching' || notifDoneRef.current || !('Notification' in window)) return;
     if (window.Notification.permission === 'granted' && rideId && riderUid && !currentRide?.riderFcmToken) {
@@ -694,7 +759,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
         .catch(err => console.warn('[Rider] Auto token failed:', err.message));
     }
     if (window.Notification.permission !== 'default') notifDoneRef.current = true;
-  }, [status, rideId, riderUid, currentRide?.riderFcmToken]);
+  }, [status, rideId, riderUid, currentRide?.riderFcmToken]); // eslint-disable-line
 
   // Mapbox
   useEffect(() => {
@@ -726,30 +791,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
       });
     };
     return () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; setMapReady(false); } };
-  }, [visible]);
-
-  // Derived
-  const total    = useMemo(() => { const v = Number(currentRide?.fareTotal ?? 0); return Number.isFinite(v) ? v.toFixed(2) : '0.00'; }, [currentRide]);
-  const miles    = useMemo(() => { const v = Number(currentRide?.tripDistanceMiles ?? 0); return Number.isFinite(v) ? v.toFixed(1) : '0.0'; }, [currentRide]);
-  const progress = useMemo(() => {
-    if (!currentRide?.createdAt) return 0;
-    const ms = currentRide.createdAt instanceof Date
-      ? currentRide.createdAt.getTime()
-      : currentRide.createdAt?.toDate?.()?.getTime?.() ?? new Date(currentRide.createdAt).getTime();
-    if (isNaN(ms)) return 0;
-    return (Math.min(SEARCH_LIMIT_SEC, Math.floor((Date.now() - ms) / 1000)) / SEARCH_LIMIT_SEC) * 100;
-  }, [currentRide?.createdAt, secondsLeft]);
-
-  const minutes   = Math.floor(secondsLeft / 60);
-  const seconds   = secondsLeft % 60;
-  const isUrgent  = secondsLeft < 60;
-  const pickup    = currentRide?.pickup  ?? '—';
-  const dropoff   = currentRide?.dropoff ?? '—';
-  const rideLabel = currentRide?.rideLabel ?? currentRide?.rideType ?? 'Ride';
-  const candidateDrivers = currentRide?.candidateDrivers ?? [];
-  const paymentMethod    = currentRide?.paymentMethod ?? null;
-  const createdAt        = currentRide?.createdAt ?? null;
-  const requestSentAt    = currentRide?.requestSentAt ?? null;
+  }, [visible]); // eslint-disable-line
 
   async function registerRiderFcmToken(rId, uid) {
     if (!('Notification' in window)) throw new Error('Push not supported');
@@ -860,7 +902,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
             transition: 'transform .35s cubic-bezier(.34,1.2,.64,1)',
           }}>
 
-            {/* ── Drag handle with collapse toggle ── */}
+            {/* Drag handle + collapse */}
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               paddingTop: 10, paddingBottom: 6, position: 'relative',
@@ -892,8 +934,18 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                   {status === 'searching' ? 'Searching' : status === 'checking_payment' ? 'Verifying' : status}
                 </div>
                 {status === 'searching' && (
-                  <div style={{ fontFamily: 'monospace', fontSize: 22, fontWeight: 700, color: isUrgent ? '#EF4444' : '#22C55E', letterSpacing: '-2px' }}>
-                    {String(minutes).padStart(2,'0')}:{String(seconds).padStart(2,'0')}
+                  <div style={{
+                    fontFamily: 'monospace',
+                    fontSize: isPending ? 13 : 22,
+                    fontWeight: 700,
+                    color: isUrgent ? '#EF4444' : '#22C55E',
+                    letterSpacing: isPending ? 0 : '-2px',
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}>
+                    {isPending
+                      ? <><Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }}/> Searching…</>
+                      : `${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}`
+                    }
                   </div>
                 )}
               </div>
@@ -936,9 +988,14 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                     {/* Urgency strip */}
                     <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
                       <div style={{
-                        height: '100%', width: `${100 - progress}%`,
-                        background: isUrgent ? 'linear-gradient(90deg,#F59E0B,#EF4444)' : 'linear-gradient(90deg,#22C55E,#16A34A)',
-                        transition: 'width 1s linear, background .5s ease',
+                        height: '100%',
+                        width: isPending ? '100%' : `${100 - progress}%`,
+                        background: isUrgent
+                          ? 'linear-gradient(90deg,#F59E0B,#EF4444)'
+                          : 'linear-gradient(90deg,#22C55E,#16A34A)',
+                        transition: isPending ? 'none' : 'width 1s linear, background .5s ease',
+                        animation: isPending ? 'shimmer 2s linear infinite' : 'none',
+                        backgroundSize: isPending ? '200% 100%' : 'auto',
                       }}/>
                     </div>
 
@@ -963,7 +1020,6 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                         </div>
                       </div>
 
-                      {/* The compact cycling card */}
                       <CyclingCard
                         secondsLeft={secondsLeft}
                         isUrgent={isUrgent}
@@ -986,7 +1042,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                         onLocationAllow={handleLocationAllow}
                       />
 
-                      {/* Compact route card */}
+                      {/* Route card */}
                       <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '11px 13px' }}>
                         <div style={{ display: 'flex', gap: 11, alignItems: 'stretch' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 3, flexShrink: 0 }}>
@@ -1125,7 +1181,6 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                       </div>
                     </div>
 
-                    {/* Refund notice */}
                     <div style={{
                       background: 'rgba(96,165,250,0.08)',
                       border: '1px solid rgba(96,165,250,0.2)',
