@@ -15,6 +15,7 @@ exports.createAccount = onCall(
 
     console.log(`[createAccount] UID: ${uid}, Email: ${email}, Name: ${name}`);
 
+    
     try {
       await db.collection("Accounts").doc(uid).set(
         {
