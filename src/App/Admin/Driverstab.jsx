@@ -5,7 +5,7 @@ import {
   Star, TrendingUp, DollarSign, Clock, Shield, Eye,
   AlertCircle, CheckCircle2, X, CreditCard, Hash,
   Map as MapIcon, Navigation, Maximize2, Minimize2,
-  Route, Banknote, Zap, User, Timer,
+  Route, Banknote, Zap, User, Timer, Gift,
 } from "lucide-react";
 import { C, STATUS_CONFIG } from '@/App/Admin/Tokens';
 import { Avatar, StatusPill } from '@/App/Admin/UI';
@@ -16,6 +16,7 @@ import { firebase_app } from "@/firebase/config";
 const functions         = getFunctions(firebase_app, "us-east1");
 const callApproveDriver = httpsCallable(functions, "approveDriver");
 const callRejectDriver  = httpsCallable(functions, "rejectDriver");
+const callAwardReward   = httpsCallable(functions, "awardDriverReward");
 const db                = getFirestore(firebase_app);
 
 // ─── MAPBOX LOADER ─────────────────────────────────────────────────────────
@@ -114,7 +115,7 @@ function rideStatusLabel(status) {
 // ─── Driver pin colors ──────────────────────────────────────────────────────
 const PIN_COLORS = {
   online:      "#16A34A",
-  approved:    "#0EA5E9",   // ← sky blue — approved but not yet online
+  approved:    "#0EA5E9",
   offline:     "#9CA3AF",
   pending:     "#F59E0B",
   in_progress: "#3B82F6",
@@ -331,7 +332,6 @@ function DriverMapView({
     [rides]
   );
 
-  // ── driverCounts now includes "approved" ──
   const driverCounts = useMemo(() => {
     const out = { online: 0, approved: 0, offline: 0, pending: 0, in_progress: 0, suspended: 0 };
     pinnedDrivers.forEach(d => { if (out[d.status] != null) out[d.status]++; });
@@ -654,7 +654,6 @@ function DriverMapView({
     else mapRef.current.once("load", render);
   }, [pinnedDrivers, pinnedRides, bounds, onDriverClick, onRideClick, showRides, showDrivers, driverByUid]);
 
-  // ── Legend — now includes "approved" ──
   const driverLegend = [
     { label: "Online",   count: driverCounts.online,      color: PIN_COLORS.online,   live: true  },
     { label: "Approved", count: driverCounts.approved,    color: PIN_COLORS.approved, live: true  },
@@ -898,7 +897,6 @@ export function DriversTab({ rides = [], fleet = [], onToast, onSelectRide }) {
   const [filter,    setFilter]    = useState("all");
   const [selected,  setSelected]  = useState(null);
 
-  // ── "approved" added to filter pills ──
   const filters = ["all", "online", "approved", "offline", "pending", "in_progress"];
 
   const driverByUid = useMemo(() => {
@@ -911,8 +909,6 @@ export function DriversTab({ rides = [], fleet = [], onToast, onSelectRide }) {
   }, [fleet]);
 
   const mapDrivers = useMemo(() => {
-    // Show online + approved + offline + pending on the map by default;
-    // when a specific filter is active, respect it.
     if (filter === "all") return fleet.filter(d =>
       ["online", "approved", "offline", "pending"].includes(d.status)
     );
@@ -1069,12 +1065,18 @@ export function DriversTab({ rides = [], fleet = [], onToast, onSelectRide }) {
 // DRIVER DETAIL
 // ═══════════════════════════════════════════════════════════════════════════
 function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
-  const [d,          setD]          = useState(null);
-  const [activeTab,  setActiveTab]  = useState("overview");
-  const [approving,  setApproving]  = useState(false);
-  const [rejecting,  setRejecting]  = useState(false);
-  const [suspending, setSuspending] = useState(false);
-  const [lightbox,   setLightbox]   = useState(null);
+  const [d,            setD]            = useState(null);
+  const [activeTab,    setActiveTab]    = useState("overview");
+  const [approving,    setApproving]    = useState(false);
+  const [rejecting,    setRejecting]    = useState(false);
+  const [suspending,   setSuspending]   = useState(false);
+  const [lightbox,     setLightbox]     = useState(null);
+
+  // ── Reward sheet state ──────────────────────────────────────────────────
+  const [showReward,   setShowReward]   = useState(false);
+  const [rewardAmount, setRewardAmount] = useState("");
+  const [rewardNote,   setRewardNote]   = useState("");
+  const [awarding,     setAwarding]     = useState(false);
 
   useEffect(() => {
     if (!driverId) return;
@@ -1122,6 +1124,28 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
     } finally { setSuspending(false); }
   };
 
+  // ── Award reward handler ─────────────────────────────────────────────────
+  const handleAwardReward = async () => {
+    const amount = parseFloat(rewardAmount);
+    if (!amount || amount <= 0 || amount > 500) {
+      onToast("Enter a valid amount ($0.01 – $500)");
+      return;
+    }
+    if (awarding) return;
+    setAwarding(true);
+    try {
+      await callAwardReward({ driverUid: driverId, amount, note: rewardNote.trim() || null });
+      onToast(`🎁 $${amount.toFixed(2)} reward sent to ${fullName(d)}`);
+      setShowReward(false);
+      setRewardAmount("");
+      setRewardNote("");
+    } catch (err) {
+      onToast(`Reward failed: ${err.message}`);
+    } finally {
+      setAwarding(false);
+    }
+  };
+
   if (!d) {
     return (
       <div style={{ padding: "60px 16px", textAlign: "center" }}>
@@ -1155,13 +1179,18 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
 
   const tabs = ["overview", "documents", "earnings", "payout"];
 
-  // ── Which action buttons to show ──────────────────────────────────────────
-  // pending / in_progress  → Approve + Reject
-  // approved               → Suspend only (they're cleared but not yet online)
-  // online / offline       → Suspend only
-  // suspended / rejected   → no actions (or re-enable if you add that later)
   const isPendingReview = d.status === "pending" || d.status === "in_progress";
   const canSuspend      = ["approved", "online", "offline"].includes(d.status);
+
+  // ── Reward history from d.rewards array (most recent first) ────────────
+  const rewardHistory = useMemo(() => {
+    if (!Array.isArray(d.rewards) || d.rewards.length === 0) return [];
+    return [...d.rewards].sort((a, b) => {
+      const ta = a.awardedAt?.seconds ?? 0;
+      const tb = b.awardedAt?.seconds ?? 0;
+      return tb - ta;
+    });
+  }, [d.rewards]);
 
   return (
     <div style={{ padding: "0 16px 24px" }}>
@@ -1169,8 +1198,10 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
         @keyframes spin   { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
         @keyframes fadeUp { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:translateY(0) } }
         @keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
+        @keyframes sheetUp { from { opacity:0; transform:translateY(24px) } to { opacity:1; transform:translateY(0) } }
       `}</style>
 
+      {/* ── LIGHTBOX ── */}
       {lightbox && (
         <div onClick={() => setLightbox(null)} style={{ position: "fixed", inset: 0, zIndex: 1300, background: "rgba(0,0,0,.92)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
           <button onClick={() => setLightbox(null)} style={{ position: "absolute", top: 20, right: 20, background: "rgba(255,255,255,.15)", border: "none", borderRadius: "50%", width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
@@ -1180,10 +1211,160 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
         </div>
       )}
 
+      {/* ── REWARD SHEET OVERLAY ── */}
+      {showReward && (
+        <div
+          onClick={() => { if (!awarding) { setShowReward(false); setRewardAmount(""); setRewardNote(""); } }}
+          style={{ position: "fixed", inset: 0, zIndex: 1200, background: "rgba(0,0,0,.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: "100%", maxWidth: 480,
+              background: C.surface,
+              border: `1px solid ${C.border}`,
+              borderRadius: "20px 20px 0 0",
+              padding: "24px 20px 32px",
+              animation: "sheetUp .22s cubic-bezier(.32,.72,0,1)",
+            }}
+          >
+            {/* Sheet header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: "#A855F715", border: "1px solid #A855F730", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Gift size={16} color="#A855F7" />
+                </div>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>Award Reward</div>
+                  <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 500, marginTop: 1 }}>to {name}</div>
+                </div>
+              </div>
+              <button
+                onClick={() => { if (!awarding) { setShowReward(false); setRewardAmount(""); setRewardNote(""); } }}
+                style={{ width: 30, height: 30, borderRadius: "50%", border: `1px solid ${C.border}`, background: C.surfaceHigh, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+              >
+                <X size={13} color={C.textMuted} />
+              </button>
+            </div>
+
+            {/* Current balance */}
+            <div style={{ background: "linear-gradient(135deg,#581C87,#3B0764)", borderRadius: 14, padding: "14px 16px", marginBottom: 18, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontSize: 9.5, fontWeight: 700, color: "rgba(255,255,255,.5)", letterSpacing: ".08em", marginBottom: 4 }}>CURRENT REWARDS BALANCE</div>
+                <div style={{ fontSize: 24, fontWeight: 900, color: "#fff" }}>{fmtMoney(d.rewardsBalance)}</div>
+              </div>
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: "rgba(255,255,255,.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Gift size={18} color="#D8B4FE" />
+              </div>
+            </div>
+
+            {/* Amount input */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: ".05em", marginBottom: 6 }}>AMOUNT</div>
+              <div style={{ position: "relative" }}>
+                <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 16, fontWeight: 700, color: C.textMuted, pointerEvents: "none" }}>$</span>
+                <input
+                  type="number"
+                  min="0.01"
+                  max="500"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={rewardAmount}
+                  onChange={e => setRewardAmount(e.target.value)}
+                  disabled={awarding}
+                  style={{
+                    width: "100%", boxSizing: "border-box",
+                    paddingLeft: 28, paddingRight: 14, paddingTop: 12, paddingBottom: 12,
+                    background: C.surfaceHigh,
+                    border: `1.5px solid ${rewardAmount && parseFloat(rewardAmount) > 0 ? "#A855F760" : C.border}`,
+                    borderRadius: 12,
+                    fontSize: 18, fontWeight: 800, color: C.text,
+                    fontFamily: "'Barlow',sans-serif",
+                    outline: "none",
+                    transition: "border-color .15s",
+                  }}
+                />
+              </div>
+              {/* Quick-pick amounts */}
+              <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                {[5, 10, 25, 50].map(amt => (
+                  <button
+                    key={amt}
+                    onClick={() => setRewardAmount(String(amt))}
+                    disabled={awarding}
+                    style={{
+                      flex: 1, padding: "6px 0", borderRadius: 8,
+                      border: `1.5px solid ${parseFloat(rewardAmount) === amt ? "#A855F7" : C.border}`,
+                      background: parseFloat(rewardAmount) === amt ? "#A855F715" : C.surfaceHigh,
+                      color: parseFloat(rewardAmount) === amt ? "#A855F7" : C.textMuted,
+                      fontSize: 12, fontWeight: 700, fontFamily: "'Barlow',sans-serif",
+                      cursor: "pointer", transition: "all .12s",
+                    }}
+                  >
+                    ${amt}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Note input */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: ".05em", marginBottom: 6 }}>NOTE <span style={{ fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>(optional)</span></div>
+              <input
+                type="text"
+                maxLength={120}
+                placeholder="e.g. Great service this week"
+                value={rewardNote}
+                onChange={e => setRewardNote(e.target.value)}
+                disabled={awarding}
+                style={{
+                  width: "100%", boxSizing: "border-box",
+                  padding: "11px 14px",
+                  background: C.surfaceHigh,
+                  border: `1.5px solid ${C.border}`,
+                  borderRadius: 12,
+                  fontSize: 13, color: C.text,
+                  fontFamily: "'Barlow',sans-serif",
+                  outline: "none",
+                }}
+              />
+            </div>
+
+            {/* Confirm button */}
+            <button
+              onClick={handleAwardReward}
+              disabled={awarding || !rewardAmount || parseFloat(rewardAmount) <= 0}
+              style={{
+                width: "100%", padding: "14px",
+                borderRadius: 14, border: "none",
+                background: awarding || !rewardAmount || parseFloat(rewardAmount) <= 0
+                  ? C.surfaceHigh
+                  : "linear-gradient(135deg,#7C3AED,#A855F7)",
+                color: awarding || !rewardAmount || parseFloat(rewardAmount) <= 0
+                  ? C.textDim : "#fff",
+                fontSize: 14, fontWeight: 800,
+                fontFamily: "'Barlow',sans-serif",
+                cursor: awarding || !rewardAmount || parseFloat(rewardAmount) <= 0 ? "not-allowed" : "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                transition: "all .15s",
+                boxShadow: awarding || !rewardAmount || parseFloat(rewardAmount) <= 0
+                  ? "none" : "0 4px 20px #7C3AED40",
+              }}
+            >
+              {awarding
+                ? <><Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> Sending…</>
+                : <><Gift size={15} /> Send {rewardAmount && parseFloat(rewardAmount) > 0 ? fmtMoney(parseFloat(rewardAmount)) : ""} Reward</>
+              }
+            </button>
+          </div>
+        </div>
+      )}
+
       <button className="btn-ghost" onClick={onBack} style={{ marginBottom: 16, padding: "8px 14px", display: "flex", alignItems: "center", gap: 6 }}>
         <ArrowLeft size={14} /> Back to drivers
       </button>
 
+      {/* Profile hero */}
       <div style={{ background: "linear-gradient(135deg,#0F172A,#1E293B)", borderRadius: 20, padding: "22px 20px 20px", marginBottom: 14, position: "relative", overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,.2)" }}>
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: statusColor }} />
         <div style={{ position: "absolute", top: -60, right: -60, width: 180, height: 180, borderRadius: "50%", background: `${statusColor}12`, pointerEvents: "none" }} />
@@ -1215,6 +1396,7 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
         </div>
       </div>
 
+      {/* Tabs */}
       <div style={{ display: "flex", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 4, gap: 3, marginBottom: 14 }}>
         {tabs.map(t => (
           <button key={t} onClick={() => setActiveTab(t)} style={{ flex: 1, padding: "8px 4px", border: "none", background: activeTab === t ? C.text : "transparent", color: activeTab === t ? "#fff" : C.textMuted, borderRadius: 9, fontSize: 11, fontWeight: 700, fontFamily: "'Barlow Condensed',sans-serif", cursor: "pointer", transition: "all .15s", textTransform: "capitalize" }}>
@@ -1223,6 +1405,7 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
         ))}
       </div>
 
+      {/* ── OVERVIEW TAB ── */}
       {activeTab === "overview" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12, animation: "fadeUp .3s ease" }}>
           <div className="card" style={{ padding: "16px" }}>
@@ -1311,6 +1494,7 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
         </div>
       )}
 
+      {/* ── DOCUMENTS TAB ── */}
       {activeTab === "documents" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12, animation: "fadeUp .3s ease" }}>
           <div style={{ background: allDocs ? "#F0FDF4" : "#FFFBEB", border: `1.5px solid ${allDocs ? "#86EFAC" : "#FDE68A"}`, borderRadius: 14, padding: "14px 16px" }}>
@@ -1349,6 +1533,7 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
         </div>
       )}
 
+      {/* ── EARNINGS TAB ── */}
       {activeTab === "earnings" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12, animation: "fadeUp .3s ease" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -1394,8 +1579,11 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
         </div>
       )}
 
+      {/* ── PAYOUT TAB ── */}
       {activeTab === "payout" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12, animation: "fadeUp .3s ease" }}>
+
+          {/* Withdrawal hero */}
           <div style={{ background: withdrawal.status === "paid" ? "linear-gradient(135deg,#14532D,#166534)" : withdrawal.status === "pending" ? "linear-gradient(135deg,#78350F,#92400E)" : "linear-gradient(135deg,#1E293B,#0F172A)", borderRadius: 18, padding: "22px 18px", boxShadow: "0 4px 24px rgba(0,0,0,.2)" }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,.5)", letterSpacing: ".08em", marginBottom: 6 }}>WITHDRAWAL STATUS</div>
             <div style={{ fontSize: 38, fontWeight: 900, color: "#fff", marginBottom: 4 }}>{fmtMoney(withdrawal.totalPayout)}</div>
@@ -1406,6 +1594,61 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
               <span style={{ fontSize: 11, color: "rgba(255,255,255,.4)" }}>{withdrawal.rideCount ?? 0} ride{(withdrawal.rideCount ?? 0) !== 1 ? "s" : ""}</span>
             </div>
           </div>
+
+          {/* Rewards balance card */}
+          <div style={{ background: "linear-gradient(135deg,#3B0764,#581C87)", borderRadius: 14, padding: "16px 18px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              <div style={{ fontSize: 9.5, fontWeight: 700, color: "rgba(255,255,255,.5)", letterSpacing: ".08em", marginBottom: 5 }}>REWARDS BALANCE</div>
+              <div style={{ fontSize: 28, fontWeight: 900, color: "#fff" }}>{fmtMoney(d.rewardsBalance)}</div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,.45)", marginTop: 2 }}>
+                {rewardHistory.length > 0 ? `${rewardHistory.length} reward${rewardHistory.length !== 1 ? "s" : ""} awarded` : "No rewards yet"}
+              </div>
+            </div>
+            <button
+              onClick={() => setShowReward(true)}
+              style={{
+                padding: "10px 16px", borderRadius: 12,
+                background: "rgba(255,255,255,.15)",
+                border: "1px solid rgba(255,255,255,.2)",
+                color: "#fff", fontSize: 12, fontWeight: 700,
+                fontFamily: "'Barlow',sans-serif",
+                cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+                transition: "background .15s",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,.22)"}
+              onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,.15)"}
+            >
+              <Gift size={13} /> Award
+            </button>
+          </div>
+
+          {/* Reward history */}
+          {rewardHistory.length > 0 && (
+            <div className="card" style={{ padding: "14px 16px" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: ".06em", marginBottom: 12 }}>REWARD HISTORY</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {rewardHistory.map((r, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: C.surfaceHigh, borderRadius: 10, border: `1px solid ${C.border}` }}>
+                    <div style={{ width: 30, height: 30, borderRadius: 9, background: "#A855F715", border: "1px solid #A855F730", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <Gift size={13} color="#A855F7" />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: C.text }}>
+                        {fmtMoney(r.amount)}
+                        {r.note && <span style={{ fontSize: 11, fontWeight: 500, color: C.textMuted, marginLeft: 6 }}>· {r.note}</span>}
+                      </div>
+                      <div style={{ fontSize: 10, color: C.textMuted, marginTop: 1 }}>{formatTs(r.awardedAt)}</div>
+                    </div>
+                    <span style={{ fontSize: 9.5, fontWeight: 700, color: "#A855F7", background: "#A855F715", border: "1px solid #A855F730", borderRadius: 6, padding: "2px 7px", whiteSpace: "nowrap" }}>
+                      +{fmtMoney(r.amount)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Payout details */}
           <div className="card" style={{ padding: "16px" }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: ".06em", marginBottom: 12 }}>PAYOUT DETAILS</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -1424,6 +1667,8 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
               ))}
             </div>
           </div>
+
+          {/* Stripe account */}
           <div style={{ background: C.surfaceHigh, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", display: "flex", gap: 12, alignItems: "center" }}>
             <div style={{ width: 36, height: 36, background: "#635BFF15", border: "1px solid #635BFF30", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <CreditCard size={16} color="#635BFF" />
@@ -1436,6 +1681,8 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
               {d.accountId ? "CONNECTED" : "MISSING"}
             </span>
           </div>
+
+          {/* Ride IDs */}
           {(withdrawal.rideIds ?? []).length > 0 && (
             <div className="card" style={{ padding: "14px 16px" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: ".06em", marginBottom: 10 }}>RIDE IDs</div>
@@ -1452,7 +1699,7 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
         </div>
       )}
 
-      {/* ── Action buttons ── */}
+      {/* ── ACTION BUTTONS ── */}
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
         {isPendingReview && (
           <>
@@ -1464,9 +1711,33 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
             </button>
           </>
         )}
+
+        {/* Award Reward button — available for any non-rejected, non-pending driver */}
+        {!isPendingReview && d.status !== "rejected" && (
+          <button
+            onClick={() => setShowReward(true)}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              padding: "13px", borderRadius: 14,
+              background: "linear-gradient(135deg,#3B0764,#6D28D9)",
+              border: "none",
+              color: "#fff", fontSize: 13, fontWeight: 800,
+              fontFamily: "'Barlow',sans-serif",
+              cursor: "pointer",
+              boxShadow: "0 4px 18px #7C3AED30",
+              transition: "opacity .15s",
+            }}
+            onMouseEnter={e => e.currentTarget.style.opacity = ".88"}
+            onMouseLeave={e => e.currentTarget.style.opacity = "1"}
+          >
+            <Gift size={15} /> Award Reward
+          </button>
+        )}
+
         <button className="btn-ghost" onClick={() => onToast("Notification sent")} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
           <Bell size={14} /> Send Notification
         </button>
+
         {canSuspend && (
           <button className="btn-danger" onClick={handleSuspend} disabled={suspending} style={{ opacity: suspending ? .6 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
             {suspending ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Suspending…</> : <><Ban size={14} /> Suspend Driver</>}
