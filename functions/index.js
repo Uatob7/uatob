@@ -69,8 +69,7 @@ const { pushOfflineDriver } = require("./drivers/notification/pushOfflineDriver"
 const { updateDriverSetting } = require("./drivers/updateDriverSetting");
 const { driverReportEmail } = require("./drivers/email/driverReportEmail");
 const { driverInProgressEmail } = require("./drivers/email/driverInProgressEmail");
-
-
+const { deleteDriverAccount } = require("./drivers/deleteDriverAccount");
 
 const { emailCandidateDrivers } = require("./drivers/email/emailCandidateDrivers");
 
@@ -90,6 +89,7 @@ const { adminSendDriverMessage } = require("./admin/adminSendDriverMessage");
 const { announceCashRides } = require("./admin/email/announceCashRides");
 const { announceOnlineDrivers } = require("./admin/announceOnlineDrivers");
 const { awardReward  } = require("./admin/awardReward");
+const { deleteDriver } = require("./admin/deleteDriver");
 
 
 // Exports
@@ -159,6 +159,7 @@ exports.pushOfflineDriver = pushOfflineDriver;
 exports.updateDriverSetting = updateDriverSetting;
 exports.driverReportEmail = driverReportEmail;
 exports.driverInProgressEmail = driverInProgressEmail;
+exports.deleteDriverAccount = deleteDriverAccount;
 
 exports.onAccountCreatedNotifyAdmin = onAccountCreatedNotifyAdmin;
 exports.thankYouAnnouncement = thankYouAnnouncement;
@@ -173,3 +174,4 @@ exports.rejectDriver = rejectDriver;
 exports.computeRideAnalytics = computeRideAnalytics;
 exports.announceOnlineDrivers = announceOnlineDrivers;
 exports.awardReward = awardReward;
+exports.deleteDriver = deleteDriver;

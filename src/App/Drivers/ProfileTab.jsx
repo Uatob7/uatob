@@ -22,6 +22,7 @@ const functions = getFunctions(firebase_app, 'us-east1');
 const callProcessWithdrawal   = httpsCallable(functions, 'processWithdrawal');
 const callPayCashBalance      = httpsCallable(functions, 'payCashBalance');
 const callUpdateDriverSetting = httpsCallable(functions, 'updateDriverSetting');
+const callDeleteDriverAccount = httpsCallable(functions, 'deleteDriverAccount');
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 function formatDate(ts) {
@@ -1252,9 +1253,10 @@ const NotificationsSection = ({ driver, onBack }) => {
 };
 
 // ─── APP SETTINGS (calls backend) ──────────────────────────────────────────
-const AppSettingsSection = ({ driver, onBack }) => {
+const AppSettingsSection = ({ driver, onBack, onSignOut }) => {
   const uid = driver?.uid;
   const [settings, setSettings] = useState(driver?.settings ?? {});
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!uid) return;
@@ -1267,6 +1269,36 @@ const AppSettingsSection = ({ driver, onBack }) => {
 
   const handleUpdate = (key, value) => {
     setSettings(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleting) return;
+    
+    const confirmed = window.confirm(
+      `⚠️ Are you sure you want to permanently delete your driver account?\n\nThis action CANNOT be undone and will:\n• Remove all your driver data\n• Cancel any active rides\n• Delete all your reviews\n\nType DELETE to confirm.`
+    );
+    if (!confirmed) return;
+    
+    const userConfirm = window.prompt("Type DELETE to confirm account deletion:");
+    if (userConfirm !== "DELETE") {
+      alert("❌ Deletion cancelled");
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      const { data } = await callDeleteDriverAccount();
+      if (data?.success) {
+        alert(`✅ Your account has been deleted. Goodbye!`);
+        setTimeout(() => onSignOut?.(), 1500);
+      } else {
+        alert(`Failed to delete account: ${data?.error || "Unknown error"}`);
+      }
+    } catch (err) {
+      alert(`Failed to delete account: ${err.message}`);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   // Toggle items
@@ -1404,6 +1436,40 @@ const AppSettingsSection = ({ driver, onBack }) => {
           ))}
         </div>
       </div>
+
+      {/* Delete Account Button */}
+      <div style={{ marginTop: 8 }}>
+        <button
+          onClick={handleDeleteAccount}
+          disabled={deleting}
+          style={{
+            width: "100%",
+            padding: "16px 20px",
+            borderRadius: 14,
+            border: "1.5px solid #FEE2E2",
+            background: "linear-gradient(135deg, #FEF2F2, #FECACA20)",
+            color: "#DC2626",
+            fontSize: 14.5,
+            fontWeight: 800,
+            fontFamily: "'Barlow', sans-serif",
+            cursor: deleting ? "not-allowed" : "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            opacity: deleting ? 0.6 : 1,
+            transition: "all .2s",
+          }}
+          onMouseEnter={e => !deleting && (e.currentTarget.style.background = "linear-gradient(135deg, #FECACA, #FCA5A5)")}
+          onMouseLeave={e => !deleting && (e.currentTarget.style.background = "linear-gradient(135deg, #FEF2F2, #FECACA20)")}
+        >
+          {deleting ? (
+            <><Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> Deleting Account...</>
+          ) : (
+            <><AlertTriangle size={15} /> Delete Account Permanently</>
+          )}
+        </button>
+      </div>
     </div>
   );
 };
@@ -1454,7 +1520,7 @@ export default function ProfileTab({ driver, online, onSignOut }) {
   if (activeSection === "notifications")
     return <NotificationsSection driver={driver} onBack={() => setActiveSection(null)} />;
   if (activeSection === "settings")
-    return <AppSettingsSection driver={driver} onBack={() => setActiveSection(null)} />;
+    return <AppSettingsSection driver={driver} onBack={() => setActiveSection(null)} onSignOut={onSignOut} />;
 
   return (
     <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14, animation: "slideUp .38s ease-out forwards" }}>

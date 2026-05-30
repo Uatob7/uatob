@@ -17,6 +17,7 @@ const functions         = getFunctions(firebase_app, "us-east1");
 const callApproveDriver = httpsCallable(functions, "approveDriver");
 const callRejectDriver  = httpsCallable(functions, "rejectDriver");
 const callAwardReward   = httpsCallable(functions, "awardReward");
+const callDeleteDriver  = httpsCallable(functions, "deleteDriver");
 const db                = getFirestore(firebase_app);
 
 // ─── MAPBOX LOADER ─────────────────────────────────────────────────────────
@@ -1181,6 +1182,7 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
   const [approving,    setApproving]    = useState(false);
   const [rejecting,    setRejecting]    = useState(false);
   const [suspending,   setSuspending]   = useState(false);
+  const [deleting,     setDeleting]     = useState(false);
   const [lightbox,     setLightbox]     = useState(null);
   const [showReward,   setShowReward]   = useState(false);   // ← NEW
 
@@ -1228,6 +1230,33 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
     } catch (err) {
       onToast("Failed to suspend driver");
     } finally { setSuspending(false); }
+  };
+
+  const handleDelete = async () => {
+    if (deleting) return;
+    const confirmed = window.confirm(
+      `⚠️ Are you sure you want to permanently delete ${fullName(d)} from the app?\n\nThis action cannot be undone and will:\n• Remove all driver data\n• Cancel active rides\n• Delete all reviews\n\nType DELETE to confirm.`
+    );
+    if (!confirmed) return;
+    
+    const userConfirm = window.prompt("Type DELETE to confirm deletion:");
+    if (userConfirm !== "DELETE") {
+      onToast("❌ Deletion cancelled");
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      const { data } = await callDeleteDriver({ driverUid: driverId });
+      if (data?.success) {
+        onToast(`✅ ${data.driverName} has been permanently deleted (${data.deletedCounts.rides} rides updated, ${data.deletedCounts.reviews} reviews deleted)`);
+        setTimeout(() => onBack(), 1500);
+      } else {
+        onToast(`Failed to delete driver: ${data?.error || "Unknown error"}`);
+      }
+    } catch (err) {
+      onToast(`Failed to delete driver: ${err.message}`);
+    } finally { setDeleting(false); }
   };
 
   if (!d) {
@@ -1643,6 +1672,27 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
             {suspending ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Suspending…</> : <><Ban size={14} /> Suspend Driver</>}
           </button>
         )}
+
+        <button
+          className="btn-danger"
+          onClick={handleDelete}
+          disabled={deleting}
+          style={{
+            opacity: deleting ? .6 : 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            background: "linear-gradient(135deg,#DC2626,#B91C1C)",
+            borderColor: "#DC2626"
+          }}
+        >
+          {deleting ? (
+            <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Deleting…</>
+          ) : (
+            <><X size={14} /> Delete Driver Permanently</>
+          )}
+        </button>
       </div>
     </div>
   );
