@@ -8,21 +8,30 @@ const admin = require("firebase-admin");
 if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
 
-// E.164-ish: starts with +, 8-15 digits total
-const E164 = /^\+\d{8,15}$/;
+// E.164: starts with +, 10-15 digits total
+const E164 = /^\+\d{10,15}$/;
 
-// Strip everything that isn't + or a digit
 function normalize(raw) {
   if (!raw) return "";
+
+  // Strip everything except digits and leading +
   let s = String(raw).replace(/[^\d+]/g, "");
 
-  // If they didn't include a +, assume US (+1)
-  if (!s.startsWith("+")) {
-    if (s.length === 10)            s = "+1" + s;
-    else if (s.length === 11 && s[0] === "1") s = "+" + s;
-    else                             s = "+" + s;
-  }
-  return s;
+  // Remove leading + for processing
+  const hadPlus = s.startsWith("+");
+  if (hadPlus) s = s.slice(1);
+
+  // Strip leading country code 1 if number is 11 digits starting with 1
+  if (s.length === 11 && s[0] === "1") s = s.slice(1);
+
+  // Now s should be a 10-digit US number
+  if (s.length === 10) return "+1" + s;
+
+  // For non-US numbers that came in with +, restore it
+  if (hadPlus) return "+" + s;
+
+  // Fallback
+  return "+" + s;
 }
 
 exports.updateRiderPhone = onCall(

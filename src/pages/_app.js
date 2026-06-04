@@ -11,8 +11,11 @@ import { useTrackViews } from '@/App/UaTob/useTrackViews';
 import { useEffect } from "react";
 import { getMessaging } from "firebase/messaging";
 import { firebase_app } from "@/firebase/config";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
+const functions = getFunctions(firebase_app, "us-east1");
+const callUpdatePresence = httpsCallable(functions, "updateAccountPresence");
 
 function ServiceWorkerInit() {
   useEffect(() => {
@@ -23,7 +26,6 @@ function ServiceWorkerInit() {
       .register("/firebase-messaging-sw.js")
       .then((reg) => {
         console.log("[SW] Registered:", reg.scope);
-        // Bind messaging to the SW so FCM can receive pushes
         getMessaging(firebase_app);
       })
       .catch((err) => console.warn("[SW] Registration failed:", err.message));
@@ -54,7 +56,16 @@ export default function App({ Component, pageProps }) {
 function AppWithAuth({ Component, pageProps }) {
   const { uid } = useAuthContext();
 
+  console.log("[AppWithAuth] Current UID:", uid);
+
   useTrackViews();
+
+  useEffect(() => {
+    if (!uid) return;
+    callUpdatePresence({ uid }).catch((err) =>
+      console.warn("[UaTob] updateAccountPresence failed:", err?.message)
+    );
+  }, [uid]);
 
   return (
     <>

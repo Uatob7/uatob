@@ -23,10 +23,11 @@ const VAPID_KEY        = 'BJ_sRHZonSGCKk2mB2i9ofTRS8ouFVMV-I15FX4sqdUXHyVb1lo6H-
 const SEARCH_LIMIT_SEC = 7 * 60;
 const PHONE_SKIP_KEY   = (rideId) => `uatob_phone_skipped_${rideId}`;
 const PANEL_INTERVAL   = 4500;
+const LOCATION_PING_MS = 30_000;
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function getSecondsRemaining(expiresAt) {
-  if (!expiresAt) return null; // null = not yet set
+  if (!expiresAt) return null;
   const ms = expiresAt instanceof Date
     ? expiresAt.getTime()
     : expiresAt?.toDate?.()?.getTime?.() ?? new Date(expiresAt).getTime();
@@ -133,7 +134,6 @@ function CyclingCard({
 }) {
   const autoRef = useRef(null);
 
-  // secondsLeft === null means expiresAt not yet on the doc
   const isPending = secondsLeft === null;
   const minutes   = isPending ? null : Math.floor(secondsLeft / 60);
   const seconds   = isPending ? null : secondsLeft % 60;
@@ -272,7 +272,6 @@ function CyclingCard({
               {isPending ? 'Searching' : isUrgent ? '⚡ Almost out of time' : 'Time remaining'}
             </div>
 
-            {/* ── Timer display — pending vs counting ── */}
             {isPending ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, height: 42 }}>
                 <Loader2
@@ -310,7 +309,6 @@ function CyclingCard({
           </div>
         </div>
 
-        {/* Timer progress bar — hide when pending */}
         {!isPending && (
           <div style={{ height: 3, borderRadius: 99, background: 'rgba(255,255,255,.07)', marginBottom: 10, overflow: 'hidden' }}>
             <div style={{
@@ -565,7 +563,7 @@ function CyclingCard({
 // ── Main Modal ─────────────────────────────────────────────────────────────
 export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry, onCancel, account, rides }) {
   const [status, setStatus]               = useState('checking_payment');
-  const [secondsLeft, setSecondsLeft]     = useState(null); // null = expiresAt not yet known
+  const [secondsLeft, setSecondsLeft]     = useState(null);
   const [driver, setDriver]               = useState(null);
   const [visible, setVisible]             = useState(false);
   const [collapsed, setCollapsed]         = useState(false);
@@ -590,6 +588,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
   const didTimeoutRef   = useRef(false);
   const mapContainerRef = useRef(null);
   const mapRef          = useRef(null);
+  const locationPingRef = useRef(null); // ── location interval
 
   const seedRide = useMemo(() => {
     if (!rides?.length) return null;
@@ -614,7 +613,6 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
     return (Math.min(SEARCH_LIMIT_SEC, Math.floor((Date.now() - ms) / 1000)) / SEARCH_LIMIT_SEC) * 100;
   }, [currentRide?.createdAt, secondsLeft]);
 
-  // secondsLeft null = expiresAt pending; treat as not urgent
   const isPending = secondsLeft === null;
   const isUrgent  = !isPending && secondsLeft < 60;
   const minutes   = isPending ? null : Math.floor(secondsLeft / 60);
@@ -628,7 +626,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
   const createdAt        = currentRide?.createdAt ?? null;
   const requestSentAt    = currentRide?.requestSentAt ?? null;
 
-  // Mount / unmount
+  // ── Mount / unmount ────────────────────────────────────────────────────
   useEffect(() => {
     mountedRef.current = true;
     const t = setTimeout(() => { if (mountedRef.current) setVisible(true); }, 30);
@@ -637,6 +635,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
       clearTimeout(t);
       clearTimeout(closeTimeoutRef.current);
       clearInterval(timerRef.current);
+      clearInterval(locationPingRef.current); // stop location pings on unmount
       try { unsubRef.current?.(); } catch {}
       try { accountUnsubRef.current?.(); } catch {}
     };
@@ -697,15 +696,17 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
       else if (!didTimeoutRef.current) { setStatus('searching'); setDriver(null); }
     } else if (s === 'driver_assigned') {
       clearInterval(timerRef.current); timerRef.current = null;
+      clearInterval(locationPingRef.current); locationPingRef.current = null;
       if (currentRide.driver) setDriver(currentRide.driver);
       setStatus('assigned');
     } else if (s === 'timeout' || s === 'cancelled') {
       clearInterval(timerRef.current); timerRef.current = null;
+      clearInterval(locationPingRef.current); locationPingRef.current = null;
       setStatus('timeout');
     }
   }, [currentRide]); // eslint-disable-line
 
-  // ── Countdown — null-safe: never timeout when expiresAt is missing ────────
+  // Countdown
   useEffect(() => {
     if (status !== 'searching') {
       clearInterval(timerRef.current);
@@ -714,26 +715,13 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
     }
 
     const update = () => {
-      // expiresAt not yet written by the scheduler — hold at null, never timeout
-      if (!currentRide?.expiresAt) {
-        setSecondsLeft(null);
-        return;
-      }
-
+      if (!currentRide?.expiresAt) { setSecondsLeft(null); return; }
       const remaining = getSecondsRemaining(currentRide.expiresAt);
-
-      // getSecondsRemaining returned null (bad timestamp) — hold, don't timeout
-      if (remaining === null) {
-        setSecondsLeft(null);
-        return;
-      }
-
+      if (remaining === null) { setSecondsLeft(null); return; }
       setSecondsLeft(remaining);
-
       if (remaining <= 0 && !didTimeoutRef.current) {
         didTimeoutRef.current = true;
-        clearInterval(timerRef.current);
-        timerRef.current = null;
+        clearInterval(timerRef.current); timerRef.current = null;
         setStatus('timeout');
       }
     };
@@ -810,6 +798,7 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
     setNotifDone(true); notifDoneRef.current = true;
   };
 
+  // ── Location: fire immediately then ping every 30s ─────────────────────
   const handleLocationAllow = async () => {
     const position = await new Promise((resolve, reject) =>
       navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 8000 })
@@ -817,6 +806,28 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
     const { latitude: lat, longitude: lng } = position.coords;
     if (rideId) await callRiderLocation({ rideId, lat, lng }).catch(() => {});
     setLocationDone(true);
+
+    // Start pinging every 30s
+    clearInterval(locationPingRef.current);
+    locationPingRef.current = setInterval(async () => {
+      if (!rideId || !mountedRef.current) return;
+      try {
+        const pos = await new Promise((res, rej) =>
+          navigator.geolocation.getCurrentPosition(res, rej, {
+            enableHighAccuracy: true,
+            timeout: 8000,
+            maximumAge: 15000,
+          })
+        );
+        await callRiderLocation({
+          rideId,
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        });
+      } catch (e) {
+        console.warn('[Rider] Location ping failed:', e?.message);
+      }
+    }, LOCATION_PING_MS);
   };
 
   const handleSkipPhone = () => {
@@ -986,7 +997,6 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
                 {/* ══ SEARCHING ══ */}
                 {status === 'searching' && (
                   <div>
-                    {/* Urgency strip */}
                     <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
                       <div style={{
                         height: '100%',
@@ -1002,7 +1012,6 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
 
                     <div style={{ padding: '14px 18px 22px', display: 'flex', flexDirection: 'column', gap: 10 }}>
 
-                      {/* Header row */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div>
                           <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.3)', marginBottom: 3 }}>
