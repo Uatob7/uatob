@@ -24,6 +24,471 @@ const fmt = {
   },
 };
 
+// ─────────────────────────────────────────────────────────────
+// Brand SVGs — matches dispatch email exactly
+// ─────────────────────────────────────────────────────────────
+const UATOB_ICON_SVG = `
+<svg width="46" height="46" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="eribg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#F3F4F6"/>
+    </linearGradient>
+    <linearGradient id="eriroad" x1="0" y1="0" x2="64" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#111827"/>
+      <stop offset="100%" stop-color="#16A34A"/>
+    </linearGradient>
+    <linearGradient id="ericar" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#16A34A"/>
+      <stop offset="100%" stop-color="#15803D"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#eribg)"/>
+  <rect x="0.5" y="0.5" width="63" height="63" rx="15.5" stroke="#E5E7EB" stroke-width="1"/>
+  <path d="M 10 42 Q 32 24 54 42"
+        stroke="url(#eriroad)" stroke-width="2.5" stroke-dasharray="5 4"
+        stroke-linecap="round" fill="none" opacity="0.6"/>
+  <circle cx="10" cy="42" r="6" fill="#111827" opacity="0.12"/>
+  <circle cx="10" cy="42" r="3.5" fill="#111827"/>
+  <text x="10" y="45.5" text-anchor="middle" font-family="Arial,sans-serif"
+        font-weight="800" font-size="4.5" fill="#fff">A</text>
+  <circle cx="54" cy="42" r="6" fill="#16A34A" opacity="0.18"/>
+  <circle cx="54" cy="42" r="3.5" fill="#16A34A"/>
+  <text x="54" y="45.5" text-anchor="middle" font-family="Arial,sans-serif"
+        font-weight="800" font-size="4.5" fill="#fff">B</text>
+  <g transform="translate(26,26)">
+    <ellipse cx="6" cy="12" rx="8" ry="2" fill="#111827" opacity="0.1"/>
+    <rect x="1" y="5" width="10" height="6" rx="1.5" fill="url(#ericar)"/>
+    <path d="M3 5 L3.8 2 L8.2 2 L9 5Z" fill="#15803D"/>
+    <rect x="3.5" y="2.5" width="2.3" height="2" rx="0.5" fill="#fff" fill-opacity="0.85"/>
+    <rect x="6.2" y="2.5" width="2.3" height="2" rx="0.5" fill="#fff" fill-opacity="0.85"/>
+    <circle cx="3" cy="11" r="1.8" fill="#111827"/>
+    <circle cx="3" cy="11" r="0.9" fill="#16A34A"/>
+    <circle cx="9" cy="11" r="1.8" fill="#111827"/>
+    <circle cx="9" cy="11" r="0.9" fill="#22C55E"/>
+    <rect x="10.5" y="6.5" width="1.5" height="1" rx="0.5" fill="#FCD34D"/>
+  </g>
+</svg>`.trim();
+
+const ARROW_SVG = `
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
+     style="display:inline-block;vertical-align:middle;margin:0 3px;">
+  <path d="M5 12h14M13 6l6 6-6 6"
+        stroke="#16A34A" stroke-width="2.2"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`.trim();
+
+// ─────────────────────────────────────────────────────────────
+// Email builder
+// ─────────────────────────────────────────────────────────────
+function buildPaymentSucceededEmail({ name, email, ride, rideId }) {
+  const {
+    pickup, dropoff, fareTotal, fareBreakdown,
+    tripDistanceMiles, tripDurationMin,
+    paymentMethod, paymentLast4, rideType,
+  } = ride;
+
+  const safeName     = esc(name || "there");
+  const safePickup   = esc(pickup  || "—");
+  const safeDropoff  = esc(dropoff || "—");
+  const safePayment  = esc(
+    paymentLast4
+      ? `${paymentMethod} •••• ${paymentLast4}`
+      : paymentMethod || "—"
+  );
+  const safeRideType = esc(
+    rideType
+      ? rideType.charAt(0).toUpperCase() + rideType.slice(1)
+      : "Standard"
+  );
+  const safeRideId   = esc(rideId || "—");
+  const year         = new Date().getFullYear();
+
+  // Fare breakdown rows
+  const breakdown = fareBreakdown || {};
+  const fareRows  = [
+    { label: "Base Fare",     val: breakdown.baseFare     },
+    { label: "Distance Fare", val: breakdown.distanceFare },
+    { label: "Booking Fee",   val: breakdown.bookingFee   },
+    { label: "Tip",           val: breakdown.tip          },
+    { label: "Discount",      val: breakdown.discount, negative: true },
+  ].filter((r) => r.val != null && r.val !== 0);
+
+  const fareBreakdownHTML = fareRows.length
+    ? fareRows.map((r) => `
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+              <tr>
+                <td style="padding:6px 0;font-family:'Courier New',monospace;
+                           font-size:11px;color:#6B7280;letter-spacing:1px;">
+                  ${esc(r.label).toUpperCase()}
+                </td>
+                <td align="right" style="padding:6px 0;font-family:Georgia,serif;
+                           font-size:14px;font-weight:700;color:#ffffff;">
+                  ${r.negative ? "−" : ""}${fmt.currency(Math.abs(r.val))}
+                </td>
+              </tr>
+            </table>`).join("")
+    : "";
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <title>Payment Confirmed — UaTob</title>
+  <style type="text/css">
+    body, html {
+      -webkit-text-size-adjust: 100% !important;
+      -ms-text-size-adjust: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      background-color: #0a0a0a !important;
+    }
+    @media only screen and (max-width: 600px) {
+      .hero-title  { font-size: 28px !important; }
+      .payout-num  { font-size: 44px !important; }
+      .stat-val    { font-size: 18px !important; }
+      .cta-btn     { font-size: 14px !important; padding: 16px 20px !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background-color:#0a0a0a;">
+
+<!-- Preheader -->
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#0a0a0a;">
+  ${esc(`Payment confirmed · ${fmt.currency(fareTotal)} · ${fmt.miles(tripDistanceMiles)} · Finding your driver now`)}
+</div>
+
+<table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+       style="background-color:#0a0a0a;padding:40px 20px;">
+  <tr>
+    <td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" role="presentation"
+             style="max-width:600px;width:100%;">
+
+        <!-- ══ WORDMARK HEADER ══ -->
+        <tr>
+          <td align="center" style="padding-bottom:28px;">
+            <table cellpadding="0" cellspacing="0" role="presentation">
+              <tr>
+                <td valign="middle" style="padding-right:10px;">
+                  ${UATOB_ICON_SVG}
+                </td>
+                <td valign="middle">
+                  <span style="font-family:Georgia,serif;font-style:italic;font-weight:300;font-size:28px;
+                               color:#ffffff;letter-spacing:-0.5px;line-height:1;">Ua</span><!--
+               -->${ARROW_SVG}<!--
+               --><span style="font-family:Arial,sans-serif;font-weight:800;font-size:28px;
+                               color:#4ADE80;letter-spacing:-0.5px;line-height:1;">Tob</span>
+                </td>
+                <td valign="middle" style="padding-left:10px;">
+                  <span style="font-family:'Courier New',monospace;font-size:9px;
+                               font-weight:700;color:#4ADE80;background-color:#052e16;
+                               padding:4px 9px;border-radius:100px;letter-spacing:1.5px;
+                               border:1px solid #166534;display:inline-block;">
+                    RECEIPT
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- ══ MAIN CARD ══ -->
+        <tr>
+          <td style="background-color:#111111;border-radius:20px;
+                     border:1px solid #1f1f1f;overflow:hidden;">
+
+            <!-- ── HERO BAND ── -->
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+              <tr>
+                <td style="background:linear-gradient(135deg,#052e16 0%,#14532d 50%,#166534 100%);
+                           padding:40px 36px 32px;">
+                  <div style="display:inline-block;background-color:rgba(74,222,128,0.15);
+                              border:1.5px solid #4ADE80;border-radius:100px;
+                              padding:5px 14px;margin-bottom:20px;">
+                    <span style="font-family:'Courier New',monospace;font-size:10px;
+                                 font-weight:700;color:#4ADE80;letter-spacing:2px;">
+                      &#9679;&nbsp; PAYMENT CONFIRMED
+                    </span>
+                  </div>
+                  <h1 class="hero-title"
+                      style="margin:0 0 8px;font-family:Georgia,serif;font-size:36px;
+                             font-weight:700;color:#ffffff;line-height:1.15;letter-spacing:-1px;">
+                    You're booked,<br/>
+                    <span style="color:#4ADE80;">${safeName}.</span>
+                  </h1>
+                  <p style="margin:0;font-family:'Courier New',monospace;font-size:13px;
+                             color:#86efac;letter-spacing:0.3px;">
+                    Payment went through &mdash; finding your driver now.
+                  </p>
+                </td>
+              </tr>
+            </table>
+
+            <!-- ── FARE HERO STAT ── -->
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+              <tr>
+                <td align="center"
+                    style="padding:32px 36px 24px;border-bottom:1px solid #1f1f1f;">
+                  <p style="margin:0 0 6px;font-family:'Courier New',monospace;
+                             font-size:11px;font-weight:700;color:#4ADE80;letter-spacing:2.5px;">
+                    TOTAL CHARGED
+                  </p>
+                  <p class="payout-num"
+                     style="margin:0;font-family:Georgia,serif;font-size:56px;
+                            font-weight:700;color:#ffffff;line-height:1;letter-spacing:-2px;">
+                    ${fmt.currency(fareTotal)}
+                  </p>
+                  <p style="margin:8px 0 0;font-family:'Courier New',monospace;
+                             font-size:12px;color:#6B7280;letter-spacing:0.5px;">
+                    ${safePayment} &nbsp;&#183;&nbsp;
+                    <span style="color:#4ADE80;">&#10003; Succeeded</span>
+                  </p>
+                </td>
+              </tr>
+            </table>
+
+            <!-- ── TRIP STATS ROW ── -->
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+              <tr>
+                <td width="33%" align="center"
+                    style="padding:20px 12px;border-right:1px solid #1f1f1f;">
+                  <p style="margin:0 0 5px;font-family:'Courier New',monospace;
+                             font-size:10px;font-weight:700;color:#4ADE80;letter-spacing:2px;">
+                    DISTANCE
+                  </p>
+                  <p class="stat-val"
+                     style="margin:0;font-family:Georgia,serif;font-size:22px;
+                            font-weight:700;color:#ffffff;">
+                    ${fmt.miles(tripDistanceMiles)}
+                  </p>
+                </td>
+                <td width="33%" align="center"
+                    style="padding:20px 12px;border-right:1px solid #1f1f1f;">
+                  <p style="margin:0 0 5px;font-family:'Courier New',monospace;
+                             font-size:10px;font-weight:700;color:#4ADE80;letter-spacing:2px;">
+                    EST. TIME
+                  </p>
+                  <p class="stat-val"
+                     style="margin:0;font-family:Georgia,serif;font-size:22px;
+                            font-weight:700;color:#ffffff;">
+                    ${fmt.duration(tripDurationMin)}
+                  </p>
+                </td>
+                <td width="33%" align="center"
+                    style="padding:20px 12px;">
+                  <p style="margin:0 0 5px;font-family:'Courier New',monospace;
+                             font-size:10px;font-weight:700;color:#4ADE80;letter-spacing:2px;">
+                    RIDE TYPE
+                  </p>
+                  <p class="stat-val"
+                     style="margin:0;font-family:Georgia,serif;font-size:22px;
+                            font-weight:700;color:#ffffff;">
+                    ${safeRideType}
+                  </p>
+                </td>
+              </tr>
+            </table>
+
+            <!-- ── ROUTE CARD ── -->
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+              <tr>
+                <td style="padding:28px 36px;border-top:1px solid #1f1f1f;
+                           border-bottom:1px solid #1f1f1f;">
+                  <p style="margin:0 0 16px;font-family:'Courier New',monospace;
+                             font-size:11px;font-weight:700;color:#4ADE80;letter-spacing:2px;">
+                    TRIP ROUTE
+                  </p>
+
+                  <!-- Pickup -->
+                  <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+                         style="margin-bottom:8px;">
+                    <tr>
+                      <td width="32" valign="top" style="padding-top:3px;">
+                        <div style="width:24px;height:24px;border-radius:50%;
+                                    background-color:#4ADE80;text-align:center;
+                                    line-height:24px;font-size:11px;font-weight:900;
+                                    color:#052e16;font-family:'Courier New',monospace;">A</div>
+                      </td>
+                      <td valign="top">
+                        <p style="margin:0 0 2px;font-family:'Courier New',monospace;
+                                   font-size:10px;font-weight:700;color:#6B7280;
+                                   letter-spacing:1.5px;">PICKUP</p>
+                        <p style="margin:0;font-family:Georgia,serif;font-size:15px;
+                                   font-weight:700;color:#ffffff;line-height:1.4;">
+                          ${safePickup}
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+
+                  <!-- Connector -->
+                  <table cellpadding="0" cellspacing="0" role="presentation"
+                         style="margin:0 0 8px 12px;">
+                    <tr>
+                      <td style="border-left:2px dashed #166534;height:18px;width:1px;"></td>
+                    </tr>
+                  </table>
+
+                  <!-- Dropoff -->
+                  <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                    <tr>
+                      <td width="32" valign="top" style="padding-top:3px;">
+                        <div style="width:24px;height:24px;border-radius:50%;
+                                    background-color:#1f1f1f;border:2px solid #4ADE80;
+                                    text-align:center;line-height:20px;font-size:11px;
+                                    font-weight:900;color:#4ADE80;
+                                    font-family:'Courier New',monospace;">B</div>
+                      </td>
+                      <td valign="top">
+                        <p style="margin:0 0 2px;font-family:'Courier New',monospace;
+                                   font-size:10px;font-weight:700;color:#6B7280;
+                                   letter-spacing:1.5px;">DROPOFF</p>
+                        <p style="margin:0;font-family:Georgia,serif;font-size:15px;
+                                   font-weight:700;color:#ffffff;line-height:1.4;">
+                          ${safeDropoff}
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+
+            <!-- ── FARE BREAKDOWN ── -->
+            ${fareBreakdownHTML ? `
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+              <tr>
+                <td style="padding:20px 36px;border-bottom:1px solid #1f1f1f;">
+                  <p style="margin:0 0 12px;font-family:'Courier New',monospace;
+                             font-size:11px;font-weight:700;color:#4ADE80;letter-spacing:2px;">
+                    FARE BREAKDOWN
+                  </p>
+                  ${fareBreakdownHTML}
+                </td>
+              </tr>
+            </table>` : ""}
+
+            <!-- ── FINDING DRIVER STRIP ── -->
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+              <tr>
+                <td align="center"
+                    style="padding:14px 36px;background-color:#0d0d0d;
+                           border-top:1px solid #1f1f1f;">
+                  <p style="margin:0;font-family:'Courier New',monospace;font-size:11px;
+                             color:#6B7280;letter-spacing:0.5px;">
+                    &#128269;&nbsp; Matching you with the nearest available driver &nbsp;&#183;&nbsp;
+                    <span style="color:#4ADE80;">open the app to track</span>
+                  </p>
+                </td>
+              </tr>
+            </table>
+
+            <!-- ── CTA ── -->
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+              <tr>
+                <td style="padding:8px 36px 36px;border-top:1px solid #1f1f1f;">
+                  <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+                         style="margin-top:24px;">
+                    <tr>
+                      <td align="center">
+                        <a href="https://uatob.com"
+                           class="cta-btn"
+                           style="display:block;background-color:#16A34A;
+                                  color:#ffffff;font-family:'Courier New',monospace;
+                                  font-size:15px;font-weight:700;text-decoration:none;
+                                  padding:20px 32px;border-radius:12px;
+                                  letter-spacing:1px;text-align:center;
+                                  border:1px solid #4ADE80;">
+                          TRACK YOUR RIDE &#8594;
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
+                  <p style="margin:16px 0 0;font-family:'Courier New',monospace;
+                             font-size:11px;color:#374151;text-align:center;
+                             letter-spacing:0.5px;">
+                    Issue with your payment? &nbsp;
+                    <a href="https://uatob.com/help"
+                       style="color:#4ADE80;text-decoration:none;">uatob.com/help</a>
+                  </p>
+                </td>
+              </tr>
+            </table>
+
+            <!-- ── RIDE ID STRIP ── -->
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+              <tr>
+                <td style="padding:16px 36px;background-color:#0d0d0d;
+                           border-top:1px solid #1f1f1f;">
+                  <p style="margin:0;font-family:'Courier New',monospace;font-size:11px;
+                             color:#374151;letter-spacing:0.5px;">
+                    RIDE ID &nbsp;<span style="color:#4ADE80;">${safeRideId}</span>
+                  </p>
+                </td>
+              </tr>
+            </table>
+
+          </td>
+        </tr>
+
+        <!-- ══ FOOTER ══ -->
+        <tr>
+          <td align="center" style="padding:28px 20px 0;">
+            <p style="margin:0 0 6px;font-family:'Courier New',monospace;font-size:11px;
+                       color:#374151;letter-spacing:0.5px;">
+              &#169; ${year} UaTob &nbsp;&#183;&nbsp; Orlando, FL
+            </p>
+            <p style="margin:0 0 10px;font-family:'Courier New',monospace;font-size:10px;
+                       color:#1f2937;letter-spacing:0.3px;">
+              You&apos;re receiving this because you have a UaTob rider account.
+            </p>
+            <p style="margin:0;">
+              <a href="https://uatob.com/privacy"
+                 style="color:#374151;text-decoration:none;font-size:10px;
+                        margin:0 8px;font-family:'Courier New',monospace;">Privacy</a>
+              <a href="https://uatob.com/terms"
+                 style="color:#374151;text-decoration:none;font-size:10px;
+                        margin:0 8px;font-family:'Courier New',monospace;">Terms</a>
+              <a href="https://uatob.com/unsubscribe"
+                 style="color:#374151;text-decoration:none;font-size:10px;
+                        margin:0 8px;font-family:'Courier New',monospace;">Unsubscribe</a>
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>`.trim();
+
+  const text =
+    `Hey ${name || "there"}! Payment confirmed — ${fmt.currency(fareTotal)}.\n\n` +
+    `Pickup:   ${pickup || "—"}\n` +
+    `Dropoff:  ${dropoff || "—"}\n` +
+    `Distance: ${fmt.miles(tripDistanceMiles)}\n` +
+    `Est. Time: ${fmt.duration(tripDurationMin)}\n` +
+    `Payment:  ${paymentLast4 ? `${paymentMethod} •••• ${paymentLast4}` : paymentMethod || "—"}\n` +
+    `Ride ID:  ${rideId}\n\n` +
+    `We're finding your driver now. Track your ride: https://uatob.com\n\n` +
+    `Issue with your payment? https://uatob.com/help\n\n` +
+    `© ${year} UaTob · Orlando, FL`;
+
+  return {
+    to:      email,
+    from:    "UaTob <noreply@uatob.com>",
+    replyTo: "support@uatob.com",
+    subject: `Payment confirmed — ${fmt.currency(fareTotal)} · UaTob`,
+    text,
+    html,
+  };
+}
+
 // ── Trigger ───────────────────────────────────────────────────────────────────
 exports.onRidePaymentSucceeded = onDocumentUpdated(
   {
@@ -36,445 +501,43 @@ exports.onRidePaymentSucceeded = onDocumentUpdated(
       const before = event.data.before.data();
       const after  = event.data.after.data();
 
-      // ── GATE 1: Only fire when paymentStatus just flipped to "succeeded" ──
       const justSucceeded =
         before.paymentStatus !== "succeeded" &&
         after.paymentStatus  === "succeeded";
 
-      if (!justSucceeded) {
-        return null; // Not a payment confirmation update — ignore
-      }
+      if (!justSucceeded)        return null;
+      if (after.receiptEmailSent) return null;
+      if (!after.uid)             return null;
 
-      // ── GATE 2: Prevent duplicate emails ──────────────────────────────────
-      if (after.receiptEmailSent) {
-        console.log(`[receiptEmail] Already sent for ride ${event.params.rideId}, skipping.`);
-        return null;
-      }
-
-      // ── GATE 3: Need a UID ────────────────────────────────────────────────
-      if (!after.uid) {
-        console.warn(`[receiptEmail] No UID on ride ${event.params.rideId}`);
-        return null;
-      }
-
-      // ── Fetch rider account ───────────────────────────────────────────────
       const accountSnap = await db.collection("Accounts").doc(after.uid).get();
-      if (!accountSnap.exists) {
-        console.warn(`[receiptEmail] No account found for uid: ${after.uid}`);
-        return null;
-      }
+      if (!accountSnap.exists) return null;
 
-      const account = accountSnap.data();
-      const email   = account.email;
-      const name    = account.name || "there";
-
-      if (!email) {
-        console.warn(`[receiptEmail] No email on account uid: ${after.uid}`);
-        return null;
-      }
+      const { email, name = "there" } = accountSnap.data();
+      if (!email) return null;
 
       const sendgridKey = process.env.SENDGRID_API_KEY;
       if (!sendgridKey) {
-        console.error("[receiptEmail] Missing SENDGRID_API_KEY");
+        console.error("[onRidePaymentSucceeded] Missing SENDGRID_API_KEY");
         return null;
       }
 
       sgMail.setApiKey(sendgridKey);
 
-      // ── Destructure ride fields from `after` ──────────────────────────────
-      const {
-        pickup,
-        dropoff,
-        fareTotal,
-        fareBreakdown,
-        tripDistanceMiles,
-        tripDurationMin,
-        paymentMethod,
-        paymentLast4,
-        rideType,
-      } = after;
-
-      // ── Sanitised display values ──────────────────────────────────────────
-      const safeName     = esc(name);
-      const safePickup   = esc(pickup  || "—");
-      const safeDropoff  = esc(dropoff || "—");
-      const safePayment  = esc(
-        paymentLast4
-          ? `${paymentMethod} •••• ${paymentLast4}`
-          : paymentMethod || "—"
-      );
-      const safeRideType = esc(
-        rideType
-          ? rideType.charAt(0).toUpperCase() + rideType.slice(1)
-          : "Standard"
-      );
-
-      const year = new Date().getFullYear();
-
-      // ── Fare breakdown rows ───────────────────────────────────────────────
-      const breakdown = fareBreakdown || {};
-      const fareRows  = [
-        { label: "Base Fare",     val: breakdown.baseFare     },
-        { label: "Distance Fare", val: breakdown.distanceFare },
-        { label: "Booking Fee",   val: breakdown.bookingFee   },
-        { label: "Tip",           val: breakdown.tip          },
-        { label: "Discount",      val: breakdown.discount, negative: true },
-      ].filter((r) => r.val != null && r.val !== 0);
-
-      const fareBreakdownHTML = fareRows.length
-        ? `<table width="100%" cellpadding="0" cellspacing="0" role="presentation"
-                  style="margin-top:14px;padding-top:14px;border-top:1px dashed #d1d5db;">
-            ${fareRows
-              .map(
-                (r) => `
-              <tr>
-                <td style="padding:5px 0;font-size:13px;color:#6B7280;font-family:Arial,sans-serif;">
-                  ${esc(r.label)}
-                </td>
-                <td style="padding:5px 0;font-size:13px;color:#111827;font-weight:600;
-                           font-family:Arial,sans-serif;text-align:right;">
-                  ${r.negative ? "−" : ""}${fmt.currency(Math.abs(r.val))}
-                </td>
-              </tr>`
-              )
-              .join("")}
-           </table>`
-        : "";
-
-      // ── HTML ──────────────────────────────────────────────────────────────
-      const html = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="color-scheme" content="light">
-  <title>Your UaTob Ride Receipt</title>
-  <style type="text/css">
-    body, html, div, span, p, a, table, tr, td, h1, h2, h3, h4, h5, h6 {
-      -webkit-text-size-adjust: 100% !important;
-      -ms-text-size-adjust: 100% !important;
-    }
-    body {
-      margin: 0 !important; padding: 0 !important;
-      width: 100% !important; min-width: 100% !important;
-      background-color: #ffffff !important; color: #000000 !important;
-    }
-    @media (prefers-color-scheme: dark) {
-      body, html { background-color: #ffffff !important; }
-      * { background-color: inherit !important; color: #000000 !important; }
-    }
-    @media only screen and (max-width: 600px) {
-      .hero-title  { font-size: 26px !important; }
-      .content-pad { padding: 24px 16px !important; }
-    }
-  </style>
-</head>
-<body style="margin:0!important;padding:0!important;background-color:#ffffff!important;">
-
-<table width="100%" cellpadding="0" cellspacing="0" role="presentation"
-       style="margin:0;padding:40px 0;background-color:#f3f4f6;">
-  <tr>
-    <td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" role="presentation"
-             style="max-width:600px;width:100%;background-color:#ffffff;
-                    border-radius:24px;overflow:hidden;
-                    box-shadow:0 4px 24px rgba(0,0,0,0.08);">
-
-        <!-- ── HERO ── -->
-        <tr>
-          <td align="center"
-              style="background:linear-gradient(135deg,#15803D 0%,#16A34A 55%,#22C55E 100%);
-                     padding:52px 32px 44px;">
-            <div style="width:80px;height:80px;background-color:rgba(255,255,255,0.15);
-                        border-radius:50%;text-align:center;line-height:80px;
-                        font-size:42px;margin:0 auto 24px;">💳</div>
-            <h1 class="hero-title"
-                style="margin:0 0 12px;font-size:32px;font-weight:900;
-                       color:#ffffff;line-height:1.2;letter-spacing:-0.5px;
-                       font-family:Arial,sans-serif;">
-              Payment Confirmed!
-            </h1>
-            <p style="margin:0;font-size:16px;color:#ffffff;font-weight:500;
-                      font-family:Arial,sans-serif;opacity:0.92;line-height:1.5;">
-              Your ride is booked, ${safeName}. A driver is on the way.
-            </p>
-          </td>
-        </tr>
-
-        <!-- ── PAYMENT CONFIRMED BADGE ── -->
-        <tr>
-          <td style="padding:0 32px;background-color:#ffffff;">
-            <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
-                   style="margin-top:-20px;">
-              <tr>
-                <td align="center">
-                  <div style="display:inline-block;background-color:#f0fdf4;
-                              border:2px solid #86efac;border-radius:100px;
-                              padding:10px 24px;font-size:13px;font-weight:700;
-                              color:#15803d;font-family:Arial,sans-serif;
-                              letter-spacing:0.5px;">
-                    ✅ &nbsp;PAYMENT SUCCEEDED · SEARCHING FOR DRIVER
-                  </div>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-
-        <!-- ── MAIN CONTENT ── -->
-        <tr>
-          <td class="content-pad"
-              style="padding:36px 32px;background-color:#ffffff;">
-
-            <!-- Intro -->
-            <p style="margin:0 0 28px;font-size:16px;color:#111827;
-                      line-height:1.7;font-family:Arial,sans-serif;">
-              Hey <strong>${safeName}</strong>! Your payment went through and your ride
-              is confirmed. Here's your receipt — keep it for your records.
-            </p>
-
-            <!-- ── ROUTE ── -->
-            <div style="background-color:#f9fafb;border:1px solid #e5e7eb;
-                        border-radius:16px;padding:24px;margin-bottom:24px;">
-              <h2 style="margin:0 0 18px;font-size:17px;font-weight:700;
-                         color:#111827;font-family:Arial,sans-serif;">
-                🗺️ Your Trip
-              </h2>
-
-              <!-- Pickup -->
-              <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
-                     style="margin-bottom:10px;">
-                <tr>
-                  <td width="28" valign="top" style="padding-top:2px;">
-                    <div style="width:20px;height:20px;background-color:#22C55E;
-                                border-radius:50%;text-align:center;line-height:20px;
-                                font-size:10px;color:#fff;font-family:Arial,sans-serif;">A</div>
-                  </td>
-                  <td valign="top">
-                    <p style="margin:0;font-size:11px;font-weight:700;color:#6B7280;
-                               letter-spacing:0.8px;font-family:Arial,sans-serif;">PICKUP</p>
-                    <p style="margin:2px 0 0;font-size:14px;color:#111827;
-                               font-weight:600;font-family:Arial,sans-serif;">
-                      ${safePickup}
-                    </p>
-                  </td>
-                </tr>
-              </table>
-
-              <!-- Connector -->
-              <table cellpadding="0" cellspacing="0" role="presentation"
-                     style="margin:0 0 10px 10px;">
-                <tr>
-                  <td style="border-left:2px dashed #D1D5DB;height:16px;width:1px;"></td>
-                </tr>
-              </table>
-
-              <!-- Dropoff -->
-              <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-                <tr>
-                  <td width="28" valign="top" style="padding-top:2px;">
-                    <div style="width:20px;height:20px;background-color:#2563EB;
-                                border-radius:50%;text-align:center;line-height:20px;
-                                font-size:10px;color:#fff;font-family:Arial,sans-serif;">B</div>
-                  </td>
-                  <td valign="top">
-                    <p style="margin:0;font-size:11px;font-weight:700;color:#6B7280;
-                               letter-spacing:0.8px;font-family:Arial,sans-serif;">DROPOFF</p>
-                    <p style="margin:2px 0 0;font-size:14px;color:#111827;
-                               font-weight:600;font-family:Arial,sans-serif;">
-                      ${safeDropoff}
-                    </p>
-                  </td>
-                </tr>
-              </table>
-
-              <!-- Trip stats -->
-              <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
-                     style="margin-top:18px;padding-top:18px;border-top:1px solid #e5e7eb;">
-                <tr>
-                  <td width="33%" align="center" style="border-right:1px solid #e5e7eb;">
-                    <p style="margin:0;font-size:11px;font-weight:700;color:#6B7280;
-                               letter-spacing:0.8px;font-family:Arial,sans-serif;">DISTANCE</p>
-                    <p style="margin:4px 0 0;font-size:18px;font-weight:800;
-                               color:#111827;font-family:Arial,sans-serif;">
-                      ${fmt.miles(tripDistanceMiles)}
-                    </p>
-                  </td>
-                  <td width="33%" align="center" style="border-right:1px solid #e5e7eb;">
-                    <p style="margin:0;font-size:11px;font-weight:700;color:#6B7280;
-                               letter-spacing:0.8px;font-family:Arial,sans-serif;">EST. TIME</p>
-                    <p style="margin:4px 0 0;font-size:18px;font-weight:800;
-                               color:#111827;font-family:Arial,sans-serif;">
-                      ${fmt.duration(tripDurationMin)}
-                    </p>
-                  </td>
-                  <td width="33%" align="center">
-                    <p style="margin:0;font-size:11px;font-weight:700;color:#6B7280;
-                               letter-spacing:0.8px;font-family:Arial,sans-serif;">RIDE TYPE</p>
-                    <p style="margin:4px 0 0;font-size:18px;font-weight:800;
-                               color:#111827;font-family:Arial,sans-serif;">
-                      ${safeRideType}
-                    </p>
-                  </td>
-                </tr>
-              </table>
-            </div>
-
-            <!-- ── FARE SUMMARY ── -->
-            <div style="background-color:#f0fdf4;border:2px solid #86efac;
-                        border-radius:16px;padding:24px;margin-bottom:24px;">
-              <h2 style="margin:0 0 16px;font-size:17px;font-weight:700;
-                         color:#111827;font-family:Arial,sans-serif;">
-                💳 Payment Summary
-              </h2>
-
-              <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-                <tr>
-                  <td style="font-size:13.5px;color:#6B7280;font-family:Arial,sans-serif;">
-                    Payment Method
-                  </td>
-                  <td style="font-size:13.5px;color:#111827;font-weight:700;
-                             font-family:Arial,sans-serif;text-align:right;">
-                    ${safePayment}
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding-top:8px;font-size:13.5px;color:#6B7280;
-                             font-family:Arial,sans-serif;">
-                    Status
-                  </td>
-                  <td style="padding-top:8px;font-size:13.5px;font-weight:700;
-                             color:#15803d;font-family:Arial,sans-serif;text-align:right;">
-                    ✅ Succeeded
-                  </td>
-                </tr>
-              </table>
-
-              ${fareBreakdownHTML}
-
-              <!-- Total -->
-              <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
-                     style="margin-top:16px;padding-top:16px;border-top:2px solid #86efac;">
-                <tr>
-                  <td style="font-size:16px;font-weight:800;color:#111827;
-                             font-family:Arial,sans-serif;">
-                    Total Charged
-                  </td>
-                  <td style="font-size:24px;font-weight:900;color:#15803D;
-                             font-family:Arial,sans-serif;text-align:right;">
-                    ${fmt.currency(fareTotal)}
-                  </td>
-                </tr>
-              </table>
-            </div>
-
-            <!-- ── DRIVER SEARCHING NOTICE ── -->
-            <div style="background-color:#fffbeb;border:2px solid #fde68a;
-                        border-radius:16px;padding:24px;margin-bottom:24px;
-                        text-align:center;">
-              <div style="font-size:32px;margin-bottom:10px;">🔍</div>
-              <h2 style="margin:0 0 8px;font-size:17px;font-weight:700;
-                         color:#111827;font-family:Arial,sans-serif;">
-                Finding Your Driver
-              </h2>
-              <p style="margin:0;font-size:13.5px;color:#6B7280;
-                        font-family:Arial,sans-serif;line-height:1.6;">
-                We're matching you with the nearest available driver.
-                You'll get a notification in the app the moment one is confirmed.
-              </p>
-            </div>
-
-            <!-- ── OPEN APP CTA ── -->
-            <div style="text-align:center;margin:32px 0;">
-              <a href="https://uatob.com"
-                 style="display:inline-block;background-color:#16A34A;
-                        color:#ffffff;font-size:16px;font-weight:700;
-                        text-decoration:none;padding:16px 40px;
-                        border-radius:14px;font-family:Arial,sans-serif;">
-                Track Your Ride →
-              </a>
-              <p style="margin:12px 0 0;font-size:13px;color:#6B7280;
-                         font-family:Arial,sans-serif;">
-                Open the UaTob app to watch your driver in real time
-              </p>
-            </div>
-
-            <!-- ── FOOTER NOTE ── -->
-            <div style="text-align:center;padding-top:24px;
-                        border-top:1px solid #e5e7eb;">
-              <p style="margin:0;font-size:13px;color:#4B5563;
-                         line-height:1.7;font-family:Arial,sans-serif;">
-                Issue with your payment? Contact us at
-                <a href="https://uatob.com/help"
-                   style="color:#16A34A;text-decoration:none;font-weight:600;">
-                  uatob.com/help
-                </a>
-                or reply to this email.
-              </p>
-            </div>
-
-          </td>
-        </tr>
-
-        <!-- ── EMAIL FOOTER ── -->
-        <tr>
-          <td style="padding:24px 32px;text-align:center;
-                     background-color:#f3f4f6;border-top:1px solid #e5e7eb;">
-            <div style="font-size:15px;font-weight:800;color:#111827;
-                        font-family:Arial,sans-serif;margin-bottom:4px;
-                        letter-spacing:-0.3px;">UaTob</div>
-            <div style="font-size:12px;color:#6B7280;font-family:Arial,sans-serif;
-                        margin-bottom:12px;">Orlando's Rideshare Platform</div>
-            <div style="font-size:12px;color:#9CA3AF;font-family:Arial,sans-serif;
-                        margin-bottom:12px;">© ${year} UaTob. All rights reserved.</div>
-            <div>
-              <a href="https://uatob.com/privacy"
-                 style="color:#16A34A;text-decoration:none;font-size:11px;
-                        margin:0 8px;font-family:Arial,sans-serif;">Privacy</a>
-              <a href="https://uatob.com/terms"
-                 style="color:#16A34A;text-decoration:none;font-size:11px;
-                        margin:0 8px;font-family:Arial,sans-serif;">Terms</a>
-              <a href="https://uatob.com/unsubscribe"
-                 style="color:#16A34A;text-decoration:none;font-size:11px;
-                        margin:0 8px;font-family:Arial,sans-serif;">Unsubscribe</a>
-            </div>
-          </td>
-        </tr>
-
-      </table>
-    </td>
-  </tr>
-</table>
-
-</body>
-</html>`;
-
-      // ── Send ──────────────────────────────────────────────────────────────
-      const msg = {
-        to:      email,
-        from:    "UaTob <noreply@uatob.com>",
-        replyTo: "support@uatob.com",
-        subject: `✅ Payment confirmed — ${fmt.currency(fareTotal)} · UaTob`,
-        text:
-          `Hey ${name}! Your payment of ${fmt.currency(fareTotal)} went through. ` +
-          `We're finding you a driver now. ` +
-          `From: ${pickup} → ${dropoff} · ${fmt.miles(tripDistanceMiles)} · ` +
-          `${fmt.duration(tripDurationMin)}. ` +
-          `Open the app to track your ride: https://uatob.com`,
-        html,
-      };
+      const msg = buildPaymentSucceededEmail({
+        name,
+        email,
+        ride:   after,
+        rideId: event.params.rideId,
+      });
 
       await sgMail.send(msg);
-
-      // ── Mark as sent so this never fires twice ────────────────────────────
       await event.data.after.ref.update({ receiptEmailSent: true });
 
-      console.log(`📧 [receiptEmail] Sent to ${email} for ride ${event.params.rideId} ✅`);
+      console.log(`[onRidePaymentSucceeded] Email sent to ${email} ✅`);
       return null;
 
     } catch (error) {
-      console.error("❌ [receiptEmail] Error:", error);
+      console.error("[onRidePaymentSucceeded]", error);
       if (error.response) console.error(error.response.body);
       return null;
     }
