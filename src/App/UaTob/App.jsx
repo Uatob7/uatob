@@ -1,6 +1,6 @@
 // src/App/UaTob/UaTobApp.jsx
 import React, { useState, useEffect } from 'react';
-import { Route, User, LogIn, X, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Route, User, LogIn, X, Eye, EyeOff, Loader2, CheckCircle, Mail, Lock } from 'lucide-react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
 
@@ -21,6 +21,7 @@ import { useAuthContext } from '@/context/AuthContext';
 import { firebase_app } from '@/firebase/config';
 import signIn from '@/firebase/auth/signin';
 import signUp from '@/firebase/auth/signup';
+import resetPassword from '@/firebase/auth/passwordReset';
 import { useUserRides } from '@/App/UaTob/useUserRides';
 import { useRides } from '@/App/UaTob/useRides';
 import { useActiveRides } from '@/App/UaTob/useActiveRides';
@@ -67,6 +68,10 @@ function InlineAuthModal({ onClose, onAuthSuccess }) {
   const [showPw,   setShowPw]   = useState(false);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState('');
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetMessage, setResetMessage] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -91,6 +96,34 @@ function InlineAuthModal({ onClose, onAuthSuccess }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setResetLoading(true);
+    setError('');
+    setResetMessage('');
+
+    if (!resetEmail.trim()) {
+      setError('Please enter your email address');
+      setResetLoading(false);
+      return;
+    }
+
+    const result = await resetPassword(resetEmail.trim().toLowerCase());
+    
+    if (result.success) {
+      setResetMessage(result.message);
+      setResetEmail('');
+      setTimeout(() => {
+        setShowForgotPassword(false);
+        setResetMessage('');
+      }, 3000);
+    } else {
+      setError(result.error.message);
+    }
+    
+    setResetLoading(false);
   };
 
   return (
@@ -152,6 +185,27 @@ function InlineAuthModal({ onClose, onAuthSuccess }) {
               {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
           </div>
+
+          {mode === 'login' && (
+            <div style={{ textAlign: 'right', marginBottom: '12px' }}>
+              <button
+                type="button"
+                onClick={() => setShowForgotPassword(true)}
+                disabled={loading}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#16A34A',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                }}
+              >
+                Forgot password?
+              </button>
+            </div>
+          )}
 
           <button className="auth-submit" type="submit" disabled={loading}>
             {loading
