@@ -91,6 +91,10 @@ const { announceOnlineDrivers } = require("./admin/announceOnlineDrivers");
 const { awardReward  } = require("./admin/awardReward");
 const { deleteDriver } = require("./admin/deleteDriver");
 
+// Account presence
+
+const { updateAccountPresence } = require("./accounts/updateAccountPresence");
+
 
 // Exports
 exports.createAccount = createAccount;
@@ -175,3 +179,6 @@ exports.computeRideAnalytics = computeRideAnalytics;
 exports.announceOnlineDrivers = announceOnlineDrivers;
 exports.awardReward = awardReward;
 exports.deleteDriver = deleteDriver;
+
+
+exports.updateAccountPresence = updateAccountPresence;
