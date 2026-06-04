@@ -8,6 +8,7 @@ import {
   CheckCircle, Clock, ArrowRight, X, Crown, Users, Sparkles, Hash,
 } from "lucide-react";
 import signUp from '@/firebase/auth/signup';
+import DriverLogin from "@/App/SignUp/DriverLogin";
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { firebase_app } from "@/firebase/config";
@@ -1202,6 +1203,7 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
   const [loading,          setLoading]          = useState(false);
   const [submitError,      setSubmitError]      = useState(null);
   const [showResumeBanner, setShowResumeBanner] = useState(() => lsGet(LS_KEYS.step, 1) > 1);
+  const [showLoginForm,    setShowLoginForm]    = useState(false);
 
   const scrollRef         = useRef(null);
   const firestoreHydrated = useRef(false);
@@ -1397,8 +1399,19 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
 
     } catch (err) {
       console.error("❌ Error:", err);
-      if (step === 1 && !isExistingUser) setErrors({ email: err.message || "Signup failed. Please try again." });
-      else setSubmitError(err.message || "Something went wrong. Please try again.");
+      if (step === 1 && !isExistingUser) {
+        // Check if email already exists
+        if (err.code === "auth/email-already-in-use") {
+          setShowLoginForm(true);
+          setSubmitError(null);
+          setErrors({});
+        } else {
+          setErrors({ email: err.message || "Signup failed. Please try again." });
+          setShowLoginForm(false);
+        }
+      } else {
+        setSubmitError(err.message || "Something went wrong. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -1663,11 +1676,38 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
               ? "slideForward .35s cubic-bezier(.25,.46,.45,.94)"
               : "slideBack .35s cubic-bezier(.25,.46,.45,.94)",
         }}>
-          {step === 1 && <StepAccount   data={accountData} setData={setAccountData} errors={errors} isExistingUser={isExistingUser} />}
-          {step === 2 && <StepContact   data={contactData} setData={setContactData} errors={errors} />}
-          {step === 3 && <StepVehicle   data={vehicleData} setData={setVehicleData} errors={errors} />}
-          {step === 4 && <StepDocuments data={docData}     setData={setDocData}     errors={errors} uid={createdUid || uid} />}
-          {step === 5 && <StepVerify    accountData={accountData} contactData={contactData} vehicleData={vehicleData} docData={docData} />}
+          {showLoginForm && step === 1 ? (
+            <DriverLogin
+              email={accountData.email}
+              onSuccess={(user) => {
+                setCreatedUid(user.uid);
+                lsSet(LS_KEYS.uid, user.uid);
+                setShowLoginForm(false);
+                setAccountData(d => ({ ...d, password: "", confirmPassword: "" }));
+                // Move to next step after successful login
+                setDirection("forward");
+                setAnimating(true);
+                setTimeout(() => {
+                  setStep(2);
+                  setErrors({});
+                  setAnimating(false);
+                  scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+                }, 200);
+              }}
+              onBackToSignup={() => {
+                setShowLoginForm(false);
+                setAccountData(d => ({ ...d, password: "", confirmPassword: "" }));
+              }}
+            />
+          ) : (
+            <>
+              {step === 1 && <StepAccount   data={accountData} setData={setAccountData} errors={errors} />}
+              {step === 2 && <StepContact   data={contactData} setData={setContactData} errors={errors} />}
+              {step === 3 && <StepVehicle   data={vehicleData} setData={setVehicleData} errors={errors} />}
+              {step === 4 && <StepDocuments data={docData}     setData={setDocData}     errors={errors} uid={createdUid || uid} />}
+              {step === 5 && <StepVerify    accountData={accountData} contactData={contactData} vehicleData={vehicleData} docData={docData} />}
+            </>
+          )}
         </div>
       </div>
 
@@ -1681,23 +1721,25 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
         boxShadow: "0 -8px 32px rgba(0,0,0,.06)",
       }}>
         <div style={{ maxWidth: 560, margin: "0 auto", display: "flex", gap: 10, alignItems: "center" }}>
-          {step > 1 && (
+          {step > 1 && !showLoginForm && (
             <button type="button" className="ghost-btn" onClick={goBack} style={{ padding: "15px 22px" }}>
               <ChevronLeft size={17} /> Back
             </button>
           )}
-          <button
-            type="button" className="green-btn"
-            onClick={goNext} disabled={loading || animating}
-            style={{ flex: 1, padding: "16px 24px" }}
-          >
-            {loading
-              ? <span>Please wait…</span>
-              : step === 5
-                ? <><Sparkles size={16} fill="#fff" strokeWidth={0}/> <span>Submit Application</span></>
-                : <><span>Continue</span><ArrowRight size={17} /></>
-            }
-          </button>
+          {!showLoginForm && (
+            <button
+              type="button" className="green-btn"
+              onClick={goNext} disabled={loading || animating}
+              style={{ flex: 1, padding: "16px 24px" }}
+            >
+              {loading
+                ? <span>Please wait…</span>
+                : step === 5
+                  ? <><Sparkles size={16} fill="#fff" strokeWidth={0}/> <span>Submit Application</span></>
+                  : <><span>Continue</span><ArrowRight size={17} /></>
+              }
+            </button>
+          )}
         </div>
         <div style={{ display: "flex", justifyContent: "center", gap: 5, marginTop: 12 }}>
           {STEPS.map(s => (
