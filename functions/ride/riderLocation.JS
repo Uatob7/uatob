@@ -17,6 +17,8 @@ exports.riderLocation = onCall(
   async (request) => {
     const { rideId, lat, lng } = request.data ?? {};
 
+    console.log(`riderLocation called with rideId=${rideId}, lat=${lat}, lng=${lng}`);
+
     // ── Validate rideId ─────────────────────────────────────────────────
     if (!rideId?.trim()) throw new Error("rideId is required");
 
@@ -41,6 +43,7 @@ exports.riderLocation = onCall(
 
     // ── Only track active rides ─────────────────────────────────────────
     const ACTIVE_STATUSES = [
+      "searching_driver",
       "driver_assigned",
       "driver_arriving",
       "arrived",

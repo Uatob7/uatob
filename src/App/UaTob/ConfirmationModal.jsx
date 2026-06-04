@@ -1267,3 +1267,17 @@ export default function ConfirmationModal({ onClose, onPaymentCancelled, onRetry
     </>
   );
 }
+
+
+riderLat
+28.5730698
+(double)
+
+
+riderLng
+-81.4696372
+(double)
+
+
+riderLocationAt
+June 4, 2026 at 7:45:22 PM UTC-4
