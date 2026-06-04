@@ -35,6 +35,7 @@ import { useApprovals }       from "@/App/Admin/useApprovals";
 import { useRideAnalytics }   from "@/App/Admin/useRideAnalytics";
 import { useRiders }          from "@/App/Admin/useRiders";
 import { useSearches }        from "@/App/Admin/useSearches";
+import { useRideUids }        from "@/App/Admin/useRideUids";
 
 // ── Callables ──────────────────────────────────────────────────────────────
 const functions          = getFunctions(firebase_app, "us-east1");
@@ -204,13 +205,14 @@ export default function UaTobAdminDashboard() {
   const { uatobdrivers }   = useDriverPresence();
   const { activeRides }    = useActiveRides();
   const { searchingRides } = useSearchingRides();
-  const { totalRides, rides } = useTotalRides();
-  const { activeDrivers }  = useActiveDrivers();
+  const { totalRides, rides } = useTotalRides();  const rideUids = useRideUids(rides);  const { activeDrivers }  = useActiveDrivers();
   const { revenue }        = useRevenueToday();
   const { liveRides }      = useLiveRides();
   const { approvals }      = usePendingApprovals();
   const { fleet }          = useFleetDrivers();
   const { approvals: allApprovals } = useApprovals();
+
+
 
   const {
     totalRides:      analyticsTotal,
@@ -319,7 +321,7 @@ export default function UaTobAdminDashboard() {
           />
         );
       case "riders":
-        return <RidersTab useriders={useriders} onBack={() => setActiveTab("home")} />;
+        return <RidersTab useriders={useriders} rideUids={rideUids} rides={rides} onBack={() => setActiveTab("home")} />;
       case "search":
         return <SearchTab searches={searches} onToast={showToast} />;
       case "compliance":
@@ -354,7 +356,7 @@ export default function UaTobAdminDashboard() {
         />
       )}
 
-      <Drawer useriders={useriders} open={drawerOpen} onClose={() => setDrawerOpen(false)} onNavigate={setActiveTab} />
+      <Drawer useriders={useriders} rideUids={rideUids} open={drawerOpen} onClose={() => setDrawerOpen(false)} onNavigate={setActiveTab} />
 
       <TopBar title={TAB_TITLES[activeTab]} onMenuOpen={() => setDrawerOpen(true)} views={views} />
 

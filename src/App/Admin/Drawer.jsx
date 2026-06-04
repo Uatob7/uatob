@@ -4,7 +4,7 @@ import { DrawerHeader } from '@/App/Admin/DrawerHeader';
 import { DrawerNav } from '@/App/Admin/DrawerNav';
 import { DrawerFooter } from '@/App/Admin/DrawerFooter';
 
-export function Drawer({ useriders, open, onClose, onNavigate }) {
+export function Drawer({ useriders, rideUids, open, onClose, onNavigate }) {
   if (!open) return null;
 
   return (
@@ -12,7 +12,7 @@ export function Drawer({ useriders, open, onClose, onNavigate }) {
       <DrawerOverlay onClick={onClose} />
       <div className="drawer">
         <DrawerHeader onClose={onClose} />
-        <DrawerNav useriders={useriders} onNavigate={onNavigate} onClose={onClose} />
+        <DrawerNav useriders={useriders} rideUids={rideUids} onNavigate={onNavigate} onClose={onClose} />
         <DrawerFooter />
       </div>
     </>
