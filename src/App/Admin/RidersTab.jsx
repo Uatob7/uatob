@@ -575,11 +575,39 @@ export function RidersTab({ useriders, rideUids, rides = [], onBack }) {
   const [rideHistory, setRideHistory] = useState(null);
   const [noteText, setNote]     = useState("");
 
-  const riders = useMemo(() => rawRiders.map(r => ({
+  // Find orphaned UIDs (rides with UIDs that don't have a corresponding rider)
+  const orphanedUids = useMemo(() => {
+    const riderIds = new Set(rawRiders.map(r => r.id).filter(Boolean));
+    const riderUids = new Set(rawRiders.map(r => r.uid).filter(Boolean));
+    const uniqueRideUids = new Set(rides.map(r => r.uid).filter(Boolean));
+    
+    const orphaned = [];
+    uniqueRideUids.forEach(uid => {
+      if (!riderIds.has(uid) && !riderUids.has(uid)) {
+        const rideCount = rides.filter(r => r.uid === uid).length;
+        orphaned.push({
+          id: uid,
+          uid: uid,
+          name: "Unknown Account",
+          email: "—",
+          status: "active",
+          isOrphaned: true,
+          rideCount: rideCount,
+          createdAt: rides.find(r => r.uid === uid)?.createdAt || null,
+        });
+      }
+    });
+    return orphaned;
+  }, [rawRiders, rides]);
+
+  // Combine real riders with orphaned UIDs
+  const allRidersData = useMemo(() => [...rawRiders, ...orphanedUids], [rawRiders, orphanedUids]);
+
+  const riders = useMemo(() => allRidersData.map(r => ({
     ...r,
     ...(local[r.id] || {}),
     status: local[r.id]?.status || r.status || "active",
-  })), [rawRiders, local]);
+  })), [allRidersData, local]);
 
   const counts = useMemo(() => {
     const c = { all: 0, active: 0, suspended: 0, banned: 0 };
@@ -604,7 +632,6 @@ export function RidersTab({ useriders, rideUids, rides = [], onBack }) {
   // Get rides for the currently viewed rider
   const riderRides = useMemo(() => {
     if (!rideHistory || !rides.length) return [];
-    // Try both uid and id since different data sources might use different property names
     const riderId = rideHistory.uid || rideHistory.id;
     if (!riderId) return [];
     return rides.filter(r => r.uid === riderId);
@@ -798,12 +825,16 @@ export function RidersTab({ useriders, rideUids, rides = [], onBack }) {
                   <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3, flexWrap: "wrap" }}>
                     <span style={{ fontFamily: font, fontWeight: 700, fontSize: 14, color: C.ink, letterSpacing: "-.01em" }}>{rider.name || "—"}</span>
                     <Badge status={rider.status} />
+                    {rider.isOrphaned && <Flag size={11} color={C.red} title="Orphaned UID: No matching rider account" />}
                     {(local[rider.id]?.adminNote || rider.adminNote) && <Flag size={11} color={C.amber} />}
                   </div>
                   <div style={{ fontSize: 12, color: C.ink4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 4, fontWeight: 500 }}>{rider.email}</div>
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10.5, color: C.ink5, fontWeight: 500 }}>
                       <Calendar size={10} /> {fmtRelative(rider.createdAt)}
+                    </span>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10.5, color: C.blue, fontWeight: 600 }}>
+                      <Activity size={10} /> {rides.filter(r => r.uid === rider.uid || r.uid === rider.id).length} rides
                     </span>
                     {rider.welcomeEmailSent && (
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10.5, color: C.green, fontWeight: 600 }}>

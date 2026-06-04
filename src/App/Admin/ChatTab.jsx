@@ -210,12 +210,13 @@ const CSS = `
   .ac-conv-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
   .ac-conv-time { font-size: 11px; color: ${T.textMut}; font-weight: 600; }
   .ac-unread-dot {
-    min-width: 20px; height: 20px; border-radius: 10px;
+    min-width: 24px; height: 24px; border-radius: 12px;
     background: ${T.red}; color: #fff;
     display: flex; align-items: center; justify-content: center;
-    font-size: 10.5px; font-weight: 800; padding: 0 5px;
+    font-size: 11px; font-weight: 900; padding: 0 6px;
     animation: ac-pop .3s ease;
-    box-shadow: 0 2px 8px rgba(220,38,38,.3);
+    box-shadow: 0 2px 8px rgba(220,38,38,.4), 0 0 12px rgba(220,38,38,.2);
+    line-height: 1;
   }
 
   /* ── EMPTY STATE ── */
@@ -636,6 +637,29 @@ export function ChatTab({ onBack, onToast }) {
     return onSnapshot(q, snap => {
       setConvs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }, err => { console.error(err); onToast?.("Failed to load conversations", "error"); });
+  }, [user]);
+
+  // Listen for new driver messages and update unread count
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, "Support"), where("sender", "==", "driver"));
+    return onSnapshot(q, snap => {
+      snap.docChanges().forEach(async change => {
+        if (change.type === "added") {
+          const msg = change.doc.data();
+          if (msg.threadId) {
+            const threadRef = doc(db, "SupportThreads", msg.threadId);
+            const threadSnap = await getDoc(threadRef);
+            if (threadSnap.exists()) {
+              const current = threadSnap.data().unreadByAdmin || 0;
+              await updateDoc(threadRef, {
+                unreadByAdmin: current + 1,
+              }).catch(() => {});
+            }
+          }
+        }
+      });
+    }, () => {});
   }, [user]);
 
   const totalUnread = convs.reduce((s, c) => s + (c.unreadByAdmin || 0), 0);
