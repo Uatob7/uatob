@@ -226,6 +226,183 @@ function InlineAuthModal({ onClose, onAuthSuccess }) {
         </div>
 
       </div>
+
+      {showForgotPassword && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(0,0,0,.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '20px',
+          }}
+          onClick={() => setShowForgotPassword(false)}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: '16px',
+              padding: '32px 24px',
+              maxWidth: 400,
+              width: '100%',
+              boxShadow: '0 20px 60px rgba(0,0,0,.3)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {resetMessage ? (
+              <>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    marginBottom: 16,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 64,
+                      height: 64,
+                      background: 'rgba(22,163,74,.1)',
+                      borderRadius: 32,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <CheckCircle size={32} color="#16A34A" />
+                  </div>
+                </div>
+                <h3
+                  style={{
+                    fontSize: 18,
+                    fontWeight: 700,
+                    color: '#111827',
+                    marginBottom: 8,
+                    textAlign: 'center',
+                  }}
+                >
+                  Check Your Email
+                </h3>
+                <p
+                  style={{
+                    fontSize: 13,
+                    color: '#6B7280',
+                    textAlign: 'center',
+                    lineHeight: 1.6,
+                  }}
+                >
+                  We've sent a password reset link to <strong>{resetEmail}</strong>. The link will expire in 1 hour.
+                </p>
+              </>
+            ) : (
+              <>
+                <h3
+                  style={{
+                    fontSize: 18,
+                    fontWeight: 700,
+                    color: '#111827',
+                    marginBottom: 8,
+                  }}
+                >
+                  Reset Your Password
+                </h3>
+                <p
+                  style={{
+                    fontSize: 13,
+                    color: '#6B7280',
+                    marginBottom: 20,
+                    lineHeight: 1.6,
+                  }}
+                >
+                  Enter your email address and we'll send you a link to reset your password.
+                </p>
+
+                {error && (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: '#DC2626',
+                      marginBottom: 16,
+                      fontWeight: 600,
+                      padding: '10px 12px',
+                      background: 'rgba(220,38,38,.05)',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(220,38,38,.2)',
+                    }}
+                  >
+                    {error}
+                  </div>
+                )}
+
+                <form onSubmit={handleForgotPassword}>
+                  <div style={{ marginBottom: 20 }}>
+                    <input
+                      type="email"
+                      placeholder="your@email.com"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      disabled={resetLoading}
+                      style={{
+                        width: '100%',
+                        background: '#F9FAFB',
+                        border: '1px solid #D1D5DB',
+                        borderRadius: '8px',
+                        padding: '12px 14px',
+                        color: '#111827',
+                        fontFamily: 'inherit',
+                        fontSize: 14,
+                        fontWeight: 500,
+                        outline: 'none',
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotPassword(false)}
+                      disabled={resetLoading}
+                      style={{
+                        flex: 1,
+                        padding: '12px 16px',
+                        border: '1px solid #D1D5DB',
+                        background: '#fff',
+                        color: '#111827',
+                        borderRadius: '8px',
+                        fontSize: 14,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={resetLoading}
+                      style={{
+                        flex: 1,
+                        padding: '12px 16px',
+                        border: 'none',
+                        background: '#16A34A',
+                        color: '#fff',
+                        borderRadius: '8px',
+                        fontSize: 14,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {resetLoading ? 'Sending…' : 'Send Reset Link'}
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
