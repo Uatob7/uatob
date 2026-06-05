@@ -9,27 +9,21 @@ const GOOGLE_MAPS_KEY = defineSecret("GOOGLE_MAPS_KEY");
 if (!getApps().length) initializeApp();
 const db = getFirestore();
 
-// ─────────────────────────────────────────────
-// ROUTES API (Google Maps new API)
-// ─────────────────────────────────────────────
+// ─────────────────────────────
+// ROUTES API
+// ─────────────────────────────
 async function getRouteDistance(originLat, originLng, destLat, destLng, apiKey) {
   const res = await axios.post(
     "https://routes.googleapis.com/directions/v2:computeRoutes",
     {
       origin: {
         location: {
-          latLng: {
-            latitude: originLat,
-            longitude: originLng,
-          },
+          latLng: { latitude: originLat, longitude: originLng },
         },
       },
       destination: {
         location: {
-          latLng: {
-            latitude: destLat,
-            longitude: destLng,
-          },
+          latLng: { latitude: destLat, longitude: destLng },
         },
       },
       travelMode: "DRIVE",
@@ -50,8 +44,10 @@ async function getRouteDistance(originLat, originLng, destLat, destLng, apiKey) 
   const route = res.data?.routes?.[0];
   if (!route) throw new Error("No route returned");
 
-  const distanceMeters = route.distanceMeters;
-  const durationSeconds = parseInt(route.duration.replace("s", ""), 10);
+  const distanceMeters = route.distanceMeters || 0;
+
+  const durationRaw = String(route.duration || "0s");
+  const durationSeconds = parseFloat(durationRaw.replace("s", "")) || 0;
 
   return {
     distanceMiles: +(distanceMeters / 1609.34).toFixed(2),
@@ -59,9 +55,9 @@ async function getRouteDistance(originLat, originLng, destLat, destLng, apiKey) 
   };
 }
 
-// ─────────────────────────────────────────────
-// LIVE ETA ENGINE (RUNS EVERY MINUTE)
-// ─────────────────────────────────────────────
+// ─────────────────────────────
+// SCHEDULED FUNCTION
+// ─────────────────────────────
 exports.calcDriverDistance = onSchedule(
   {
     schedule: "* * * * *",
@@ -70,6 +66,8 @@ exports.calcDriverDistance = onSchedule(
   },
   async () => {
     console.log("🔄 Running live ETA update...");
+
+    const apiKey = GOOGLE_MAPS_KEY.value();
 
     const ridesSnap = await db
       .collection("Rides")
@@ -84,69 +82,68 @@ exports.calcDriverDistance = onSchedule(
 
     if (ridesSnap.empty) return;
 
-    for (const doc of ridesSnap.docs) {
-      const ride = doc.data();
+    await Promise.all(
+      ridesSnap.docs.map(async (doc) => {
+        const ride = doc.data();
+        const rideId = doc.id;
 
-      const rideId = doc.id;
-      const driverUid = ride.driverUid;
+        const driverUid = ride.driverUid;
+        if (!driverUid) return;
 
-      if (!driverUid) continue;
+        try {
+          const driverSnap = await db.collection("Drivers").doc(driverUid).get();
+          if (!driverSnap.exists) return;
 
-      const driverSnap = await db.collection("Drivers").doc(driverUid).get();
-      if (!driverSnap.exists) continue;
+          const driver = driverSnap.data();
+          if (driver.lat == null || driver.lng == null) return;
 
-      const driver = driverSnap.data();
-      if (driver.lat == null || driver.lng == null) continue;
+          let destLat, destLng, distanceField, etaField;
 
-      try {
-        let destLat, destLng, distanceField, etaField;
+          const headingToPickup =
+            ["searching_driver", "driver_assigned", "driver_arriving"].includes(
+              ride.status
+            );
 
-        const headingToPickup =
-          ride.status === "searching_driver" ||
-          ride.status === "driver_assigned" ||
-          ride.status === "driver_arriving";
+          const headingToDropoff =
+            ["arrived", "in_progress"].includes(ride.status);
 
-        const headingToDropoff =
-          ride.status === "arrived" ||
-          ride.status === "in_progress";
+          if (headingToPickup) {
+            destLat = ride.pickupLat;
+            destLng = ride.pickupLng;
+            distanceField = "driverDistanceMiles";
+            etaField = "driverEtaMin";
+          } else if (headingToDropoff) {
+            destLat = ride.dropoffLat;
+            destLng = ride.dropoffLng;
+            distanceField = "dropoffDistanceMiles";
+            etaField = "dropoffEtaMin";
+          } else {
+            return;
+          }
 
-        if (headingToPickup) {
-          destLat = ride.pickupLat;
-          destLng = ride.pickupLng;
-          distanceField = "driverDistanceMiles";
-          etaField = "driverEtaMin";
-        } else if (headingToDropoff) {
-          destLat = ride.dropoffLat;
-          destLng = ride.dropoffLng;
-          distanceField = "dropoffDistanceMiles";
-          etaField = "dropoffEtaMin";
-        } else {
-          continue;
-        }
+          if (destLat == null || destLng == null) return;
 
-        if (destLat == null || destLng == null) continue;
-
-        const { distanceMiles, durationMin } =
-          await getRouteDistance(
+          const { distanceMiles, durationMin } = await getRouteDistance(
             driver.lat,
             driver.lng,
             destLat,
             destLng,
-            GOOGLE_MAPS_KEY.value()
+            apiKey
           );
 
-        await doc.ref.update({
-          [distanceField]: distanceMiles,
-          [etaField]: durationMin,
-          driverLat: driver.lat,
-          driverLng: driver.lng,
-          updatedAt: FieldValue.serverTimestamp(),
-        });
+          await doc.ref.update({
+            [distanceField]: distanceMiles,
+            [etaField]: durationMin,
+            driverLat: driver.lat,
+            driverLng: driver.lng,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
 
-        console.log(`✅ Updated ride ${rideId}`);
-      } catch (err) {
-        console.error(`❌ Ride update failed ${rideId}:`, err.message);
-      }
-    }
+          console.log(`✅ Updated ride ${rideId}`);
+        } catch (err) {
+          console.error(`❌ Ride update failed ${rideId}:`, err.message);
+        }
+      })
+    );
   }
 );
