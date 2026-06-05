@@ -1,5 +1,14 @@
 const admin = require("firebase-admin");
+const { setGlobalOptions } = require("firebase-functions/v2");
+
 admin.initializeApp();
+
+setGlobalOptions({
+  region: "us-east1",
+  memory: "256MiB",
+  maxInstances: 5,
+  timeoutSeconds: 60,
+});
 
 // Ride function
 const { createAccount } = require("./ride/createAccount");
