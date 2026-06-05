@@ -12,7 +12,7 @@ const FieldValue = admin.firestore.FieldValue;
 
 exports.updateAccountPresence = onCall(
   {
-    region: "us-east1",
+    region: "us-central1",
   },
   async (request) => {
     const { uid } = request.data || {};

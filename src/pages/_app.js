@@ -14,7 +14,7 @@ import { firebase_app } from "@/firebase/config";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
-const functions = getFunctions(firebase_app, "us-east1");
+const functions = getFunctions(firebase_app, "us-central1");
 const callUpdatePresence = httpsCallable(functions, "updateAccountPresence");
 
 function ServiceWorkerInit() {
