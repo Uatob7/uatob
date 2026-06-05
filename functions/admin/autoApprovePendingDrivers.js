@@ -18,7 +18,7 @@ const esc = (str) =>
     .replace(/>/g, "&gt;");
 
 // ─────────────────────────────────────────────────────────────
-// Brand SVGs — email-safe, inlined (matches emailCandidateDrivers)
+// Brand SVGs — email-safe, inlined
 // ─────────────────────────────────────────────────────────────
 const UATOB_ICON_SVG = `
 <svg width="46" height="46" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -87,7 +87,7 @@ function buildApprovalReportEmail(approvedDrivers) {
     const name  = esc(d.firstName && d.lastName ? `${d.firstName} ${d.lastName}` : d.name || "Unknown");
     const email = esc(d.email || "—");
     const uid   = esc(d.uid);
-    const phone = esc(d.phone || d["contact.phone"] || d.contact?.phone || "—");
+    const phone = esc(d.phone || d.contact?.phone || "—");
 
     return `
             <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
@@ -98,7 +98,6 @@ function buildApprovalReportEmail(approvedDrivers) {
                   <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
                     <tr>
                       <td valign="middle" style="padding-right:14px;">
-                        <!-- Avatar circle -->
                         <div style="width:36px;height:36px;border-radius:50%;
                                     background-color:#052e16;border:1.5px solid #166534;
                                     text-align:center;line-height:36px;
@@ -162,7 +161,6 @@ function buildApprovalReportEmail(approvedDrivers) {
 </head>
 <body style="margin:0;padding:0;background-color:#0a0a0a;">
 
-<!-- Preheader -->
 <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#0a0a0a;">
   ${count} driver${count !== 1 ? "s" : ""} auto-approved · ${now}
 </div>
@@ -359,49 +357,91 @@ function buildApprovalReportEmail(approvedDrivers) {
 exports.autoApprovePendingDrivers = onSchedule(
   {
     schedule: "* * * * *", // every minute
-    region:   "us-east1",
+    region:   "us-central1",
     secrets:  [SENDGRID_API_KEY],
   },
   async () => {
     sgMail.setApiKey(SENDGRID_API_KEY.value());
 
+    // ── PASS 1: approve any drivers still in pending status ───────────────
+    // Sets adminApprovalEmailSent: false so pass 2 picks them up immediately.
     const pendingSnap = await db
       .collection("Drivers")
       .where("status", "==", "pending")
       .get();
 
-    if (pendingSnap.empty) {
-      console.log("[autoApprove] No pending drivers.");
+    if (!pendingSnap.empty) {
+      const approveBatch = db.batch();
+      pendingSnap.forEach((doc) => {
+        approveBatch.update(doc.ref, {
+          status:                 "approved",
+          approvedAt:             admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt:              admin.firestore.FieldValue.serverTimestamp(),
+          adminApprovalEmailSent: false, // ensures pass 2 picks them up
+        });
+      });
+      await approveBatch.commit();
+      console.log(`[autoApprove] Pass 1: approved ${pendingSnap.size} pending driver(s).`);
+    }
+
+    // ── PASS 2: email all approved drivers missing the email flag ─────────
+    // Catches: pass 1 approvals, manual console approvals, and prior email failures.
+    const unemailedSnap = await db
+      .collection("Drivers")
+      .where("status",                 "==", "approved")
+      .where("adminApprovalEmailSent", "==", false)
+      .get();
+
+    if (unemailedSnap.empty) {
+      console.log("[autoApprove] No approved drivers awaiting email.");
       return;
     }
 
-    const batch           = db.batch();
-    const approvedDrivers = [];
-
-    pendingSnap.forEach((doc) => {
+    const approvedDrivers = unemailedSnap.docs.map((doc) => {
       const data = doc.data();
-
-      batch.update(doc.ref, {
-        status:     "approved",
-        approvedAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt:  admin.firestore.FieldValue.serverTimestamp(),
-      });
-
-      approvedDrivers.push({
+      return {
         uid:       doc.id,
         firstName: data.firstName,
         lastName:  data.lastName,
         name:      data.name,
         email:     data.email,
         phone:     data.phone || data.contact?.phone,
-      });
+      };
     });
 
-    await batch.commit();
+    let adminEmailSent  = false;
+    let adminEmailError = null;
 
-    const msg = buildApprovalReportEmail(approvedDrivers);
-    await sgMail.send(msg);
+    try {
+      const msg = buildApprovalReportEmail(approvedDrivers);
+      await sgMail.send(msg);
+      adminEmailSent = true;
+      console.log(`[autoApprove] Admin report email sent for ${approvedDrivers.length} driver(s).`);
+    } catch (emailErr) {
+      adminEmailError = emailErr?.message || String(emailErr);
+      console.error("[autoApprove] Admin report email FAILED:", adminEmailError);
+    }
 
-    console.log(`[autoApprove] Approved ${approvedDrivers.length} drivers, report sent.`);
+    // Stamp each driver with the result.
+    // If email failed → stays false → will retry next minute.
+    // If email succeeded → true → won't be picked up again.
+    const flagBatch = db.batch();
+    unemailedSnap.forEach((doc) => {
+      flagBatch.update(doc.ref, {
+        adminApprovalEmailSent: adminEmailSent,
+      });
+    });
+    await flagBatch.commit();
+
+    // Audit log
+    await db.collection("Admin").doc("autoApproveLog").collection("runs").add({
+      runAt:           admin.firestore.FieldValue.serverTimestamp(),
+      approvedCount:   approvedDrivers.length,
+      approvedUids:    approvedDrivers.map((d) => d.uid),
+      adminEmailSent,
+      adminEmailError: adminEmailError ?? null,
+    });
+
+    console.log(`[autoApprove] Done · drivers=${approvedDrivers.length} · adminEmailSent=${adminEmailSent}`);
   }
 );
