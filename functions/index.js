@@ -99,6 +99,7 @@ const { announceCashRides } = require("./admin/email/announceCashRides");
 const { announceOnlineDrivers } = require("./admin/announceOnlineDrivers");
 const { awardReward  } = require("./admin/awardReward");
 const { deleteDriver } = require("./admin/deleteDriver");
+const { autoApprovePendingDrivers } = require("./admin/autoApprovePendingDrivers");
 
 // Account presence
 
@@ -188,6 +189,7 @@ exports.computeRideAnalytics = computeRideAnalytics;
 exports.announceOnlineDrivers = announceOnlineDrivers;
 exports.awardReward = awardReward;
 exports.deleteDriver = deleteDriver;
+exports.autoApprovePendingDrivers = autoApprovePendingDrivers;
 
 
 exports.updateAccountPresence = updateAccountPresence;
