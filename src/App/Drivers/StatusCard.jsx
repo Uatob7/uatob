@@ -31,11 +31,9 @@ function fmtScheduled(ts) {
   const ms = tsToMillis(ts);
   if (!ms) return null;
   const d = new Date(ms);
-  const now = new Date();
   const diffMs = ms - Date.now();
   const diffH = diffMs / 1000 / 3600;
-
-  if (diffH < 0) return null; // past
+  if (diffH < 0) return null;
   if (diffH < 24) {
     return d.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
   }
@@ -105,7 +103,7 @@ export default function StatusCard({
         const st = r.scheduledAt || r.createdAt;
         if (!st) return false;
         const ms = tsToMillis(st);
-        return ms > Date.now() - 60 * 60 * 1000; // include rides up to 1h past
+        return ms > Date.now() - 60 * 60 * 1000;
       })
       .sort((a, b) => tsToMillis(a.scheduledAt || a.createdAt) - tsToMillis(b.scheduledAt || b.createdAt)),
     [scheduledRides]
@@ -122,7 +120,6 @@ export default function StatusCard({
     flipTimerRef.current = setInterval(() => {
       setFace(prev => {
         if (prev === 'status') return 'scheduled';
-        // advance ride index before flipping back
         setRideIdx(i => (i + 1) % upcomingRides.length);
         return 'status';
       });
@@ -139,7 +136,6 @@ export default function StatusCard({
       setRideIdx(i => (i + 1) % upcomingRides.length);
       return 'status';
     });
-    // restart timer
     flipTimerRef.current = setInterval(() => {
       setFace(prev => {
         if (prev === 'status') return 'scheduled';
@@ -170,14 +166,11 @@ export default function StatusCard({
     },
   }[mode];
 
-  // Scheduled face always uses a dark indigo style
   const schedStyles = {
     bg:     'linear-gradient(135deg,#0F0A1E 0%,#160F2C 50%,#1A1338 100%)',
     border: '1.5px solid rgba(129,140,248,.35)',
     shadow: '0 12px 40px rgba(0,0,0,.30), 0 2px 6px rgba(0,0,0,.12)',
   };
-
-  const activeStyles = face === 'scheduled' ? schedStyles : statusStyles;
 
   return (
     <>
@@ -268,28 +261,50 @@ export default function StatusCard({
               <div style={{ position:'relative', display:'flex', alignItems:'center', justifyContent:'space-between', gap:14 }}>
                 <div style={{ flex:1, minWidth:0 }}>
 
-                  {/* Status pill */}
-                  <div style={{
-                    display:'inline-flex', alignItems:'center', gap:6,
-                    padding:'4px 10px', borderRadius:100,
-                    background: mode==='trip' ? 'rgba(255,255,255,0.10)' : mode==='waiting' ? 'rgba(22,163,74,.12)' : C.surfaceAlt,
-                    border: mode==='trip' ? '1px solid rgba(255,255,255,0.15)' : mode==='waiting' ? '1px solid rgba(22,163,74,.20)' : `1px solid ${C.border}`,
-                    marginBottom:8,
-                  }}>
+                  {/* ── Status pill row ── */}
+                  <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
+
+                    {/* Status pill */}
                     <div style={{
-                      width:6, height:6, borderRadius:'50%',
-                      background: mode==='offline' ? C.textDim : '#22C55E',
-                      boxShadow: mode!=='offline' ? '0 0 8px rgba(34,197,94,0.7)' : 'none',
-                      animation: mode!=='offline' ? 'scLiveDot 1.6s ease-in-out infinite' : 'none',
-                    }}/>
-                    <span className="mono" style={{
-                      fontSize:10, fontWeight:800, letterSpacing:'.12em', textTransform:'uppercase',
-                      color: mode==='trip' ? 'rgba(255,255,255,0.85)' : mode==='waiting' ? C.onlineGreen : C.textDim,
+                      display:'inline-flex', alignItems:'center', gap:6,
+                      padding:'4px 10px', borderRadius:100,
+                      background: mode==='trip' ? 'rgba(255,255,255,0.10)' : mode==='waiting' ? 'rgba(22,163,74,.12)' : C.surfaceAlt,
+                      border: mode==='trip' ? '1px solid rgba(255,255,255,0.15)' : mode==='waiting' ? '1px solid rgba(22,163,74,.20)' : `1px solid ${C.border}`,
                     }}>
-                      {mode==='trip' && 'On trip'}
-                      {mode==='waiting' && 'Online · ready'}
-                      {mode==='offline' && 'Offline'}
-                    </span>
+                      <div style={{
+                        width:6, height:6, borderRadius:'50%',
+                        background: mode==='offline' ? C.textDim : '#22C55E',
+                        boxShadow: mode!=='offline' ? '0 0 8px rgba(34,197,94,0.7)' : 'none',
+                        animation: mode!=='offline' ? 'scLiveDot 1.6s ease-in-out infinite' : 'none',
+                      }}/>
+                      <span className="mono" style={{
+                        fontSize:10, fontWeight:800, letterSpacing:'.12em', textTransform:'uppercase',
+                        color: mode==='trip' ? 'rgba(255,255,255,0.85)' : mode==='waiting' ? C.onlineGreen : C.textDim,
+                      }}>
+                        {mode==='trip' && 'On trip'}
+                        {mode==='waiting' && 'Online · ready'}
+                        {mode==='offline' && 'Offline'}
+                      </span>
+                    </div>
+
+                    {/* ── Scheduled count badge ── */}
+                    {scheduledRides.length > 0 && (
+                      <div style={{
+                        display:'inline-flex', alignItems:'center', gap:4,
+                        padding:'4px 9px', borderRadius:100,
+                        background:'rgba(129,140,248,.13)',
+                        border:'1px solid rgba(129,140,248,.30)',
+                      }}>
+                        <Calendar size={10} color='#818CF8' strokeWidth={2.2}/>
+                        <span className="mono" style={{
+                          fontSize:10, fontWeight:800, letterSpacing:'.10em',
+                          textTransform:'uppercase', color:'#818CF8',
+                        }}>
+                          {scheduledRides.length} sched
+                        </span>
+                      </div>
+                    )}
+
                   </div>
 
                   {/* Title */}
@@ -511,10 +526,10 @@ export default function StatusCard({
                   )}
                 </div>
 
-                {/* Right side — same spot as the power button */}
+                {/* Right side */}
                 <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8, flexShrink:0 }}>
 
-                  {/* Accept / I'm in button */}
+                  {/* Got it button */}
                   <button
                     onClick={e => { e.stopPropagation(); handleFlip(); }}
                     style={{
