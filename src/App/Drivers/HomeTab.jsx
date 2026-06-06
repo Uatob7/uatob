@@ -388,7 +388,7 @@ export default function HomeTab({
               }}>
                 <div style={{ width:8, height:8, borderRadius:'50%', background:'#34D399', boxShadow:'0 0 8px rgba(52,211,153,.8)', animation:'htBlink 1.8s ease-in-out infinite', flexShrink:0 }}/>
                 <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10.5, fontWeight:700, color:'#34D399' }}>
-                  {dotCount} searching
+                  {dotCount} Riders
                 </span>
                 {fmtMi(searchNearestMi) && (
                   <>
@@ -409,7 +409,7 @@ export default function HomeTab({
               }}>
                 <div style={{ width:8, height:8, borderRadius:'50%', background:'#C084FC', boxShadow:'0 0 8px rgba(192,132,252,.8)', animation:'htBlink 2.2s ease-in-out infinite', flexShrink:0 }}/>
                 <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10.5, fontWeight:700, color:'#C084FC' }}>
-                  {scheduledCount} scheduled
+                  {scheduledCount} Scheduled
                 </span>
                 {fmtMi(scheduledNearestMi) && (
                   <>
