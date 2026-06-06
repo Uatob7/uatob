@@ -1,11 +1,12 @@
 // notifyOfflineDrivers.js
-// Firestore trigger — fires on new Ride doc creation
-// Finds offline drivers and emails them when a paid ride is searching nearby.
+// Scheduled Cloud Function — runs every 1 minute
+// Finds rides in "searching_driver" state and emails offline drivers who
+// haven't been emailed yet for that ride (or haven't been emailed recently).
 
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
-const { defineSecret }      = require("firebase-functions/params");
-const admin                 = require("firebase-admin");
-const sgMail                = require("@sendgrid/mail");
+const { onSchedule }   = require("firebase-functions/v2/scheduler");
+const { defineSecret } = require("firebase-functions/params");
+const admin            = require("firebase-admin");
+const sgMail           = require("@sendgrid/mail");
 
 if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
@@ -15,8 +16,8 @@ const SENDGRID_API_KEY = defineSecret("SENDGRID_API_KEY");
 // ─────────────────────────────────────────────────────────────
 // Tunables
 // ─────────────────────────────────────────────────────────────
-const MAX_OFFLINE_DRIVERS_PER_RIDE = 50;
-const OFFLINE_COOLDOWN_MS          = 10 * 60_000;
+const MAX_OFFLINE_DRIVERS_PER_RIDE = 50;          // hard cap per scheduler tick
+const OFFLINE_COOLDOWN_MS          = 10 * 60_000; // don't re-email same driver across rides faster than this
 
 // ─────────────────────────────────────────────────────────────
 // Helpers
@@ -38,6 +39,8 @@ const fmt = {
   },
 };
 
+// Mask the street number so drivers can't bypass the app.
+// "2382 Locke Avenue, Orlando, FL, USA" → "•••• Locke Avenue · Orlando, FL"
 function maskAddress(raw) {
   if (!raw) return "—";
   const parts = String(raw).split(",").map((s) => s.trim()).filter(Boolean);
@@ -46,9 +49,9 @@ function maskAddress(raw) {
     const dots = "•".repeat(Math.min(num.length, 4));
     return `${dots}${sp}`;
   });
-  const tail    = parts.slice(1).filter((p) => !/^USA$/i.test(p));
-  const city    = tail[0] ?? "";
-  const state   = tail[1] ?? "";
+  const tail = parts.slice(1).filter((p) => !/^USA$/i.test(p));
+  const city = tail[0] ?? "";
+  const state = tail[1] ?? "";
   const tailStr = [city, state].filter(Boolean).join(", ");
   return tailStr ? `${first} · ${tailStr}` : first;
 }
@@ -63,7 +66,7 @@ function toMs(v) {
 
 function fmtExpiresAt(ms) {
   if (!ms) return null;
-  const d    = new Date(ms);
+  const d = new Date(ms);
   const date = d.toLocaleDateString("en-US", {
     weekday: "short", month: "short", day: "numeric",
     timeZone: "America/New_York",
@@ -168,8 +171,12 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaini
   const expiresAtText    = fmtExpiresAt(expiresAtMs);
   const minutesRemaining = msRemaining != null ? Math.max(0, Math.round(msRemaining / 60_000)) : null;
 
-  const isUrgent = minutesRemaining !== null && minutesRemaining <= 5;
+  // Color tier — same logic as candidate email
+  const isUrgent  = minutesRemaining !== null && minutesRemaining <= 5;
+  const isWarning = minutesRemaining !== null && minutesRemaining <= 15 && !isUrgent;
 
+  // For offline-driver email, default chip is amber (the "you're offline" theme),
+  // but escalate to red when ride is about to expire.
   const chipBg     = isUrgent ? "rgba(248,113,113,0.16)" : "rgba(251,191,36,0.15)";
   const chipBorder = isUrgent ? "#F87171"               : "#FBBF24";
   const chipText   = isUrgent ? "#FCA5A5"               : "#FBBF24";
@@ -270,6 +277,7 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaini
 </head>
 <body style="margin:0;padding:0;background-color:#0a0a0a;">
 
+<!-- Preheader -->
 <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#0a0a0a;">
   ${esc(`${payout} trip waiting · ${distance} · ${countdownText || "go online to accept"}`)}
 </div>
@@ -280,6 +288,7 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaini
     <table width="600" cellpadding="0" cellspacing="0" role="presentation"
            style="max-width:600px;width:100%;">
 
+      <!-- WORDMARK HEADER -->
       <tr>
         <td align="center" style="padding-bottom:28px;">
           <table cellpadding="0" cellspacing="0" role="presentation"><tr>
@@ -301,10 +310,12 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaini
         </td>
       </tr>
 
+      <!-- MAIN CARD -->
       <tr>
         <td style="background-color:#111111;border-radius:20px;
                    border:1px solid #1f1f1f;overflow:hidden;">
 
+          <!-- HERO -->
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
             <td style="background:linear-gradient(135deg,#1c1000 0%,#292400 50%,#3b2800 100%);
                        padding:40px 36px 32px;">
@@ -322,6 +333,7 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaini
             </td>
           </tr></table>
 
+          <!-- OFFLINE NUDGE -->
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
             <td align="center" style="padding:12px 36px;background-color:#1c0f00;
                                       border-top:1px solid #292400;">
@@ -334,6 +346,7 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaini
 
           ${urgencyBanner}
 
+          <!-- PAYOUT -->
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
             <td align="center" style="padding:32px 36px 24px;border-bottom:1px solid #1f1f1f;">
               <p style="margin:0 0 6px;font-family:'Courier New',monospace;font-size:11px;
@@ -347,6 +360,7 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaini
             </td>
           </tr></table>
 
+          <!-- STATS ROW -->
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
             <td width="33%" align="center"
                 style="padding:20px 12px;border-right:1px solid #1f1f1f;">
@@ -370,6 +384,7 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaini
             </td>
           </tr></table>
 
+          <!-- ROUTE (masked) -->
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
             <td style="padding:28px 36px;border-top:1px solid #1f1f1f;">
               <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
@@ -429,6 +444,7 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaini
 
           ${expiresStrip}
 
+          <!-- DRIVER COUNT NOTE -->
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
             <td align="center" style="padding:14px 36px;background-color:#0d0d0d;
                                       border-top:1px solid #1f1f1f;">
@@ -440,6 +456,7 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaini
             </td>
           </tr></table>
 
+          <!-- CTA -->
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
             <td style="padding:8px 36px 36px;border-top:1px solid #1f1f1f;">
               <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
@@ -461,6 +478,7 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaini
             </td>
           </tr></table>
 
+          <!-- RIDE ID STRIP -->
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
             <td style="padding:16px 36px;background-color:#0d0d0d;border-top:1px solid #1f1f1f;">
               <p style="margin:0;font-family:'Courier New',monospace;font-size:11px;
@@ -473,6 +491,7 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaini
         </td>
       </tr>
 
+      <!-- FOOTER -->
       <tr>
         <td align="center" style="padding:28px 20px 0;">
           <p style="margin:0 0 6px;font-family:'Courier New',monospace;font-size:11px;
@@ -528,112 +547,143 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaini
 }
 
 // ─────────────────────────────────────────────────────────────
-// onDocumentCreated trigger
+// Scheduled Cloud Function — every 1 minute
 // ─────────────────────────────────────────────────────────────
-exports.onPaymentSucceeded = onDocumentCreated(
+exports.onPaymentSucceeded = onSchedule(
   {
-    document: "Rides/{rideId}",
+    schedule: "every 2 minutes",
     region:   "us-east1",
     secrets:  [SENDGRID_API_KEY],
   },
-  async (event) => {
-    const rideId = event.params.rideId;
-    const ride   = event.data?.data();
+  async () => {
+    try {
+      sgMail.setApiKey(SENDGRID_API_KEY.value());
+      const now = Date.now();
 
-    if (!ride) {
-      console.warn(`[notifyOfflineDrivers] no data for ${rideId}`);
-      return;
-    }
+      // 1. Find all rides actively searching for a driver
+      const ridesSnap = await db
+        .collection("Rides")
+        .where("status",        "==", "searching_driver")
+        .where("paymentStatus", "==", "succeeded")
+        .get();
 
-  
-    // Only send emails for scheduled rides that are paid and entering driver search
-    if (
-      ride.status !== "searching_driver" ||
-      ride.paymentStatus !== "succeeded" ||
-      ride.isScheduled !== true
-    ) {
+      if (ridesSnap.empty) {
+        console.log("[notifyOfflineDrivers] No rides currently searching — done");
+        return;
+      }
+
+      // 2. Find all offline drivers with an email address
+      const driversSnap = await db
+        .collection("Drivers")
+        .where("status", "==", "offline")
+        .get();
+
+      const drivers = driversSnap.docs
+        .map((doc) => ({ uid: doc.id, ...doc.data() }))
+        .filter((d) => !!d.email);
+
+      if (drivers.length === 0) {
+        console.log("[notifyOfflineDrivers] No offline drivers with email — done");
+        return;
+      }
+
       console.log(
-        `[emailCandidateDrivers] skipping ${rideId} — status: ${ride.status}, payment: ${ride.paymentStatus}, isScheduled: ${ride.isScheduled}`
+        `[notifyOfflineDrivers] ${ridesSnap.size} searching ride(s), ` +
+        `${drivers.length} offline driver(s)`
       );
-      return;
+
+      // 3. For each searching ride, email only drivers not yet notified
+      const batch = db.batch();
+      const emailPromises = [];
+
+      for (const rideDoc of ridesSnap.docs) {
+        const rideId = rideDoc.id;
+        const ride   = rideDoc.data();
+
+        // Skip rides that have already expired (don't email about a dead ride)
+        const expiresAtMs = toMs(ride.expiresAt);
+        if (expiresAtMs !== null && expiresAtMs <= now) {
+          console.log(`[notifyOfflineDrivers] Ride ${rideId} — already expired, skipping`);
+          continue;
+        }
+        const msRemaining = expiresAtMs !== null ? expiresAtMs - now : null;
+
+        // offlineDriversNotified is a map: { [driverUid]: true }
+        const alreadyNotified = ride.offlineDriversNotified || {};
+
+        // Filter eligible drivers:
+        //   - not already notified for THIS ride
+        //   - haven't received an offline-driver email in the last cooldown window
+        let eligible = drivers.filter((d) => {
+          if (alreadyNotified[d.uid]) return false;
+          const lastSentMs = toMs(d.lastOfflineNotifyAt);
+          if (lastSentMs && now - lastSentMs < OFFLINE_COOLDOWN_MS) return false;
+          return true;
+        });
+
+        // Hard cap per tick to avoid SendGrid spikes if the offline pool is huge
+        if (eligible.length > MAX_OFFLINE_DRIVERS_PER_RIDE) {
+          eligible = eligible.slice(0, MAX_OFFLINE_DRIVERS_PER_RIDE);
+        }
+
+        if (eligible.length === 0) {
+          console.log(
+            `[notifyOfflineDrivers] Ride ${rideId} — 0 eligible drivers ` +
+            `(notified=${Object.keys(alreadyNotified).length}, pool=${drivers.length})`
+          );
+          continue;
+        }
+
+        console.log(
+          `[notifyOfflineDrivers] Ride ${rideId} — emailing ${eligible.length} driver(s) ` +
+          `(${msRemaining != null ? Math.round(msRemaining/60_000) + " min" : "no expiry"} remaining)`
+        );
+
+        // Queue emails
+        for (const driver of eligible) {
+          emailPromises.push(
+            sgMail.send(
+              buildOfflineDriverEmail({
+                driver,
+                ride,
+                rideId,
+                totalDrivers: eligible.length,
+                msRemaining,
+                expiresAtMs,
+              })
+            )
+          );
+        }
+
+        // Mark these drivers as notified on the ride doc
+        const updatedNotified = { ...alreadyNotified };
+        for (const d of eligible) {
+          updatedNotified[d.uid] = true;
+        }
+
+        batch.update(rideDoc.ref, {
+          offlineDriversNotified:  updatedNotified,
+          offlineDriversEmailedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // Stamp each driver with lastOfflineNotifyAt for the cooldown window
+        for (const d of eligible) {
+          batch.update(db.collection("Drivers").doc(d.uid), {
+            lastOfflineNotifyAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+      }
+
+      // 4. Commit Firestore updates + send all emails in parallel
+      await Promise.all([
+        batch.commit(),
+        Promise.allSettled(emailPromises),
+      ]);
+
+      console.log("[notifyOfflineDrivers] Run complete");
+
+    } catch (error) {
+      console.error("[notifyOfflineDrivers] Error:", error);
     }
- 
-    sgMail.setApiKey(SENDGRID_API_KEY.value());
-
-    const now         = Date.now();
-    const expiresAtMs = toMs(ride.expiresAt);
-
-    if (expiresAtMs !== null && expiresAtMs <= now) {
-      console.log(`[notifyOfflineDrivers] skipping ${rideId} — already expired`);
-      return;
-    }
-
-    const msRemaining = expiresAtMs !== null ? expiresAtMs - now : null;
-
-    // Fetch offline drivers with an email
-    const driversSnap = await db
-      .collection("Drivers")
-      .where("status", "==", "offline")
-      .get();
-
-    let eligible = driversSnap.docs
-      .map((doc) => ({ uid: doc.id, ...doc.data() }))
-      .filter((d) => {
-        if (!d.email) return false;
-        // Cooldown: don't re-email a driver who was recently notified on another ride
-        const lastSentMs = toMs(d.lastOfflineNotifyAt);
-        if (lastSentMs && now - lastSentMs < OFFLINE_COOLDOWN_MS) return false;
-        return true;
-      });
-
-    if (eligible.length === 0) {
-      console.log(`[notifyOfflineDrivers] no eligible offline drivers for ${rideId}`);
-      return;
-    }
-
-    if (eligible.length > MAX_OFFLINE_DRIVERS_PER_RIDE) {
-      eligible = eligible.slice(0, MAX_OFFLINE_DRIVERS_PER_RIDE);
-    }
-
-    console.log(
-      `[notifyOfflineDrivers] emailing ${eligible.length} offline driver(s) for ride ${rideId} ` +
-      `(${msRemaining != null ? Math.round(msRemaining / 60_000) + " min" : "no expiry"} remaining)`
-    );
-
-    const emailPromises = eligible.map((driver) =>
-      sgMail.send(
-        buildOfflineDriverEmail({
-          driver,
-          ride,
-          rideId,
-          totalDrivers: eligible.length,
-          msRemaining,
-          expiresAtMs,
-        })
-      )
-    );
-
-    // Batch: stamp ride + each driver
-    const batch       = db.batch();
-    const notifiedMap = {};
-
-    for (const d of eligible) {
-      notifiedMap[d.uid] = true;
-      batch.update(db.collection("Drivers").doc(d.uid), {
-        lastOfflineNotifyAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-    }
-
-    batch.update(event.data.ref, {
-      offlineDriversNotified:  notifiedMap,
-      offlineDriversEmailedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    await Promise.all([
-      batch.commit(),
-      Promise.allSettled(emailPromises),
-    ]);
-
-    console.log(`✅ [notifyOfflineDrivers] dispatched for ride ${rideId}`);
   }
 );
