@@ -59,11 +59,12 @@ export default function StatusCard({
   earnings,
   driver,
 }) {
-  const [now,     setNow]     = useState(Date.now());
-  const [faceIdx, setFaceIdx] = useState(0);
-  const [rideIdx, setRideIdx] = useState(0);
-  const onlineSinceRef        = useRef(null);
-  const cycleRef              = useRef(null);
+  const [now,      setNow]      = useState(Date.now());
+  const [faceIdx,  setFaceIdx]  = useState(0);
+  const [rideIdx,  setRideIdx]  = useState(0);
+  const [badgeIdx, setBadgeIdx] = useState(0);
+  const onlineSinceRef          = useRef(null);
+  const cycleRef                = useRef(null);
 
   // ── Online duration ────────────────────────────────
   useEffect(() => {
@@ -101,7 +102,6 @@ export default function StatusCard({
   const hasScheduled = upcomingRides.length > 0;
   const currentRide  = upcomingRides[rideIdx] ?? null;
 
-  // ── Available faces (always all 4, scheduled face shows empty state) ──
   const activeFaces = FACES; // always cycle all 4
 
   // ── Auto-cycle ─────────────────────────────────────
@@ -111,9 +111,13 @@ export default function StatusCard({
     cycleRef.current = setInterval(() => {
       setFaceIdx(i => {
         const next = (i + 1) % activeFaces.length;
-        // advance rideIdx when looping back through scheduled
+        // advance rideIdx when re-entering scheduled
         if (activeFaces[next] === 'scheduled') {
           setRideIdx(ri => (ri + 1) % Math.max(1, upcomingRides.length));
+        }
+        // advance badgeIdx when re-entering achievements
+        if (activeFaces[next] === 'achievements') {
+          setBadgeIdx(bi => bi + 1);
         }
         return next;
       });
@@ -127,6 +131,7 @@ export default function StatusCard({
 
   const goFace = (i) => {
     setFaceIdx(i);
+    if (activeFaces[i] === 'achievements') setBadgeIdx(bi => bi + 1);
     startCycle(); // reset timer on manual tap
   };
 
@@ -175,10 +180,6 @@ export default function StatusCard({
           0%, 100% { box-shadow: 0 8px 20px rgba(22,163,74,.35), 0 0 0 0 rgba(22,163,74,.4); }
           50%      { box-shadow: 0 8px 20px rgba(22,163,74,.35), 0 0 0 12px rgba(22,163,74,0); }
         }
-        @keyframes scSchedulePulse {
-          0%, 100% { box-shadow: 0 8px 20px rgba(129,140,248,.35), 0 0 0 0 rgba(129,140,248,.4); }
-          50%      { box-shadow: 0 8px 20px rgba(129,140,248,.35), 0 0 0 12px rgba(129,140,248,0); }
-        }
         @keyframes scFaceIn {
           0%   { opacity: 0; transform: translateY(6px) scale(.98); }
           100% { opacity: 1; transform: translateY(0) scale(1); }
@@ -186,14 +187,6 @@ export default function StatusCard({
         @keyframes scCountGlow {
           0%,100% { text-shadow: 0 0 8px rgba(129,140,248,.3); }
           50%      { text-shadow: 0 0 28px rgba(129,140,248,.9), 0 0 50px rgba(129,140,248,.4); }
-        }
-        @keyframes scAmberGlow {
-          0%,100% { text-shadow: 0 0 8px rgba(251,146,60,.3); }
-          50%      { text-shadow: 0 0 28px rgba(251,146,60,.9), 0 0 50px rgba(251,146,60,.4); }
-        }
-        @keyframes scBlueGlow {
-          0%,100% { text-shadow: 0 0 8px rgba(96,165,250,.3); }
-          50%      { text-shadow: 0 0 24px rgba(96,165,250,.8); }
         }
         .sc-face { animation: scFaceIn .38s cubic-bezier(.34,1.2,.64,1) both; }
       `}</style>
@@ -249,7 +242,7 @@ export default function StatusCard({
           )}
 
           {/* ── Face content ── */}
-          <div className="sc-face" key={face + rideIdx} style={{ position: 'relative' }}>
+          <div className="sc-face" key={face + rideIdx + badgeIdx} style={{ position: 'relative', minHeight: 78 }}>
 
             {/* ════ FACE: STATUS ════ */}
             {face === 'status' && (
@@ -391,7 +384,7 @@ export default function StatusCard({
                     <span className="mono" style={{ fontSize:10, fontWeight:800, letterSpacing:'.12em', textTransform:'uppercase', color:'#93C5FD' }}>Earnings</span>
                   </div>
                 </div>
-                <StatTiles earnings={earnings} online={online} compact />
+                <StatTiles earnings={earnings} online={online} />
               </div>
             )}
 
@@ -401,10 +394,10 @@ export default function StatusCard({
                 <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:10 }}>
                   <div style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'4px 10px', borderRadius:100, background:'rgba(251,146,60,.12)', border:'1px solid rgba(251,146,60,.25)' }}>
                     <Trophy size={10} color="#FCD34D" strokeWidth={2.4}/>
-                    <span className="mono" style={{ fontSize:10, fontWeight:800, letterSpacing:'.12em', textTransform:'uppercase', color:'#FCD34D', animation:'scAmberGlow 3s ease-in-out infinite' }}>Achievements</span>
+                    <span className="mono" style={{ fontSize:10, fontWeight:800, letterSpacing:'.12em', textTransform:'uppercase', color:'#FCD34D' }}>Achievements</span>
                   </div>
                 </div>
-                <Achievements online={online} driver={driver} compact />
+                <Achievements driver={driver} badgeIdx={badgeIdx} />
               </div>
             )}
 
