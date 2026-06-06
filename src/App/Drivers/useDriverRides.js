@@ -22,6 +22,7 @@ export function useDriverRides(uid) {
       collection(db, "Rides"),
       where("paymentStatus", "==", "succeeded"),
       where("status", "==", "searching_driver"),
+      where("isScheduled", "==", false), // Only immediate rides
       orderBy("requestSentAt", "desc"),
       limit(50)
     );
@@ -29,14 +30,10 @@ export function useDriverRides(uid) {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const docs = snapshot.docs.map((doc) => {
-          const data = doc.data();
-
-          return {
-            id: doc.id,
-            ...data,
-          };
-        });
+        const docs = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
 
         setRides(docs);
         setLoading(false);

@@ -24,7 +24,8 @@ export function useIncomingRequest(uid) {
     const q = query(
       collection(db, "Rides"),
       where("status", "==", "searching_driver"),
-      where("candidateDriverUids", "array-contains", uid)
+      where("candidateDriverUids", "array-contains", uid),
+      where("isScheduled", "==", false) // Only immediate rides
     );
 
     const unsubscribe = onSnapshot(
@@ -40,7 +41,7 @@ export function useIncomingRequest(uid) {
       },
       (err) => {
         console.error("snapshot error:", err);
-        setError(err);
+        setError(err.message);
         setLoading(false);
       }
     );
@@ -48,5 +49,9 @@ export function useIncomingRequest(uid) {
     return () => unsubscribe();
   }, [uid]);
 
-  return { requests, loading, error };
+  return {
+    requests,
+    loading,
+    error,
+  };
 }

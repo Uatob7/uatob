@@ -643,13 +643,17 @@ exports.notifyApprovedDrivers = onDocumentCreated(
       return;
     }
 
-    // Only process paid rides entering driver search
-    if (ride.status !== "searching_driver" || ride.paymentStatus !== "succeeded") {
-      console.log(
-        `[notifyApprovedDrivers] skipping ${rideId} — status: ${ride.status}, payment: ${ride.paymentStatus}`
-      );
-      return;
-    }
+   // Only dispatch emails for paid, non-scheduled rides entering driver search
+if (
+  ride.status !== "searching_driver" ||
+  ride.paymentStatus !== "succeeded" ||
+  ride.isScheduled === true
+) {
+  console.log(
+    `[notifyApprovedDrivers] skipping ${rideId} — status: ${ride.status}, payment: ${ride.paymentStatus}, isScheduled: ${ride.isScheduled}`
+  );
+  return;
+}
 
     sgMail.setApiKey(SENDGRID_API_KEY.value());
 
