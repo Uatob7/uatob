@@ -1,5 +1,5 @@
 // src/App/PaymentModal.jsx
-import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useRef, useCallback } from 'react';
 import {
   X, CreditCard, Check, Loader2, ShieldCheck,
   Banknote, Lock, ArrowRight, Clock, MapPin,
@@ -130,48 +130,55 @@ const CSS = `
 `;
 
 // ── Inline Schedule Picker (multi-step) ────────────────
-// Steps: 0=closed(now), 1=calendar, 2=time-of-day
+// Steps: 'now' | 'cal' | 'time' | 'done'
+// 'done'  = time fully confirmed, picker collapsed, summary shown on button
+// Clicking Schedule button when 'done' → reopens 'cal' to edit (does NOT clear)
+// Clicking Ride Now always resets everything
 function SchedulePicker({ scheduledAt, onChange }) {
   const now = new Date();
 
-  // Which step is showing?
-  // 'now' | 'cal' | 'time'
-  const [step, setStep] = useState('now');
+  const [step,      setStep]      = useState('now');
+  const [calYear,   setCalYear]   = useState(now.getFullYear());
+  const [calMonth,  setCalMonth]  = useState(now.getMonth());
+  const [selDay,    setSelDay]    = useState(null);
+  const [selHour,   setSelHour]   = useState(null);
+  const [selMinute, setSelMinute] = useState(null); // null = not yet picked
 
-  // Calendar state
-  const [calYear,  setCalYear]  = useState(now.getFullYear());
-  const [calMonth, setCalMonth] = useState(now.getMonth());
-  const [selDay,   setSelDay]   = useState(null); // Date object (midnight local)
+  const minDate = new Date(now.getTime() + 15 * 60 * 1000);
+  const maxDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-  // Time state
-  const [selHour,    setSelHour]    = useState(null);  // 0-23
-  const [selMinute,  setSelMinute]  = useState(0);     // 0 or 30
-
-  // Commit whenever we have day+hour
-  useEffect(() => {
-    if (selDay !== null && selHour !== null) {
-      const d = new Date(selDay);
-      d.setHours(selHour, selMinute, 0, 0);
-      onChange(d.toISOString());
-    }
-  }, [selDay, selHour, selMinute]);
+  // Only commit + close when ALL three are chosen
+  const commitIfReady = useCallback((day, hour, minute) => {
+    if (day === null || hour === null || minute === null) return;
+    const d = new Date(day);
+    d.setHours(hour, minute, 0, 0);
+    onChange(d.toISOString());
+    setStep('done'); // ← collapse the picker
+  }, [onChange]);
 
   const handleSelectNow = () => {
     setStep('now');
-    setSelDay(null); setSelHour(null);
+    setSelDay(null); setSelHour(null); setSelMinute(null);
     onChange(null);
   };
 
-  const handleSelectSchedule = () => {
-    setStep(step === 'now' ? 'cal' : 'now');
-    if (step !== 'now') { handleSelectNow(); }
+  // Schedule button behaviour:
+  // • 'now'  → open calendar (fresh)
+  // • 'done' → reopen calendar to edit (keep existing selection visible)
+  // • 'cal' / 'time' → cancel back to now
+  const handleScheduleBtn = () => {
+    if (step === 'now') {
+      setStep('cal');
+    } else if (step === 'done') {
+      setStep('cal'); // edit — keep selDay/selHour/selMinute for visual context
+    } else {
+      // mid-flow cancel
+      handleSelectNow();
+    }
   };
 
-  // Calendar grid helpers
-  const firstDow   = new Date(calYear, calMonth, 1).getDay();
-  const daysInMo   = new Date(calYear, calMonth + 1, 0).getDate();
-  const minDate    = new Date(now.getTime() + 15 * 60 * 1000);
-  const maxDate    = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const firstDow = new Date(calYear, calMonth, 1).getDay();
+  const daysInMo = new Date(calYear, calMonth + 1, 0).getDate();
 
   const isDayDisabled = (y, m, d) => {
     const date = new Date(y, m, d, 23, 59);
@@ -181,9 +188,8 @@ function SchedulePicker({ scheduledAt, onChange }) {
     if (!selDay) return false;
     return selDay.getFullYear()===y && selDay.getMonth()===m && selDay.getDate()===d;
   };
-  const isToday = (y, m, d) => {
-    return y===now.getFullYear() && m===now.getMonth() && d===now.getDate();
-  };
+  const isToday = (y, m, d) =>
+    y===now.getFullYear() && m===now.getMonth() && d===now.getDate();
 
   const prevMonth = () => {
     if (calMonth === 0) { setCalMonth(11); setCalYear(y=>y-1); }
@@ -198,10 +204,10 @@ function SchedulePicker({ scheduledAt, onChange }) {
     const date = new Date(calYear, calMonth, d);
     setSelDay(date);
     setSelHour(null);
+    setSelMinute(null);
     setStep('time');
   };
 
-  // Time slots: every hour, filtered to be >= minDate when selDay is today
   const hours = Array.from({length: 24}, (_,i) => i);
   const isHourDisabled = (h, min=0) => {
     if (!selDay) return true;
@@ -210,54 +216,71 @@ function SchedulePicker({ scheduledAt, onChange }) {
     return dt < minDate;
   };
 
-  // Formatted summary
+  const handleHourClick = (h) => {
+    if (isHourDisabled(h)) return;
+    setSelHour(h);
+    setSelMinute(null); // reset minute when hour changes
+  };
+
+  const handleMinuteClick = (m) => {
+    if (selHour === null) return;
+    if (isHourDisabled(selHour, m)) return;
+    setSelMinute(m);
+    commitIfReady(selDay, selHour, m);
+  };
+
   const summary = useMemo(() => {
     if (!scheduledAt) return null;
-    const d = new Date(scheduledAt);
-    return d.toLocaleString('en-US', {
+    return new Date(scheduledAt).toLocaleString('en-US', {
       weekday:'short', month:'short', day:'numeric',
       hour:'numeric', minute:'2-digit', hour12:true,
     });
   }, [scheduledAt]);
 
+  const isScheduleActive = step !== 'now';
+  const pickerOpen       = step === 'cal' || step === 'time';
+
   return (
     <div style={{ marginBottom: 14 }}>
-      {/* Toggle row */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom: step==='now' ? 0 : 10 }}>
+      {/* ── Toggle row ── */}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom: pickerOpen ? 10 : 0 }}>
+
         {/* Ride Now */}
         <button type="button" onClick={handleSelectNow} className="pm-method" style={{
           padding:'11px 10px', borderRadius:12, cursor:'pointer',
-          background: step==='now' ? T.greenDim : 'transparent',
-          border: `1.5px solid ${step==='now' ? T.green : T.border}`,
+          background: !isScheduleActive ? T.greenDim : 'transparent',
+          border: `1.5px solid ${!isScheduleActive ? T.green : T.border}`,
           display:'flex', flexDirection:'column', alignItems:'center', gap:5,
         }}>
-          {step==='now' && (
-            <div style={{
-              width:7, height:7, borderRadius:'50%', background:T.green,
-              animation:'_pulse 1.8s infinite',
-            }}/>
-          )}
-          {step!=='now' && <Clock size={13} color={T.textMuted} strokeWidth={2}/>}
-          <span style={{ fontSize:11.5, fontWeight:700, color:step==='now' ? T.green : T.text, fontFamily:'Syne' }}>
+          {!isScheduleActive
+            ? <div style={{ width:7, height:7, borderRadius:'50%', background:T.green, animation:'_pulse 1.8s infinite' }}/>
+            : <Clock size={13} color={T.textMuted} strokeWidth={2}/>
+          }
+          <span style={{ fontSize:11.5, fontWeight:700, color:!isScheduleActive ? T.green : T.text, fontFamily:'Syne' }}>
             Ride Now
           </span>
           <span style={{ fontSize:9.5, color:T.textMuted, fontWeight:500, fontFamily:'DM Sans' }}>Depart ASAP</span>
         </button>
 
         {/* Schedule */}
-        <button type="button" onClick={handleSelectSchedule} className="pm-method" style={{
+        <button type="button" onClick={handleScheduleBtn} className="pm-method" style={{
           padding:'11px 10px', borderRadius:12, cursor:'pointer',
-          background: step!=='now' ? T.indigoDim : 'transparent',
-          border: `1.5px solid ${step!=='now' ? T.indigo : T.border}`,
+          background: isScheduleActive ? T.indigoDim : 'transparent',
+          border: `1.5px solid ${isScheduleActive ? T.indigo : T.border}`,
           display:'flex', flexDirection:'column', alignItems:'center', gap:5,
         }}>
-          <Calendar size={13} color={step!=='now' ? T.indigo : T.textMuted} strokeWidth={2}/>
-          <span style={{ fontSize:11.5, fontWeight:700, color:step!=='now' ? T.indigo : T.text, fontFamily:'Syne' }}>
+          <Calendar size={13} color={isScheduleActive ? T.indigo : T.textMuted} strokeWidth={2}/>
+          <span style={{ fontSize:11.5, fontWeight:700, color:isScheduleActive ? T.indigo : T.text, fontFamily:'Syne' }}>
             Schedule
           </span>
-          {summary
-            ? <span style={{ fontSize:9.5, color:T.indigo, fontWeight:600, fontFamily:'DM Sans', textAlign:'center', lineHeight:1.3 }}>{summary}</span>
-            : <span style={{ fontSize:9.5, color:T.textMuted, fontWeight:500, fontFamily:'DM Sans' }}>Pick time</span>
+          {/* Show confirmed time when done, otherwise hint */}
+          {step === 'done' && summary
+            ? <span style={{ fontSize:9, color:T.indigo, fontWeight:600, fontFamily:'DM Sans', textAlign:'center', lineHeight:1.3 }}>
+                {summary}
+              </span>
+            : <span style={{ fontSize:9.5, color:T.textMuted, fontWeight:500, fontFamily:'DM Sans' }}>
+                {pickerOpen ? 'Cancel' : 'Pick time'}
+              </span>
           }
         </button>
       </div>
@@ -266,19 +289,15 @@ function SchedulePicker({ scheduledAt, onChange }) {
       {step === 'cal' && (
         <div className="pm-in" style={{
           border:`1.5px solid ${T.indigoBorder}`,
-          borderRadius:14, background:T.bgCard,
-          overflow:'hidden',
+          borderRadius:14, background:T.bgCard, overflow:'hidden',
         }}>
-          {/* Month nav */}
           <div style={{
             display:'flex', alignItems:'center', justifyContent:'space-between',
-            padding:'10px 14px 8px',
-            borderBottom:`1px solid ${T.border}`,
+            padding:'10px 14px 8px', borderBottom:`1px solid ${T.border}`,
           }}>
             <button type="button" onClick={prevMonth} className="pm-btn" style={{
               background:'none', border:'none', cursor:'pointer',
-              color:T.textMid, padding:4, borderRadius:7,
-              display:'flex', alignItems:'center',
+              color:T.textMid, padding:4, borderRadius:7, display:'flex', alignItems:'center',
             }}>
               <ChevronLeft size={14} strokeWidth={2.4}/>
             </button>
@@ -287,15 +306,13 @@ function SchedulePicker({ scheduledAt, onChange }) {
             </span>
             <button type="button" onClick={nextMonth} className="pm-btn" style={{
               background:'none', border:'none', cursor:'pointer',
-              color:T.textMid, padding:4, borderRadius:7,
-              display:'flex', alignItems:'center',
+              color:T.textMid, padding:4, borderRadius:7, display:'flex', alignItems:'center',
             }}>
               <ChevronRight size={14} strokeWidth={2.4}/>
             </button>
           </div>
 
           <div style={{ padding:'10px 12px 12px' }}>
-            {/* Day-of-week headers */}
             <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', marginBottom:4 }}>
               {DAYS.map(d=>(
                 <div key={d} style={{
@@ -304,11 +321,8 @@ function SchedulePicker({ scheduledAt, onChange }) {
                 }}>{d}</div>
               ))}
             </div>
-            {/* Day grid */}
             <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:2 }}>
-              {Array.from({length: firstDow}).map((_,i)=>(
-                <div key={`e${i}`}/>
-              ))}
+              {Array.from({length: firstDow}).map((_,i)=>(<div key={`e${i}`}/>))}
               {Array.from({length: daysInMo}, (_,i)=>i+1).map(d=>{
                 const disabled = isDayDisabled(calYear, calMonth, d);
                 const selected = isDaySelected(calYear, calMonth, d);
@@ -322,13 +336,8 @@ function SchedulePicker({ scheduledAt, onChange }) {
                       textAlign:'center', padding:'6px 2px',
                       fontSize:11.5, fontWeight: today||selected ? 700 : 500,
                       fontFamily:'DM Mono',
-                      color: disabled ? T.textMuted
-                           : selected ? '#000'
-                           : today    ? T.indigo
-                           : T.text,
-                      background: selected
-                        ? T.indigo
-                        : today && !selected ? T.indigoDim : 'transparent',
+                      color: disabled ? T.textMuted : selected ? '#000' : today ? T.indigo : T.text,
+                      background: selected ? T.indigo : today && !selected ? T.indigoDim : 'transparent',
                       cursor: disabled ? 'not-allowed' : 'pointer',
                       opacity: disabled ? 0.35 : 1,
                       position:'relative',
@@ -363,10 +372,8 @@ function SchedulePicker({ scheduledAt, onChange }) {
       {step === 'time' && selDay && (
         <div className="pm-in" style={{
           border:`1.5px solid ${T.indigoBorder}`,
-          borderRadius:14, background:T.bgCard,
-          overflow:'hidden',
+          borderRadius:14, background:T.bgCard, overflow:'hidden',
         }}>
-          {/* Header: back to calendar */}
           <div style={{
             display:'flex', alignItems:'center', gap:8,
             padding:'10px 14px', borderBottom:`1px solid ${T.border}`,
@@ -383,12 +390,11 @@ function SchedulePicker({ scheduledAt, onChange }) {
             </span>
           </div>
 
-          {/* Hour grid */}
           <div style={{ padding:'10px 12px 12px' }}>
+            {/* Hour grid */}
             <div style={{
               fontSize:9.5, fontWeight:700, color:T.textMuted,
-              fontFamily:'DM Sans', letterSpacing:'.1em', textTransform:'uppercase',
-              marginBottom:8,
+              fontFamily:'DM Sans', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:8,
             }}>Select Hour</div>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:4 }}>
               {hours.map(h => {
@@ -399,7 +405,7 @@ function SchedulePicker({ scheduledAt, onChange }) {
                   <div
                     key={h}
                     className={`pm-hour${selected?' selected-h':''}`}
-                    onClick={()=>!disabled && setSelHour(h)}
+                    onClick={()=>handleHourClick(h)}
                     style={{
                       textAlign:'center', padding:'7px 4px',
                       fontSize:11, fontFamily:'DM Mono', fontWeight:500,
@@ -416,14 +422,13 @@ function SchedulePicker({ scheduledAt, onChange }) {
               })}
             </div>
 
-            {/* Minute chips — only when hour selected */}
+            {/* Minute chips — appear after hour is chosen */}
             {selHour !== null && (
               <div className="pm-in" style={{ marginTop:10 }}>
                 <div style={{
                   fontSize:9.5, fontWeight:700, color:T.textMuted,
-                  fontFamily:'DM Sans', letterSpacing:'.1em', textTransform:'uppercase',
-                  marginBottom:8,
-                }}>Minute</div>
+                  fontFamily:'DM Sans', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:8,
+                }}>Select Minute</div>
                 <div style={{ display:'flex', gap:6 }}>
                   {[0, 15, 30, 45].map(m => {
                     const disabled = isHourDisabled(selHour, m);
@@ -431,11 +436,11 @@ function SchedulePicker({ scheduledAt, onChange }) {
                     return (
                       <button
                         key={m} type="button"
-                        onClick={()=>!disabled && setSelMinute(m)}
+                        onClick={()=>handleMinuteClick(m)}
                         disabled={disabled}
                         className="pm-method"
                         style={{
-                          flex:1, padding:'8px 0', borderRadius:10,
+                          flex:1, padding:'9px 0', borderRadius:10,
                           border:`1.5px solid ${selected ? T.indigo : T.border}`,
                           background: selected ? T.indigo : 'transparent',
                           cursor: disabled ? 'not-allowed' : 'pointer',
@@ -449,20 +454,16 @@ function SchedulePicker({ scheduledAt, onChange }) {
                     );
                   })}
                 </div>
+                <div style={{
+                  marginTop:8, fontSize:10, color:T.textMuted,
+                  fontFamily:'DM Sans', display:'flex', alignItems:'center', gap:4,
+                }}>
+                  <AlertCircle size={9} strokeWidth={2.4}/>
+                  Tap a minute to confirm your schedule
+                </div>
               </div>
             )}
           </div>
-
-          {summary && (
-            <div style={{
-              padding:'8px 14px', borderTop:`1px solid ${T.border}`,
-              display:'flex', alignItems:'center', gap:5,
-              fontSize:11, fontFamily:'DM Sans', fontWeight:600, color:T.indigo,
-            }}>
-              <Calendar size={10} strokeWidth={2.4}/>
-              {summary}
-            </div>
-          )}
         </div>
       )}
     </div>
