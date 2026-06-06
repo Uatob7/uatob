@@ -511,7 +511,7 @@ async function processRide(rideDoc, stripe) {
 // ─────────────────────────────────────────────────────────────
 exports.autoRefundTimeoutRides = onSchedule(
   {
-    schedule: "every 1 minutes",
+    schedule: "every 7 minutes",
     region:   "us-east1",
     secrets:  [STRIPE_SECRET_KEY, SENDGRID_API_KEY],
     timeZone: "America/New_York",

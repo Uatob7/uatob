@@ -618,7 +618,7 @@ function sendDriverEmail(driver, ride, rideId, totalCandidates, msRemaining, exp
 // ─────────────────────────────────────────────────────────────
 exports.emailCandidateDrivers = onSchedule(
   {
-    schedule: "every 1 minutes",
+    schedule: "every 2 minutes",
     region:   "us-east1",
     secrets:  [SENDGRID_API_KEY],
   },

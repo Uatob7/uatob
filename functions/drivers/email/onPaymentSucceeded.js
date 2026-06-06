@@ -551,7 +551,7 @@ function buildOfflineDriverEmail({ driver, ride, rideId, totalDrivers, msRemaini
 // ─────────────────────────────────────────────────────────────
 exports.onPaymentSucceeded = onSchedule(
   {
-    schedule: "every 1 minutes",
+    schedule: "every 2 minutes",
     region:   "us-east1",
     secrets:  [SENDGRID_API_KEY],
   },

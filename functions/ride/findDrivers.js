@@ -24,7 +24,7 @@ function haversineDistance(lat1, lng1, lat2, lng2) {
 /* ── Scheduled Function ───────────────────────────── */
 exports.findDrivers = onSchedule(
   {
-    schedule: "every 1 minutes",
+    schedule: "every 2 minutes",
     region: "us-east1",
   },
   async () => {

@@ -356,7 +356,7 @@ function buildApprovalReportEmail(approvedDrivers) {
 // ─────────────────────────────────────────────────────────────
 exports.autoApprovePendingDrivers = onSchedule(
   {
-    schedule: "* * * * *", // every minute
+    schedule: "every 7 minutes",
     region:   "us-central1",
     secrets:  [SENDGRID_API_KEY],
   },

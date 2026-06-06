@@ -28,6 +28,7 @@ const { onRideDriverArrived } = require("./ride/email/onRideDriverArrived");
 const { onRideDriverArriving } = require("./ride/email/onRideDriverArriving");
 const { onRideDriverAssigned } = require("./ride/email/onRideDriverAssigned");
 const { onRideInProgress } = require("./ride/email/onRideInProgress");
+const { findDriversOnCreate } = require("./ride/findDriversOnCreate");
 
 
 
@@ -123,6 +124,7 @@ exports.onRideDriverArrived = onRideDriverArrived;
 exports.onRideDriverArriving = onRideDriverArriving;
 exports.onRideDriverAssigned = onRideDriverAssigned;
 exports.onRideInProgress = onRideInProgress;
+exports.findDriversOnCreate = findDriversOnCreate;
 
 
 
