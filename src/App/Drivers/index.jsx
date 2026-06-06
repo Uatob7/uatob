@@ -24,6 +24,7 @@ import { useCompletedRides }  from "@/App/Drivers/useCompletedRides";
 import { useIncomingRequest } from "@/App/Drivers/useIncomingRequest";
 import { useDriverReviews }   from "@/App/Drivers/useDriverReviews";
 import { useSupportUnread }   from "@/App/Drivers/useSupportUnread";
+import { useScheduledRides } from "@/App/Drivers/useScheduledRides";
 import { firebase_app }       from "@/firebase/config";
 
 // ── Callables ─────────────────────────────────────────────────────────
@@ -588,7 +589,7 @@ function DriverAppInner({ uid }) {
   const { reviews }                       = useDriverReviews(uid);
   const supportUnread                     = useSupportUnread(uid);
   const { searches }                      = useSearch();
-
+  const { scheduledRides } = useScheduledRides();
   const isRejected   = driver?.status === "rejected";
   const driverOnTrip = driver?.trip === true;
   const sourceLoading = driverOnTrip ? reqLoading  : ridesLoading;
@@ -923,7 +924,7 @@ function DriverAppInner({ uid }) {
 
         {isRejected && <RejectedBanner />}
 
-        {activeTab === "home"     && !isRejected && <HomeTab driver={driver} online={online} rides={rides} activeTrip={activeTrip} tripStage={tripStage} tripStageColor={tripStageColor} tripBtnLabel={tripBtnLabel} earnings={earnings} onToggleOnline={handleToggleOnline} onAdvanceTrip={handleAdvanceTrip} advancePending={advancePending} searches={searches} />}
+        {activeTab === "home"     && !isRejected && <HomeTab driver={driver} online={online} rides={rides} activeTrip={activeTrip} tripStage={tripStage} tripStageColor={tripStageColor} tripBtnLabel={tripBtnLabel} earnings={earnings} onToggleOnline={handleToggleOnline} onAdvanceTrip={handleAdvanceTrip} advancePending={advancePending} searches={searches} scheduledRides={scheduledRides} />}
         {activeTab === "earnings" && !isRejected && <EarningsTab earnings={earnings} driver={driver} online={online} />}
         {activeTab === "trips"    && !isRejected && <TripsTab    completedRides={completedRides} online={online} />}
         {activeTab === "profile"  &&                <ProfileTab  driver={driver} online={online} />}

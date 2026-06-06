@@ -15,6 +15,7 @@ import { C } from '@/App/Drivers/constants.js';
  */
 export default function StatusCard({
   online,
+  scheduledRides,
   activeTrip,
   tripStage,
   onToggle,
@@ -23,6 +24,8 @@ export default function StatusCard({
 }) {
   const [now, setNow] = useState(Date.now());
   const onlineSinceRef = useRef(null);
+
+  console.log('scheduledRides', scheduledRides);
 
   // Track when driver went online (fallback if not passed in)
   useEffect(() => {
@@ -337,3 +340,29 @@ export default function StatusCard({
     </div>
   );
 }
+scheduledRides 
+(6) [{…}, {…}, {…}, {…}, {…}, {…}]
+0
+: 
+{id: '1T0rQvkIpRYQaNyTm8lx', dropoffLng: -82.70293029999999, driverInfo: null, timeoutMinutes: 10, apologyEmailSentAt: Timestamp, …}
+1
+: 
+{id: 'BCCx17PgJoEmjMnJZ6dK', dropoffLng: -81.4725685, driverInfo: null, timeoutMinutes: 10, apologyEmailSentAt: Timestamp, …}
+2
+: 
+{id: 'CCORFoKt5s5npoTRCNqo', emailDispatchStarted: true, adminNotified: true, lastPushAt: Timestamp, fareBreakdown: {…}, …}
+3
+: 
+{id: 'PlzVo8BNK7YNtJxqkYEP', dropoffLng: -79.8865932, driverInfo: null, timeoutMinutes: 10, requestSentAt: Timestamp, …}
+4
+: 
+{id: 'navuZiRgaxX3gK4YnWIr', pickupCity: 'Orlando', approvedDriversEmailedAt: Timestamp, pickupLng: -81.3104595, emailDispatchAt: Timestamp, …}
+5
+: 
+{id: 'vBxXLEArYcXWayvUmBBc', dropoffLat: 34.307222, driverPayout: 11.66, status: 'cancelled', pushDispatchAt: Timestamp, …}
+length
+: 
+6
+[[Prototype]]
+: 
+Array(0)

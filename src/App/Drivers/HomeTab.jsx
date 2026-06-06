@@ -23,6 +23,7 @@ export default function HomeTab({
   driver,
   online,
   searches,
+  scheduledRides,
   activeTrip,
   tripStage,
   tripStageColor,
@@ -49,6 +50,7 @@ export default function HomeTab({
         activeTrip={activeTrip}
         tripStage={tripStage}
         onToggle={onToggleOnline}
+        scheduledRides={scheduledRides}
       />
        <StatTiles earnings={earnings} online={online} />
 
