@@ -13,7 +13,8 @@ function tsToMillis(ts) {
 function fmtRelative(ts) {
   if (!ts) return '—';
   const diff = Math.floor((Date.now() - tsToMillis(ts)) / 1000);
-  if (diff < 60)    return 'just now';
+  if (diff < 5)     return 'just now';
+  if (diff < 60)    return `${diff}s ago`;
   if (diff < 3600)  return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return new Date(tsToMillis(ts)).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -22,13 +23,36 @@ function fmtRelative(ts) {
 function strip(addr) {
   if (!addr) return '—';
   return addr
-    .replace(/^\s*\d+\s+[A-Za-z0-9.-]+\s+/, '')
-    .replace(/,\s*(Orlando|Tampa|Kissimmee|Winter Haven|Winter Park|Ocoee|Lakeland|FL|USA).*$/i, '')
+    .replace(/^\s*\d+\s+[A-Za-z0-9.\s-]+?,\s*/, '')
+    .replace(/,\s*(FL|USA)\s*$/i, '')
     .trim();
 }
 
 function isGuest(s) {
   return !s.uid || s.uid === 'null' || s.uid === null;
+}
+
+// Live-ticking timestamp
+function LiveTimestamp({ ts }) {
+  const [label, setLabel] = useState(() => fmtRelative(ts));
+
+  useEffect(() => {
+    setLabel(fmtRelative(ts));
+    const id = setInterval(() => setLabel(fmtRelative(ts)), 5000);
+    return () => clearInterval(id);
+  }, [ts]);
+
+  return (
+    <span style={{
+      fontFamily: "'Barlow',monospace",
+      fontSize: 9.5,
+      fontWeight: 700,
+      color: 'rgba(96,165,250,.38)',
+      flexShrink: 0,
+    }}>
+      {label}
+    </span>
+  );
 }
 
 export default function RecentSearches({ searches = [], loading = false, limit = 5 }) {
@@ -54,8 +78,8 @@ export default function RecentSearches({ searches = [], loading = false, limit =
     return () => clearInterval(timerRef.current);
   }, [feed.length]);
 
-  const current    = feed[index];
-  const guest      = current ? isGuest(current) : false;
+  const current     = feed[index];
+  const guest       = current ? isGuest(current) : false;
   const driverCount = current?.driverInfo?.driverCount ?? 0;
   const hasDrivers  = driverCount > 0;
   const etaLabel    = current?.driverInfo?.etaLabel ?? null;
@@ -220,15 +244,12 @@ export default function RecentSearches({ searches = [], loading = false, limit =
               </div>
             )}
 
-            {/* Miles — push right */}
-            {current.miles > 0 && current.miles < 200 && (
-              <span style={{
-                fontFamily:"'Barlow',monospace", fontSize:10, fontWeight:700,
-                color:'rgba(96,165,250,.32)', marginLeft:'auto', flexShrink:0,
-              }}>
-                {current.miles.toFixed(1)} mi
-              </span>
-            )}
+            {/* Timestamp — push right */}
+            <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:3, flexShrink:0 }}>
+              <Clock size={8} color="rgba(96,165,250,.28)" strokeWidth={2.2}/>
+              <LiveTimestamp ts={current.createdAt} />
+            </div>
+
           </div>
         </div>
       )}
