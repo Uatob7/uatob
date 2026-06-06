@@ -60,6 +60,7 @@ export default function HomeTab({
         online={online}
         activeTrip={activeTrip}
         searches={searches}
+        scheduledRides={scheduledRides}
       />
 
       <ActiveTripCard
