@@ -1,8 +1,9 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { Power, Radar, Zap, MapPin, Calendar, Clock, ChevronRight, Navigation, Trophy, TrendingUp, Star, Share2 } from 'lucide-react';
 import { C } from '@/App/Drivers/constants.js';
-import StatTiles   from '@/App/Drivers/StatTiles.jsx';
-import Achievements from '@/App/Drivers/Achievements.jsx';
+import StatTiles      from '@/App/Drivers/StatTiles.jsx';
+import Achievements   from '@/App/Drivers/Achievements.jsx';
+import RecentSearches from '@/App/Drivers/RecentSearches.jsx'; // ← NEW
 
 // ── Helpers ────────────────────────────────────────────
 function tsToMillis(ts) {
@@ -44,14 +45,14 @@ function fmtCountdown(ts) {
   return 'Soon';
 }
 
-// Face order: 0=status, 1=scheduled, 2=stats, 3=achievements, 4=notification
-const FACES   = ['status', 'scheduled', 'stats', 'achievements', 'notification'];
-const FACE_MS = 5500; // auto-advance interval
+// Face order: 0=status, 1=scheduled, 2=stats, 3=achievements, 4=notification, 5=searches ← NEW
+const FACES   = ['status', 'scheduled', 'stats', 'achievements', 'notification', 'searches'];
+const FACE_MS = 5500;
 
 export default function StatusCard({
   online,
   scheduledRides = [],
-  searches,
+  searches,          // ← already being passed in; now consumed by face 5
   activeTrip,
   tripStage,
   onToggle,
@@ -65,9 +66,7 @@ export default function StatusCard({
   const [rideIdx,  setRideIdx]  = useState(0);
   const [badgeIdx, setBadgeIdx] = useState(0);
   const onlineSinceRef          = useRef(null);
-  const cycleRef  = useRef(null);
-
-  console.log(searches);
+  const cycleRef                = useRef(null);
 
   // ── Online duration ────────────────────────────────
   useEffect(() => {
@@ -105,7 +104,7 @@ export default function StatusCard({
   const hasScheduled = upcomingRides.length > 0;
   const currentRide  = upcomingRides[rideIdx] ?? null;
 
-  const activeFaces = FACES; // always cycle all 4
+  const activeFaces = FACES;
 
   // ── Auto-cycle ─────────────────────────────────────
   const startCycle = () => {
@@ -133,12 +132,10 @@ export default function StatusCard({
   const goFace = (i) => {
     setFaceIdx(i);
     if (activeFaces[i] === 'achievements') setBadgeIdx(bi => bi + 1);
-    startCycle(); // reset timer on manual tap
+    startCycle();
   };
 
   const face = activeFaces[faceIdx];
-
-  // ── Mode ───────────────────────────────────────────
   const mode = !online ? 'offline' : activeTrip ? 'trip' : 'waiting';
 
   // ── Per-face card styles ───────────────────────────
@@ -148,10 +145,12 @@ export default function StatusCard({
       : mode === 'trip'
       ? { bg: 'linear-gradient(135deg,#0F172A 0%,#1E293B 50%,#0F172A 100%)', border: '1.5px solid rgba(34,197,94,.35)',   shadow: '0 12px 40px rgba(0,0,0,.25)' }
       : { bg: 'linear-gradient(135deg,#F0FDF4 0%,#DCFCE7 50%,#F0FDF4 100%)', border: '1.5px solid rgba(22,163,74,.30)',   shadow: '0 8px 28px rgba(22,163,74,.14)' },
-    scheduled: { bg: 'linear-gradient(135deg,#0F0A1E 0%,#160F2C 50%,#1A1338 100%)', border: '1.5px solid rgba(129,140,248,.35)', shadow: '0 12px 40px rgba(0,0,0,.30)' },
-    stats:     { bg: 'linear-gradient(135deg,#0A0F1A 0%,#0F1A2E 50%,#0A0F1A 100%)', border: '1.5px solid rgba(59,130,246,.30)',  shadow: '0 12px 40px rgba(0,0,0,.28)' },
+    scheduled:  { bg: 'linear-gradient(135deg,#0F0A1E 0%,#160F2C 50%,#1A1338 100%)', border: '1.5px solid rgba(129,140,248,.35)', shadow: '0 12px 40px rgba(0,0,0,.30)' },
+    stats:      { bg: 'linear-gradient(135deg,#0A0F1A 0%,#0F1A2E 50%,#0A0F1A 100%)', border: '1.5px solid rgba(59,130,246,.30)',  shadow: '0 12px 40px rgba(0,0,0,.28)' },
     achievements: { bg: 'linear-gradient(135deg,#1A0A00 0%,#2C1400 50%,#1A0A00 100%)', border: '1.5px solid rgba(251,146,60,.30)', shadow: '0 12px 40px rgba(0,0,0,.28)' },
-    notification: { bg: 'linear-gradient(135deg,#0A1A14 0%,#0F2A1E 50%,#0A1A14 100%)', border: '1.5px solid rgba(34,197,94,.30)', shadow: '0 12px 40px rgba(0,0,0,.28)' },
+    notification: { bg: 'linear-gradient(135deg,#0A1A14 0%,#0F2A1E 50%,#0A1A14 100%)', border: '1.5px solid rgba(34,197,94,.30)',  shadow: '0 12px 40px rgba(0,0,0,.28)' },
+    // ── NEW ──
+    searches:   { bg: 'linear-gradient(135deg,#08101E 0%,#0D1829 55%,#080F1B 100%)', border: '1.5px solid rgba(96,165,250,.28)',  shadow: '0 12px 40px rgba(0,0,0,.30)' },
   };
 
   const dotColors = {
@@ -160,6 +159,7 @@ export default function StatusCard({
     stats:        '#60A5FA',
     achievements: '#FB923C',
     notification: '#34D399',
+    searches:     '#60A5FA', // ← NEW
   };
 
   const currentStyle = faceStyles[face];
@@ -189,13 +189,16 @@ export default function StatusCard({
         }
         @keyframes scCountGlow {
           0%,100% { text-shadow: 0 0 8px rgba(129,140,248,.3); }
-          50%      { text-shadow: 0 0 28px rgba(129,140,248,.9), 0 0 50px rgba(129,140,248,.4); }
+          50%     { text-shadow: 0 0 28px rgba(129,140,248,.9), 0 0 50px rgba(129,140,248,.4); }
+        }
+        @keyframes rsTravel {
+          0%   { top: -6px; }
+          100% { top: 100%; }
         }
         .sc-face { animation: scFaceIn .38s cubic-bezier(.34,1.2,.64,1) both; }
       `}</style>
 
       <div style={{ borderRadius: 22 }}>
-        {/* ── Card shell ── */}
         <div style={{
           background:   currentStyle.bg,
           border:       currentStyle.border,
@@ -207,7 +210,7 @@ export default function StatusCard({
           boxShadow:    currentStyle.shadow,
         }}>
 
-          {/* ── Decorative layers per face ── */}
+          {/* ── Decorative layers ── */}
           {face === 'status' && mode === 'waiting' && (
             <>
               <div style={{ position:'absolute', top:'50%', right:80, width:60, height:60, borderRadius:'50%', background:'rgba(22,163,74,.20)', transform:'translateY(-50%)', animation:'scRadar 2.4s ease-out infinite', pointerEvents:'none' }}/>
@@ -250,6 +253,15 @@ export default function StatusCard({
               <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:'linear-gradient(90deg,transparent,rgba(52,211,153,0.6),transparent)', animation:'scScan 3.8s linear infinite', pointerEvents:'none' }}/>
             </>
           )}
+          {/* ── NEW: searches decorative layer ── */}
+          {face === 'searches' && (
+            <>
+              <div style={{ position:'absolute', top:-50, right:-50, width:180, height:180, borderRadius:'50%', background:'radial-gradient(circle,rgba(96,165,250,.16) 0%,transparent 70%)', filter:'blur(28px)', pointerEvents:'none' }}/>
+              <div style={{ position:'absolute', bottom:-40, left:-30, width:140, height:140, borderRadius:'50%', background:'radial-gradient(circle,rgba(192,132,252,.10) 0%,transparent 70%)', filter:'blur(22px)', pointerEvents:'none' }}/>
+              <div style={{ position:'absolute', inset:0, opacity:.03, backgroundImage:'linear-gradient(rgba(255,255,255,.6) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.6) 1px,transparent 1px)', backgroundSize:'32px 32px', pointerEvents:'none' }}/>
+              <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:'linear-gradient(90deg,transparent,rgba(96,165,250,.55),transparent)', animation:'scScan 3.6s linear infinite', pointerEvents:'none' }}/>
+            </>
+          )}
 
           {/* ── Face content ── */}
           <div className="sc-face" key={face + rideIdx + badgeIdx} style={{ position: 'relative', minHeight: 78 }}>
@@ -276,13 +288,11 @@ export default function StatusCard({
                       </span>
                     </div>
                   </div>
-
                   <div className="condensed" style={{ fontSize:26, fontWeight:900, color: mode==='trip' ? '#fff' : C.text, letterSpacing:'-0.5px', lineHeight:1.1, marginBottom:4, opacity: mode==='offline' ? 0.65 : 1 }}>
                     {mode==='offline' && "You're offline"}
                     {mode==='waiting' && 'Looking for rides'}
                     {mode==='trip'    && `Active trip · ${(tripStage ?? '').replace('_', ' ')}`}
                   </div>
-
                   <div style={{ display:'flex', alignItems:'center', gap:10, fontSize:12, fontWeight:600, color: mode==='trip' ? 'rgba(255,255,255,0.55)' : mode==='waiting' ? '#15803D' : C.textDim, flexWrap:'wrap' }}>
                     {mode==='offline' && <span>Tap "Go online" to start earning</span>}
                     {mode==='waiting' && (
@@ -341,11 +351,9 @@ export default function StatusCard({
                       {!hasScheduled ? 'No upcoming rides' : upcomingRides.length > 1 ? `Ride ${rideIdx + 1} of ${upcomingRides.length}` : 'Scheduled ride'}
                     </span>
                   </div>
-
                   <div className="condensed" style={{ fontSize:26, fontWeight:900, color:'#fff', letterSpacing:'-0.5px', lineHeight:1.1, marginBottom:4, animation:'scCountGlow 3s ease-in-out infinite' }}>
                     {!hasScheduled ? 'Schedule a ride' : upcomingRides.length === 1 ? '1 ride scheduled' : `${upcomingRides.length} rides scheduled`}
                   </div>
-
                   {hasScheduled && currentRide ? (
                     <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
                       {(currentRide.scheduledAt || currentRide.createdAt) && (
@@ -369,7 +377,6 @@ export default function StatusCard({
                     <div style={{ fontSize:12, fontWeight:600, color:'rgba(165,180,252,.5)' }}>No rides coming up</div>
                   )}
                 </div>
-
                 <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8, flexShrink:0 }}>
                   <div style={{ width:44, height:44, borderRadius:13, background:'rgba(129,140,248,.14)', border:'1px solid rgba(129,140,248,.28)', display:'flex', alignItems:'center', justifyContent:'center' }}>
                     <Calendar size={20} color="#A5B4FC" strokeWidth={2}/>
@@ -439,6 +446,15 @@ export default function StatusCard({
               </div>
             )}
 
+            {/* ════ FACE: SEARCHES (NEW) ════ */}
+            {face === 'searches' && (
+              <RecentSearches
+                searches={searches ?? []}
+                loading={false}
+                limit={5}
+              />
+            )}
+
           </div>
 
           {/* ── Dot pagination ── */}
@@ -468,78 +484,3 @@ export default function StatusCard({
     </>
   );
 }
-
-
-
-
-(171) [{…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, …]
-[0 … 99]
-[100 … 170]
-100
-: 
-{id: 'KG2sTO7gSrsda2LwGbmt', driverInfo: {…}, pickupLng: -81.6967169, createdAt: Timestamp, dropoff: 'Winter Haven Hospital, Avenue F Northeast, Winter Haven, FL, USA', …}
-101
-: 
-{id: 'we6R03wWhpKiACh2qyxX', rides: {…}, pickup: '3065 Sunset Hills Road, Winter Haven, FL, USA', miles: 4.85, dropoff: 'Winter haven hosp', …}
-102
-: 
-{id: 'xN7y5KibxVf3wtnKxAFd', dropoff: 'Winter haven his', driverInfo: {…}, pickupLng: -81.6967169, createdAt: Timestamp, …}
-103
-: 
-{id: 'dbROwPLuAVJkfQOZAg7g', driverInfo: {…}, createdAt: Timestamp, pickupLng: -81.6967169, dropoff: 'Winter haven hos', …}
-104
-: 
-{id: 'B7q7Buwn9b2QnGKzE5h1', pickupLat: 28.0785369, uid: null, minutes: 407, dropoff: 'Racetrac', …}
-105
-: 
-{id: 'MOU14cpW1jD5vJDeD9Xv', rides: {…}, pickup: '3065 Sunset Hills Road, Winter Haven, FL, USA', miles: 300, driverInfo: {…}, …}
-106
-: 
-{id: 'xJH2i0kHcG29DNL1qxSD', pickupLat: 28.0785369, uid: null, minutes: 407, dropoff: 'Racetra', …}
-107
-: 
-{id: 'LgciAr1crCYQ3rLZfcIt', driverInfo: null, pickupLng: -81.3647755, createdAt: Timestamp, dropoff: '4503 Landing Drive, Orlando, FL, USA', …}
-108
-: 
-{id: 'fPv6Uyv7w0ZX1e4jucHS', pickupLat: 28.5986263, uid: null, minutes: 16, dropoff: '110 South Orlando Avenue, Winter Park, FL, USA', …}
-109
-: 
-{id: 'XprZLYQexQByD6XRKSmx', minutes: 29, pickupLat: 28.5986263, uid: null, driverInfo: null, …}
-110
-: 
-{id: 'd6Pi0GEIRvHHoGF1bYfS', pickup: 'Orlando, FL, USA', miles: 17.33, rides: {…}, minutes: 19, …}
-111
-: 
-{id: 'xIwRKgYLfokQpHw3bpSM', pickup: '2386 Grand Poplar Street, Ocoee, FL, USA', miles: 79.08, rides: {…}, uid: 'fNUiMv7uh4X73HPTramhtO47tn53', …}
-112
-: 
-{id: 'guAvzXSJyy05vnH2x23z', miles: 79.08, pickup: '2386 Grand Poplar Street, Ocoee, FL, USA', rides: {…}, pickupLat: 28.6041202, …}
-113
-: 
-{id: 'Ny5x6x6NJd1QaLIM7aGC', rides: {…}, pickup: '3625 New Jersey Rd, Lakeland, FL 33803, USA', miles: 199.1, dropoff: 'Jacksonville', …}
-114
-: 
-{id: 'Svl5yyG21KE2I9VbT2M2', dropoff: '3024 North Powers Drive, Orlando, FL, USA', createdAt: Timestamp, pickupLng: -81.46963459999999, driverInfo: {…}, …}
-115
-: 
-{id: 'PGm3yzxc8TM9AZyES9FQ', rides: {…}, miles: 0.86, pickup: '2382 Locke Ave, Orlando, FL 32818, USA', dropoff: '3024 North Powers Drive, Orlando, FL, USA', …}
-116
-: 
-{id: 'KdkCypEFew16WVzJ5Rzd', rides: {…}, miles: 0.86, pickup: '2382 Locke Ave, Orlando, FL 32818, USA', dropoff: '3024 North Powers Drive, Orlando, FL, USA', …}
-117
-: 
-{id: 'VG7vlbHVRR1Ldqcb47mn', driverInfo: null, pickupLng: -81.46889829999999, createdAt: Timestamp, dropoff: '3024 North Powers Drive, Orlando, FL, USA', …}
-118
-: 
-{id: 'QxaMhaqXRFigMpj0O7Bo', miles: 0.87, pickup: '6329 Laurelwood Ct, Orlando, FL 32818, USA', rides: {…}, minutes: 4, …}
-119
-: 
-{id: 'Xg6aANyNjzU6MzERKjp9', dropoff: '10601 US Hwy 19 N, Pinellas Park, FL, USA', createdAt: Timestamp, pickupLng: -82.7099003, driverInfo: null, …}
-120
-: 
-{id: 'Khhs0sTrdaSnsDIEWFao', driverInfo: null, createdAt: Timestamp, pickupLng: -82.7099003, dropoff: '10601 us hwy 19', …}
-121
-: 
-{id: 'MOm7G1MGDyILpnXGIt0w', min
-
-  
