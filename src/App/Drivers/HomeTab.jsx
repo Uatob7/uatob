@@ -64,6 +64,8 @@ export default function HomeTab({
   advancePending,
   onUnreadChange,
 }) {
+
+  console.log('driver', driver);
   const mapContainerRef = useRef(null);
   const mapRef          = useRef(null);
   const markersRef      = useRef([]);   // DOM pulse markers (CSS-based)
