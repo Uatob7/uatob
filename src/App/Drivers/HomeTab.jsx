@@ -1,6 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
-import { collection, onSnapshot } from 'firebase/firestore';
-import { db } from '@/firebase';
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+  limit,
+  getFirestore,
+} from "firebase/firestore";
+import { firebase_app } from "@/firebase/config";
+
+const db = getFirestore(firebase_app);
+
 import StatusCard from '@/App/Drivers/StatusCard.jsx';
 
 const MAPBOX_TOKEN = 'pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA';
