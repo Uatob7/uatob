@@ -322,6 +322,7 @@ export default function HomeTab({
               tripStage={tripStage}
               onToggle={onToggleOnline}
               scheduledRides={scheduledRides}
+              driver={driver}
             />
           </div>
         </div>
