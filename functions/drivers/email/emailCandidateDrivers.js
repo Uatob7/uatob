@@ -1,4 +1,4 @@
-const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { defineSecret } = require("firebase-functions/params");
 const admin = require("firebase-admin");
 const sgMail = require("@sendgrid/mail");
@@ -28,21 +28,16 @@ const fmt = {
   },
 };
 
-// Mask the street number so drivers can't bypass the app.
-// "2382 Locke Avenue, Orlando, FL, USA" → "•••• Locke Avenue · Orlando, FL"
-// "Pine Hills Park, Orlando, FL, USA"   → "Pine Hills Park · Orlando, FL"
 function maskAddress(raw) {
   if (!raw) return "—";
   const parts = String(raw).split(",").map((s) => s.trim()).filter(Boolean);
   if (parts.length === 0) return "—";
 
-  // First segment: street/place. Mask leading number if any.
   const first = parts[0].replace(/^(\d+[A-Za-z]?)(\s+)/, (_, num, sp) => {
     const dots = "•".repeat(Math.min(num.length, 4));
     return `${dots}${sp}`;
   });
 
-  // Build "City, ST" hint from remaining segments (drop "USA")
   const tail = parts.slice(1).filter((p) => !/^USA$/i.test(p));
   const city = tail[0] ?? "";
   const state = tail[1] ?? "";
@@ -51,7 +46,6 @@ function maskAddress(raw) {
   return tailStr ? `${first} · ${tailStr}` : first;
 }
 
-// Convert an expiresAt (Firestore Timestamp | ISO string | Date) → ms epoch
 function toMs(v) {
   if (!v) return null;
   if (typeof v.toMillis === "function") return v.toMillis();
@@ -60,11 +54,9 @@ function toMs(v) {
   return Number.isFinite(t) ? t : null;
 }
 
-// Format for "Expires at" line — driver-friendly, includes timezone
 function fmtExpiresAt(ms) {
   if (!ms) return null;
   const d = new Date(ms);
-  // e.g. "Sun, May 4 · 11:10 PM EDT"
   const date = d.toLocaleDateString("en-US", {
     weekday: "short", month: "short", day: "numeric",
     timeZone: "America/New_York",
@@ -76,7 +68,6 @@ function fmtExpiresAt(ms) {
   return `${date} · ${time}`;
 }
 
-// Pretty countdown chip ("12 min left", "1h 04m left", "EXPIRED")
 function fmtCountdown(msRemaining) {
   if (msRemaining == null) return null;
   if (msRemaining <= 0) return "EXPIRED";
@@ -88,7 +79,7 @@ function fmtCountdown(msRemaining) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Brand SVGs — email-safe, inlined
+// Brand SVGs
 // ─────────────────────────────────────────────────────────────
 const UATOB_ICON_SVG = `
 <svg width="46" height="46" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -167,8 +158,8 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, msRemainin
         )
       : null;
 
-  const countdownText  = fmtCountdown(msRemaining);                  // "12 min left"
-  const expiresAtText  = fmtExpiresAt(expiresAtMs);                  // "Sun, May 4 · 11:10 PM EDT"
+  const countdownText    = fmtCountdown(msRemaining);
+  const expiresAtText    = fmtExpiresAt(expiresAtMs);
   const minutesRemaining = msRemaining != null ? Math.max(0, Math.round(msRemaining / 60_000)) : null;
 
   const candidateNote =
@@ -176,14 +167,12 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, msRemainin
       ? `Sent to <span style="color:#4ADE80;">${totalCandidates} nearby drivers</span> &nbsp;&#183;&nbsp; first to accept wins`
       : `You&apos;re the only driver being notified right now`;
 
-  // Color tier for countdown chip (green / amber / red)
-  const isUrgent      = minutesRemaining !== null && minutesRemaining <= 5;
-  const isWarning     = minutesRemaining !== null && minutesRemaining <= 15 && !isUrgent;
-  const chipBg        = isUrgent ? "rgba(248,113,113,0.16)" : isWarning ? "rgba(251,191,36,0.16)" : "rgba(74,222,128,0.15)";
-  const chipBorder    = isUrgent ? "#F87171"               : isWarning ? "#FBBF24"               : "#4ADE80";
-  const chipText      = isUrgent ? "#FCA5A5"               : isWarning ? "#FDE68A"               : "#86EFAC";
+  const isUrgent   = minutesRemaining !== null && minutesRemaining <= 5;
+  const isWarning  = minutesRemaining !== null && minutesRemaining <= 15 && !isUrgent;
+  const chipBg     = isUrgent ? "rgba(248,113,113,0.16)" : isWarning ? "rgba(251,191,36,0.16)" : "rgba(74,222,128,0.15)";
+  const chipBorder = isUrgent ? "#F87171"               : isWarning ? "#FBBF24"               : "#4ADE80";
+  const chipText   = isUrgent ? "#FCA5A5"               : isWarning ? "#FDE68A"               : "#86EFAC";
 
-  // Hero countdown chip — replaces the static "LIVE REQUEST" pill
   const heroChip = countdownText
     ? `
       <div style="display:inline-block;background-color:${chipBg};
@@ -204,7 +193,6 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, msRemainin
         </span>
       </div>`;
 
-  // Urgency banner — only when < 5 min remain
   const urgencyBanner = isUrgent
     ? `
             <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
@@ -221,7 +209,6 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, msRemainin
             </table>`
     : "";
 
-  // Expires-at strip (always shown if we have a value)
   const expiresStrip = expiresAtText
     ? `
             <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
@@ -282,7 +269,6 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, msRemainin
 </head>
 <body style="margin:0;padding:0;background-color:#0a0a0a;">
 
-<!-- Preheader (hidden in body, shown in inbox preview) -->
 <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#0a0a0a;">
   ${esc(`${payout} payout · ${distance} · ${countdownText || "open the app to accept"}`)}
 </div>
@@ -294,7 +280,6 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, msRemainin
       <table width="600" cellpadding="0" cellspacing="0" role="presentation"
              style="max-width:600px;width:100%;">
 
-        <!-- ══ WORDMARK HEADER ══ -->
         <tr>
           <td align="center" style="padding-bottom:28px;">
             <table cellpadding="0" cellspacing="0" role="presentation">
@@ -322,12 +307,10 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, msRemainin
           </td>
         </tr>
 
-        <!-- ══ MAIN CARD ══ -->
         <tr>
           <td style="background-color:#111111;border-radius:20px;
                      border:1px solid #1f1f1f;overflow:hidden;">
 
-            <!-- ── HERO BAND ── -->
             <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
               <tr>
                 <td style="background:linear-gradient(135deg,#052e16 0%,#14532d 50%,#166534 100%);
@@ -349,7 +332,6 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, msRemainin
 
             ${urgencyBanner}
 
-            <!-- ── PAYOUT HERO STAT ── -->
             <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
               <tr>
                 <td align="center"
@@ -373,7 +355,6 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, msRemainin
               </tr>
             </table>
 
-            <!-- ── TRIP STATS ROW ── -->
             <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
               <tr>
                 <td width="33%" align="center"
@@ -415,7 +396,6 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, msRemainin
               </tr>
             </table>
 
-            <!-- ── ROUTE CARD (masked addresses) ── -->
             <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
               <tr>
                 <td style="padding:28px 36px;border-top:1px solid #1f1f1f;">
@@ -439,7 +419,6 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, msRemainin
                       </td>
                     </tr>
                   </table>
-                  <!-- Pickup -->
                   <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
                          style="margin-bottom:8px;">
                     <tr>
@@ -460,14 +439,12 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, msRemainin
                       </td>
                     </tr>
                   </table>
-                  <!-- Connector line -->
                   <table cellpadding="0" cellspacing="0" role="presentation"
                          style="margin:0 0 8px 12px;">
                     <tr>
                       <td style="border-left:2px dashed #166534;height:18px;width:1px;"></td>
                     </tr>
                   </table>
-                  <!-- Dropoff -->
                   <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
                     <tr>
                       <td width="32" valign="top" style="padding-top:3px;">
@@ -494,7 +471,6 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, msRemainin
 
             ${expiresStrip}
 
-            <!-- ── CANDIDATE NOTE ── -->
             <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
               <tr>
                 <td align="center"
@@ -508,7 +484,6 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, msRemainin
               </tr>
             </table>
 
-            <!-- ── CTA ── -->
             <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
               <tr>
                 <td style="padding:8px 36px 36px;border-top:1px solid #1f1f1f;">
@@ -538,7 +513,6 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, msRemainin
               </tr>
             </table>
 
-            <!-- ── RIDE ID STRIP ── -->
             <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
               <tr>
                 <td style="padding:16px 36px;background-color:#0d0d0d;
@@ -554,7 +528,6 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, msRemainin
           </td>
         </tr>
 
-        <!-- ══ FOOTER ══ -->
         <tr>
           <td align="center" style="padding:28px 20px 0;">
             <p style="margin:0 0 6px;font-family:'Courier New',monospace;font-size:11px;
@@ -576,7 +549,6 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, msRemainin
 </body>
 </html>`.trim();
 
-  // Plain-text fallback — also masks addresses, includes expiry
   const text =
     `New ride available on UaTob, ${driver.firstName || "Driver"}.\n\n` +
     `Payout:    ${payout}\n` +
@@ -591,7 +563,6 @@ function buildCandidateEmail({ driver, ride, rideId, totalCandidates, msRemainin
     `Full address shown in the app once you accept.\n` +
     `Open the UaTob app to accept this ride: https://uatob.com/driver/app`;
 
-  // Subject line shows countdown when we have one
   const subject = countdownText
     ? `🚗 New ride · ${payout} · ${distance} · ${countdownText}`
     : `🚗 New ride · ${payout} payout · ${distance} — Accept now`;
@@ -614,129 +585,83 @@ function sendDriverEmail(driver, ride, rideId, totalCandidates, msRemaining, exp
 }
 
 // ─────────────────────────────────────────────────────────────
-// Scheduled Cloud Function
+// onDocumentCreated trigger
 // ─────────────────────────────────────────────────────────────
-exports.emailCandidateDrivers = onSchedule(
+exports.emailCandidateDrivers = onDocumentCreated(
   {
-    schedule: "every 2 minutes",
+    document: "Rides/{rideId}",
     region:   "us-east1",
     secrets:  [SENDGRID_API_KEY],
   },
-  async () => {
+  async (event) => {
+    const rideId = event.params.rideId;
+    const ride   = event.data?.data();
+
+    if (!ride) {
+      console.warn(`[emailCandidateDrivers] no data for ${rideId}`);
+      return;
+    }
+
+    // Only dispatch emails for paid rides entering driver search
+    if (ride.status !== "searching_driver" || ride.paymentStatus !== "succeeded") {
+      console.log(
+        `[emailCandidateDrivers] skipping ${rideId} — status: ${ride.status}, payment: ${ride.paymentStatus}`
+      );
+      return;
+    }
+
     sgMail.setApiKey(SENDGRID_API_KEY.value());
 
-    const ridesSnap = await db
-      .collection("Rides")
-      .where("paymentStatus", "==", "succeeded")
-      .where("status", "==", "searching_driver")
-      .get();
+    const now         = Date.now();
+    const expiresAtMs = toMs(ride.expiresAt);
 
-    if (ridesSnap.empty) {
-      console.log("[emailCandidateDrivers] No active rides");
+    if (expiresAtMs !== null && expiresAtMs <= now) {
+      console.log(`[emailCandidateDrivers] skipping ${rideId} — already expired`);
       return;
     }
 
-    const driversSnap = await db
-      .collection("Drivers")
-      .where("status", "==", "online")
-      .get();
+    const msRemaining   = expiresAtMs !== null ? expiresAtMs - now : null;
+    const candidateUids = ride.candidateDriverUids || [];
 
-    if (driversSnap.empty) {
-      console.log("[emailCandidateDrivers] No online drivers");
+    if (candidateUids.length === 0) {
+      console.log(`[emailCandidateDrivers] no candidateDriverUids on ${rideId} yet`);
       return;
     }
 
-    const drivers = driversSnap.docs.map((doc) => ({
-      uid: doc.id,
-      ...doc.data(),
-    }));
+    // Fetch only the candidate drivers by UID
+    const driverFetches = candidateUids.map((uid) =>
+      db.collection("Drivers").doc(uid).get()
+    );
+    const driverDocs = await Promise.all(driverFetches);
 
-    const emailPromises = [];
-    const now     = Date.now();
-    const TICK_MS = 60_000; // scheduler cadence
+    const candidates = driverDocs
+      .filter((d) => d.exists)
+      .map((d) => ({ uid: d.id, ...d.data() }))
+      .filter((d) => !!d.email);
 
-    for (const rideDoc of ridesSnap.docs) {
-      const ride    = rideDoc.data();
-      const rideRef = rideDoc.ref;
-      const rideId  = rideDoc.id;
-
-      const expiresAtMs = toMs(ride.expiresAt);
-
-      if (expiresAtMs !== null && expiresAtMs <= now) {
-        console.log(`[DISPATCH] Skipping ${rideId} — already expired`);
-        continue;
-      }
-
-      const msRemaining = expiresAtMs !== null ? expiresAtMs - now : null;
-
-      const sentMap       = ride.emailSentToDrivers  || {};
-      const candidateUids = ride.candidateDriverUids || [];
-
-      // ── FIRST WAVE (candidate drivers) ──
-      if (!ride.emailDispatchStarted) {
-        console.log(
-          `[DISPATCH] First wave → ${rideId} ` +
-          `(${msRemaining != null ? Math.round(msRemaining/60_000) + " min" : "no expiry"} remaining)`
-        );
-
-        await rideRef.update({
-          emailDispatchStarted: true,
-          emailDispatchAt:      admin.firestore.FieldValue.serverTimestamp(),
-          emailSentToDrivers:   {},
-        });
-
-        const candidateDrivers = drivers.filter(
-          (d) => candidateUids.includes(d.uid) && !sentMap[d.uid] && !!d.email
-        );
-
-        for (const driver of candidateDrivers) {
-          emailPromises.push(
-            sendDriverEmail(driver, ride, rideId, candidateDrivers.length, msRemaining, expiresAtMs)
-          );
-          sentMap[driver.uid] = true;
-        }
-
-        await rideRef.update({ emailSentToDrivers: sentMap });
-        continue;
-      }
-
-      // ── EXPANSION WAVES ──
-      // Don't email if the ride expires before the next tick.
-      if (msRemaining !== null && msRemaining <= TICK_MS) {
-        console.log(
-          `[DISPATCH] Skipping expansion for ${rideId} — only ${Math.round(msRemaining / 1000)}s left`
-        );
-        continue;
-      }
-
-      const batchSize    = 10;
-      const currentIndex = ride.currentDriverIndex || 0;
-      const nextBatch    = drivers
-        .slice(currentIndex, currentIndex + batchSize)
-        .filter((d) => !sentMap[d.uid] && !!d.email);
-
-      if (nextBatch.length === 0) continue;
-
-      console.log(
-        `[DISPATCH] Expanding ${rideId} → drivers ${currentIndex}–${currentIndex + batchSize} ` +
-        `(${msRemaining != null ? Math.round(msRemaining/60_000) + " min" : "no expiry"} remaining)`
-      );
-
-      for (const driver of nextBatch) {
-        emailPromises.push(
-          sendDriverEmail(driver, ride, rideId, nextBatch.length, msRemaining, expiresAtMs)
-        );
-        sentMap[driver.uid] = true;
-      }
-
-      await rideRef.update({
-        currentDriverIndex: currentIndex + batchSize,
-        emailSentToDrivers: sentMap,
-        lastDispatchAt:     admin.firestore.FieldValue.serverTimestamp(),
-      });
+    if (candidates.length === 0) {
+      console.log(`[emailCandidateDrivers] no emailable candidates for ${rideId}`);
+      return;
     }
+
+    console.log(
+      `[emailCandidateDrivers] dispatching to ${candidates.length} drivers for ride ${rideId}`
+    );
+
+    const sentMap = {};
+    const emailPromises = candidates.map((driver) => {
+      sentMap[driver.uid] = true;
+      return sendDriverEmail(driver, ride, rideId, candidates.length, msRemaining, expiresAtMs);
+    });
 
     await Promise.allSettled(emailPromises);
-    console.log("[emailCandidateDrivers] Done");
+
+    await event.data.ref.update({
+      emailDispatchStarted: true,
+      emailDispatchAt:      admin.firestore.FieldValue.serverTimestamp(),
+      emailSentToDrivers:   sentMap,
+    });
+
+    console.log(`✅ [emailCandidateDrivers] dispatched for ride ${rideId}`);
   }
 );

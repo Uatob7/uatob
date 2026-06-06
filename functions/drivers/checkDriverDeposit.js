@@ -7,7 +7,7 @@ const db = admin.firestore();
 
 exports.checkDriverDeposit = onSchedule(
   {
-    schedule: "* * * * *",
+    schedule: "every 7 minutes",
     region: "us-east1",
     timeZone: "America/New_York",
     secrets: ["STRIPE_SECRET_KEY"],

@@ -7,7 +7,7 @@ const db = getFirestore();
 
 exports.updateDriverPresence = onSchedule(
   {
-    schedule: "* * * * *", // every 1 minute
+    schedule: "every 7 minutes",
     region: "us-central1",
   },
   async () => {

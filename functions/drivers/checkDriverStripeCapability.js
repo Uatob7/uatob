@@ -7,7 +7,7 @@ const db = admin.firestore();
 
 exports.checkDriverStripeCapability = onSchedule(
   {
-    schedule: "every 1 minutes",
+    schedule: "every 7 minutes",
     region: "us-central1",
     timeZone: "America/New_York",
     secrets: ["STRIPE_SECRET_KEY"],
