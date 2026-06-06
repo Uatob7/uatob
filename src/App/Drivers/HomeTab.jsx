@@ -23,6 +23,18 @@ function tsToMillis(ts) {
   return 0;
 }
 
+// Haversine distance in miles between two lat/lng pairs
+function haversineMiles(lat1, lng1, lat2, lng2) {
+  const R    = 3958.8;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a    = Math.sin(dLat / 2) ** 2
+             + Math.cos(lat1 * Math.PI / 180)
+             * Math.cos(lat2 * Math.PI / 180)
+             * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 function buildPickupGeoJSON(searches = []) {
   const features = searches
     .filter(s => typeof s.pickupLat === 'number' && typeof s.pickupLng === 'number')
@@ -49,6 +61,20 @@ function buildScheduledGeoJSON(scheduledRides = []) {
   return { type: 'FeatureCollection', features };
 }
 
+// Nearest distance in miles from driver to a list of items with pickupLat/pickupLng
+function nearestMi(driverLat, driverLng, items = []) {
+  if (!driverLat || !driverLng) return null;
+  const valid = items.filter(
+    s => typeof s.pickupLat === 'number' && typeof s.pickupLng === 'number'
+  );
+  if (!valid.length) return null;
+  const min = valid.reduce(
+    (m, s) => Math.min(m, haversineMiles(driverLat, driverLng, s.pickupLat, s.pickupLng)),
+    Infinity
+  );
+  return isFinite(min) ? min : null;
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function HomeTab({
   driver,
@@ -73,6 +99,8 @@ export default function HomeTab({
   const pulseLayersRef   = useRef(false);
   const [mapReady, setMapReady] = useState(false);
   const [driverCounts, setDriverCounts] = useState({ online: 0, offline: 0, approved: 0 });
+
+  console.log(searches, scheduledRides);
 
   // ── Driver counts ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -116,10 +144,14 @@ export default function HomeTab({
       const mapboxgl       = window.mapboxgl;
       mapboxgl.accessToken = MAPBOX_TOKEN;
 
+      // Center on driver's real coordinates from Firestore
+      const centerLng = driver?.lng ?? -81.3792;
+      const centerLat = driver?.lat ?? 28.5383;
+
       const map = new mapboxgl.Map({
         container:          mapContainerRef.current,
         style:              MAP_STYLE,
-        center:             [driver?.lng ?? -81.3792, driver?.lat ?? 28.5383],
+        center:             [centerLng, centerLat],
         zoom:               12,
         pitch:              45,
         bearing:            -20,
@@ -173,6 +205,17 @@ export default function HomeTab({
     };
   }, [online]); // eslint-disable-line
 
+  // ── Re-center map when driver location updates ────────────────────────
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !driver?.lat || !driver?.lng) return;
+    mapRef.current.easeTo({
+      center:   [driver.lng, driver.lat],
+      duration: 1200,
+      easing:   t => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t, // ease-in-out
+    });
+  }, [driver?.lat, driver?.lng, mapReady]);
+
+  // ── Update GeoJSON sources when data changes ──────────────────────────
   useEffect(() => {
     if (!mapReady || !mapRef.current || !pulseLayersRef.current) return;
     const map = mapRef.current;
@@ -181,6 +224,7 @@ export default function HomeTab({
     map.getSource('ht-scheduled')?.setData(buildScheduledGeoJSON(scheduledRides));
   }, [searches, scheduledRides, mapReady]);
 
+  // ── Pulse halo animation ──────────────────────────────────────────────
   useEffect(() => {
     if (!mapReady || !pulseLayersRef.current) return;
     const map = mapRef.current;
@@ -197,6 +241,7 @@ export default function HomeTab({
     return () => clearInterval(id);
   }, [mapReady]);
 
+  // ── Radar sweep RAF ───────────────────────────────────────────────────
   useEffect(() => {
     if (!mapReady || !online) { cancelAnimationFrame(rafRef.current); return; }
     const animate = () => {
@@ -226,13 +271,18 @@ export default function HomeTab({
     return () => cancelAnimationFrame(rafRef.current);
   }, [mapReady, online]);
 
-  const dotCount = searches.filter(
-    s => typeof s.pickupLat === 'number' && typeof s.pickupLng === 'number'
-  ).length;
-
+  // ── Derived values ────────────────────────────────────────────────────
+  const dotCount       = searches.filter(s => typeof s.pickupLat === 'number' && typeof s.pickupLng === 'number').length;
   const scheduledCount = scheduledRides.filter(r => r.pickupLat && r.pickupLng).length;
   const driverTotal    = driverCounts.online + driverCounts.offline + driverCounts.approved;
-  const showLegend     = online && mapReady && (dotCount > 0 || scheduledCount > 0 || driverCounts.online > 0);
+  const showLegend     = online && mapReady && (dotCount > 0 || scheduledCount > 0);
+  const showOnlineCount = online && mapReady;
+
+  // Nearest distance from this driver to each pool
+  const searchNearestMi    = nearestMi(driver?.lat, driver?.lng, searches);
+  const scheduledNearestMi = nearestMi(driver?.lat, driver?.lng, scheduledRides);
+
+  const fmtMi = mi => mi !== null ? `${mi.toFixed(1)} mi` : null;
 
   return (
     <>
@@ -323,7 +373,7 @@ export default function HomeTab({
           </div>
         )}
 
-        {/* ── Bottom-left legend (searching + scheduled + online drivers) ── */}
+        {/* ── Bottom-left legend: searches + scheduled (with distance from driver) ── */}
         {showLegend && (
           <div style={{
             position:'absolute', bottom:100, left:16, zIndex:20,
@@ -336,10 +386,18 @@ export default function HomeTab({
                 background:'rgba(5,10,6,.72)', backdropFilter:'blur(10px)',
                 border:'1px solid rgba(52,211,153,.25)', borderRadius:99, padding:'5px 11px',
               }}>
-                <div style={{ width:8, height:8, borderRadius:'50%', background:'#34D399', boxShadow:'0 0 8px rgba(52,211,153,.8)', animation:'htBlink 1.8s ease-in-out infinite' }}/>
+                <div style={{ width:8, height:8, borderRadius:'50%', background:'#34D399', boxShadow:'0 0 8px rgba(52,211,153,.8)', animation:'htBlink 1.8s ease-in-out infinite', flexShrink:0 }}/>
                 <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10.5, fontWeight:700, color:'#34D399' }}>
                   {dotCount} searching
                 </span>
+                {fmtMi(searchNearestMi) && (
+                  <>
+                    <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:'rgba(52,211,153,.35)' }}>·</span>
+                    <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, fontWeight:600, color:'rgba(52,211,153,.65)' }}>
+                      {fmtMi(searchNearestMi)}
+                    </span>
+                  </>
+                )}
               </div>
             )}
 
@@ -349,14 +407,29 @@ export default function HomeTab({
                 background:'rgba(5,10,6,.72)', backdropFilter:'blur(10px)',
                 border:'1px solid rgba(192,132,252,.25)', borderRadius:99, padding:'5px 11px',
               }}>
-                <div style={{ width:8, height:8, borderRadius:'50%', background:'#C084FC', boxShadow:'0 0 8px rgba(192,132,252,.8)', animation:'htBlink 2.2s ease-in-out infinite' }}/>
+                <div style={{ width:8, height:8, borderRadius:'50%', background:'#C084FC', boxShadow:'0 0 8px rgba(192,132,252,.8)', animation:'htBlink 2.2s ease-in-out infinite', flexShrink:0 }}/>
                 <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10.5, fontWeight:700, color:'#C084FC' }}>
                   {scheduledCount} scheduled
                 </span>
+                {fmtMi(scheduledNearestMi) && (
+                  <>
+                    <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:'rgba(192,132,252,.35)' }}>·</span>
+                    <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, fontWeight:600, color:'rgba(192,132,252,.65)' }}>
+                      {fmtMi(scheduledNearestMi)}
+                    </span>
+                  </>
+                )}
               </div>
             )}
+          </div>
+        )}
 
-            {/* Online driver count */}
+        {/* ── Bottom-right: online driver count ── */}
+        {showOnlineCount && (
+          <div style={{
+            position:'absolute', bottom:100, right:16, zIndex:20,
+            animation:'htSlideDown .4s ease both',
+          }}>
             <div style={{
               display:'flex', alignItems:'center', gap:6,
               background:'rgba(5,10,6,.72)', backdropFilter:'blur(10px)',
