@@ -1,7 +1,6 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
-import { Search, MapPin, Navigation, Clock, User, Ghost } from 'lucide-react';
+import { Search, MapPin, Navigation, Clock, User, Ghost, ArrowRight } from 'lucide-react';
 
-// ── Helpers ────────────────────────────────────────────────────────────────
 function tsToMillis(ts) {
   if (!ts) return 0;
   if (typeof ts.toMillis === 'function') return ts.toMillis();
@@ -32,10 +31,7 @@ function isGuest(s) {
   return !s.uid || s.uid === 'null' || s.uid === null;
 }
 
-// ── Main ───────────────────────────────────────────────────────────────────
 export default function RecentSearches({ searches = [], loading = false, limit = 5 }) {
-
-  console.log(searches);
   const feed = useMemo(() =>
     [...searches]
       .filter(s => s.pickup && s.dropoff)
@@ -48,22 +44,15 @@ export default function RecentSearches({ searches = [], loading = false, limit =
   const [exiting, setExiting] = useState(false);
   const timerRef              = useRef(null);
 
-  const cycle = () => {
+  useEffect(() => {
     if (!feed.length) return;
     clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
       setExiting(true);
-      setTimeout(() => {
-        setIndex(i => (i + 1) % feed.length);
-        setExiting(false);
-      }, 320);
+      setTimeout(() => { setIndex(i => (i + 1) % feed.length); setExiting(false); }, 280);
     }, 3800);
-  };
-
-  useEffect(() => {
-    cycle();
     return () => clearInterval(timerRef.current);
-  }, [feed.length]); // eslint-disable-line
+  }, [feed.length]);
 
   const current = feed[index];
   const guest   = current ? isGuest(current) : false;
@@ -71,272 +60,164 @@ export default function RecentSearches({ searches = [], loading = false, limit =
   return (
     <>
       <style>{`
-        @keyframes rs-in {
-          0%   { opacity: 0; transform: translateY(5px); }
-          100% { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes rs-out {
-          0%   { opacity: 1; transform: translateY(0); }
-          100% { opacity: 0; transform: translateY(-5px); }
-        }
-        @keyframes rs-dot {
-          0%,100% { opacity:1; transform:scale(1); }
-          50%     { opacity:.4; transform:scale(.75); }
-        }
-        @keyframes rs-bar {
-          0%   { width: 0%; }
-          100% { width: 100%; }
-        }
+        @keyframes rs-in  { from { opacity:0; transform:translateY(4px) } to { opacity:1; transform:translateY(0) } }
+        @keyframes rs-out { from { opacity:1; transform:translateY(0) } to { opacity:0; transform:translateY(-4px) } }
+        @keyframes rs-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.7)} }
+        @keyframes rs-bar { from{width:0%} to{width:100%} }
       `}</style>
 
-      {/* ── Header pill ── */}
-      <div style={{
-        display: 'inline-flex', alignItems: 'center', gap: 6,
-        padding: '4px 10px', borderRadius: 100,
-        background: 'rgba(96,165,250,.12)',
-        border: '1px solid rgba(96,165,250,.25)',
-        marginBottom: 10,
-      }}>
+      {/* ── Header row ── */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
         <div style={{
-          width: 6, height: 6, borderRadius: '50%',
-          background: '#60A5FA',
-          boxShadow: '0 0 8px rgba(96,165,250,0.9)',
-          animation: 'rs-dot 1.8s ease-in-out infinite',
-        }}/>
-        <span style={{
-          fontFamily: "'Barlow Condensed', 'Barlow', sans-serif",
-          fontSize: 10, fontWeight: 800, letterSpacing: '.12em',
-          textTransform: 'uppercase', color: '#93C5FD',
+          display:'inline-flex', alignItems:'center', gap:5,
+          padding:'3px 9px', borderRadius:100,
+          background:'rgba(96,165,250,.12)', border:'1px solid rgba(96,165,250,.22)',
         }}>
-          Live searches
-        </span>
+          <div style={{
+            width:5, height:5, borderRadius:'50%', background:'#60A5FA',
+            boxShadow:'0 0 7px rgba(96,165,250,.9)',
+            animation:'rs-dot 1.8s ease-in-out infinite',
+          }}/>
+          <span style={{
+            fontFamily:"'Barlow Condensed','Barlow',sans-serif",
+            fontSize:9.5, fontWeight:800, letterSpacing:'.12em',
+            textTransform:'uppercase', color:'#93C5FD',
+          }}>Live searches</span>
+        </div>
+
         {feed.length > 0 && (
           <span style={{
-            fontFamily: "'Barlow Condensed', 'Barlow', sans-serif",
-            fontSize: 10, fontWeight: 700,
-            color: 'rgba(147,197,253,.55)',
+            fontFamily:"'Barlow',monospace", fontSize:10, fontWeight:700,
+            color:'rgba(96,165,250,.35)',
           }}>
-            · {feed.length}
+            {index + 1}/{feed.length}
           </span>
         )}
       </div>
 
       {/* ── Content ── */}
       {loading ? (
-        /* skeleton */
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {[80, 55].map((w, i) => (
-            <div key={i} style={{
-              height: 10, borderRadius: 6, width: `${w}%`,
-              background: 'rgba(255,255,255,.08)',
-            }}/>
-          ))}
+        <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+          <div style={{ height:9, borderRadius:5, width:'75%', background:'rgba(255,255,255,.08)' }}/>
+          <div style={{ height:9, borderRadius:5, width:'50%', background:'rgba(255,255,255,.06)' }}/>
         </div>
 
       ) : !current ? (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          color: 'rgba(147,197,253,.35)', fontSize: 12, fontWeight: 600,
-        }}>
-          <Search size={13} strokeWidth={2.2}/>
-          No searches yet
+        <div style={{ display:'flex', alignItems:'center', gap:6, color:'rgba(147,197,253,.3)', fontSize:11, fontWeight:600 }}>
+          <Search size={11} strokeWidth={2.2}/> No searches yet
         </div>
 
       ) : (
-        /* ── Single live card ── */
         <div
           key={index}
-          style={{
-            animation: exiting
-              ? 'rs-out .32s cubic-bezier(.4,0,1,1) both'
-              : 'rs-in  .38s cubic-bezier(.34,1.2,.64,1) both',
-          }}
+          style={{ animation: exiting ? 'rs-out .28s ease both' : 'rs-in .32s cubic-bezier(.34,1.2,.64,1) both' }}
         >
-          {/* Route row */}
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-
-            {/* Icon column */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 2, gap: 0, flexShrink: 0 }}>
+          {/* ── Route line (single row) ── */}
+          <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
+            {/* Pickup */}
+            <div style={{ display:'flex', alignItems:'center', gap:4, flex:1, minWidth:0 }}>
               <div style={{
-                width: 22, height: 22, borderRadius: 7,
-                background: 'rgba(96,165,250,.18)',
-                border: '1px solid rgba(96,165,250,.30)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width:16, height:16, borderRadius:5, flexShrink:0,
+                background:'rgba(96,165,250,.16)', border:'1px solid rgba(96,165,250,.28)',
+                display:'flex', alignItems:'center', justifyContent:'center',
               }}>
-                <Navigation size={11} color="#60A5FA" strokeWidth={2.4}/>
+                <Navigation size={8} color="#60A5FA" strokeWidth={2.5}/>
               </div>
-              <div style={{ width: 1, height: 14, background: 'rgba(96,165,250,.20)', margin: '2px 0' }}/>
-              <div style={{
-                width: 22, height: 22, borderRadius: 7,
-                background: 'rgba(192,132,252,.14)',
-                border: '1px solid rgba(192,132,252,.25)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <MapPin size={11} color="#C084FC" strokeWidth={2.4}/>
-              </div>
-            </div>
-
-            {/* Text column */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              {/* Pickup */}
-              <div style={{
-                fontFamily: "'Barlow Condensed', 'Barlow', sans-serif",
-                fontSize: 18, fontWeight: 900, letterSpacing: '-0.3px', lineHeight: 1.1,
-                color: '#fff',
-                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                marginBottom: 2,
+              <span style={{
+                fontFamily:"'Barlow Condensed','Barlow',sans-serif",
+                fontSize:15, fontWeight:900, letterSpacing:'-0.2px', lineHeight:1,
+                color:'#fff',
+                whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
               }}>
                 {strip(current.pickup)}
-              </div>
-              {/* Dropoff */}
+              </span>
+            </div>
+
+            {/* Arrow */}
+            <ArrowRight size={11} color="rgba(96,165,250,.35)" strokeWidth={2.5} style={{ flexShrink:0 }}/>
+
+            {/* Dropoff */}
+            <div style={{ display:'flex', alignItems:'center', gap:4, flex:1, minWidth:0 }}>
               <div style={{
-                fontFamily: "'Barlow', sans-serif",
-                fontSize: 12, fontWeight: 600, lineHeight: 1.2,
-                color: 'rgba(192,132,252,.75)',
-                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                marginBottom: 8,
+                width:16, height:16, borderRadius:5, flexShrink:0,
+                background:'rgba(192,132,252,.12)', border:'1px solid rgba(192,132,252,.22)',
+                display:'flex', alignItems:'center', justifyContent:'center',
+              }}>
+                <MapPin size={8} color="#C084FC" strokeWidth={2.5}/>
+              </div>
+              <span style={{
+                fontFamily:"'Barlow',sans-serif",
+                fontSize:12, fontWeight:600, lineHeight:1,
+                color:'rgba(192,132,252,.7)',
+                whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
               }}>
                 {strip(current.dropoff)}
-              </div>
-
-              {/* Meta row */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                {/* Rider type pill */}
-                <div style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 5,
-                  padding: '2px 8px', borderRadius: 99,
-                  background: guest ? 'rgba(251,191,36,.10)' : 'rgba(96,165,250,.10)',
-                  border: `1px solid ${guest ? 'rgba(251,191,36,.22)' : 'rgba(96,165,250,.22)'}`,
-                }}>
-                  {guest
-                    ? <Ghost size={9} color="#FCD34D" strokeWidth={2.4}/>
-                    : <User  size={9} color="#60A5FA" strokeWidth={2.4}/>
-                  }
-                  <span style={{
-                    fontFamily: "'Barlow', sans-serif",
-                    fontSize: 10, fontWeight: 800, letterSpacing: '.06em',
-                    color: guest ? '#FCD34D' : '#93C5FD',
-                    textTransform: 'uppercase',
-                  }}>
-                    {guest ? 'Guest' : 'Rider'}
-                  </span>
-                </div>
-
-                {/* Time */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <Clock size={10} color="rgba(147,197,253,.45)" strokeWidth={2.2}/>
-                  <span style={{
-                    fontFamily: "'Barlow', sans-serif",
-                    fontSize: 11, fontWeight: 600,
-                    color: 'rgba(147,197,253,.5)',
-                  }}>
-                    {fmtRelative(current.createdAt)}
-                  </span>
-                </div>
-              </div>
+              </span>
             </div>
+          </div>
+
+          {/* ── Meta row ── */}
+          <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+            <div style={{
+              display:'inline-flex', alignItems:'center', gap:4,
+              padding:'2px 7px', borderRadius:99,
+              background: guest ? 'rgba(251,191,36,.10)' : 'rgba(96,165,250,.10)',
+              border:`1px solid ${guest ? 'rgba(251,191,36,.20)' : 'rgba(96,165,250,.20)'}`,
+            }}>
+              {guest
+                ? <Ghost size={8} color="#FCD34D" strokeWidth={2.4}/>
+                : <User  size={8} color="#60A5FA" strokeWidth={2.4}/>
+              }
+              <span style={{
+                fontFamily:"'Barlow',sans-serif",
+                fontSize:9, fontWeight:800, letterSpacing:'.06em',
+                color: guest ? '#FCD34D' : '#93C5FD',
+                textTransform:'uppercase',
+              }}>
+                {guest ? 'Guest' : 'Rider'}
+              </span>
+            </div>
+
+            <div style={{ display:'flex', alignItems:'center', gap:3 }}>
+              <Clock size={9} color="rgba(147,197,253,.4)" strokeWidth={2.2}/>
+              <span style={{
+                fontFamily:"'Barlow',sans-serif", fontSize:10, fontWeight:600,
+                color:'rgba(147,197,253,.45)',
+              }}>
+                {fmtRelative(current.createdAt)}
+              </span>
+            </div>
+
+            {current.miles != null && (
+              <span style={{
+                fontFamily:"'Barlow',monospace", fontSize:10, fontWeight:700,
+                color:'rgba(96,165,250,.35)',
+                marginLeft:'auto',
+              }}>
+                {current.miles.toFixed(1)} mi
+              </span>
+            )}
           </div>
         </div>
       )}
 
-      {/* ── Progress bar + counter ── */}
+      {/* ── Progress bar ── */}
       {feed.length > 1 && (
-        <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* Progress bar */}
-          <div style={{
-            flex: 1, height: 2, borderRadius: 2,
-            background: 'rgba(96,165,250,.12)',
-            overflow: 'hidden',
-          }}>
-            <div
-              key={`bar-${index}`}
-              style={{
-                height: '100%', borderRadius: 2,
-                background: 'linear-gradient(90deg,#60A5FA,#A78BFA)',
-                boxShadow: '0 0 6px rgba(96,165,250,.5)',
-                animation: `rs-bar ${3.8}s linear forwards`,
-              }}
-            />
-          </div>
-          {/* n/total */}
-          <span style={{
-            fontFamily: "'Barlow', monospace",
-            fontSize: 10, fontWeight: 700,
-            color: 'rgba(96,165,250,.4)',
-            flexShrink: 0,
-          }}>
-            {index + 1}/{feed.length}
-          </span>
+        <div style={{
+          marginTop:10, height:2, borderRadius:2,
+          background:'rgba(96,165,250,.10)', overflow:'hidden',
+        }}>
+          <div
+            key={`bar-${index}`}
+            style={{
+              height:'100%', borderRadius:2,
+              background:'linear-gradient(90deg,#60A5FA,#A78BFA)',
+              boxShadow:'0 0 5px rgba(96,165,250,.45)',
+              animation:`rs-bar 3.8s linear forwards`,
+            }}
+          />
         </div>
       )}
     </>
   );
 }
-
-
-
-(171) [{…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, …]
-[0 … 99]
-[100 … 170]
-100
-: 
-createdAt
-: 
-Timestamp {seconds: 1779059625, nanoseconds: 79000000}
-driverInfo
-: 
-{driverCount: 2, nearestMiles: 48.93, candidateDrivers: Array(2), stale: true, etaLabel: '~73–78 min', …}
-dropoff
-: 
-"Winter Haven Hospital, Avenue F Northeast, Winter Haven, FL, USA"
-id
-: 
-"KG2sTO7gSrsda2LwGbmt"
-miles
-: 
-4.93
-minutes
-: 
-11
-pickup
-: 
-"3065 Sunset Hills Road, Winter Haven, FL, USA"
-pickupLat
-: 
-28.0785369
-pickupLng
-: 
--81.6967169
-rides
-: 
-{premium: {…}, standard: {…}, xl: {…}, economy: {…}}
-uid
-: 
-null
-[[Prototype]]
-: 
-Object
-101
-: 
-{id: 'we6R03wWhpKiACh2qyxX', rides: {…}, driverInfo: {…}, pickupLat: 28.0785369, uid: null, …}
-102
-: 
-{id: 'xN7y5KibxVf3wtnKxAFd', miles: 5.23, pickupLng: -81.6967169, pickup: '3065 Sunset Hills Road, Winter Haven, FL, USA', dropoff: 'Winter haven his', …}
-103
-: 
-{id: 'dbROwPLuAVJkfQOZAg7g', pickup: '3065 Sunset Hills Road, Winter Haven, FL, USA', dropoff: 'Winter haven hos', miles: 4.85, pickupLng: -81.6967169, …}
-104
-: 
-{id: 'B7q7Buwn9b2QnGKzE5h1', pickup: '3065 Sunset Hills Road, Winter Haven, FL, USA', dropoff: 'Racetrac', miles: 300, pickupLng: -81.6967169, …}
-105
-: 
-{id: 'MOU14cpW1jD5vJDeD9Xv', pickup: '3065 Sunset Hills Road, Winter Haven, FL, USA', dropoff: 'Racetrack', miles: 300, pickupLng: -81.6967169, …}
-106
-: 
-{id: 'xJH2i0kHcG29DNL1qxSD', dropoff: 'Racetra', pickup: '3065 Sunset Hills Road, Winter Haven, FL, USA', pickupLng: -81.6967169, miles: 300, …}
-107
-: 
-{id: 'LgciAr1crCYQ3rLZfcIt', createdAt: Timestamp, minutes: 16, uid: null, pickupLat: 28.5967964, …}
-108
-: 
-{id: 'fPv6Uyv7w0ZX1e4jucHS', pi
