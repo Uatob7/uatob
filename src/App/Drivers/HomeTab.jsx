@@ -1,17 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  collection,
-  query,
-  where,
-  orderBy,
-  onSnapshot,
-  limit,
-  getFirestore,
-} from "firebase/firestore";
-import { firebase_app } from "@/firebase/config";
-
-const db = getFirestore(firebase_app);
-
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '@/firebase';
 import StatusCard from '@/App/Drivers/StatusCard.jsx';
 
 const MAPBOX_TOKEN = 'pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA';
@@ -76,78 +65,47 @@ function DriverStatusBadge() {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 6,
-      background: 'rgba(5,10,6,.75)', backdropFilter: 'blur(12px)',
-      border: '1px solid rgba(34,197,94,.28)', borderRadius: 99,
-      padding: '6px 11px 6px 8px',
-      boxShadow: '0 2px 12px rgba(0,0,0,.35)',
+      background: 'rgba(5,10,6,.78)', backdropFilter: 'blur(14px)',
+      border: '1px solid rgba(34,197,94,.25)', borderRadius: 99,
+      padding: '6px 12px 6px 9px',
+      boxShadow: '0 2px 14px rgba(0,0,0,.4)',
     }}>
-      {/* Live dot */}
+      {/* Blinking live dot */}
       <div style={{
         width: 7, height: 7, borderRadius: '50%',
-        background: '#22C55E',
-        boxShadow: '0 0 8px rgba(34,197,94,.9)',
-        animation: 'htBlink 1.8s ease-in-out infinite',
-        flexShrink: 0,
+        background: '#22C55E', boxShadow: '0 0 8px rgba(34,197,94,.9)',
+        animation: 'htBlink 1.8s ease-in-out infinite', flexShrink: 0,
       }}/>
 
-      {/* Online count / total */}
+      {/* online */}
       <span style={{
         fontFamily: "'JetBrains Mono', monospace",
-        fontSize: 11, fontWeight: 800, letterSpacing: '.02em',
-        color: '#4ADE80',
+        fontSize: 12, fontWeight: 800, letterSpacing: '.02em', color: '#4ADE80',
       }}>
         {counts.online}
       </span>
+
+      {/* / */}
       <span style={{
         fontFamily: "'JetBrains Mono', monospace",
-        fontSize: 10, fontWeight: 600,
-        color: 'rgba(255,255,255,.25)',
-      }}>
-        /
-      </span>
+        fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,.22)',
+      }}>/</span>
+
+      {/* total */}
       <span style={{
         fontFamily: "'JetBrains Mono', monospace",
-        fontSize: 10, fontWeight: 700,
-        color: 'rgba(255,255,255,.45)',
+        fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,.42)',
       }}>
         {total}
       </span>
 
-      {/* Label */}
+      {/* label */}
       <span style={{
         fontFamily: "'Barlow Condensed', 'Barlow', sans-serif",
-        fontSize: 9.5, fontWeight: 800, letterSpacing: '.1em',
-        textTransform: 'uppercase',
-        color: 'rgba(74,222,128,.65)',
+        fontSize: 9.5, fontWeight: 800, letterSpacing: '.11em',
+        textTransform: 'uppercase', color: 'rgba(74,222,128,.6)',
       }}>
         online
-      </span>
-
-      {/* Breakdown dots */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 2, paddingLeft: 6, borderLeft: '1px solid rgba(255,255,255,.08)' }}>
-        <StatusDot color="#22C55E" glow count={counts.online}  title="Online"   />
-        <StatusDot color="#64748B"      count={counts.offline} title="Offline"  />
-        <StatusDot color="#818CF8"      count={counts.approved} title="Approved" />
-      </div>
-    </div>
-  );
-}
-
-function StatusDot({ color, glow, count, title }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 3 }} title={`${count} ${title}`}>
-      <div style={{
-        width: 5, height: 5, borderRadius: '50%',
-        background: color,
-        boxShadow: glow ? `0 0 6px ${color}` : 'none',
-        flexShrink: 0,
-      }}/>
-      <span style={{
-        fontFamily: "'JetBrains Mono', monospace",
-        fontSize: 9.5, fontWeight: 700,
-        color: 'rgba(255,255,255,.38)',
-      }}>
-        {count}
       </span>
     </div>
   );
