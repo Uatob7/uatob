@@ -1,6 +1,9 @@
+// functions/src/cardPayment.js
+
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
-const admin = require("firebase-admin");
+const admin  = require("firebase-admin");
 const Stripe = require("stripe");
+const { recordPromoRedemption } = require("./validatePromoCode");
 
 if (!admin.apps.length) admin.initializeApp();
 
@@ -30,6 +33,7 @@ exports.cardPayment = onCall(
     const stripe = new Stripe(stripeKey);
 
     try {
+      // ── Fare ──────────────────────────────────────────────────────
       const fareTotal   = Number(bookingPayload.fareEstimate);
       const amountCents = Math.round(fareTotal * 100);
 
@@ -40,7 +44,36 @@ exports.cardPayment = onCall(
       const platformFee  = +(fareTotal * 0.25).toFixed(2);
       const driverPayout = +(fareTotal * 0.75).toFixed(2);
 
-      // ── Stripe Payment Intent ──────────────────────────────────────
+      // ── Schedule fields ───────────────────────────────────────────
+      const isScheduled  = bookingPayload.isScheduled === true;
+      const scheduledAt  = isScheduled && bookingPayload.scheduledAt
+        ? bookingPayload.scheduledAt   // ISO string from the client
+        : null;
+
+      // Validate scheduledAt is in the future (at least 10 min from now)
+      if (isScheduled) {
+        if (!scheduledAt) {
+          throw new HttpsError("invalid-argument", "scheduledAt is required for scheduled rides.");
+        }
+        const scheduledMs = new Date(scheduledAt).getTime();
+        if (isNaN(scheduledMs)) {
+          throw new HttpsError("invalid-argument", "scheduledAt is not a valid date.");
+        }
+        if (scheduledMs < Date.now() + 10 * 60 * 1000) {
+          throw new HttpsError(
+            "invalid-argument",
+            "Scheduled pickup must be at least 10 minutes from now."
+          );
+        }
+      }
+
+      // ── Promo fields ──────────────────────────────────────────────
+      const promoCode      = bookingPayload.promoCode     ?? null;  // e.g. "ORLANDO20"
+      const discountAmount = bookingPayload.discountAmount // e.g. "2.50"
+        ? Number(bookingPayload.discountAmount)
+        : null;
+
+      // ── Stripe Payment Intent ─────────────────────────────────────
       const paymentIntent = await stripe.paymentIntents.create({
         amount:         amountCents,
         currency:       "usd",
@@ -50,22 +83,28 @@ exports.cardPayment = onCall(
           enabled:         true,
           allow_redirects: "never",
         },
-        description: `Ride: ${bookingPayload.pickup ?? ""} → ${bookingPayload.dropoff ?? ""}`,
+        description: `${isScheduled ? "Scheduled ride" : "Ride"}: ${bookingPayload.pickup ?? ""} → ${bookingPayload.dropoff ?? ""}`,
         metadata: {
           uid,
           rideType:          bookingPayload.rideType          ?? "standard",
           tripDistanceMiles: String(bookingPayload.tripDistanceMiles ?? ""),
           tripDurationMin:   String(bookingPayload.tripDurationMin   ?? ""),
-          pickup:            bookingPayload.pickup            ?? "",
-          dropoff:           bookingPayload.dropoff           ?? "",
-          pickupCity:        bookingPayload.pickupCity        ?? "",
-          dropoffCity:       bookingPayload.dropoffCity       ?? "",
+          pickup:            bookingPayload.pickup             ?? "",
+          dropoff:           bookingPayload.dropoff            ?? "",
+          pickupCity:        bookingPayload.pickupCity         ?? "",
+          dropoffCity:       bookingPayload.dropoffCity        ?? "",
           platformFee:       String(platformFee),
           driverPayout:      String(driverPayout),
+          // scheduled
+          isScheduled:       String(isScheduled),
+          scheduledAt:       scheduledAt ?? "",
+          // promo
+          promoCode:         promoCode         ?? "",
+          discountAmount:    discountAmount != null ? String(discountAmount) : "",
           // driver info snapshot
           driverCount:       String(bookingPayload.driverInfo?.driverCount  ?? ""),
           driverEtaMin:      String(bookingPayload.driverInfo?.etaMin       ?? ""),
-          driverEtaLabel:    bookingPayload.driverInfo?.etaLabel            ?? "",
+          driverEtaLabel:    bookingPayload.driverInfo?.etaLabel             ?? "",
           driverNearestMi:   String(bookingPayload.driverInfo?.nearestMiles ?? ""),
           driverStale:       String(bookingPayload.driverInfo?.stale        ?? ""),
         },
@@ -85,7 +124,7 @@ exports.cardPayment = onCall(
         throw new HttpsError("internal", "Payment did not succeed");
       }
 
-      // ── Save ride ──────────────────────────────────────────────────
+      // ── Save ride ─────────────────────────────────────────────────
       const rideRef = db.collection("Rides").doc();
 
       await rideRef.set({
@@ -116,11 +155,21 @@ exports.cardPayment = onCall(
         tripDurationMin:   bookingPayload.tripDurationMin   ?? null,
         fareBreakdown:     bookingPayload.breakdown         ?? null,
 
+        // ── Schedule ───────────────────────────────────────────────
+        isScheduled,
+        scheduledAt: scheduledAt
+          ? admin.firestore.Timestamp.fromDate(new Date(scheduledAt))
+          : null,
+
+        // ── Promo ──────────────────────────────────────────────────
+        promoCode:      promoCode,
+        discountAmount: discountAmount,
+
         paymentMethod:   "card",
         paymentIntentId: paymentIntent.id,
         paymentStatus:   "pending",
 
-        // ── Driver availability at time of booking ─────────────────
+        // ── Driver availability snapshot ───────────────────────────
         driverInfo: bookingPayload.driverInfo
           ? {
               driverCount:  bookingPayload.driverInfo.driverCount  ?? null,
@@ -131,14 +180,31 @@ exports.cardPayment = onCall(
             }
           : null,
 
-        status: "pending_payment",
-        uid,
+        // Scheduled rides wait in a holding status until dispatch time.
+        // Immediate rides go straight to "searching_driver".
+        status: isScheduled ? "scheduled" : "searching_driver",
 
+        uid,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      console.log(`[cardPayment] Ride ${rideRef.id} created — uid: ${uid} | fare: $${fareTotal} | driverEta: ${bookingPayload.driverInfo?.etaLabel ?? "unknown"}`);
+      // ── Record promo redemption (after successful write) ──────────
+      if (promoCode) {
+        try {
+          await recordPromoRedemption(promoCode, uid);
+        } catch (promoErr) {
+          // Non-fatal — ride is already booked, don't fail the response
+          console.warn("[cardPayment] recordPromoRedemption failed:", promoErr.message);
+        }
+      }
+
+      console.log(
+        `[cardPayment] Ride ${rideRef.id} created — uid: ${uid} | fare: $${fareTotal}` +
+        (discountAmount ? ` | discount: -$${discountAmount} (${promoCode})` : "") +
+        (isScheduled    ? ` | scheduled: ${scheduledAt}` : " | immediate") +
+        ` | driverEta: ${bookingPayload.driverInfo?.etaLabel ?? "unknown"}`
+      );
 
       return {
         success:       true,
