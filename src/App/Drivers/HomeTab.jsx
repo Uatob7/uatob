@@ -427,7 +427,7 @@ export default function HomeTab({
                 animation: 'htBlink 1.8s ease-in-out infinite',
               }}/>
               <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10.5, fontWeight: 700, color: '#34D399' }}>
-                {dotCount} pickup{dotCount !== 1 ? 's' : ''} live
+                {dotCount} searching {dotCount !== 1 ? '' : ''}
               </span>
             </div>
 
