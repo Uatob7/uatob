@@ -34,6 +34,8 @@ function isGuest(s) {
 
 // ── Main ───────────────────────────────────────────────────────────────────
 export default function RecentSearches({ searches = [], loading = false, limit = 5 }) {
+
+  console.log(searches);
   const feed = useMemo(() =>
     [...searches]
       .filter(s => s.pickup && s.dropoff)
@@ -270,3 +272,71 @@ export default function RecentSearches({ searches = [], loading = false, limit =
     </>
   );
 }
+
+
+
+(171) [{…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, …]
+[0 … 99]
+[100 … 170]
+100
+: 
+createdAt
+: 
+Timestamp {seconds: 1779059625, nanoseconds: 79000000}
+driverInfo
+: 
+{driverCount: 2, nearestMiles: 48.93, candidateDrivers: Array(2), stale: true, etaLabel: '~73–78 min', …}
+dropoff
+: 
+"Winter Haven Hospital, Avenue F Northeast, Winter Haven, FL, USA"
+id
+: 
+"KG2sTO7gSrsda2LwGbmt"
+miles
+: 
+4.93
+minutes
+: 
+11
+pickup
+: 
+"3065 Sunset Hills Road, Winter Haven, FL, USA"
+pickupLat
+: 
+28.0785369
+pickupLng
+: 
+-81.6967169
+rides
+: 
+{premium: {…}, standard: {…}, xl: {…}, economy: {…}}
+uid
+: 
+null
+[[Prototype]]
+: 
+Object
+101
+: 
+{id: 'we6R03wWhpKiACh2qyxX', rides: {…}, driverInfo: {…}, pickupLat: 28.0785369, uid: null, …}
+102
+: 
+{id: 'xN7y5KibxVf3wtnKxAFd', miles: 5.23, pickupLng: -81.6967169, pickup: '3065 Sunset Hills Road, Winter Haven, FL, USA', dropoff: 'Winter haven his', …}
+103
+: 
+{id: 'dbROwPLuAVJkfQOZAg7g', pickup: '3065 Sunset Hills Road, Winter Haven, FL, USA', dropoff: 'Winter haven hos', miles: 4.85, pickupLng: -81.6967169, …}
+104
+: 
+{id: 'B7q7Buwn9b2QnGKzE5h1', pickup: '3065 Sunset Hills Road, Winter Haven, FL, USA', dropoff: 'Racetrac', miles: 300, pickupLng: -81.6967169, …}
+105
+: 
+{id: 'MOU14cpW1jD5vJDeD9Xv', pickup: '3065 Sunset Hills Road, Winter Haven, FL, USA', dropoff: 'Racetrack', miles: 300, pickupLng: -81.6967169, …}
+106
+: 
+{id: 'xJH2i0kHcG29DNL1qxSD', dropoff: 'Racetra', pickup: '3065 Sunset Hills Road, Winter Haven, FL, USA', pickupLng: -81.6967169, miles: 300, …}
+107
+: 
+{id: 'LgciAr1crCYQ3rLZfcIt', createdAt: Timestamp, minutes: 16, uid: null, pickupLat: 28.5967964, …}
+108
+: 
+{id: 'fPv6Uyv7w0ZX1e4jucHS', pi
