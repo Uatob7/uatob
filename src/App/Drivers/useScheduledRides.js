@@ -22,7 +22,8 @@ export function useScheduledRides() {
   useEffect(() => {
     const ridesQuery = query(
       collection(db, "Rides"),
- 
+      where("isScheduled", "==", true),
+      orderBy("scheduledAt", "asc"),
       limit(100)
     );
 
