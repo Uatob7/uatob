@@ -318,6 +318,7 @@ export default function HomeTab({
           }}>
             <StatusCard
               online={online}
+              searches={searches}
               activeTrip={activeTrip}
               tripStage={tripStage}
               onToggle={onToggleOnline}

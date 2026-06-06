@@ -51,6 +51,7 @@ const FACE_MS = 5500; // auto-advance interval
 export default function StatusCard({
   online,
   scheduledRides = [],
+  searches,
   activeTrip,
   tripStage,
   onToggle,
@@ -64,7 +65,9 @@ export default function StatusCard({
   const [rideIdx,  setRideIdx]  = useState(0);
   const [badgeIdx, setBadgeIdx] = useState(0);
   const onlineSinceRef          = useRef(null);
-  const cycleRef                = useRef(null);
+  const cycleRef  = useRef(null);
+
+  console.log(searches);
 
   // ── Online duration ────────────────────────────────
   useEffect(() => {
@@ -465,3 +468,78 @@ export default function StatusCard({
     </>
   );
 }
+
+
+
+
+(171) [{…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, …]
+[0 … 99]
+[100 … 170]
+100
+: 
+{id: 'KG2sTO7gSrsda2LwGbmt', driverInfo: {…}, pickupLng: -81.6967169, createdAt: Timestamp, dropoff: 'Winter Haven Hospital, Avenue F Northeast, Winter Haven, FL, USA', …}
+101
+: 
+{id: 'we6R03wWhpKiACh2qyxX', rides: {…}, pickup: '3065 Sunset Hills Road, Winter Haven, FL, USA', miles: 4.85, dropoff: 'Winter haven hosp', …}
+102
+: 
+{id: 'xN7y5KibxVf3wtnKxAFd', dropoff: 'Winter haven his', driverInfo: {…}, pickupLng: -81.6967169, createdAt: Timestamp, …}
+103
+: 
+{id: 'dbROwPLuAVJkfQOZAg7g', driverInfo: {…}, createdAt: Timestamp, pickupLng: -81.6967169, dropoff: 'Winter haven hos', …}
+104
+: 
+{id: 'B7q7Buwn9b2QnGKzE5h1', pickupLat: 28.0785369, uid: null, minutes: 407, dropoff: 'Racetrac', …}
+105
+: 
+{id: 'MOU14cpW1jD5vJDeD9Xv', rides: {…}, pickup: '3065 Sunset Hills Road, Winter Haven, FL, USA', miles: 300, driverInfo: {…}, …}
+106
+: 
+{id: 'xJH2i0kHcG29DNL1qxSD', pickupLat: 28.0785369, uid: null, minutes: 407, dropoff: 'Racetra', …}
+107
+: 
+{id: 'LgciAr1crCYQ3rLZfcIt', driverInfo: null, pickupLng: -81.3647755, createdAt: Timestamp, dropoff: '4503 Landing Drive, Orlando, FL, USA', …}
+108
+: 
+{id: 'fPv6Uyv7w0ZX1e4jucHS', pickupLat: 28.5986263, uid: null, minutes: 16, dropoff: '110 South Orlando Avenue, Winter Park, FL, USA', …}
+109
+: 
+{id: 'XprZLYQexQByD6XRKSmx', minutes: 29, pickupLat: 28.5986263, uid: null, driverInfo: null, …}
+110
+: 
+{id: 'd6Pi0GEIRvHHoGF1bYfS', pickup: 'Orlando, FL, USA', miles: 17.33, rides: {…}, minutes: 19, …}
+111
+: 
+{id: 'xIwRKgYLfokQpHw3bpSM', pickup: '2386 Grand Poplar Street, Ocoee, FL, USA', miles: 79.08, rides: {…}, uid: 'fNUiMv7uh4X73HPTramhtO47tn53', …}
+112
+: 
+{id: 'guAvzXSJyy05vnH2x23z', miles: 79.08, pickup: '2386 Grand Poplar Street, Ocoee, FL, USA', rides: {…}, pickupLat: 28.6041202, …}
+113
+: 
+{id: 'Ny5x6x6NJd1QaLIM7aGC', rides: {…}, pickup: '3625 New Jersey Rd, Lakeland, FL 33803, USA', miles: 199.1, dropoff: 'Jacksonville', …}
+114
+: 
+{id: 'Svl5yyG21KE2I9VbT2M2', dropoff: '3024 North Powers Drive, Orlando, FL, USA', createdAt: Timestamp, pickupLng: -81.46963459999999, driverInfo: {…}, …}
+115
+: 
+{id: 'PGm3yzxc8TM9AZyES9FQ', rides: {…}, miles: 0.86, pickup: '2382 Locke Ave, Orlando, FL 32818, USA', dropoff: '3024 North Powers Drive, Orlando, FL, USA', …}
+116
+: 
+{id: 'KdkCypEFew16WVzJ5Rzd', rides: {…}, miles: 0.86, pickup: '2382 Locke Ave, Orlando, FL 32818, USA', dropoff: '3024 North Powers Drive, Orlando, FL, USA', …}
+117
+: 
+{id: 'VG7vlbHVRR1Ldqcb47mn', driverInfo: null, pickupLng: -81.46889829999999, createdAt: Timestamp, dropoff: '3024 North Powers Drive, Orlando, FL, USA', …}
+118
+: 
+{id: 'QxaMhaqXRFigMpj0O7Bo', miles: 0.87, pickup: '6329 Laurelwood Ct, Orlando, FL 32818, USA', rides: {…}, minutes: 4, …}
+119
+: 
+{id: 'Xg6aANyNjzU6MzERKjp9', dropoff: '10601 US Hwy 19 N, Pinellas Park, FL, USA', createdAt: Timestamp, pickupLng: -82.7099003, driverInfo: null, …}
+120
+: 
+{id: 'Khhs0sTrdaSnsDIEWFao', driverInfo: null, createdAt: Timestamp, pickupLng: -82.7099003, dropoff: '10601 us hwy 19', …}
+121
+: 
+{id: 'MOm7G1MGDyILpnXGIt0w', min
+
+  
