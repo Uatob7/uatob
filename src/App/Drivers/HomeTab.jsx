@@ -1,11 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   collection,
-  query,
-  where,
-  orderBy,
   onSnapshot,
-  limit,
   getFirestore,
 } from "firebase/firestore";
 import { firebase_app } from "@/firebase/config";
@@ -53,75 +49,6 @@ function buildScheduledGeoJSON(scheduledRides = []) {
   return { type: 'FeatureCollection', features };
 }
 
-// ── Driver Status Badge ───────────────────────────────────────────────────────
-function DriverStatusBadge() {
-  const [counts, setCounts] = useState({ online: 0, offline: 0, approved: 0 });
-
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'Drivers'), snapshot => {
-      let online = 0, offline = 0, approved = 0;
-      snapshot.forEach(doc => {
-        const status = (doc.data().status ?? '').toLowerCase();
-        if (status === 'online')   online++;
-        if (status === 'offline')  offline++;
-        if (status === 'approved') approved++;
-      });
-      setCounts({ online, offline, approved });
-    });
-    return () => unsub();
-  }, []);
-
-  const total = counts.online + counts.offline + counts.approved;
-
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 6,
-      background: 'rgba(5,10,6,.78)', backdropFilter: 'blur(14px)',
-      border: '1px solid rgba(34,197,94,.25)', borderRadius: 99,
-      padding: '6px 12px 6px 9px',
-      boxShadow: '0 2px 14px rgba(0,0,0,.4)',
-    }}>
-      {/* Blinking live dot */}
-      <div style={{
-        width: 7, height: 7, borderRadius: '50%',
-        background: '#22C55E', boxShadow: '0 0 8px rgba(34,197,94,.9)',
-        animation: 'htBlink 1.8s ease-in-out infinite', flexShrink: 0,
-      }}/>
-
-      {/* online */}
-      <span style={{
-        fontFamily: "'JetBrains Mono', monospace",
-        fontSize: 12, fontWeight: 800, letterSpacing: '.02em', color: '#4ADE80',
-      }}>
-        {counts.online}
-      </span>
-
-      {/* / */}
-      <span style={{
-        fontFamily: "'JetBrains Mono', monospace",
-        fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,.22)',
-      }}>/</span>
-
-      {/* total */}
-      <span style={{
-        fontFamily: "'JetBrains Mono', monospace",
-        fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,.42)',
-      }}>
-        {total}
-      </span>
-
-      {/* label */}
-      <span style={{
-        fontFamily: "'Barlow Condensed', 'Barlow', sans-serif",
-        fontSize: 9.5, fontWeight: 800, letterSpacing: '.11em',
-        textTransform: 'uppercase', color: 'rgba(74,222,128,.6)',
-      }}>
-        online
-      </span>
-    </div>
-  );
-}
-
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function HomeTab({
   driver,
@@ -145,6 +72,22 @@ export default function HomeTab({
   const svgRef           = useRef(null);
   const pulseLayersRef   = useRef(false);
   const [mapReady, setMapReady] = useState(false);
+  const [driverCounts, setDriverCounts] = useState({ online: 0, offline: 0, approved: 0 });
+
+  // ── Driver counts ──────────────────────────────────────────────────────
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'Drivers'), snapshot => {
+      let online = 0, offline = 0, approved = 0;
+      snapshot.forEach(doc => {
+        const status = (doc.data().status ?? '').toLowerCase();
+        if (status === 'online')   online++;
+        if (status === 'offline')  offline++;
+        if (status === 'approved') approved++;
+      });
+      setDriverCounts({ online, offline, approved });
+    });
+    return () => unsub();
+  }, []);
 
   // ── Init / destroy Mapbox ─────────────────────────────────────────────
   useEffect(() => {
@@ -287,6 +230,10 @@ export default function HomeTab({
     s => typeof s.pickupLat === 'number' && typeof s.pickupLng === 'number'
   ).length;
 
+  const scheduledCount = scheduledRides.filter(r => r.pickupLat && r.pickupLng).length;
+  const driverTotal    = driverCounts.online + driverCounts.offline + driverCounts.approved;
+  const showLegend     = online && mapReady && (dotCount > 0 || scheduledCount > 0 || driverCounts.online > 0);
+
   return (
     <>
       <style>{`
@@ -376,32 +323,27 @@ export default function HomeTab({
           </div>
         )}
 
-        {/* ── Driver status badge — top right ── */}
-        <div style={{
-          position:'absolute', top:56, right:16, zIndex:40,
-          animation:'htFadeIn .5s cubic-bezier(.34,1.2,.64,1) .2s both',
-        }}>
-          <DriverStatusBadge />
-        </div>
-
-        {/* ── Live dot legend — bottom left ── */}
-        {online && mapReady && dotCount > 0 && (
+        {/* ── Bottom-left legend (searching + scheduled + online drivers) ── */}
+        {showLegend && (
           <div style={{
             position:'absolute', bottom:100, left:16, zIndex:20,
             display:'flex', flexDirection:'column', gap:6,
             animation:'htSlideDown .4s ease both',
           }}>
-            <div style={{
-              display:'flex', alignItems:'center', gap:7,
-              background:'rgba(5,10,6,.72)', backdropFilter:'blur(10px)',
-              border:'1px solid rgba(52,211,153,.25)', borderRadius:99, padding:'5px 11px',
-            }}>
-              <div style={{ width:8, height:8, borderRadius:'50%', background:'#34D399', boxShadow:'0 0 8px rgba(52,211,153,.8)', animation:'htBlink 1.8s ease-in-out infinite' }}/>
-              <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10.5, fontWeight:700, color:'#34D399' }}>
-                {dotCount} searching
-              </span>
-            </div>
-            {scheduledRides.filter(r => r.pickupLat && r.pickupLng).length > 0 && (
+            {dotCount > 0 && (
+              <div style={{
+                display:'flex', alignItems:'center', gap:7,
+                background:'rgba(5,10,6,.72)', backdropFilter:'blur(10px)',
+                border:'1px solid rgba(52,211,153,.25)', borderRadius:99, padding:'5px 11px',
+              }}>
+                <div style={{ width:8, height:8, borderRadius:'50%', background:'#34D399', boxShadow:'0 0 8px rgba(52,211,153,.8)', animation:'htBlink 1.8s ease-in-out infinite' }}/>
+                <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10.5, fontWeight:700, color:'#34D399' }}>
+                  {dotCount} searching
+                </span>
+              </div>
+            )}
+
+            {scheduledCount > 0 && (
               <div style={{
                 display:'flex', alignItems:'center', gap:7,
                 background:'rgba(5,10,6,.72)', backdropFilter:'blur(10px)',
@@ -409,10 +351,37 @@ export default function HomeTab({
               }}>
                 <div style={{ width:8, height:8, borderRadius:'50%', background:'#C084FC', boxShadow:'0 0 8px rgba(192,132,252,.8)', animation:'htBlink 2.2s ease-in-out infinite' }}/>
                 <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10.5, fontWeight:700, color:'#C084FC' }}>
-                  {scheduledRides.filter(r => r.pickupLat && r.pickupLng).length} scheduled
+                  {scheduledCount} scheduled
                 </span>
               </div>
             )}
+
+            {/* Online driver count */}
+            <div style={{
+              display:'flex', alignItems:'center', gap:6,
+              background:'rgba(5,10,6,.72)', backdropFilter:'blur(10px)',
+              border:'1px solid rgba(34,197,94,.25)', borderRadius:99, padding:'5px 11px',
+            }}>
+              <div style={{
+                width:7, height:7, borderRadius:'50%',
+                background:'#22C55E', boxShadow:'0 0 8px rgba(34,197,94,.9)',
+                animation:'htBlink 1.8s ease-in-out infinite', flexShrink:0,
+              }}/>
+              <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10.5, fontWeight:800, color:'#4ADE80' }}>
+                {driverCounts.online}
+              </span>
+              <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, fontWeight:500, color:'rgba(255,255,255,.22)' }}>/</span>
+              <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, fontWeight:700, color:'rgba(255,255,255,.42)' }}>
+                {driverTotal}
+              </span>
+              <span style={{
+                fontFamily:"'Barlow Condensed','Barlow',sans-serif",
+                fontSize:9.5, fontWeight:800, letterSpacing:'.11em',
+                textTransform:'uppercase', color:'rgba(74,222,128,.6)',
+              }}>
+                online
+              </span>
+            </div>
           </div>
         )}
 
