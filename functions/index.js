@@ -103,6 +103,7 @@ const { announceOnlineDrivers } = require("./admin/announceOnlineDrivers");
 const { awardReward  } = require("./admin/awardReward");
 const { deleteDriver } = require("./admin/deleteDriver");
 const { autoApprovePendingDrivers } = require("./admin/autoApprovePendingDrivers");
+const { onSupportMessageSent } = require("./admin/onSupportMessageSent");
 
 // Account presence
 
@@ -196,6 +197,7 @@ exports.announceOnlineDrivers = announceOnlineDrivers;
 exports.awardReward = awardReward;
 exports.deleteDriver = deleteDriver;
 exports.autoApprovePendingDrivers = autoApprovePendingDrivers;
+exports.onSupportMessageSent = onSupportMessageSent;
 
 
 exports.updateAccountPresence = updateAccountPresence;

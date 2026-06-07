@@ -36,6 +36,7 @@ import { useRideAnalytics }   from "@/App/Admin/useRideAnalytics";
 import { useRiders }          from "@/App/Admin/useRiders";
 import { useSearches }        from "@/App/Admin/useSearches";
 import { useRideUids }        from "@/App/Admin/useRideUids";
+import { useSupportUnread }   from "@/App/Admin/useSupportUnread";
 
 // ── Callables ──────────────────────────────────────────────────────────────
 const functions          = getFunctions(firebase_app, "us-east1");
@@ -196,6 +197,7 @@ export default function UaTobAdminDashboard() {
   const [notifError,     setNotifError]     = useState("");
   const { views }   = useViews();
   const { searches } = useSearches();
+  const supportUnread = useSupportUnread();
 
   const useriders = useRiders();
   const toastRef  = useRef(null);
@@ -356,9 +358,9 @@ export default function UaTobAdminDashboard() {
         />
       )}
 
-      <Drawer useriders={useriders} rideUids={rideUids} open={drawerOpen} onClose={() => setDrawerOpen(false)} onNavigate={setActiveTab} />
+      <Drawer useriders={useriders} rideUids={rideUids} open={drawerOpen} onClose={() => setDrawerOpen(false)} onNavigate={setActiveTab} supportUnread={supportUnread} />
 
-      <TopBar title={TAB_TITLES[activeTab]} onMenuOpen={() => setDrawerOpen(true)} views={views} />
+      <TopBar title={TAB_TITLES[activeTab]} onMenuOpen={() => setDrawerOpen(true)} views={views} supportUnread={supportUnread} onBellClick={() => setActiveTab("chat")} />
 
       <div style={{ paddingBottom: 80, paddingTop: 16, maxWidth: 640, margin: "0 auto" }}>
         {CurrentTab}

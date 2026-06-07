@@ -3,7 +3,7 @@ import { Menu, Bell, Eye } from "lucide-react";
 import { C } from '@/App/Admin/Tokens';
 import { UaTobIcon } from '@/App/Admin/Brand';
 
-export function TopBar({ title, onMenuOpen, views }) {
+export function TopBar({ title, onMenuOpen, views, supportUnread = 0, onBellClick }) {
   return (
     <div
       style={{
@@ -85,12 +85,13 @@ export function TopBar({ title, onMenuOpen, views }) {
 
         <div style={{ position: "relative" }}>
           <button
+            onClick={onBellClick}
             style={{
               width: 36,
               height: 36,
               borderRadius: 10,
-              background: C.surface,
-              border: `1px solid ${C.border}`,
+              background: supportUnread > 0 ? C.redGlow : C.surface,
+              border: `1px solid ${supportUnread > 0 ? "rgba(220,38,38,.25)" : C.border}`,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -98,21 +99,32 @@ export function TopBar({ title, onMenuOpen, views }) {
               boxShadow: "0 1px 4px rgba(0,0,0,.05)",
             }}
           >
-            <Bell size={15} color={C.textMuted} />
+            <Bell size={15} color={supportUnread > 0 ? C.red : C.textMuted} />
           </button>
 
-          <div
-            style={{
+          {supportUnread > 0 && (
+            <div style={{
               position: "absolute",
-              top: 6,
-              right: 6,
-              width: 7,
-              height: 7,
-              borderRadius: "50%",
+              top: -5,
+              right: -5,
+              minWidth: 16,
+              height: 16,
+              borderRadius: 8,
               background: C.red,
               border: `2px solid ${C.surface}`,
-            }}
-          />
+              color: "#fff",
+              fontSize: 9,
+              fontWeight: 800,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "0 3px",
+              lineHeight: 1,
+              fontFamily: "'Barlow', sans-serif",
+            }}>
+              {supportUnread > 99 ? "99+" : supportUnread}
+            </div>
+          )}
         </div>
       </div>
     </div>

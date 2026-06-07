@@ -792,6 +792,48 @@ function StatPill({ glyph, label, value, color = C.greenBright, sub }) {
   );
 }
 
+function SupportFab({ onOpen, unread = 0 }) {
+  const badgeText = unread > 99 ? '99+' : String(unread);
+  return (
+    <button
+      onClick={onOpen}
+      style={{
+        position: 'absolute', bottom: 156, right: 16, zIndex: 26,
+        width: 44, height: 44, borderRadius: 14, cursor: 'pointer',
+        background: 'rgba(5,10,6,.72)', backdropFilter: 'blur(10px)',
+        border: `1.5px solid ${unread > 0 ? 'rgba(248,113,113,.5)' : 'rgba(34,197,94,.3)'}`,
+        boxShadow: `0 6px 20px rgba(0,0,0,.5), 0 0 14px ${unread > 0 ? 'rgba(248,113,113,.2)' : 'rgba(34,197,94,.15)'}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        animation: 'htSlideDown .4s ease both',
+        overflow: 'visible',
+      }}
+      aria-label={unread > 0 ? `Support — ${unread} unread` : 'Support chat'}
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+        stroke={unread > 0 ? '#FCA5A5' : C.greenBright}
+        strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+      {unread > 0 && (
+        <div style={{
+          position: 'absolute', top: -6, right: -6,
+          minWidth: badgeText.length > 1 ? 20 : 18, height: 18,
+          padding: badgeText.length > 1 ? '0 5px' : 0, borderRadius: 9,
+          background: 'linear-gradient(135deg,#EF4444,#DC2626)',
+          color: '#fff', fontSize: 10, fontWeight: 800,
+          fontFamily: "'Barlow',system-ui,sans-serif",
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          border: '2px solid rgba(5,10,6,.9)',
+          boxShadow: '0 2px 6px rgba(220,38,38,.5)',
+          animation: 'htSlideDown .3s cubic-bezier(.34,1.56,.64,1)',
+        }}>
+          {badgeText}
+        </div>
+      )}
+    </button>
+  );
+}
+
 function OnlineDriverChip({ online, total }) {
   return (
     <div style={{
@@ -1218,6 +1260,8 @@ export default function HomeTab({
   onAdvanceTrip,
   advancePending,
   onUnreadChange,
+  onOpenSupport,
+  supportUnread = 0,
 }) {
 
   const mapContainerRef = useRef(null);
@@ -1739,6 +1783,11 @@ export default function HomeTab({
             driver={driver}
             now={now}
           />
+        )}
+
+        {/* Support FAB */}
+        {onOpenSupport && (
+          <SupportFab onOpen={onOpenSupport} unread={supportUnread}/>
         )}
 
         {/* StatusCard HUD */}

@@ -986,7 +986,7 @@ function DriverAppInner({ uid }) {
 
         {isRejected && <RejectedBanner />}
 
-        {activeTab === "home"     && !isRejected && <HomeTab driver={driver} accounts={accounts} searches={searches} online={online} rides={rides} activeTrip={activeTrip} tripStage={tripStage} tripStageColor={tripStageColor} tripBtnLabel={tripBtnLabel} earnings={earnings} onToggleOnline={handleToggleOnline} onAdvanceTrip={handleAdvanceTrip} advancePending={advancePending} scheduledRides={scheduledRides} />}
+        {activeTab === "home"     && !isRejected && <HomeTab driver={driver} accounts={accounts} searches={searches} online={online} rides={rides} activeTrip={activeTrip} tripStage={tripStage} tripStageColor={tripStageColor} tripBtnLabel={tripBtnLabel} earnings={earnings} onToggleOnline={handleToggleOnline} onAdvanceTrip={handleAdvanceTrip} advancePending={advancePending} scheduledRides={scheduledRides} onOpenSupport={() => setShowSupport(true)} supportUnread={supportUnread} />}
         {activeTab === "earnings" && !isRejected && <EarningsTab earnings={earnings} driver={driver} online={online} />}
         {activeTab === "trips"    && !isRejected && <TripsTab    completedRides={completedRides} online={online} />}
         {activeTab === "profile"  &&                <ProfileTab  driver={driver} online={online} />}

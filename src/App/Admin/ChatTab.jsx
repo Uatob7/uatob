@@ -432,16 +432,16 @@ function ChatScreen({ conv, onBack, onToast }) {
       const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setMessages(msgs);
 
-      // Mark driver messages as read + reset unread counter
+      // Mark any unread driver messages as read and always clear the counter.
+      // Always resetting unreadByAdmin ensures the badge clears even when
+      // messages were already marked read but the counter drifted out of sync.
       const unread = msgs.filter(m => m.status === "unread" && m.sender !== "admin");
-      if (unread.length > 0) {
-        try {
-          const batch = writeBatch(db);
-          unread.forEach(m => batch.update(doc(db, "Support", m.id), { status: "read" }));
-          batch.update(doc(db, "SupportThreads", conv.id), { unreadByAdmin: 0, lastReadAt: serverTimestamp() });
-          await batch.commit();
-        } catch {}
-      }
+      try {
+        const batch = writeBatch(db);
+        unread.forEach(m => batch.update(doc(db, "Support", m.id), { status: "read" }));
+        batch.update(doc(db, "SupportThreads", conv.id), { unreadByAdmin: 0, lastReadAt: serverTimestamp() });
+        await batch.commit();
+      } catch {}
     }, err => { console.error(err); });
 
     return () => unsub();
