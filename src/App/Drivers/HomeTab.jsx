@@ -79,6 +79,7 @@ function nearestMi(driverLat, driverLng, items = []) {
 export default function HomeTab({
   driver,
   online,
+  accounts = [],
   searches = [],
   scheduledRides = [],
   activeTrip,
@@ -100,7 +101,7 @@ export default function HomeTab({
   const [mapReady, setMapReady] = useState(false);
   const [driverCounts, setDriverCounts] = useState({ online: 0, offline: 0, approved: 0 });
 
-  console.log(searches, scheduledRides);
+  console.log(searches, scheduledRides, accounts);
 
   // ── Driver counts ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -211,7 +212,7 @@ export default function HomeTab({
     mapRef.current.easeTo({
       center:   [driver.lng, driver.lat],
       duration: 1200,
-      easing:   t => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t, // ease-in-out
+      easing:   t => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
     });
   }, [driver?.lat, driver?.lng, mapReady]);
 
@@ -278,10 +279,7 @@ export default function HomeTab({
   const showLegend     = online && mapReady && (dotCount > 0 || scheduledCount > 0);
   const showOnlineCount = online && mapReady;
 
-  // Nearest distance from this driver to each pool
-  const searchNearestMi    = nearestMi(driver?.lat, driver?.lng, searches);
   const scheduledNearestMi = nearestMi(driver?.lat, driver?.lng, scheduledRides);
-
   const fmtMi = mi => mi !== null ? `${mi.toFixed(1)} mi` : null;
 
   return (
@@ -373,7 +371,7 @@ export default function HomeTab({
           </div>
         )}
 
-        {/* ── Bottom-left legend: searches + scheduled (with distance from driver) ── */}
+        {/* ── Bottom-left legend: searches + scheduled ── */}
         {showLegend && (
           <div style={{
             position:'absolute', bottom:100, left:16, zIndex:20,
@@ -388,16 +386,12 @@ export default function HomeTab({
               }}>
                 <div style={{ width:8, height:8, borderRadius:'50%', background:'#34D399', boxShadow:'0 0 8px rgba(52,211,153,.8)', animation:'htBlink 1.8s ease-in-out infinite', flexShrink:0 }}/>
                 <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10.5, fontWeight:700, color:'#34D399' }}>
-                  {dotCount} Shearches
+                  {dotCount} Searches
                 </span>
-                {fmtMi(searchNearestMi) && (
-                  <>
-                    <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:'rgba(52,211,153,.35)' }}>·</span>
-                    <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, fontWeight:600, color:'rgba(52,211,153,.65)' }}>
-                      {fmtMi(searchNearestMi)}
-                    </span>
-                  </>
-                )}
+                <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:'rgba(52,211,153,.35)' }}>·</span>
+                <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, fontWeight:600, color:'rgba(52,211,153,.65)' }}>
+                  {accounts.length} Riders
+                </span>
               </div>
             )}
 

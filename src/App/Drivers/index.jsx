@@ -15,6 +15,7 @@ import TripsTab         from '@/App/Drivers/TripsTab.jsx';
 import ProfileTab       from '@/App/Drivers/ProfileTab.jsx';
 import DriverReviewModal from '@/App/Drivers/DriverReviewModal.jsx';
 import SupportOverlay, { SupportIcon } from '@/App/Drivers/SupportOverlay.jsx';
+import { useAccounts } from "@/App/Drivers/useAccounts";
 import { useDriverAccount }   from "@/App/Drivers/useDriverAccount";
 import { useDriverRides }     from '@/App/Drivers/useDriverRides';
 import { useSearch }          from "@/App/Drivers/useSearch";
@@ -581,6 +582,7 @@ export default function UaTobDriverApp({ uid }) {
 // ── Inner component ───────────────────────────────────────────────────
 function DriverAppInner({ uid }) {
   const { driver }                        = useDriverAccount(uid);
+  const { accounts }                      = useAccounts();
   const { earnings, refetch }             = useDriverEarnings(uid);
   const { rides, loading: ridesLoading }  = useDriverRides(uid);
   const { requests, loading: reqLoading } = useIncomingRequest(uid);
@@ -936,7 +938,7 @@ function DriverAppInner({ uid }) {
 
         {isRejected && <RejectedBanner />}
 
-        {activeTab === "home"     && !isRejected && <HomeTab driver={driver} searches={searches} online={online} rides={rides} activeTrip={activeTrip} tripStage={tripStage} tripStageColor={tripStageColor} tripBtnLabel={tripBtnLabel} earnings={earnings} onToggleOnline={handleToggleOnline} onAdvanceTrip={handleAdvanceTrip} advancePending={advancePending} scheduledRides={scheduledRides} />}
+        {activeTab === "home"     && !isRejected && <HomeTab driver={driver} accounts={accounts} searches={searches} online={online} rides={rides} activeTrip={activeTrip} tripStage={tripStage} tripStageColor={tripStageColor} tripBtnLabel={tripBtnLabel} earnings={earnings} onToggleOnline={handleToggleOnline} onAdvanceTrip={handleAdvanceTrip} advancePending={advancePending} scheduledRides={scheduledRides} />}
         {activeTab === "earnings" && !isRejected && <EarningsTab earnings={earnings} driver={driver} online={online} />}
         {activeTab === "trips"    && !isRejected && <TripsTab    completedRides={completedRides} online={online} />}
         {activeTab === "profile"  &&                <ProfileTab  driver={driver} online={online} />}
