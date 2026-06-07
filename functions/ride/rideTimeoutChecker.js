@@ -30,44 +30,52 @@ exports.rideTimeoutChecker = onSchedule(
       const ride = doc.data();
       const rideId = doc.id;
 
-      if (!ride.createdAt) return;
-
       try {
-        const createdAtMs = ride.createdAt.toMillis();
+        // ─────────────────────────────────────────────
+        // 1. Determine when ride actually started tracking
+        // ─────────────────────────────────────────────
 
-        // ✅ ONLY DRIVER VALUE YOU NEED
+        let startTimeMs;
+
+        if (ride.isScheduled && ride.scheduledAt) {
+          // 🟢 scheduled ride → timeout starts from scheduledAt
+          startTimeMs = ride.scheduledAt.toMillis();
+        } else if (ride.createdAt) {
+          // 🟡 immediate ride → timeout from creation
+          startTimeMs = ride.createdAt.toMillis();
+        } else {
+          return;
+        }
+
         const etaMin = ride.driverInfo?.etaMin ?? 10;
-
-        // ⏱ compute timeout duration
         const timeoutMs = etaMin * 60 * 1000;
 
-        const expiresAtMs = ride.expiresAt?.toMillis?.() 
-          ?? createdAtMs + timeoutMs;
+        const expiresAtMs = startTimeMs + timeoutMs;
 
-        // 🧠 store expiresAt once
+        // store once
         if (!ride.expiresAt) {
           await doc.ref.update({
             expiresAt: new Date(expiresAtMs),
             timeoutMinutes: etaMin,
           });
 
-          console.log(`🧠 Set timeout for ${rideId} → ${etaMin} min`);
+          console.log(`🧠 Set timeout for ${rideId}`);
         }
 
-        // ⛔ not expired yet
+        // not expired yet
         if (now < expiresAtMs) return;
 
-        // ⛔ already timed out
+        // already timed out
         if (ride.status === "timeout") return;
 
-        // 🔥 timeout ride
+        // timeout ride
         await doc.ref.update({
           status: "timeout",
           timedOutAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
-        console.log(`⏱ Ride ${rideId} → TIMEOUT after ${etaMin} min`);
+        console.log(`⏱ Ride ${rideId} → TIMEOUT`);
 
       } catch (err) {
         console.error(`❌ Error processing ride ${rideId}:`, err);

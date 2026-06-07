@@ -9,49 +9,52 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
+
 exports.scheduledRideChecker = onSchedule(
   {
-    schedule: "every 2 minutes",
+    schedule: "every 1 minutes",
     region: "us-central1",
-    timeZone: "America/New_York",
   },
   async () => {
-    const now = admin.firestore.Timestamp.now();
+    const now = Date.now();
 
     const snapshot = await db
       .collection("Rides")
       .where("status", "==", "scheduled")
       .where("isScheduled", "==", true)
       .where("paymentStatus", "==", "succeeded")
-      .where("scheduledAt", "<=", now)
       .get();
 
     if (snapshot.empty) {
-      console.log("[scheduledRideChecker] No rides ready.");
+      console.log("[scheduledRideChecker] No scheduled rides found.");
       return;
     }
 
-    console.log(
-      `[scheduledRideChecker] Found ${snapshot.size} scheduled ride(s)`
-    );
+    console.log(`[scheduledRideChecker] Total candidates: ${snapshot.size}`);
 
-    const updates = snapshot.docs.map(async (doc) => {
-      const rideId = doc.id;
+    const updates = [];
+
+    snapshot.docs.forEach((doc) => {
       const ride = doc.data();
 
-      try {
-        await doc.ref.update({
-          status: "searching_driver",
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
+      const scheduledTime = ride.scheduledAt?.toDate?.()?.getTime?.();
 
-        console.log(
-          `[scheduledRideChecker] ✅ ${rideId} moved → searching_driver`
-        );
-      } catch (err) {
-        console.error(
-          `[scheduledRideChecker] ❌ ${rideId} failed`,
-          err
+      if (!scheduledTime) {
+        console.warn(`[scheduledRideChecker] Missing scheduledAt: ${doc.id}`);
+        return;
+      }
+
+      // 🔥 THE IMPORTANT CHECK
+      if (scheduledTime <= now) {
+        updates.push(
+          doc.ref.update({
+            status: "searching_driver",
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }).then(() => {
+            console.log(
+              `[scheduledRideChecker] ✅ ${doc.id} moved → searching_driver`
+            );
+          })
         );
       }
     });
