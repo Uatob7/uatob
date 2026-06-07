@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import {
-  Car, Wallet, Star, Sparkles, Crown,
+  Car, Star, Sparkles, Crown, Trophy, Landmark, Coins,
   CreditCard, Banknote, Smartphone, Lock, CheckCircle2, Target,
 } from 'lucide-react';
 
@@ -8,41 +8,61 @@ import {
  * Achievements — compact single-badge view for the StatusCard cycling face.
  * StatusCard drives which badge shows via `badgeIdx` (advances one per face visit).
  *
+ * Badges mirror exactly what `updateDriverAchievements` writes:
+ *   counters       → totalRides, cashRides, cashAppRides, cardRides
+ *   review fields  → totalReviews, averageRating
+ *   flags (map)    → achievements.{ firstRide, hundredRides, hundredCashRides,
+ *                    hundredCashAppRides, hundredCardRides, firstReview,
+ *                    fiveStarDriver, depositMade, earningsMilestone10 }
+ *   misc           → deposit (bool), earnings.month.earnings
+ *
+ * A badge counts as earned if the backend flag is set OR the live counter
+ * already meets target — so it shows instantly and also self-heals if the
+ * recompute and the flag ever drift.
+ *
  * Props:
  *   driver    — driver doc
  *   badgeIdx  — index of the badge to display (StatusCard-controlled)
  */
 export default function Achievements({ driver, badgeIdx = 0 }) {
-  const totalTrips    = driver?.totalRides    || 0;
-  const reviewsCount  = driver?.totalReviews  || 0;
+  const totalRides    = driver?.totalRides    || 0;
+  const cashRides     = driver?.cashRides     || 0;
+  const cashAppRides  = driver?.cashAppRides  || 0;
+  const cardRides     = driver?.cardRides     || 0;
+  const totalReviews  = driver?.totalReviews  || 0;
   const avgRating     = driver?.averageRating || 0;
-  const payoutReady   = !!driver?.payoutMethod || driver?.transferCapability === 'enabled';
   const monthEarnings = driver?.earnings?.month?.earnings ?? 0;
+  const hasDeposit    = driver?.deposit === true;
+  const ach           = driver?.achievements || {};
 
-  const hasCashApp  = driver?.paymentMethods?.cashApp === true || driver?.cashAppConnected === true;
-  const hasCard     = driver?.paymentMethods?.card    === true || driver?.cardConnected    === true;
-  const acceptsCash = driver?.paymentMethods?.cash    === true || driver?.cashEnabled       === true;
-  const isTopDriver = avgRating >= 4.9 && totalTrips >= 50;
+  const isFiveStar = avgRating >= 4.8 && totalReviews >= 10;
 
   const BADGES = useMemo(() => [
-    { id:'first_ride',  icon:Car,        label:'First Ride',   sub:'Complete your first ride', color:'#60A5FA', target:1,    current:totalTrips },
-    { id:'payout_ready',icon:Wallet,     label:'Payout Ready', sub:'Connect your bank',        color:'#4ADE80', target:1,    current:payoutReady ? 1 : 0 },
-    { id:'cash_app',    icon:Smartphone, label:'Cash App',     sub:'Link your Cash App',       color:'#00D632', target:1,    current:hasCashApp ? 1 : 0 },
-    { id:'card',        icon:CreditCard, label:'Card Ready',   sub:'Accept card payments',     color:'#818CF8', target:1,    current:hasCard ? 1 : 0 },
-    { id:'cash',        icon:Banknote,   label:'Cash Ready',   sub:'Accept cash payments',     color:'#FBBF24', target:1,    current:acceptsCash ? 1 : 0 },
-    { id:'five_stars',  icon:Star,       label:'5 Stars',      sub:'Earn your first review',   color:'#F59E0B', target:1,    current:reviewsCount },
-    { id:'big_month',   icon:Sparkles,   label:'Big Month',    sub:'$1,000 in a month',        color:'#22D3EE', target:1000, current:monthEarnings, isMoney:true },
+    { id:'first_ride',     achKey:'firstRide',           icon:Car,        label:'First Ride',     sub:'Complete your first ride', color:'#60A5FA', target:1,   current:totalRides },
+    { id:'first_review',   achKey:'firstReview',         icon:Star,       label:'First Review',   sub:'Earn your first review',   color:'#F59E0B', target:1,   current:totalReviews },
+    { id:'deposit',        achKey:'depositMade',         icon:Landmark,   label:'Deposit Made',   sub:'Add your driver deposit',  color:'#4ADE80', target:1,   current:hasDeposit ? 1 : 0 },
+    { id:'earnings_10',    achKey:'earningsMilestone10', icon:Coins,      label:'First $10',      sub:'$10 earned this month',    color:'#22D3EE', target:10,  current:monthEarnings, isMoney:true },
+    { id:'hundred_rides',  achKey:'hundredRides',        icon:Trophy,     label:'Century Club',   sub:'Complete 100 rides',       color:'#FB923C', target:100, current:totalRides },
+    { id:'hundred_cash',   achKey:'hundredCashRides',    icon:Banknote,   label:'100 Cash Rides', sub:'100 cash-paid rides',      color:'#FBBF24', target:100, current:cashRides },
+    { id:'hundred_cashapp',achKey:'hundredCashAppRides', icon:Smartphone, label:'100 Cash App',   sub:'100 Cash App rides',       color:'#00D632', target:100, current:cashAppRides },
+    { id:'hundred_card',   achKey:'hundredCardRides',    icon:CreditCard, label:'100 Card Rides', sub:'100 card-paid rides',      color:'#818CF8', target:100, current:cardRides },
     {
-      id:'top_driver', icon:Crown, label:'Top Driver', sub:'4.9★ avg & 50 rides', color:'#FB923C',
-      target:1, current:isTopDriver ? 1 : 0, isCustomProgress:true,
-      displayProgress: Math.min(((avgRating / 4.9) * 0.5) + ((Math.min(totalTrips, 50) / 50) * 0.5), 1),
-      displayLabel: `${Number(avgRating).toFixed(1)}★ · ${Math.min(totalTrips, 50)}/50 rides`,
+      id:'five_star', achKey:'fiveStarDriver', icon:Crown, label:'5-Star Driver', sub:'4.8★ avg over 10 reviews', color:'#F472B6',
+      target:1, current:isFiveStar ? 1 : 0, isCustomProgress:true,
+      displayProgress: Math.min(
+        ((Math.min(avgRating, 4.8) / 4.8) * 0.5) +
+        ((Math.min(totalReviews, 10) / 10) * 0.5),
+        1
+      ),
+      displayLabel: `${Number(avgRating).toFixed(1)}★ · ${Math.min(totalReviews, 10)}/10 reviews`,
     },
   ].map(b => {
-    const earned   = b.current >= b.target;
-    const progress = b.isCustomProgress ? b.displayProgress : Math.min(b.current / b.target, 1);
+    const flagged  = ach[b.achKey] === true;
+    const earned   = flagged || b.current >= b.target;
+    const rawProg  = b.isCustomProgress ? b.displayProgress : Math.min(b.current / b.target, 1);
+    const progress = earned ? 1 : rawProg;
     return { ...b, earned, progress };
-  }), [totalTrips, reviewsCount, avgRating, payoutReady, monthEarnings, hasCashApp, hasCard, acceptsCash, isTopDriver]);
+  }), [totalRides, cashRides, cashAppRides, cardRides, totalReviews, avgRating, monthEarnings, hasDeposit, isFiveStar, ach]);
 
   const earnedCount = BADGES.filter(b => b.earned).length;
   const badge       = BADGES[((badgeIdx % BADGES.length) + BADGES.length) % BADGES.length];
