@@ -1,5 +1,3 @@
-// hooks/useScheduledRides.js
-
 import { useState, useEffect } from "react";
 import {
   collection,
@@ -23,6 +21,7 @@ export function useScheduledRides() {
     const ridesQuery = query(
       collection(db, "Rides"),
       where("isScheduled", "==", true),
+      where("status", "==", "scheduled"), // 🔥 KEY FIX
       orderBy("scheduledAt", "asc"),
       limit(100)
     );
