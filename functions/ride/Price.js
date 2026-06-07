@@ -22,7 +22,7 @@ const TIER_BUFFER = {
 };
 
 // ── Timing config ─────────────────────────────────────────────────────
-const FRESH_MS          = 10 * 60 * 1000;   // 10 min
+const FRESH_MS          = 10 * 60 * 1000;       // 10 min
 const STALE_MS          = 4  * 60 * 60 * 1000;  // 4 hours
 const STALE_PENALTY_MIN = 10;
 const AVG_SPEED_MPH     = 25;
@@ -55,20 +55,37 @@ function formatEtaRange(etaMin, stale = false) {
   return `${stale ? "~" : ""}${etaMin}–${etaMin + buffer} min`;
 }
 
+// Pull presence age from whichever heartbeat field exists, tolerating both
+// Firestore Timestamp objects and raw millisecond numbers. Returns null when
+// no usable signal is present.
+function presenceMillis(d) {
+  const fromTs = (v) =>
+    (v && typeof v.toMillis === "function") ? v.toMillis()
+    : (typeof v === "number")               ? v
+    :                                         null;
+
+  return (
+    fromTs(d.presenceUpdatedAt) ??
+    fromTs(d.lastSeenAt) ??
+    fromTs(d.updatedAt) ??
+    null
+  );
+}
+
 // ── Driver ETA ────────────────────────────────────────────────────────
 async function getDriverEta(pickupLat, pickupLng) {
 
-  // Filter at DB level using presenceUpdatedAt — the reliable heartbeat
-  const staleThreshold = admin.firestore.Timestamp.fromMillis(Date.now() - STALE_MS);
-
+  // Query by status ONLY. A Firestore inequality on presenceUpdatedAt silently
+  // excludes any driver whose field is missing, stale, or the wrong type — which
+  // is exactly how a nearby online driver disappears. We evaluate freshness in
+  // code below so a known-online driver is never dropped on a flaky heartbeat.
   const snap = await db
     .collection("Drivers")
     .where("status", "==", "online")
-    .where("presenceUpdatedAt", ">=", staleThreshold)
     .get();
 
   if (snap.empty) {
-    console.log("[getDriverEta] No active online drivers found");
+    console.log("[getDriverEta] No online drivers found");
     return null;
   }
 
@@ -82,17 +99,21 @@ async function getDriverEta(pickupLat, pickupLng) {
     const d = doc.data();
     if (typeof d.lat !== "number" || typeof d.lng !== "number") return;
 
-    // presenceUpdatedAt is the source of truth for driver liveness
-    const lastPresence = d.presenceUpdatedAt?.toMillis?.() ?? 0;
-    const ageMs        = now - lastPresence;
+    const lastPresence = presenceMillis(d);
     const miles        = haversineMiles(pickupLat, pickupLng, d.lat, d.lng);
+
+    // No presence signal at all → trust the online flag and treat as fresh
+    // (age 0) rather than discarding the driver.
+    const ageMs = lastPresence === null ? 0 : now - lastPresence;
+
+    // Only discard when we KNOW the driver is past the stale cutoff.
+    if (lastPresence !== null && ageMs > STALE_MS) return;
 
     if (ageMs <= FRESH_MS) {
       freshCount++;
       if (freshNearest === null || miles < freshNearest) freshNearest = miles;
     } else {
-      // Between FRESH_MS and STALE_MS — stale but still eligible
-      // (STALE_MS already filtered at DB level so no need to re-check)
+      // Between FRESH_MS and STALE_MS — stale but still eligible.
       if (staleNearest === null || miles < staleNearest) staleNearest = miles;
     }
   });
@@ -121,7 +142,7 @@ async function getDriverEta(pickupLat, pickupLng) {
     };
   }
 
-  console.log("[getDriverEta] Drivers passed query but had no valid coordinates");
+  console.log("[getDriverEta] Online drivers found but none had valid coordinates");
   return null;
 }
 
