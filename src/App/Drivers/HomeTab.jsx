@@ -23,7 +23,6 @@ function tsToMillis(ts) {
   return 0;
 }
 
-// Haversine distance in miles between two lat/lng pairs
 function haversineMiles(lat1, lng1, lat2, lng2) {
   const R    = 3958.8;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -61,7 +60,6 @@ function buildScheduledGeoJSON(scheduledRides = []) {
   return { type: 'FeatureCollection', features };
 }
 
-// Nearest distance in miles from driver to a list of items with pickupLat/pickupLng
 function nearestMi(driverLat, driverLng, items = []) {
   if (!driverLat || !driverLng) return null;
   const valid = items.filter(
@@ -73,6 +71,87 @@ function nearestMi(driverLat, driverLng, items = []) {
     Infinity
   );
   return isFinite(min) ? min : null;
+}
+
+// ── RotatingBadge ─────────────────────────────────────────────────────────────
+function RotatingBadge({ dotCount, accounts, scheduledCount, scheduledNearestMi, fmtMi }) {
+  const [activeBadge, setActiveBadge] = useState(0);
+
+  const badges = [
+    dotCount > 0 && {
+      color:  '#34D399',
+      border: 'rgba(52,211,153,.25)',
+      bg:     'rgba(5,10,6,.72)',
+      glow:   'rgba(52,211,153,.8)',
+      label:  `${dotCount} Searches`,
+      sub:    null,
+    },
+    accounts.length > 0 && {
+      color:  '#67E8F9',
+      border: 'rgba(103,232,249,.25)',
+      bg:     'rgba(5,10,6,.72)',
+      glow:   'rgba(103,232,249,.8)',
+      label:  `${accounts.length} Riders`,
+      sub:    null,
+    },
+    scheduledCount > 0 && {
+      color:  '#C084FC',
+      border: 'rgba(192,132,252,.25)',
+      bg:     'rgba(5,10,6,.72)',
+      glow:   'rgba(192,132,252,.8)',
+      label:  `${scheduledCount} Scheduled`,
+      sub:    fmtMi(scheduledNearestMi),
+    },
+  ].filter(Boolean);
+
+  useEffect(() => {
+    if (badges.length < 2) return;
+    const id = setInterval(() => setActiveBadge(i => (i + 1) % badges.length), 2800);
+    return () => clearInterval(id);
+  }, [badges.length]);
+
+  const b = badges[activeBadge % badges.length];
+  if (!b) return null;
+
+  return (
+    <div style={{
+      position: 'absolute', bottom: 100, left: 16, zIndex: 20,
+      animation: 'htSlideDown .4s ease both',
+    }}>
+      <div key={activeBadge} style={{
+        display: 'flex', alignItems: 'center', gap: 7,
+        background: b.bg, backdropFilter: 'blur(10px)',
+        border: `1px solid ${b.border}`, borderRadius: 99, padding: '5px 11px',
+        animation: 'htFadeIn .35s ease both',
+      }}>
+        <div style={{
+          width: 8, height: 8, borderRadius: '50%',
+          background: b.color, boxShadow: `0 0 8px ${b.glow}`,
+          animation: 'htBlink 1.8s ease-in-out infinite', flexShrink: 0,
+        }}/>
+        <span style={{
+          fontFamily: "'JetBrains Mono',monospace",
+          fontSize: 10.5, fontWeight: 700, color: b.color,
+        }}>
+          {b.label}
+        </span>
+        {b.sub && (
+          <>
+            <span style={{
+              fontFamily: "'JetBrains Mono',monospace",
+              fontSize: 10, color: `${b.color}55`,
+            }}>·</span>
+            <span style={{
+              fontFamily: "'JetBrains Mono',monospace",
+              fontSize: 10, fontWeight: 600, color: `${b.color}99`,
+            }}>
+              {b.sub}
+            </span>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -145,7 +224,6 @@ export default function HomeTab({
       const mapboxgl       = window.mapboxgl;
       mapboxgl.accessToken = MAPBOX_TOKEN;
 
-      // Center on driver's real coordinates from Firestore
       const centerLng = driver?.lng ?? -81.3792;
       const centerLat = driver?.lat ?? 28.5383;
 
@@ -163,7 +241,7 @@ export default function HomeTab({
       map.on('load', () => {
         mapRef.current = map;
 
-        map.addSource('ht-searches',  { type: 'geojson', data: buildPickupGeoJSON(searches)         });
+        map.addSource('ht-searches',  { type: 'geojson', data: buildPickupGeoJSON(searches)          });
         map.addSource('ht-scheduled', { type: 'geojson', data: buildScheduledGeoJSON(scheduledRides) });
 
         map.addLayer({ id: 'ht-search-halo', type: 'circle', source: 'ht-searches', paint: {
@@ -276,7 +354,7 @@ export default function HomeTab({
   const dotCount       = searches.filter(s => typeof s.pickupLat === 'number' && typeof s.pickupLng === 'number').length;
   const scheduledCount = scheduledRides.filter(r => r.pickupLat && r.pickupLng).length;
   const driverTotal    = driverCounts.online + driverCounts.offline + driverCounts.approved;
-  const showLegend     = online && mapReady && (dotCount > 0 || scheduledCount > 0);
+  const showLegend     = online && mapReady && (dotCount > 0 || accounts.length > 0 || scheduledCount > 0);
   const showOnlineCount = online && mapReady;
 
   const scheduledNearestMi = nearestMi(driver?.lat, driver?.lng, scheduledRides);
@@ -371,51 +449,15 @@ export default function HomeTab({
           </div>
         )}
 
-        {/* ── Bottom-left legend: searches + scheduled ── */}
+        {/* ── Bottom-left: rotating badges ── */}
         {showLegend && (
-          <div style={{
-            position:'absolute', bottom:100, left:16, zIndex:20,
-            display:'flex', flexDirection:'column', gap:6,
-            animation:'htSlideDown .4s ease both',
-          }}>
-            {dotCount > 0 && (
-              <div style={{
-                display:'flex', alignItems:'center', gap:7,
-                background:'rgba(5,10,6,.72)', backdropFilter:'blur(10px)',
-                border:'1px solid rgba(52,211,153,.25)', borderRadius:99, padding:'5px 11px',
-              }}>
-                <div style={{ width:8, height:8, borderRadius:'50%', background:'#34D399', boxShadow:'0 0 8px rgba(52,211,153,.8)', animation:'htBlink 1.8s ease-in-out infinite', flexShrink:0 }}/>
-                <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10.5, fontWeight:700, color:'#34D399' }}>
-                  {dotCount} Searches
-                </span>
-                <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:'rgba(52,211,153,.35)' }}>·</span>
-                <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, fontWeight:600, color:'rgba(52,211,153,.65)' }}>
-                  {accounts.length} Riders
-                </span>
-              </div>
-            )}
-
-            {scheduledCount > 0 && (
-              <div style={{
-                display:'flex', alignItems:'center', gap:7,
-                background:'rgba(5,10,6,.72)', backdropFilter:'blur(10px)',
-                border:'1px solid rgba(192,132,252,.25)', borderRadius:99, padding:'5px 11px',
-              }}>
-                <div style={{ width:8, height:8, borderRadius:'50%', background:'#C084FC', boxShadow:'0 0 8px rgba(192,132,252,.8)', animation:'htBlink 2.2s ease-in-out infinite', flexShrink:0 }}/>
-                <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10.5, fontWeight:700, color:'#C084FC' }}>
-                  {scheduledCount} Scheduled
-                </span>
-                {fmtMi(scheduledNearestMi) && (
-                  <>
-                    <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:'rgba(192,132,252,.35)' }}>·</span>
-                    <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, fontWeight:600, color:'rgba(192,132,252,.65)' }}>
-                      {fmtMi(scheduledNearestMi)}
-                    </span>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
+          <RotatingBadge
+            dotCount={dotCount}
+            accounts={accounts}
+            scheduledCount={scheduledCount}
+            scheduledNearestMi={scheduledNearestMi}
+            fmtMi={fmtMi}
+          />
         )}
 
         {/* ── Bottom-right: online driver count ── */}
