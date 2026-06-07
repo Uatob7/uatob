@@ -99,7 +99,7 @@ function RotatingBadge({ dotCount, accounts, scheduledCount, scheduledNearestMi,
       border: 'rgba(192,132,252,.25)',
       bg:     'rgba(5,10,6,.72)',
       glow:   'rgba(192,132,252,.8)',
-      label:  `${scheduledRides.length} Scheduled`,
+      label:  `${scheduledCount} Scheduled`,
       sub:    fmtMi(scheduledNearestMi),
     },
   ].filter(Boolean);
