@@ -12,7 +12,7 @@ const db = admin.firestore();
 
 exports.scheduledRideChecker = onSchedule(
   {
-    schedule: "every 1 minutes",
+    schedule: "every 7 minutes",
     region: "us-central1",
   },
   async () => {
