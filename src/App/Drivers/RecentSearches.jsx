@@ -22,10 +22,16 @@ function fmtRelative(ts) {
 
 function strip(addr) {
   if (!addr) return '—';
-  return addr
-    .replace(/^\s*\d+\s+[A-Za-z0-9.\s-]+?,\s*/, '')
-    .replace(/,\s*(FL|USA)\s*$/i, '')
-    .trim();
+  // Address format: "123 Main St, City, ST 12345, USA"
+  // We want:        "City, ST 12345"
+  const parts = addr.split(',').map(s => s.trim()).filter(Boolean);
+  const stateZipIdx = parts.findIndex(p => /^[A-Z]{2}(\s+\d{5}(-\d{4})?)?$/.test(p));
+  if (stateZipIdx > 0) {
+    return `${parts[stateZipIdx - 1]}, ${parts[stateZipIdx]}`;
+  }
+  // Fallback: drop "USA" and return the last meaningful segment
+  const filtered = parts.filter(p => !/^USA$/i.test(p));
+  return filtered[filtered.length - 1] || '—';
 }
 
 function isGuest(s) {
