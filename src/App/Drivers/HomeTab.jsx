@@ -1187,6 +1187,8 @@ export default function HomeTab({
   advancePending,
   onUnreadChange,
 }) {
+
+  console.log(scheduledRides);
   const mapContainerRef = useRef(null);
   const mapRef          = useRef(null);
   const sweepRef        = useRef(0);
@@ -1659,3 +1661,131 @@ export default function HomeTab({
     </>
   );
 }
+
+
+
+
+(2) [{…}, {…}]
+0
+: 
+adminNotified
+: 
+true
+createdAt
+: 
+Timestamp {seconds: 1780803466, nanoseconds: 101000000}
+discountAmount
+: 
+null
+driverInfo
+: 
+{stale: false, etaMin: 0, nearestMiles: 0, driverCount: 1, etaLabel: '0–2 min'}
+driverPayout
+: 
+15.9
+dropoff
+: 
+"Orlando, FL, USA"
+dropoffCity
+: 
+"Orlando"
+dropoffLat
+: 
+28.5383832
+dropoffLng
+: 
+-81.3789269
+dropoffZip
+: 
+""
+fareBreakdown
+: 
+{}
+fareTotal
+: 
+21.2
+id
+: 
+"0WHJxWV1Ox2C88YezgYy"
+isScheduled
+: 
+true
+paymentIntentId
+: 
+null
+paymentMethod
+: 
+"cash"
+paymentStatus
+: 
+"succeeded"
+payoutStatus
+: 
+"pending"
+pickup
+: 
+"6323 Laurelwood Ct, Orlando, FL 32818, USA"
+pickupCity
+: 
+"Orlando"
+pickupLat
+: 
+28.5730407
+pickupLng
+: 
+-81.468849
+pickupZip
+: 
+"32818"
+platformFee
+: 
+5.3
+polyline
+: 
+"qqkmDd{fpNEiD@s@rk@IloAAjB?CaKe@mt@VgAb@e@dDFzAN`En@fGxANs@RiFDkG?iDK_@BeCKmgBH{BXeCX_Bd@aBhAwCbEmJd@wAl@oCTkBPgCB_BEum@FyCVwCZ_CZcBx@}CbAsCnAqCrm@k|@`AcBbAwB~@gCx@}Cd@aC\\kCZwE@mPGigAAiPJIL_H@uKIcCWeC_@yBeA{EKmA?oALqAVaA|AgFn@QZBf@RzA|ALTlAfE@PuAN_BXw@?y@Oy@a@iCkBkAe@eAOwAAoFBJdBEdAC|@@`K"
+promoCode
+: 
+null
+rideLabel
+: 
+"Standard"
+rideType
+: 
+"standard"
+scheduledAt
+: 
+Timestamp {seconds: 1781289000, nanoseconds: 0}
+status
+: 
+"scheduled"
+tripDistanceMiles
+: 
+8.43
+tripDurationMin
+: 
+16
+uid
+: 
+"duuEID4AofX1ooCLfSsfVMjJpUu1"
+updatedAt
+: 
+Timestamp {seconds: 1780803466, nanoseconds: 101000000}
+[[Prototype]]
+: 
+Object
+1
+: 
+{id: 'ky4XjAQrOBdCSu8sAJ9M', pickupZip: '', dropoffCity: 'Orlando', pickupCity: 'Kissimmee', fareBreakdown: {…}, …}
+length
+: 
+2
+[[Prototype]]
+: 
+Array(0)
+
+
+base on the scheduledAt
+June 12, 2026 at 2:30:00 PM UTC-
+
+
+for earch scheduled ride, show a card create a arrow next to it to show when that ride will be dispatched based on the scheduledAt time. If the ride is due within 15 minutes, show a red dot. If it's due within 30 minutes, show an amber dot. Otherwise, show a violet dot.
