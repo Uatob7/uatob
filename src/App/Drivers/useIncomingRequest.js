@@ -25,7 +25,6 @@ export function useIncomingRequest(uid) {
       collection(db, "Rides"),
       where("status", "==", "searching_driver"),
       where("candidateDriverUids", "array-contains", uid),
-      where("isScheduled", "==", false) // Only immediate rides
     );
 
     const unsubscribe = onSnapshot(

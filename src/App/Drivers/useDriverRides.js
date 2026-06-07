@@ -22,7 +22,6 @@ export function useDriverRides(uid) {
       collection(db, "Rides"),
       where("paymentStatus", "==", "succeeded"),
       where("status", "==", "searching_driver"),
-      where("isScheduled", "==", false), // Only immediate rides
       orderBy("requestSentAt", "desc"),
       limit(50)
     );
