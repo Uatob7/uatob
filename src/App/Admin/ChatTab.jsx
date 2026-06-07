@@ -622,11 +622,12 @@ function ChatScreen({ conv, onBack, onToast }) {
 
 // ── Main export ────────────────────────────────────────────────────────
 export function ChatTab({ onBack, onToast }) {
-  const [user,   setUser]   = useState(null);
-  const [convs,  setConvs]  = useState([]);
-  const [sel,    setSel]    = useState(null);
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all");
+  const [user,        setUser]        = useState(null);
+  const [convs,       setConvs]       = useState([]);
+  const [driverNames, setDriverNames] = useState({});
+  const [sel,         setSel]         = useState(null);
+  const [search,      setSearch]      = useState("");
+  const [filter,      setFilter]      = useState("all");
 
   useEffect(() => onAuthStateChanged(auth, setUser), []);
 
@@ -639,28 +640,19 @@ export function ChatTab({ onBack, onToast }) {
     }, err => { console.error(err); onToast?.("Failed to load conversations", "error"); });
   }, [user]);
 
-  // Listen for new driver messages and update unread count
+  // Look up real driver names for threads that don't have one stored
   useEffect(() => {
-    if (!user) return;
-    const q = query(collection(db, "Support"), where("sender", "==", "driver"));
-    return onSnapshot(q, snap => {
-      snap.docChanges().forEach(async change => {
-        if (change.type === "added") {
-          const msg = change.doc.data();
-          if (msg.threadId) {
-            const threadRef = doc(db, "SupportThreads", msg.threadId);
-            const threadSnap = await getDoc(threadRef);
-            if (threadSnap.exists()) {
-              const current = threadSnap.data().unreadByAdmin || 0;
-              await updateDoc(threadRef, {
-                unreadByAdmin: current + 1,
-              }).catch(() => {});
-            }
-          }
-        }
-      });
-    }, () => {});
-  }, [user]);
+    const missing = convs.filter(c => !c.driverName && c.driverId && !driverNames[c.driverId]);
+    if (!missing.length) return;
+    missing.forEach(c => {
+      getDoc(doc(db, "Drivers", c.driverId)).then(snap => {
+        if (!snap.exists()) return;
+        const d = snap.data();
+        const full = `${d.firstName ?? ""} ${d.lastName ?? ""}`.trim();
+        if (full) setDriverNames(prev => ({ ...prev, [c.driverId]: full }));
+      }).catch(() => {});
+    });
+  }, [convs]);
 
   const totalUnread = convs.reduce((s, c) => s + (c.unreadByAdmin || 0), 0);
 
@@ -758,7 +750,7 @@ export function ChatTab({ onBack, onToast }) {
           ) : (
             filtered.map((c, i) => {
               const unread = c.unreadByAdmin || 0;
-              const name   = c.driverName || c.driverId?.slice(0, 8) || "Unknown";
+              const name   = c.driverName || driverNames[c.driverId] || c.driverId?.slice(0, 8) || "Unknown";
               return (
                 <div
                   key={c.id}
