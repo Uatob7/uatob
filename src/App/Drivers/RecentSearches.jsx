@@ -68,12 +68,21 @@ export default function RecentSearches({ searches = [], loading = false, limit =
   const [exiting, setExiting] = useState(false);
   const timerRef              = useRef(null);
 
+  // Reset to 0 (latest) whenever feed changes
+  useEffect(() => {
+    setIndex(0);
+    setExiting(false);
+  }, [feed.length]);
+
   useEffect(() => {
     if (!feed.length) return;
     clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
       setExiting(true);
-      setTimeout(() => { setIndex(i => (i + 1) % feed.length); setExiting(false); }, 280);
+      setTimeout(() => {
+        setIndex(i => (i + 1) % feed.length);
+        setExiting(false);
+      }, 280);
     }, 3800);
     return () => clearInterval(timerRef.current);
   }, [feed.length]);
@@ -95,7 +104,7 @@ export default function RecentSearches({ searches = [], loading = false, limit =
       `}</style>
 
       {/* ── Header row ── */}
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
+      <div style={{ display:'flex', alignItems:'center', marginBottom:8 }}>
         <div style={{
           display:'inline-flex', alignItems:'center', gap:5,
           padding:'3px 9px', borderRadius:100,
@@ -112,15 +121,6 @@ export default function RecentSearches({ searches = [], loading = false, limit =
             textTransform:'uppercase', color:'#93C5FD',
           }}>Live searches</span>
         </div>
-
-        {feed.length > 0 && (
-          <span style={{
-            fontFamily:"'Barlow',monospace", fontSize:10, fontWeight:700,
-            color:'rgba(96,165,250,.35)',
-          }}>
-            {index + 1}/{feed.length}
-          </span>
-        )}
       </div>
 
       {/* ── Content ── */}
