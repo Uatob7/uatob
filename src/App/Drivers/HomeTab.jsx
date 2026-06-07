@@ -13,9 +13,6 @@ import StatusCard from '@/App/Drivers/StatusCard.jsx';
 const MAPBOX_TOKEN = 'pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA';
 const MAP_STYLE    = 'mapbox://styles/mapbox/dark-v11';
 
-// ── Design tokens ───────────────────────────────────────────────────────────
-// One cohesive tactical-radar palette. Near-black base, signal-green primary,
-// amber for demand/heat, violet for scheduled, cyan for riders, red for alerts.
 const C = {
   bg:          '#050A06',
   bgDeep:      '#030604',
@@ -24,7 +21,7 @@ const C = {
   green:       '#22C55E',
   greenBright: '#4ADE80',
   greenSoft:   '#34D399',
-  greenInk:    'rgba(34,197,94,',   // append "x)"
+  greenInk:    'rgba(34,197,94,',
   amber:       '#FB923C',
   amberBright: '#FBBF24',
   violet:      '#C084FC',
@@ -41,9 +38,10 @@ const C = {
 const MONO = "'JetBrains Mono','SFMono-Regular',monospace";
 const COND = "'Barlow Condensed','Barlow',sans-serif";
 
-const ON_RADAR_RANGE_MI = 4.2;   // contacts beyond this become edge indicators
-const MAX_EDGE_CONTACTS = 7;     // de-clutter the perimeter
-const RADAR_RINGS_MI     = [1, 2, 4, 6];
+const ON_RADAR_RANGE_MI = 4.2;
+const MAX_EDGE_CONTACTS = 7;
+const RADAR_RINGS_MI    = [1, 2, 4, 6];
+const POOL_LEAD_MS      = 10 * 60 * 1000; // 10 min before scheduled time = enters pool
 
 const BOOT_LINES = [
   'uatob dispatch terminal · v3.3',
@@ -80,7 +78,6 @@ function haversineMiles(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Initial compass bearing from point 1 → point 2, normalised 0–360.
 function bearingBetween(lat1, lng1, lat2, lng2) {
   const φ1 = lat1 * Math.PI / 180;
   const φ2 = lat2 * Math.PI / 180;
@@ -166,7 +163,35 @@ function pickupLabelOf(r) {
     (hasCoords(r) ? `${r.pickupLat.toFixed(3)}, ${r.pickupLng.toFixed(3)}` : 'Pickup');
 }
 
-// ── GeoJSON builders ──────────────────────────────────────────────────────────
+// How long until this scheduled ride enters the driver pool
+// Pool opens POOL_LEAD_MS (10 min) before the scheduled ride time
+function fmtPoolCountdown(whenMs, now) {
+  const poolAt = whenMs - POOL_LEAD_MS;
+  const diff   = poolAt - now;
+  if (diff <= 0) return { label: 'IN POOL', color: C.greenBright, urgent: true };
+  const s = Math.floor(diff / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (h > 0)  return { label: `${h}h ${m}m`,      color: C.violet,      urgent: false };
+  if (m >= 5) return { label: `${m}m`,             color: C.violet,      urgent: false };
+  if (m > 0)  return { label: `${m}m ${s % 60}s`, color: C.amberBright, urgent: true  };
+  return            { label: `${s}s`,              color: C.red,         urgent: true  };
+}
+
+// Format uptime as H:MM:SS or MM:SS
+function fmtUptime(onlineSinceMs, now) {
+  if (!onlineSinceMs) return null;
+  const elapsed = Math.max(0, now - onlineSinceMs);
+  const s  = Math.floor(elapsed / 1000);
+  const h  = Math.floor(s / 3600);
+  const m  = Math.floor((s % 3600) / 60);
+  const sc = s % 60;
+  const p  = n => String(n).padStart(2, '0');
+  if (h > 0) return `${h}:${p(m)}:${p(sc)}`;
+  return `${p(m)}:${p(sc)}`;
+}
+
+// ── GeoJSON builders ─────────────────────────────────────────────────────────
 function buildPickupGeoJSON(searches = []) {
   const features = searches
     .filter(hasCoords)
@@ -207,7 +232,6 @@ function nearestMi(driverLat, driverLng, items = []) {
   return isFinite(min) ? min : null;
 }
 
-// Build the contact list (dist + compass bearing from driver) for both kinds.
 function gatherContacts(driver, searches, scheduledRides) {
   const dLat = driver?.lat, dLng = driver?.lng;
   if (typeof dLat !== 'number' || typeof dLng !== 'number') return [];
@@ -237,9 +261,7 @@ const KIND_COLOR = {
   sched:  C.violet,
 };
 
-// ── Small presentational pieces ───────────────────────────────────────────────
-
-// Animated signal-strength bars — represents the dispatch uplink.
+// ── Small presentational pieces ──────────────────────────────────────────────
 function SignalBars({ active = true, color = C.greenBright }) {
   const heights = [5, 8, 11, 14];
   return (
@@ -256,7 +278,6 @@ function SignalBars({ active = true, color = C.greenBright }) {
   );
 }
 
-// Tiny inline SVG glyphs so the HUD never depends on an icon lib.
 function Glyph({ name, size = 12, color = 'currentColor', stroke = 1.8 }) {
   const common = {
     width: size, height: size, viewBox: '0 0 24 24', fill: 'none',
@@ -284,7 +305,6 @@ function Glyph({ name, size = 12, color = 'currentColor', stroke = 1.8 }) {
   }
 }
 
-// Four L-shaped corner brackets framing the whole viewport.
 function CornerBrackets() {
   const off = 12, sz = 26, th = 1.5, col = 'rgba(34,197,94,.4)';
   const corners = [
@@ -310,7 +330,6 @@ function CornerBrackets() {
   );
 }
 
-// CRT scanlines + a sweeping bright line + vignette + faint grain.
 function ScanlineOverlay() {
   return (
     <div style={{
@@ -330,7 +349,6 @@ function ScanlineOverlay() {
   );
 }
 
-// Subtle vignette + grain that sits over the map for depth.
 function AtmosphereOverlay() {
   return (
     <div style={{
@@ -340,9 +358,11 @@ function AtmosphereOverlay() {
   );
 }
 
-// A compact rotating compass dial pinned to the right edge.
-function CompassRose({ bearing }) {
+// ── CompassRose — bottom shows live uptime counter ───────────────────────────
+function CompassRose({ bearing, onlineSinceMs, now }) {
   const hdg = normalizeHeading(bearing);
+  const uptimeLabel = fmtUptime(onlineSinceMs, now);
+
   return (
     <div style={{
       position: 'absolute', top: '50%', right: 12, transform: 'translateY(-50%)',
@@ -370,28 +390,59 @@ function CompassRose({ bearing }) {
           <text x="50" y="71" textAnchor="middle" fontSize="9" fontWeight="800"
             fill={C.red} fontFamily="monospace" transform="rotate(180 50 67)">N</text>
         </svg>
+
+        {/* Center: heading degrees */}
         <div style={{
           position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
         }}>
-          <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 800, color: C.greenBright, lineHeight: 1 }}>
+          <span style={{
+            fontFamily: MONO, fontSize: 12, fontWeight: 800,
+            color: C.greenBright, lineHeight: 1,
+          }}>
             {String(Math.round(hdg)).padStart(3, '0')}
           </span>
-          <span style={{ fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.14em', color: C.inkTextDim }}>
-            HDG
+          <span style={{
+            fontFamily: COND, fontSize: 7, fontWeight: 800,
+            letterSpacing: '.14em', color: C.inkTextDim,
+          }}>
+            DEG
           </span>
         </div>
       </div>
-      <div style={{
-        marginTop: 4, fontFamily: MONO, fontSize: 9, fontWeight: 700, color: C.inkText,
-      }}>
-        {compassLabel(hdg)}
-      </div>
+
+      {/* Uptime counter — ticks up every second while online */}
+      {uptimeLabel ? (
+        <div style={{
+          marginTop: 5,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
+        }}>
+          <span style={{
+            fontFamily: MONO, fontSize: 10, fontWeight: 800,
+            color: C.greenBright,
+            textShadow: `0 0 8px ${C.greenBright}88`,
+          }}>
+            {uptimeLabel}
+          </span>
+          <span style={{
+            fontFamily: COND, fontSize: 7.5, fontWeight: 800,
+            letterSpacing: '.14em', color: C.inkTextDim, textTransform: 'uppercase',
+          }}>
+            online
+          </span>
+        </div>
+      ) : (
+        <div style={{
+          marginTop: 4, fontFamily: MONO, fontSize: 9,
+          fontWeight: 700, color: C.inkText,
+        }}>
+          {compassLabel(hdg)}
+        </div>
+      )}
     </div>
   );
 }
 
-// A vertical range ruler pinned to the left edge, mirrors the compass.
 function RangeRuler({ zoom }) {
   return (
     <div style={{
@@ -427,16 +478,14 @@ function RangeRuler({ zoom }) {
   );
 }
 
-// Edge contacts: arrows on the perimeter pointing toward off-radar pickups.
 function EdgeContacts({ contacts, mapBearing }) {
   const edge = contacts.filter(c => c.dist > ON_RADAR_RANGE_MI).slice(0, MAX_EDGE_CONTACTS);
   if (!edge.length) return null;
   return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 14, pointerEvents: 'none' }}>
       {edge.map((c) => {
-        // Screen angle = compass bearing minus current map rotation (north-up convention).
         const screen = (c.bearing - mapBearing) * Math.PI / 180;
-        const rx = 43, ry = 41; // perimeter as % of viewport (slightly inset)
+        const rx = 43, ry = 41;
         const left = 50 + rx * Math.sin(screen);
         const top  = 50 - ry * Math.cos(screen);
         const col  = KIND_COLOR[c.kind] || C.greenBright;
@@ -469,7 +518,6 @@ function EdgeContacts({ contacts, mapBearing }) {
   );
 }
 
-// Top status ribbon: brand · live state · clock · gps · uplink.
 function TopRibbon({ now, online, mapReady, activeTrip, tripStage, tripStageColor, heading, lat, lng }) {
   const liveColor = activeTrip ? (tripStageColor || C.cyan)
                   : online      ? C.greenBright
@@ -499,7 +547,6 @@ function TopRibbon({ now, online, mapReady, activeTrip, tripStage, tripStageColo
           DISPATCH
         </span>
       </div>
-
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           <div style={{
@@ -529,7 +576,6 @@ function TopRibbon({ now, online, mapReady, activeTrip, tripStage, tripStageColo
   );
 }
 
-// Boot terminal that plays the first time the driver goes live.
 function BootSequence({ step }) {
   const lines = BOOT_LINES.slice(0, step);
   return (
@@ -539,7 +585,6 @@ function BootSequence({ step }) {
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       animation: 'htFadeIn .3s ease both',
     }}>
-      {/* concentric scan rings */}
       {[60, 110, 160, 210].map((r, i) => (
         <div key={i} style={{
           position: 'absolute', width: r * 2, height: r * 2, borderRadius: '50%',
@@ -572,7 +617,7 @@ function BootSequence({ step }) {
           </span>
         </div>
         {lines.map((l, i) => {
-          const isLast = i === lines.length - 1;
+          const isLast    = i === lines.length - 1;
           const isWelcome = l === BOOT_LINES[BOOT_LINES.length - 1] && step >= BOOT_LINES.length;
           return (
             <div key={i} style={{
@@ -604,7 +649,6 @@ function BootSequence({ step }) {
   );
 }
 
-// Offline "standby" screen — calm, no surge language, no fake stats.
 function OfflineStandby({ driver }) {
   const name = driver?.firstName || driver?.name?.split?.(' ')?.[0] || null;
   return (
@@ -663,7 +707,6 @@ function OfflineStandby({ driver }) {
   );
 }
 
-// A single labeled stat used in the bottom stat strip.
 function StatPill({ glyph, label, value, color = C.greenBright, sub }) {
   return (
     <div style={{
@@ -692,7 +735,6 @@ function StatPill({ glyph, label, value, color = C.greenBright, sub }) {
   );
 }
 
-// Online driver count chip (bottom-right).
 function OnlineDriverChip({ online, total }) {
   return (
     <div style={{
@@ -728,7 +770,6 @@ function OnlineDriverChip({ online, total }) {
   );
 }
 
-// Transient "new ride request" toast that flashes when a fresh search lands.
 function ContactAlert({ alert }) {
   if (!alert) return null;
   const distStr = (alert.dist !== null && alert.dist !== undefined && isFinite(alert.dist))
@@ -772,7 +813,6 @@ function ContactAlert({ alert }) {
   );
 }
 
-// Small fixed legend decoding what each blip color means.
 function LegendKey() {
   const rows = [
     { c: C.greenBright, label: 'Rider' },
@@ -809,7 +849,6 @@ function LegendKey() {
   );
 }
 
-// ── RotatingBadge (enhanced) ──────────────────────────────────────────────────
 function RotatingBadge({
   dotCount, accounts, scheduledCount,
   scheduledNearestMi, searchNearestMi, earnings, fmtMi,
@@ -897,7 +936,7 @@ function RotatingBadge({
   );
 }
 
-// ── Scheduled-rides drawer ──────────────────────────────────────────────────
+// ── ScheduledDrawer — with pool countdown arrow badge ────────────────────────
 function ScheduledDrawer({ open, onToggle, scheduledRides, driver, now }) {
   const rides = useMemo(() => {
     return [...scheduledRides]
@@ -907,7 +946,7 @@ function ScheduledDrawer({ open, onToggle, scheduledRides, driver, now }) {
 
   if (!rides.length) return null;
 
-  const next = rides[0];
+  const next          = rides[0];
   const nextCountdown = next?._when ? formatCountdown(next._when - now) : '—';
 
   return (
@@ -945,7 +984,10 @@ function ScheduledDrawer({ open, onToggle, scheduledRides, driver, now }) {
               <span style={{ fontFamily: MONO, fontSize: 11.5, fontWeight: 800, color: '#E9D5FF' }}>
                 {rides.length} Scheduled
               </span>
-              <span style={{ fontFamily: COND, fontSize: 9, fontWeight: 700, letterSpacing: '.1em', color: 'rgba(192,132,252,.6)', textTransform: 'uppercase' }}>
+              <span style={{
+                fontFamily: COND, fontSize: 9, fontWeight: 700, letterSpacing: '.1em',
+                color: 'rgba(192,132,252,.6)', textTransform: 'uppercase',
+              }}>
                 next in {nextCountdown}
               </span>
             </div>
@@ -977,9 +1019,11 @@ function ScheduledDrawer({ open, onToggle, scheduledRides, driver, now }) {
               const dist = (typeof driver?.lat === 'number' && hasCoords(r))
                 ? haversineMiles(driver.lat, driver.lng, r.pickupLat, r.pickupLng)
                 : null;
-              const cd = r._when ? r._when - now : null;
-              const due = cd !== null && cd <= 0;
+              const cd   = r._when ? r._when - now : null;
+              const due  = cd !== null && cd <= 0;
               const soon = cd !== null && cd > 0 && cd < 30 * 60 * 1000;
+              const pool = r._when ? fmtPoolCountdown(r._when, now) : null;
+
               return (
                 <div key={r.id || i} style={{
                   display: 'flex', alignItems: 'center', gap: 10,
@@ -987,12 +1031,15 @@ function ScheduledDrawer({ open, onToggle, scheduledRides, driver, now }) {
                   borderBottom: i < rides.length - 1 ? '1px solid rgba(192,132,252,.1)' : 'none',
                   animation: `htFadeIn .3s ease ${i * 0.04}s both`,
                 }}>
+                  {/* Status dot */}
                   <div style={{
                     width: 9, height: 9, borderRadius: '50%', flexShrink: 0,
                     background: due ? C.red : soon ? C.amberBright : C.violet,
                     boxShadow: `0 0 8px ${due ? C.red : soon ? C.amberBright : C.violet}`,
                     animation: (due || soon) ? 'htBlink 1.2s ease-in-out infinite' : 'none',
                   }}/>
+
+                  {/* Pickup + meta */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{
                       fontFamily: MONO, fontSize: 12, fontWeight: 700, color: '#F3E8FF',
@@ -1024,15 +1071,46 @@ function ScheduledDrawer({ open, onToggle, scheduledRides, driver, now }) {
                       )}
                     </div>
                   </div>
+
+                  {/* Right: ride countdown + pool entry badge stacked */}
                   <div style={{
-                    fontFamily: MONO, fontSize: 11, fontWeight: 800, flexShrink: 0,
-                    color: due ? C.red : soon ? C.amberBright : '#E9D5FF',
-                    padding: '3px 9px', borderRadius: 8,
-                    background: due ? 'rgba(248,113,113,.14)'
-                              : soon ? 'rgba(251,191,36,.14)'
-                              :        'rgba(192,132,252,.12)',
+                    display: 'flex', flexDirection: 'column',
+                    alignItems: 'flex-end', gap: 4, flexShrink: 0,
                   }}>
-                    {cd !== null ? formatCountdown(cd) : '—'}
+                    {/* Ride time countdown */}
+                    <div style={{
+                      fontFamily: MONO, fontSize: 11, fontWeight: 800,
+                      color: due ? C.red : soon ? C.amberBright : '#E9D5FF',
+                      padding: '3px 9px', borderRadius: 8,
+                      background: due  ? 'rgba(248,113,113,.14)'
+                                : soon ? 'rgba(251,191,36,.14)'
+                                :        'rgba(192,132,252,.12)',
+                    }}>
+                      {cd !== null ? formatCountdown(cd) : '—'}
+                    </div>
+
+                    {/* Pool entry arrow badge */}
+                    {pool && (
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 4,
+                        padding: '2px 7px', borderRadius: 6,
+                        background: `${pool.color}18`,
+                        border: `1px solid ${pool.color}44`,
+                        animation: pool.urgent ? 'htBlink 1.2s ease-in-out infinite' : 'none',
+                      }}>
+                        <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
+                          <path d="M2 5h6M6 2l3 3-3 3"
+                            stroke={pool.color} strokeWidth="1.6"
+                            strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                        <span style={{
+                          fontFamily: MONO, fontSize: 8.5, fontWeight: 800,
+                          color: pool.color, letterSpacing: '.04em',
+                        }}>
+                          {pool.label}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -1044,7 +1122,6 @@ function ScheduledDrawer({ open, onToggle, scheduledRides, driver, now }) {
   );
 }
 
-// ── Radar SVG overlay (extracted for clarity) ──────────────────────────────────
 function RadarOverlay({ svgRef }) {
   return (
     <svg ref={svgRef}
@@ -1066,45 +1143,34 @@ function RadarOverlay({ svgRef }) {
           <stop offset="100%" stopColor="rgba(0,0,0,0.55)"/>
         </radialGradient>
       </defs>
-
       <rect width="100" height="100" fill="url(#ht-vig)"/>
-
-      {/* range rings */}
       {[14, 25, 36, 47].map((r, i) => (
         <circle key={i} cx="50" cy="50" r={r} fill="none"
           stroke="rgba(34,197,94,0.1)" strokeWidth="0.25" strokeDasharray="1.2 2.4"/>
       ))}
-
-      {/* perimeter bearing ticks every 15° */}
       {Array.from({ length: 24 }).map((_, i) => {
-        const a = i * 15 * Math.PI / 180;
+        const a     = i * 15 * Math.PI / 180;
         const major = i % 6 === 0;
-        const r1 = major ? 45 : 46.4;
-        const x1 = 50 + r1 * Math.sin(a), y1 = 50 - r1 * Math.cos(a);
-        const x2 = 50 + 47.5 * Math.sin(a), y2 = 50 - 47.5 * Math.cos(a);
+        const r1    = major ? 45 : 46.4;
+        const x1 = 50 + r1 * Math.sin(a),      y1 = 50 - r1 * Math.cos(a);
+        const x2 = 50 + 47.5 * Math.sin(a),    y2 = 50 - 47.5 * Math.cos(a);
         return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2}
           stroke={major ? 'rgba(74,222,128,0.35)' : 'rgba(34,197,94,0.16)'}
           strokeWidth={major ? 0.4 : 0.22}/>;
       })}
-
-      {/* crosshair reticle */}
       <line x1="46.5" y1="50" x2="53.5" y2="50" stroke="rgba(34,197,94,0.3)" strokeWidth="0.22"/>
       <line x1="50" y1="46.5" x2="50" y2="53.5" stroke="rgba(34,197,94,0.3)" strokeWidth="0.22"/>
       <circle cx="50" cy="50" r="0.75" fill="rgba(74,222,128,0.7)"/>
-
-      {/* secondary faint counter sweep */}
       <path id="ht-sweep2" d="M 50 50 L 50 0 A 55 55 0 0 1 50 0 Z" fill="url(#ht-sweepGrad2)" opacity="0.5"/>
-
-      {/* primary sweep */}
-      <path id="ht-sweep" d="M 50 50 L 50 0 A 55 55 0 0 1 50 0 Z" fill="url(#ht-sweepGrad)" opacity="0.75"/>
-      <line id="ht-arm" x1="50" y1="50" x2="50" y2="0" stroke="#4ADE80" strokeWidth="0.45" strokeLinecap="round" opacity="0.9"/>
+      <path id="ht-sweep"  d="M 50 50 L 50 0 A 55 55 0 0 1 50 0 Z" fill="url(#ht-sweepGrad)"  opacity="0.75"/>
+      <line id="ht-arm"    x1="50" y1="50" x2="50" y2="0" stroke="#4ADE80" strokeWidth="0.45" strokeLinecap="round" opacity="0.9"/>
       <circle id="ht-tipglow" cx="50" cy="0" r="2.2" fill="rgba(74,222,128,0.22)"/>
       <circle id="ht-tip"     cx="50" cy="0" r="1.1" fill="#4ADE80" opacity="0.95"/>
     </svg>
   );
 }
 
-// ── Main ────────────────────────────────────────────────────────────────────
+// ── Main ─────────────────────────────────────────────────────────────────────
 export default function HomeTab({
   driver,
   online,
@@ -1127,45 +1193,38 @@ export default function HomeTab({
   const rafRef          = useRef(null);
   const svgRef          = useRef(null);
   const pulseLayersRef  = useRef(false);
-  const onlineSinceRef  = useRef(null);
+  const onlineSinceRef  = useRef(null);  // tracks when this session went online
   const bootTimersRef   = useRef([]);
 
-  const [mapReady, setMapReady]       = useState(false);
+  const [mapReady, setMapReady]         = useState(false);
   const [driverCounts, setDriverCounts] = useState({ online: 0, offline: 0, approved: 0 });
-  const [now, setNow]                 = useState(Date.now());
-  const [mapBearing, setMapBearing]   = useState(-20);
-  const [mapZoom, setMapZoom]         = useState(12);
-  const [bootStep, setBootStep]       = useState(0);   // 0 = idle / not booting
-  const [bootDone, setBootDone]       = useState(false);
-  const [drawerOpen, setDrawerOpen]   = useState(false);
-  const [alert, setAlert]             = useState(null);
+  const [now, setNow]                   = useState(Date.now());
+  const [mapBearing, setMapBearing]     = useState(-20);
+  const [mapZoom, setMapZoom]           = useState(12);
+  const [bootStep, setBootStep]         = useState(0);
+  const [bootDone, setBootDone]         = useState(false);
+  const [drawerOpen, setDrawerOpen]     = useState(false);
+  const [alert, setAlert]               = useState(null);
   const prevDotRef    = useRef(0);
   const alertTimerRef = useRef(null);
 
-  // ── Live 1Hz clock for ribbon + countdowns ─────────────────────────────
+  // ── Live 1Hz clock ─────────────────────────────────────────────────────
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
 
-  // ── Track online session start (local session only) ─────────────────────
+  // ── Track online session start ─────────────────────────────────────────
   useEffect(() => {
     if (online && !onlineSinceRef.current) onlineSinceRef.current = Date.now();
     if (!online) onlineSinceRef.current = null;
   }, [online]);
 
-  // ── Boot sequence — plays the moment the driver goes live ────────────────
+  // ── Boot sequence ──────────────────────────────────────────────────────
   useEffect(() => {
-    // clear any pending boot timers first
     bootTimersRef.current.forEach(clearTimeout);
     bootTimersRef.current = [];
-
-    if (!online) {
-      setBootStep(0);
-      setBootDone(false);
-      return;
-    }
-
+    if (!online) { setBootStep(0); setBootDone(false); return; }
     setBootDone(false);
     setBootStep(0);
     const stepDelay = 240;
@@ -1178,14 +1237,10 @@ export default function HomeTab({
       BOOT_LINES.length * stepDelay + 480
     );
     bootTimersRef.current.push(done);
-
-    return () => {
-      bootTimersRef.current.forEach(clearTimeout);
-      bootTimersRef.current = [];
-    };
+    return () => { bootTimersRef.current.forEach(clearTimeout); bootTimersRef.current = []; };
   }, [online]);
 
-  // ── Driver counts ───────────────────────────────────────────────────────
+  // ── Driver counts ──────────────────────────────────────────────────────
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'Drivers'), snapshot => {
       let onlineN = 0, offlineN = 0, approvedN = 0;
@@ -1200,7 +1255,7 @@ export default function HomeTab({
     return () => unsub();
   }, []);
 
-  // ── Init / destroy Mapbox ─────────────────────────────────────────────
+  // ── Init / destroy Mapbox ──────────────────────────────────────────────
   useEffect(() => {
     if (!online) {
       if (mapRef.current) {
@@ -1213,12 +1268,12 @@ export default function HomeTab({
     }
     if (mapRef.current) return;
 
-    const script = document.createElement('script');
-    script.src   = 'https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js';
-    script.async = true;
-    const link   = document.createElement('link');
-    link.rel     = 'stylesheet';
-    link.href    = 'https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css';
+    const script  = document.createElement('script');
+    script.src    = 'https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js';
+    script.async  = true;
+    const link    = document.createElement('link');
+    link.rel      = 'stylesheet';
+    link.href     = 'https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css';
     document.head.appendChild(link);
     document.head.appendChild(script);
 
@@ -1227,7 +1282,6 @@ export default function HomeTab({
       const mapboxgl       = window.mapboxgl;
       mapboxgl.accessToken = MAPBOX_TOKEN;
 
-      // Center on driver, first scheduled ride pickup, or Orlando fallback
       const centerLng = driver?.lng ?? scheduledRides[0]?.pickupLng ?? -81.3792;
       const centerLat = driver?.lat ?? scheduledRides[0]?.pickupLat ?? 28.5383;
 
@@ -1248,7 +1302,6 @@ export default function HomeTab({
         map.addSource('ht-searches',  { type: 'geojson', data: buildPickupGeoJSON(searches)          });
         map.addSource('ht-scheduled', { type: 'geojson', data: buildScheduledGeoJSON(scheduledRides) });
 
-        // ── Demand heatmap (sits beneath everything) ─────────────────────
         map.addLayer({
           id: 'ht-demand', type: 'heatmap', source: 'ht-searches',
           paint: {
@@ -1267,48 +1320,48 @@ export default function HomeTab({
           },
         });
 
-        // ── Search (immediate) layers ────────────────────────────────────
         map.addLayer({ id: 'ht-search-halo', type: 'circle', source: 'ht-searches', paint: {
-          'circle-radius': 14, 'circle-color': 'rgba(52,211,153,0)',
-          'circle-stroke-color': 'rgba(52,211,153,0.45)', 'circle-stroke-width': 1.5,
-          'circle-opacity': ['*', ['get', 'age'], 0.6],
+          'circle-radius':       14,
+          'circle-color':        'rgba(52,211,153,0)',
+          'circle-stroke-color': 'rgba(52,211,153,0.45)',
+          'circle-stroke-width': 1.5,
+          'circle-opacity':      ['*', ['get', 'age'], 0.6],
         }});
         map.addLayer({ id: 'ht-search-dot', type: 'circle', source: 'ht-searches', paint: {
-          'circle-radius': 5,
-          'circle-color': ['case', ['get', 'guest'], 'rgba(251,146,60,0.95)', 'rgba(52,211,153,0.95)'],
-          'circle-stroke-color': '#fff', 'circle-stroke-width': 1.5, 'circle-blur': 0.1,
-          'circle-opacity': ['*', ['get', 'age'], 0.9],
+          'circle-radius':       5,
+          'circle-color':        ['case', ['get', 'guest'], 'rgba(251,146,60,0.95)', 'rgba(52,211,153,0.95)'],
+          'circle-stroke-color': '#fff',
+          'circle-stroke-width': 1.5,
+          'circle-blur':         0.1,
+          'circle-opacity':      ['*', ['get', 'age'], 0.9],
         }});
 
-        // ── Scheduled ride layers (violet) ───────────────────────────────
         map.addLayer({ id: 'ht-sched-halo', type: 'circle', source: 'ht-scheduled', paint: {
-          'circle-radius':        22,
-          'circle-color':         'rgba(0,0,0,0)',
-          'circle-stroke-color':  'rgba(192,132,252,0.55)',
-          'circle-stroke-width':  2.5,
-          'circle-opacity':       1,
+          'circle-radius':       22,
+          'circle-color':        'rgba(0,0,0,0)',
+          'circle-stroke-color': 'rgba(192,132,252,0.55)',
+          'circle-stroke-width': 2.5,
+          'circle-opacity':      1,
         }});
         map.addLayer({ id: 'ht-sched-dot', type: 'circle', source: 'ht-scheduled', paint: {
-          'circle-radius':        8,
-          'circle-color':         'rgba(192,132,252,0.95)',
-          'circle-stroke-color':  '#fff',
-          'circle-stroke-width':  2,
+          'circle-radius':       8,
+          'circle-color':        'rgba(192,132,252,0.95)',
+          'circle-stroke-color': '#fff',
+          'circle-stroke-width': 2,
         }});
 
         pulseLayersRef.current = true;
 
-        // bearing drift
         let bearing = -20;
         const drift = setInterval(() => { bearing += 0.04; map.setBearing(bearing); }, 100);
         map.on('remove', () => clearInterval(drift));
 
-        // telemetry sampler — feeds compass + range ruler without churn
         const telemetry = setInterval(() => {
           if (!mapRef.current) return;
           try {
             setMapBearing(mapRef.current.getBearing());
             setMapZoom(mapRef.current.getZoom());
-          } catch (e) { /* map torn down */ }
+          } catch (e) { /* torn down */ }
         }, 220);
         map.on('remove', () => clearInterval(telemetry));
 
@@ -1326,7 +1379,7 @@ export default function HomeTab({
     };
   }, [online]); // eslint-disable-line
 
-  // ── Re-center map when driver location updates ────────────────────────
+  // ── Re-center map on driver location update ────────────────────────────
   useEffect(() => {
     if (!mapReady || !mapRef.current || !driver?.lat || !driver?.lng) return;
     mapRef.current.easeTo({
@@ -1336,21 +1389,19 @@ export default function HomeTab({
     });
   }, [driver?.lat, driver?.lng, mapReady]);
 
-  // ── Update GeoJSON sources when data changes ──────────────────────────
+  // ── Update GeoJSON on data change ──────────────────────────────────────
   useEffect(() => {
     if (!mapReady || !mapRef.current || !pulseLayersRef.current) return;
-    const map = mapRef.current;
-
+    const map   = mapRef.current;
     const apply = () => {
       map.getSource('ht-searches') ?.setData(buildPickupGeoJSON(searches));
       map.getSource('ht-scheduled')?.setData(buildScheduledGeoJSON(scheduledRides));
     };
-
     if (map.isStyleLoaded()) apply();
     else map.once('styledata', apply);
   }, [searches, scheduledRides, mapReady]);
 
-  // ── Pulse halo animation ──────────────────────────────────────────────
+  // ── Pulse halo animation ───────────────────────────────────────────────
   useEffect(() => {
     if (!mapReady || !pulseLayersRef.current) return;
     const map = mapRef.current;
@@ -1370,7 +1421,7 @@ export default function HomeTab({
     return () => clearInterval(id);
   }, [mapReady]);
 
-  // ── Radar sweep RAF (drives primary + counter sweep) ──────────────────
+  // ── Radar sweep RAF ────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapReady || !online) { cancelAnimationFrame(rafRef.current); return; }
     const animate = () => {
@@ -1386,15 +1437,12 @@ export default function HomeTab({
         const leadY  = 50 + R * Math.sin(toRad(leadA));
         const tipX   = 50 + 52 * Math.cos(toRad(leadA));
         const tipY   = 50 + 52 * Math.sin(toRad(leadA));
-
-        // counter sweep (opposite direction, slower visual)
         const cAngle = (360 - angle * 0.6) % 360;
         const cLead  = (cAngle + 60) % 360;
         const cTrailX = 50 + R * Math.cos(toRad(cAngle));
         const cTrailY = 50 + R * Math.sin(toRad(cAngle));
         const cLeadX  = 50 + R * Math.cos(toRad(cLead));
         const cLeadY  = 50 + R * Math.sin(toRad(cLead));
-
         const q = svgRef.current.querySelector.bind(svgRef.current);
         q('#ht-sweep') ?.setAttribute('d', `M 50 50 L ${trailX} ${trailY} A ${R} ${R} 0 0 1 ${leadX} ${leadY} Z`);
         q('#ht-sweep2')?.setAttribute('d', `M 50 50 L ${cTrailX} ${cTrailY} A ${R} ${R} 0 0 1 ${cLeadX} ${cLeadY} Z`);
@@ -1411,7 +1459,7 @@ export default function HomeTab({
     return () => cancelAnimationFrame(rafRef.current);
   }, [mapReady, online]);
 
-  // ── Derived values ────────────────────────────────────────────────────
+  // ── Derived values ─────────────────────────────────────────────────────
   const dotCount       = useMemo(() => searches.filter(hasCoords).length, [searches]);
   const scheduledCount = useMemo(() => scheduledRides.filter(hasCoords).length, [scheduledRides]);
   const driverTotal    = driverCounts.online + driverCounts.offline + driverCounts.approved;
@@ -1424,7 +1472,6 @@ export default function HomeTab({
     () => nearestMi(driver?.lat, driver?.lng, searches),
     [driver?.lat, driver?.lng, searches]
   );
-
   const contacts = useMemo(
     () => gatherContacts(driver, searches, scheduledRides),
     [driver?.lat, driver?.lng, searches, scheduledRides]
@@ -1435,7 +1482,7 @@ export default function HomeTab({
   const showLegend      = showRadar;
   const showOnlineCount = showRadar;
 
-  // ── Flash an alert when a fresh nearby search lands ─────────────────────
+  // ── New search alert ───────────────────────────────────────────────────
   useEffect(() => {
     if (!showRadar) { prevDotRef.current = dotCount; return; }
     if (dotCount > prevDotRef.current) {
@@ -1453,8 +1500,7 @@ export default function HomeTab({
 
   useEffect(() => () => clearTimeout(alertTimerRef.current), []);
 
-  const moneyStr = fmtMoney(earnings);
-
+  const moneyStr   = fmtMoney(earnings);
   const toggleDrawer = useCallback(() => setDrawerOpen(o => !o), []);
 
   return (
@@ -1482,14 +1528,18 @@ export default function HomeTab({
         {/* Offline standby */}
         {!online && <OfflineStandby driver={driver}/>}
 
-        {/* Atmosphere + radar + scanlines (only live) */}
+        {/* Atmosphere + radar + scanlines */}
         {showRadar && (
           <>
             <AtmosphereOverlay/>
             <RadarOverlay svgRef={svgRef}/>
             <ScanlineOverlay/>
             <CornerBrackets/>
-            <CompassRose bearing={mapBearing}/>
+            <CompassRose
+              bearing={mapBearing}
+              onlineSinceMs={onlineSinceRef.current}
+              now={now}
+            />
             <RangeRuler zoom={mapZoom}/>
             <EdgeContacts contacts={contacts} mapBearing={mapBearing}/>
             <LegendKey/>
@@ -1499,7 +1549,7 @@ export default function HomeTab({
         {/* Boot terminal */}
         {showBoot && <BootSequence step={bootStep}/>}
 
-        {/* Map still warming up after boot finished */}
+        {/* Map warming up spinner */}
         {online && bootDone && !mapReady && (
           <div style={{
             position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
@@ -1510,14 +1560,17 @@ export default function HomeTab({
               border: '2px solid rgba(34,197,94,.15)', borderTop: '2px solid #22C55E',
               animation: 'htSpin .9s linear infinite',
             }}/>
-            <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: '.1em', color: 'rgba(255,255,255,.35)' }}>
+            <span style={{
+              fontFamily: MONO, fontSize: 11, fontWeight: 700,
+              letterSpacing: '.1em', color: 'rgba(255,255,255,.35)',
+            }}>
               acquiring map…
             </span>
           </div>
         )}
 
-        {/* Top ribbon (always present once not booting) */}
-        {(!showBoot) && (
+        {/* Top ribbon */}
+        {!showBoot && (
           <TopRibbon
             now={now}
             online={online}
@@ -1531,7 +1584,7 @@ export default function HomeTab({
           />
         )}
 
-        {/* Bottom-left rotating badge */}
+        {/* Rotating badge */}
         {showLegend && (
           <RotatingBadge
             dotCount={dotCount}
@@ -1544,12 +1597,12 @@ export default function HomeTab({
           />
         )}
 
-        {/* Bottom-right fleet count */}
+        {/* Fleet count chip */}
         {showOnlineCount && (
           <OnlineDriverChip online={driverCounts.online} total={driverTotal}/>
         )}
 
-        {/* Bottom stat strip (compact telemetry of the live session) */}
+        {/* Bottom stat strip */}
         {showRadar && (
           <div style={{
             position: 'absolute', bottom: 56, left: '50%', transform: 'translateX(-50%)',
@@ -1561,11 +1614,25 @@ export default function HomeTab({
             overflow: 'hidden', maxWidth: 'calc(100vw - 40px)',
             animation: 'htSlideDown .5s ease both',
           }}>
-            {moneyStr && <div style={{ borderRight: 'none' }}><StatPill glyph="cash" value={moneyStr} sub="today" color={C.amberBright}/></div>}
+            {moneyStr && <StatPill glyph="cash" value={moneyStr} sub="today" color={C.amberBright}/>}
           </div>
         )}
 
-        {/* Floating StatusCard HUD (preserved interface) */}
+        {/* New request alert toast */}
+        {showRadar && <ContactAlert alert={alert}/>}
+
+        {/* Scheduled rides drawer */}
+        {showRadar && scheduledRides.length > 0 && (
+          <ScheduledDrawer
+            open={drawerOpen}
+            onToggle={toggleDrawer}
+            scheduledRides={scheduledRides}
+            driver={driver}
+            now={now}
+          />
+        )}
+
+        {/* StatusCard HUD */}
         <div style={{
           position: 'absolute', top: 0, left: 0, right: 0,
           display: 'flex', justifyContent: 'center',
@@ -1587,8 +1654,6 @@ export default function HomeTab({
             />
           </div>
         </div>
-
-        
 
       </div>
     </>
