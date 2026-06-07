@@ -180,8 +180,6 @@ export default function HomeTab({
   const [mapReady, setMapReady] = useState(false);
   const [driverCounts, setDriverCounts] = useState({ online: 0, offline: 0, approved: 0 });
 
-  console.log(searches, scheduledRides, accounts);
-
   // ── Driver counts ──────────────────────────────────────────────────────
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'Drivers'), snapshot => {
@@ -224,8 +222,9 @@ export default function HomeTab({
       const mapboxgl       = window.mapboxgl;
       mapboxgl.accessToken = MAPBOX_TOKEN;
 
-      const centerLng = driver?.lng ?? -81.3792;
-      const centerLat = driver?.lat ?? 28.5383;
+      // Center on driver, first scheduled ride pickup, or Orlando fallback
+      const centerLng = driver?.lng ?? scheduledRides[0]?.pickupLng ?? -81.3792;
+      const centerLat = driver?.lat ?? scheduledRides[0]?.pickupLat ?? 28.5383;
 
       const map = new mapboxgl.Map({
         container:          mapContainerRef.current,
@@ -255,13 +254,20 @@ export default function HomeTab({
           'circle-stroke-color': '#fff', 'circle-stroke-width': 1.5, 'circle-blur': 0.1,
           'circle-opacity': ['*', ['get', 'age'], 0.9],
         }});
+
+        // ── Purple scheduled ride layers ──────────────────────────────────
         map.addLayer({ id: 'ht-sched-halo', type: 'circle', source: 'ht-scheduled', paint: {
-          'circle-radius': 18, 'circle-color': 'rgba(0,0,0,0)',
-          'circle-stroke-color': 'rgba(192,132,252,0.5)', 'circle-stroke-width': 2,
+          'circle-radius':        22,
+          'circle-color':         'rgba(0,0,0,0)',
+          'circle-stroke-color':  'rgba(192,132,252,0.55)',
+          'circle-stroke-width':  2.5,
+          'circle-opacity':       1,
         }});
         map.addLayer({ id: 'ht-sched-dot', type: 'circle', source: 'ht-scheduled', paint: {
-          'circle-radius': 7, 'circle-color': 'rgba(192,132,252,0.95)',
-          'circle-stroke-color': '#fff', 'circle-stroke-width': 2,
+          'circle-radius':        8,
+          'circle-color':         'rgba(192,132,252,0.95)',
+          'circle-stroke-color':  '#fff',
+          'circle-stroke-width':  2,
         }});
 
         pulseLayersRef.current = true;
@@ -295,12 +301,21 @@ export default function HomeTab({
   }, [driver?.lat, driver?.lng, mapReady]);
 
   // ── Update GeoJSON sources when data changes ──────────────────────────
+  // Uses a styledata retry so it never silently bails if style isn't loaded yet
   useEffect(() => {
     if (!mapReady || !mapRef.current || !pulseLayersRef.current) return;
     const map = mapRef.current;
-    if (!map.isStyleLoaded()) return;
-    map.getSource('ht-searches') ?.setData(buildPickupGeoJSON(searches));
-    map.getSource('ht-scheduled')?.setData(buildScheduledGeoJSON(scheduledRides));
+
+    const apply = () => {
+      map.getSource('ht-searches') ?.setData(buildPickupGeoJSON(searches));
+      map.getSource('ht-scheduled')?.setData(buildScheduledGeoJSON(scheduledRides));
+    };
+
+    if (map.isStyleLoaded()) {
+      apply();
+    } else {
+      map.once('styledata', apply);
+    }
   }, [searches, scheduledRides, mapReady]);
 
   // ── Pulse halo animation ──────────────────────────────────────────────
@@ -312,10 +327,11 @@ export default function HomeTab({
       if (!map || !map.isStyleLoaded()) return;
       t += 0.06;
       const r  = 10 + 10 * ((Math.sin(t) + 1) / 2);
-      const rs = 14 + 10 * ((Math.sin(t + 1) + 1) / 2);
+      const rs = 16 + 12 * ((Math.sin(t + 1) + 1) / 2);  // purple ring pulses larger
       map.setPaintProperty('ht-search-halo', 'circle-radius', r);
       map.setPaintProperty('ht-search-halo', 'circle-stroke-width', 1 + 1.5 * ((Math.sin(t) + 1) / 2));
       map.setPaintProperty('ht-sched-halo',  'circle-radius', rs);
+      map.setPaintProperty('ht-sched-halo',  'circle-stroke-width', 1.5 + 2 * ((Math.sin(t + 1) + 1) / 2));
     }, 40);
     return () => clearInterval(id);
   }, [mapReady]);
@@ -352,7 +368,7 @@ export default function HomeTab({
 
   // ── Derived values ────────────────────────────────────────────────────
   const dotCount       = searches.filter(s => typeof s.pickupLat === 'number' && typeof s.pickupLng === 'number').length;
-  const scheduledCount = scheduledRides.filter(r => r.pickupLat && r.pickupLng).length;
+  const scheduledCount = scheduledRides.filter(r => typeof r.pickupLat === 'number' && typeof r.pickupLng === 'number').length;
   const driverTotal    = driverCounts.online + driverCounts.offline + driverCounts.approved;
   const showLegend     = online && mapReady;
   const showOnlineCount = online && mapReady;
