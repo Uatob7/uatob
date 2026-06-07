@@ -456,22 +456,23 @@ function CompassRose({ bearing, onlineSinceMs, now, lastSearchAt }) {
             fill={C.red} fontFamily="monospace" transform="rotate(180 50 67)">N</text>
         </svg>
 
-        {/* Center: heading degrees */}
+        {/* Center: uptime counter when online, heading otherwise */}
         <div style={{
           position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
         }}>
           <span style={{
-            fontFamily: MONO, fontSize: 12, fontWeight: 800,
+            fontFamily: MONO, fontSize: uptimeLabel ? 9 : 12, fontWeight: 800,
             color: C.greenBright, lineHeight: 1,
+            textShadow: uptimeLabel ? `0 0 8px ${C.greenBright}88` : 'none',
           }}>
-            {String(Math.round(hdg)).padStart(3, '0')}
+            {uptimeLabel ?? String(Math.round(hdg)).padStart(3, '0')}
           </span>
           <span style={{
             fontFamily: COND, fontSize: 7, fontWeight: 800,
             letterSpacing: '.14em', color: C.inkTextDim,
           }}>
-            DEG
+            {uptimeLabel ? 'ONLINE' : 'DEG'}
           </span>
         </div>
       </div>
