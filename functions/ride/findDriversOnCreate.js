@@ -43,7 +43,7 @@ exports.findDriversOnCreate = onDocumentCreated(
       return;
     }
 
-    const { pickupLat, pickupLng } = ride;
+    const { pickupLat, pickupLng, pickupZip } = ride;
 
     if (pickupLat == null || pickupLng == null) {
       console.warn(`[findDriversOnCreate] missing coords for ${rideId}`);
@@ -52,11 +52,27 @@ exports.findDriversOnCreate = onDocumentCreated(
 
     console.log(`[findDriversOnCreate] processing ride ${rideId}`);
 
-    // Get online drivers
-    const driversSnap = await db
-      .collection("Drivers")
-      .where("status", "==", "online")
-      .get();
+    // Prefer drivers in the same zip as the pickup; fall back to all online drivers.
+    let driversSnap = null;
+
+    if (pickupZip) {
+      driversSnap = await db
+        .collection("Drivers")
+        .where("status", "==", "online")
+        .where("contact.zip", "==", String(pickupZip))
+        .get();
+      if (driversSnap.empty) {
+        console.log(`[findDriversOnCreate] no zip-local drivers for ${pickupZip}, expanding search`);
+        driversSnap = null;
+      }
+    }
+
+    if (!driversSnap) {
+      driversSnap = await db
+        .collection("Drivers")
+        .where("status", "==", "online")
+        .get();
+    }
 
     if (driversSnap.empty) {
       console.log(`[findDriversOnCreate] no drivers online for ${rideId}`);

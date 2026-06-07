@@ -81,14 +81,20 @@ exports.activateScheduledRides = onSchedule(
           return;
         }
 
-        const { pickupLat, pickupLng } = ride;
+        const { pickupLat, pickupLng, pickupZip } = ride;
 
         if (pickupLat == null || pickupLng == null) {
           console.warn(`[activateScheduledRides] ${rideId} missing coords, skipping`);
           return;
         }
 
-        if (onlineDrivers.length === 0) {
+        // Prefer zip-local drivers from the already-fetched pool; fall back to all.
+        const zipPool = pickupZip
+          ? onlineDrivers.filter((d) => d.contact?.zip === String(pickupZip))
+          : [];
+        const pool = zipPool.length > 0 ? zipPool : onlineDrivers;
+
+        if (pool.length === 0) {
           // No drivers — still flip to searching so the rider sees the state change
           await rideDoc.ref.update({
             status:           "searching_driver",
@@ -101,7 +107,7 @@ exports.activateScheduledRides = onSchedule(
           return;
         }
 
-        const topDrivers = onlineDrivers
+        const topDrivers = pool
           .map((d) => ({
             uid:               d.uid,
             lat:               d.lat,
