@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import {
   getFirestore, collection, query, where, orderBy, onSnapshot,
-  addDoc, serverTimestamp, doc, updateDoc, getDoc, writeBatch
+  addDoc, serverTimestamp, doc, updateDoc, getDoc, writeBatch, increment
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { firebase_app, auth } from "@/firebase/config";
@@ -475,7 +475,7 @@ function ChatScreen({ conv, onBack, onToast }) {
       });
       await updateDoc(doc(db, "SupportThreads", conv.id), {
         lastMessage: m, lastSender: "admin", updatedAt: serverTimestamp(),
-        unreadByDriver: (conv.unreadByDriver || 0) + 1,
+        unreadByDriver: increment(1),
       });
       onToast?.("Sent", "success");
     } catch { onToast?.("Failed to send", "error"); }

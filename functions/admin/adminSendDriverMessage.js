@@ -63,8 +63,9 @@ exports.adminSendDriverMessage = onCall(
           },
           data: {
             type: "admin_message",
+            url:       "https://uatob.com/driver",
             rideId: rideId ?? "",
-            message: cleanMessage, // ✅ include for app usage
+            message: cleanMessage,
           },
           android: {
             priority: "high",

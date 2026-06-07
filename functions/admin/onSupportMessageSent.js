@@ -48,6 +48,7 @@ exports.onSupportMessageSent = onDocumentCreated(
           },
           data: {
             type: "support_message",
+            url:       "https://uatob.com/driver",
             threadId: threadId ?? "",
             messageId: event.params.messageId,
           },

@@ -95,6 +95,7 @@ function buildPushPayload({ driver, ride, rideId, totalCandidates, minutesRemain
       type:      "ride_offer",
 
       // Deep-link data
+      url:       "https://uatob.com/driver",
       rideId,
       screen:    "RideOffer",
       payout:    String(ride.driverPayout ?? 0),

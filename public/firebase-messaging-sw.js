@@ -17,8 +17,20 @@ const messaging = firebase.messaging();
 // Intentionally empty — Firebase displays the
 // notification automatically from the FCM payload.
 // ─────────────────────────────────────────────
-messaging.onBackgroundMessage((_payload) => {
-  // no-op
+messaging.onBackgroundMessage((payload) => {
+  const data  = payload.data ?? {};
+  const title = data.title ?? payload.notification?.title;
+  const body  = data.body  ?? payload.notification?.body ?? "";
+  if (!title) return;
+
+  self.registration.showNotification(title, {
+    body,
+    icon:  "/icon.png",
+    badge: "/icon.png",
+    tag:   data.type ?? "uatob",
+    renotify: true,
+    data: { url: data.url ?? "/", ...data },
+  });
 });
 
 // ─────────────────────────────────────────────
