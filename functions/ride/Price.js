@@ -73,16 +73,28 @@ function presenceMillis(d) {
 }
 
 // ── Driver ETA ────────────────────────────────────────────────────────
-async function getDriverEta(pickupLat, pickupLng) {
+async function getDriverEta(pickupLat, pickupLng, pickupZip) {
 
-  // Query by status ONLY. A Firestore inequality on presenceUpdatedAt silently
-  // excludes any driver whose field is missing, stale, or the wrong type — which
-  // is exactly how a nearby online driver disappears. We evaluate freshness in
-  // code below so a known-online driver is never dropped on a flaky heartbeat.
-  const snap = await db
-    .collection("Drivers")
-    .where("status", "==", "online")
-    .get();
+  // When a pickup zip is known, prefer drivers in that zip first. This avoids
+  // loading the entire driver collection on every price check. Fall back to all
+  // online drivers only when no zip-local driver is found.
+  let snap = null;
+
+  if (pickupZip) {
+    snap = await db
+      .collection("Drivers")
+      .where("status", "==", "online")
+      .where("contact.zip", "==", String(pickupZip))
+      .get();
+    if (snap.empty) snap = null;
+  }
+
+  if (!snap) {
+    snap = await db
+      .collection("Drivers")
+      .where("status", "==", "online")
+      .get();
+  }
 
   if (snap.empty) {
     console.log("[getDriverEta] No online drivers found");
@@ -185,6 +197,7 @@ exports.Price = onCall(
     const minutes   = Number(request.data?.durationMin);
     const pickupLat = Number(request.data?.pickupLat);
     const pickupLng = Number(request.data?.pickupLng);
+    const pickupZip = request.data?.pickupZip ?? null;
 
     if (!Number.isFinite(miles) || !Number.isFinite(minutes))
       throw new HttpsError("invalid-argument", "Invalid miles or duration");
@@ -196,7 +209,7 @@ exports.Price = onCall(
     let driverInfo = null;
     if (hasPickup) {
       try {
-        driverInfo = await getDriverEta(pickupLat, pickupLng);
+        driverInfo = await getDriverEta(pickupLat, pickupLng, pickupZip);
       } catch (err) {
         console.error("[Price] getDriverEta failed:", err.message);
       }
@@ -218,6 +231,7 @@ exports.Price = onCall(
       minutes:   cleanMinutes,
       pickupLat: hasPickup ? pickupLat : null,
       pickupLng: hasPickup ? pickupLng : null,
+      pickupZip: pickupZip,
       driverInfo,
       rides,
       createdAt: FieldValue.serverTimestamp(),
