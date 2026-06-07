@@ -1430,10 +1430,6 @@ export default function HomeTab({
     [driver?.lat, driver?.lng, searches, scheduledRides]
   );
 
-  const onlineDuration = (online && onlineSinceRef.current)
-    ? formatDuration(now - onlineSinceRef.current)
-    : '0s';
-
   const showRadar       = online && mapReady && bootDone;
   const showBoot        = online && !bootDone;
   const showLegend      = showRadar;
@@ -1565,12 +1561,7 @@ export default function HomeTab({
             overflow: 'hidden', maxWidth: 'calc(100vw - 40px)',
             animation: 'htSlideDown .5s ease both',
           }}>
-            <StatPill glyph="clock" value={onlineDuration} sub="online"  color={C.greenBright}/>
-            {moneyStr && <StatPill glyph="cash" value={moneyStr} sub="today" color={C.amberBright}/>}
-            <StatPill glyph="pin"   value={dotCount}        sub="live"      color={C.greenSoft}/>
-            <div style={{ borderRight: 'none' }}>
-              <StatPill glyph="route" value={scheduledCount} sub="scheduled" color={C.violet}/>
-            </div>
+            {moneyStr && <div style={{ borderRight: 'none' }}><StatPill glyph="cash" value={moneyStr} sub="today" color={C.amberBright}/></div>}
           </div>
         )}
 
