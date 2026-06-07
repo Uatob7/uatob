@@ -15,6 +15,7 @@ const db = getFirestore(firebase_app);
 
 // 🔹 Only active ride statuses
 const ACTIVE_STATUSES = [
+  'scheduled',
   'searching_driver',
   'driver_assigned',
   'driver_arriving',
