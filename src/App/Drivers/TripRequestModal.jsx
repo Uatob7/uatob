@@ -343,11 +343,11 @@ function MapboxRouteMap({ polyline, driverLat, driverLng, pickupLat, pickupLng }
 }
 
 // ── Timer Ring ─────────────────────────────────────────────────────────
-function TimerRing({ timer, total = 15 }) {
+function TimerRing({ timer, total = 60 }) {
   const R = 20;
   const circ = 2 * Math.PI * R;
   const pct  = timer / total;
-  const danger = timer <= 5;
+  const danger = timer <= 10;
 
   return (
     <div style={{ position: 'relative', width: 52, height: 52, flexShrink: 0 }}>
@@ -427,7 +427,7 @@ export default function TripRequestModal({
   const fare         = `$${tripRequest.driverPayout?.toFixed(2) ?? '0.00'}`;
   const distText     = loadingGeo ? null : (driverDistance ?? null);
   const etaText      = loadingGeo ? null : (driverEta ?? null);
-  const danger       = requestTimer <= 5;
+  const danger       = requestTimer <= 10;
   const rideColor    = TYPE_COLOR[tripRequest.rideType] ?? '#3B82F6';
   const pickupMasked = maskAddress(tripRequest.pickup);
   const dropoffMasked = maskAddress(tripRequest.dropoff);
@@ -521,7 +521,7 @@ export default function TripRequestModal({
             </div>
 
             {/* Right: timer */}
-            <TimerRing timer={requestTimer} total={15} />
+            <TimerRing timer={requestTimer} total={60} />
           </div>
 
           {/* ── Map ── */}

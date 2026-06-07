@@ -1,8 +1,8 @@
-import { Home, TrendingUp, Package, Users } from 'lucide-react';
+import { Car, TrendingUp, Package, Users } from 'lucide-react';
 import { C } from '@/App/Drivers/constants.js';
 
 const TABS = [
-  { id: "home",     icon: Home,       label: "Home"     },
+  { id: "home",     icon: Car,        label: "Driver"   },
   { id: "earnings", icon: TrendingUp,  label: "Earnings" },
   { id: "trips",    icon: Package,    label: "Trips"    },
   { id: "profile",  icon: Users,      label: "Profile"  },
@@ -57,7 +57,7 @@ export default function BottomTabBar({ activeTab, setActiveTab, online, activeTr
             <tab.icon size={20} color={isActive ? activeColor : C.textDim}/>
             {tab.label}
 
-            {/* Live pulse dot on Home when online & not on a trip */}
+            {/* Live pulse dot on Driver tab when online & not on a trip */}
             {tab.id === "home" && online && !activeTrip && (
               <div style={{
                 position: "absolute", top: 9, marginLeft: 20,
