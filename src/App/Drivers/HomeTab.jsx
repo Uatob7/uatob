@@ -1074,8 +1074,12 @@ function ScheduledDrawer({ open, onToggle, scheduledRides, driver, now }) {
         }}>
           <div style={{ padding: open ? '6px 10px 14px' : 0 }}>
             {rides.map((r, i) => {
-              const dist = (typeof driver?.lat === 'number' && hasCoords(r))
-                ? haversineMiles(driver.lat, driver.lng, r.pickupLat, r.pickupLng)
+              const dLat = typeof driver?.lat === 'number' ? driver.lat : null;
+              const dLng = typeof driver?.lng === 'number' ? driver.lng : null;
+              const rLat = typeof r.pickupLat === 'number' ? r.pickupLat : parseFloat(r.pickupLat);
+              const rLng = typeof r.pickupLng === 'number' ? r.pickupLng : parseFloat(r.pickupLng);
+              const dist = (dLat !== null && dLng !== null && isFinite(rLat) && isFinite(rLng))
+                ? haversineMiles(dLat, dLng, rLat, rLng)
                 : null;
               const cd      = r._when ? r._when - now : null;
               const due     = cd !== null && cd <= 0;
@@ -1111,12 +1115,10 @@ function ScheduledDrawer({ open, onToggle, scheduledRides, driver, now }) {
                       fontFamily: MONO, fontSize: 9.5, color: 'rgba(192,132,252,.6)',
                     }}>
                       <span>{fmtSchedTime(r._when)}</span>
-                      {dist !== null && (
-                        <>
-                          <span style={{ opacity: .5 }}>·</span>
-                          <span>{dist.toFixed(1)} mi</span>
-                        </>
-                      )}
+                      <>
+                        <span style={{ opacity: .5 }}>·</span>
+                        <span>{dist !== null ? `${dist.toFixed(1)} mi` : '— mi'}</span>
+                      </>
                       {r.dropoffLabel && (
                         <>
                           <span style={{ opacity: .5 }}>→</span>
