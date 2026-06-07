@@ -1597,19 +1597,7 @@ export default function HomeTab({
           </div>
         </div>
 
-        {/* Scheduled rides drawer */}
-        {showRadar && (
-          <ScheduledDrawer
-            open={drawerOpen}
-            onToggle={toggleDrawer}
-            scheduledRides={scheduledRides}
-            driver={driver}
-            now={now}
-          />
-        )}
-
-        {/* New-request alert toast */}
-        {showRadar && <ContactAlert alert={alert}/>}
+        
 
       </div>
     </>
