@@ -143,6 +143,52 @@ function playAcceptSound() {
   } catch(e) {}
 }
 
+function playOnlineSound() {
+  try {
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    if (ctx.state === "suspended") ctx.resume().catch(()=>{});
+    const master = ctx.createGain();
+    master.gain.value = 0.20; master.connect(ctx.destination);
+    const playTone = ({freq,type="sine",start,duration,volume}) => {
+      const osc=ctx.createOscillator(), gain=ctx.createGain();
+      osc.type=type; osc.frequency.setValueAtTime(freq,start);
+      osc.connect(gain); gain.connect(master);
+      gain.gain.setValueAtTime(0.0001,start);
+      gain.gain.exponentialRampToValueAtTime(volume,start+0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001,start+duration);
+      osc.start(start); osc.stop(start+duration);
+    };
+    const now = ctx.currentTime+0.02;
+    playTone({freq:523, type:"sine",    start:now,      duration:0.12,volume:0.24});
+    playTone({freq:659, type:"sine",    start:now+0.10, duration:0.12,volume:0.26});
+    playTone({freq:784, type:"sine",    start:now+0.20, duration:0.18,volume:0.30});
+    playTone({freq:1568,type:"triangle",start:now+0.20, duration:0.18,volume:0.09});
+  } catch(e) {}
+}
+
+function playOfflineSound() {
+  try {
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    if (ctx.state === "suspended") ctx.resume().catch(()=>{});
+    const master = ctx.createGain();
+    master.gain.value = 0.18; master.connect(ctx.destination);
+    const playTone = ({freq,type="sine",start,duration,volume}) => {
+      const osc=ctx.createOscillator(), gain=ctx.createGain();
+      osc.type=type; osc.frequency.setValueAtTime(freq,start);
+      osc.connect(gain); gain.connect(master);
+      gain.gain.setValueAtTime(0.0001,start);
+      gain.gain.exponentialRampToValueAtTime(volume,start+0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001,start+duration);
+      osc.start(start); osc.stop(start+duration);
+    };
+    const now = ctx.currentTime+0.02;
+    playTone({freq:440, type:"sine", start:now,      duration:0.14,volume:0.22});
+    playTone({freq:330, type:"sine", start:now+0.12, duration:0.22,volume:0.16});
+  } catch(e) {}
+}
+
 function playDeclineSound() {
   try {
     const ctx = getAudioCtx();
@@ -771,6 +817,7 @@ function DriverAppInner({ uid }) {
       const { latitude:lat, longitude:lng } = position.coords;
       await callDriverStatusFn("online", lat, lng);
       setOnline(true); setShowLocationPopup(false); setLocationError("");
+      playOnlineSound();
       showNotif("Online", "Ready for rides");
       if ("Notification" in window) {
         if (window.Notification.permission === "default") setShowNotifPopup(true);
@@ -805,6 +852,7 @@ function DriverAppInner({ uid }) {
     if (online) {
       try { await callDriverStatusFn("offline"); } catch(e) {}
       setOnline(false); setActiveTrip(null); setDismissedRequests(new Set()); setAcceptedRequestId(null);
+      playOfflineSound();
       showNotif("Offline","See you next time");
     } else {
       setLocationError(""); setShowLocationPopup(true);
