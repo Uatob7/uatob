@@ -8,7 +8,6 @@ if (!getApps().length) initializeApp();
 const db = getFirestore();
 
 // ── Active ride statuses where a driver location update matters ──────
-// Outside these states, we don't care about pinging the ride doc.
 const ACTIVE_RIDE_STATUSES = [
   "driver_assigned",
   "driver_arriving",
@@ -19,7 +18,7 @@ const ACTIVE_RIDE_STATUSES = [
 // ── Helper: Extract city + ZIP ───────────────────────────
 function extractCityAndZip(components = []) {
   let city = "";
-  let zip = "";
+  let zip  = "";
 
   for (const c of components) {
     if (!city && c.types?.includes("locality")) {
@@ -37,8 +36,6 @@ function extractCityAndZip(components = []) {
 }
 
 // ── Helper: Find this driver's currently-active ride ─────
-// Looks for any ride where driverUid == uid AND status is in ACTIVE_RIDE_STATUSES.
-// Returns the DocumentReference, or null if none found.
 async function findActiveRideForDriver(driverUid) {
   if (!driverUid) return null;
   try {
@@ -58,8 +55,6 @@ async function findActiveRideForDriver(driverUid) {
 }
 
 // ── Helper: Update active ride with driver position ──────
-// Writes driverLat / driverLng / driverLocationAt so the rider's tracking
-// map can compare freshness against riderLocationAt and pick the freshest.
 async function pingDriverLocationOnActiveRide(driverUid, lat, lng) {
   const rideRef = await findActiveRideForDriver(driverUid);
   if (!rideRef) return null;
@@ -67,10 +62,10 @@ async function pingDriverLocationOnActiveRide(driverUid, lat, lng) {
   try {
     await rideRef.set(
       {
-        driverLat: lat,
-        driverLng: lng,
+        driverLat:        lat,
+        driverLng:        lng,
         driverLocationAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
+        updatedAt:        FieldValue.serverTimestamp(),
       },
       { merge: true }
     );
@@ -84,7 +79,7 @@ async function pingDriverLocationOnActiveRide(driverUid, lat, lng) {
 // ─────────────────────────────────────────────────────────
 exports.DriverStatus = onCall(
   {
-    region: "us-east1",
+    region:  "us-east1",
     secrets: ["GOOGLE_MAPS_KEY"],
   },
   async (request) => {
@@ -128,7 +123,7 @@ exports.DriverStatus = onCall(
 
       // ── Geocode ONLY when going online ─────────────────
       let city = null;
-      let zip = null;
+      let zip  = null;
 
       if (status === "online" && numLat != null && numLng != null) {
         try {
@@ -137,7 +132,7 @@ exports.DriverStatus = onCall(
             {
               params: {
                 latlng: `${numLat},${numLng}`,
-                key: process.env.GOOGLE_MAPS_KEY,
+                key:    process.env.GOOGLE_MAPS_KEY,
               },
               timeout: 8000,
             }
@@ -150,72 +145,78 @@ exports.DriverStatus = onCall(
               data.results[0].address_components
             );
             city = extracted.city;
-            zip = extracted.zip;
+            zip  = extracted.zip;
           }
         } catch (err) {
           console.error("Geocode error:", err.message);
         }
       }
 
-      // ── Build Firestore update for Drivers doc ─────────
+      // ── Build Firestore update ─────────────────────────
       let update;
 
       if (status === "location_ping") {
         update = {
-          lat: numLat,
-          lng: numLng,
-          lastLocationAt: FieldValue.serverTimestamp(),
-          lastSeenAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
+          lat,
+          lng,
+          lastLocationAt:    FieldValue.serverTimestamp(),
+          lastSeenAt:        FieldValue.serverTimestamp(),
+          presenceUpdatedAt: FieldValue.serverTimestamp(),  // ← Price.js reads this
+          updatedAt:         FieldValue.serverTimestamp(),
         };
       } else if (status === "online") {
         update = {
-          status: "online",
-          lat: numLat,
-          lng: numLng,
+          status:            "online",
+          lat:               numLat,
+          lng:               numLng,
           city,
           zip,
-          lastLocationAt: FieldValue.serverTimestamp(),
-          lastSeenAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
+          lastLocationAt:    FieldValue.serverTimestamp(),
+          lastSeenAt:        FieldValue.serverTimestamp(),
+          presenceUpdatedAt: FieldValue.serverTimestamp(),  // ← Price.js reads this
+          updatedAt:         FieldValue.serverTimestamp(),
         };
       } else {
+        // offline — scrub location, keep presenceUpdatedAt so we know when they left
         update = {
-          status: "offline",
-          lat: FieldValue.delete(),
-          lng: FieldValue.delete(),
-          city: FieldValue.delete(),
-          zip: FieldValue.delete(),
-          lastLocationAt: FieldValue.delete(),
-          lastSeenAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
+          status:            "offline",
+          lat:               FieldValue.delete(),
+          lng:               FieldValue.delete(),
+          city:              FieldValue.delete(),
+          zip:               FieldValue.delete(),
+          lastLocationAt:    FieldValue.delete(),
+          lastSeenAt:        FieldValue.serverTimestamp(),
+          presenceUpdatedAt: FieldValue.serverTimestamp(),  // ← keep timestamp on offline too
+          updatedAt:         FieldValue.serverTimestamp(),
         };
       }
 
       // ── Write to Drivers doc ───────────────────────────
-      await db.collection("Drivers").doc(driverUid).set(update, { merge: true });
+      await db
+        .collection("Drivers")
+        .doc(driverUid)
+        .set(update, { merge: true });
 
-      // ── If driver has an active ride, also update that ride's
-      //    driverLat / driverLng / driverLocationAt so the rider's
-      //    tracking map can use freshness-based GPS resolution.
+      // ── Ping active ride with fresh driver location ────
       let updatedRideId = null;
       if (numLat != null && numLng != null && status !== "offline") {
-        updatedRideId = await pingDriverLocationOnActiveRide(driverUid, numLat, numLng);
+        updatedRideId = await pingDriverLocationOnActiveRide(
+          driverUid, numLat, numLng
+        );
       }
 
       return {
-        ok: true,
+        ok:          true,
         status,
         city,
         zip,
         rideUpdated: !!updatedRideId,
-        rideId: updatedRideId,
+        rideId:      updatedRideId,
       };
+
     } catch (err) {
       console.error("❌ DriverStatus error:", err);
-
       if (err instanceof HttpsError) throw err;
-
       throw new HttpsError("internal", err.message || "Internal error");
     }
   }
