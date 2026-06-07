@@ -1,27 +1,11 @@
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
-const { defineSecret } = require("firebase-functions/params");
 const admin = require("firebase-admin");
 const { FieldValue } = require("firebase-admin/firestore");
-const axios = require("axios");
 
 if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
 
-const GOOGLE_MAPS_KEY = defineSecret("GOOGLE_MAPS_KEY");
-
-// ── Constants ──────────────────────────────────────────────────────────
-const FRESH_MS           = 10 * 60 * 1000;   // 10 min — below this = fresh
-const STALE_MS           = 4  * 60 * 60 * 1000;  // 4 hr — above this = excluded
-const STALE_PENALTY_SEC  = 5  * 60;           // +5 min penalty for stale presence
-const TOP_N_ROUTES       = 5;                 // real Routes API calls
-const TOP_N_HAVERSINE    = 10;                // candidate pool for dispatch
-
-// Minimum ETA shown to rider — gives dispatch time to work
-const MIN_DISPLAY_ETA_SEC = 7 * 60;          // 7 minutes
-
-// Tier buffers stack ON TOP of the 7-min floor
-const TIER_BUFFER_SEC = { economy: 0, standard: 0, premium: 120, xl: 60 };
-
+// ── Pricing ────────────────────────────────────────────────────────────
 const PRICING = {
   economy:  { id: "economy",  label: "Economy",  desc: "Affordable everyday rides", capacity: 4, base: 1.5,  perMile: 1.2,  perMin: 0.18, bookingFee: 0.99, minimumFare: 4.99 },
   standard: { id: "standard", label: "Standard", desc: "Comfortable daily rides",   capacity: 4, base: 2.0,  perMile: 1.65, perMin: 0.25, bookingFee: 1.29, minimumFare: 6.99 },
@@ -29,10 +13,29 @@ const PRICING = {
   xl:       { id: "xl",       label: "XL",       desc: "Large group rides",         capacity: 6, base: 2.25, perMile: 1.75, perMin: 0.28, bookingFee: 1.39, minimumFare: 7.99 },
 };
 
+// ── Buffers (per-tier ETA padding) ────────────────────────────────────
+const TIER_BUFFER = {
+  economy:  0,
+  standard: 0,
+  premium:  2,
+  xl:       1,
+};
+
+// ── Timing config ─────────────────────────────────────────────────────
+const FRESH_MS = 10 * 60 * 1000;          // 10 min
+const STALE_MS = 4 * 60 * 60 * 1000;      // 4 hours
+const STALE_PENALTY_MIN = 10;
+
+const AVG_SPEED_MPH = 25;
+
+// ── Minimum ETA floor ─────────────────────────────────────────────────
+// Even if a driver is next door, we need at least 7 min to notify
+// and confirm before the rider expects pickup.
+const MIN_ETA_MIN = 7;
+
 // ── Helpers ───────────────────────────────────────────────────────────
-const round2   = (n) => Number(Number(n).toFixed(2));
-const clamp    = (n, lo, hi) => Math.min(Math.max(Number(n), lo), hi);
-const clampTo0 = (n) => Math.max(0, n);
+const round2 = (n) => Number(Number(n).toFixed(2));
+const clamp  = (n, min, max) => Math.min(Math.max(Number(n), min), max);
 
 function haversineMiles(lat1, lng1, lat2, lng2) {
   const R = 3958.8;
@@ -46,194 +49,91 @@ function haversineMiles(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// ── ETA label — enforces 7-min floor, tighter bands when close ────────
-function formatEtaRange(rawEtaSec, stale = false) {
-  const etaSec = Math.max(clampTo0(rawEtaSec), MIN_DISPLAY_ETA_SEC);
-  const min    = Math.ceil(etaSec / 60);
-
-  const buffer = min <= 7  ? 2
-               : min <= 12 ? 3
-               :              5;
-
-  return `${stale ? "~" : ""}${min}–${min + buffer} min`;
+function estimateEtaMinutes(miles) {
+  return Math.max(MIN_ETA_MIN, Math.round((miles / AVG_SPEED_MPH) * 60 + 1));
 }
 
-// ── Routes API (single driver → pickup) ──────────────────────────────
-async function fetchRouteEta(driverLat, driverLng, pickupLat, pickupLng, apiKey) {
-  const res = await axios.post(
-    "https://routes.googleapis.com/directions/v2:computeRoutes",
-    {
-      origin:      { location: { latLng: { latitude: driverLat, longitude: driverLng } } },
-      destination: { location: { latLng: { latitude: pickupLat, longitude: pickupLng } } },
-      travelMode:               "DRIVE",
-      routingPreference:        "TRAFFIC_AWARE",
-      computeAlternativeRoutes: false,
-    },
-    {
-      headers: {
-        "Content-Type":     "application/json",
-        "X-Goog-Api-Key":   apiKey,
-        "X-Goog-FieldMask": "routes.duration,routes.distanceMeters",
-      },
-      timeout: 8000,
-    }
-  );
-
-  const route = res.data?.routes?.[0];
-  if (!route) return null;
-
-  const distanceMeters  = route.distanceMeters ?? 0;
-  const durationSeconds = parseInt(
-    String(route.duration ?? "0s").replace("s", ""), 10
-  ) || 0;
-
-  return {
-    distanceMiles: round2(distanceMeters / 1609.34),
-    etaSeconds:    clampTo0(durationSeconds),
-  };
+function formatEtaRange(etaMin, stale = false) {
+  const buffer = etaMin <= 5 ? 2 : etaMin <= 10 ? 3 : 5;
+  const prefix = stale ? "~" : "";
+  return `${prefix}${etaMin}–${etaMin + buffer} min`;
 }
 
-// ── Core ETA resolution ───────────────────────────────────────────────
-async function getDriverEta(pickupLat, pickupLng, apiKey) {
+// ── Driver ETA ────────────────────────────────────────────────────────
+async function getDriverEta(pickupLat, pickupLng) {
+  const snap = await db.collection("Drivers").where("status", "==", "online").get();
+  if (snap.empty) return null;
 
-  // presenceUpdatedAt is the reliable heartbeat — filter at DB level
-  const staleThreshold = admin.firestore.Timestamp.fromMillis(Date.now() - STALE_MS);
+  const now = Date.now();
 
-  const snap = await db
-    .collection("Drivers")
-    .where("status", "==", "online")
-    .where("presenceUpdatedAt", ">=", staleThreshold)
-    .get();
-
-  if (snap.empty) {
-    console.log("[getDriverEta] No active online drivers found");
-    return null;
-  }
-
-  const now    = Date.now();
-  const scored = [];
+  let freshNearest = null;
+  let staleNearest = null;
+  let freshCount = 0;
 
   snap.forEach((doc) => {
     const d = doc.data();
     if (typeof d.lat !== "number" || typeof d.lng !== "number") return;
 
-    // Use presenceUpdatedAt for staleness — it's what the presence system touches
-    const lastPresence = d.presenceUpdatedAt?.toMillis?.() ?? 0;
-    const ageMs        = now - lastPresence;
-
-    // No STALE_MS re-check needed here — DB query already filtered it
+    const lastSeen = d.presenceUpdatedAt?.toMillis?.() ?? 0;
+    const ageMs = now - lastSeen;
     const miles = haversineMiles(pickupLat, pickupLng, d.lat, d.lng);
-    const stale = ageMs > FRESH_MS;  // flag for +5 min penalty if >10 min old
 
-    scored.push({ uid: doc.id, miles, stale, lat: d.lat, lng: d.lng });
+    if (ageMs <= FRESH_MS) {
+      freshCount++;
+      if (freshNearest === null || miles < freshNearest) freshNearest = miles;
+    } else if (ageMs <= STALE_MS) {
+      if (staleNearest === null || miles < staleNearest) staleNearest = miles;
+    }
   });
 
-  if (scored.length === 0) {
-    console.log("[getDriverEta] Drivers passed query but had invalid coordinates");
-    return null;
+  if (freshNearest !== null) {
+    const etaMin = estimateEtaMinutes(freshNearest);
+    return {
+      etaMin,
+      etaLabel: formatEtaRange(etaMin),
+      driverCount: freshCount,
+      nearestMiles: round2(freshNearest),
+      stale: false,
+    };
   }
 
-  // Sort by haversine distance ascending
-  scored.sort((a, b) => a.miles - b.miles);
-
-  console.log(
-    `[getDriverEta] ${scored.length} eligible drivers; ` +
-    `querying Routes API for top ${Math.min(TOP_N_ROUTES, scored.length)}`
-  );
-
-  // 2. Candidate pool for dispatch (top 10 by haversine)
-  const candidatePool = scored.slice(0, TOP_N_HAVERSINE).map((d) => ({
-    uid:      d.uid,
-    distance: round2(d.miles),
-  }));
-
-  // 3. Top N_ROUTES get real drive-time — run in parallel
-  const routeTargets = scored.slice(0, TOP_N_ROUTES);
-
-  const routeResults = await Promise.all(
-    routeTargets.map(async (driver) => {
-      try {
-        const route = await fetchRouteEta(
-          driver.lat, driver.lng, pickupLat, pickupLng, apiKey
-        );
-        if (!route) return null;
-
-        const etaSeconds = clampTo0(
-          route.etaSeconds + (driver.stale ? STALE_PENALTY_SEC : 0)
-        );
-
-        return {
-          uid:           driver.uid,
-          distanceMiles: route.distanceMiles,
-          etaSeconds,
-          stale:         driver.stale,
-        };
-      } catch (err) {
-        console.warn(
-          `[getDriverEta] Routes API failed for driver ${driver.uid}:`, err.message
-        );
-        return null;
-      }
-    })
-  );
-
-  // 4. Pick the fastest real ETA among successful calls
-  const valid = routeResults.filter(Boolean).sort((a, b) => a.etaSeconds - b.etaSeconds);
-
-  if (valid.length === 0) {
-    console.warn("[getDriverEta] All Routes API calls failed — no valid ETAs");
-    return null;
+  if (staleNearest !== null) {
+    const etaMin = estimateEtaMinutes(staleNearest) + STALE_PENALTY_MIN;
+    return {
+      etaMin,
+      etaLabel: formatEtaRange(etaMin, true),
+      driverCount: 1,
+      nearestMiles: round2(staleNearest),
+      stale: true,
+    };
   }
 
-  const best = valid[0];
-
-  console.log(
-    `[getDriverEta] Best raw ETA: ${Math.ceil(best.etaSeconds / 60)} min ` +
-    `(${best.distanceMiles} mi) | stale: ${best.stale} | ` +
-    `display floor: ${MIN_DISPLAY_ETA_SEC / 60} min`
-  );
-
-  return {
-    // Raw ETA — dispatch logic can use this for internal decisions
-    etaSeconds:    best.etaSeconds,
-    etaMin:        Math.ceil(best.etaSeconds / 60),
-
-    // Display ETA — enforces 7-min floor — what riders see
-    etaLabel:      formatEtaRange(best.etaSeconds, best.stale),
-    nearestMiles:  best.distanceMiles,
-    stale:         best.stale,
-    driverCount:   valid.length,
-
-    // Full candidate pool for dispatch
-    candidateDrivers:    candidatePool,
-    candidateDriverUids: candidatePool.map((d) => d.uid),
-  };
+  return null;
 }
 
-// ── Per-tier ETA label ────────────────────────────────────────────────
 function buildTierEta(tierId, driverInfo) {
   if (!driverInfo) return null;
-
-  // Tier buffer stacks on top of raw ETA, then formatEtaRange re-applies the floor
-  // economy/standard → floor 7 min | premium → floor 9 min | xl → floor 8 min
-  const adjustedSec = clampTo0(driverInfo.etaSeconds) + (TIER_BUFFER_SEC[tierId] ?? 0);
-  return formatEtaRange(adjustedSec, driverInfo.stale);
+  const adjusted = driverInfo.etaMin + (TIER_BUFFER[tierId] ?? 0);
+  const buffer = adjusted <= 5 ? 2 : adjusted <= 10 ? 3 : 5;
+  const prefix = driverInfo.stale ? "~" : "";
+  return `${prefix}${adjusted}–${adjusted + buffer} min`;
 }
 
 // ── Pricing ───────────────────────────────────────────────────────────
 function calculateRidePrice(p, miles, minutes, etaLabel) {
-  const base     = p.base;
-  const distance = round2(miles   * p.perMile);
-  const time     = round2(minutes * p.perMin);
-  const fee      = p.bookingFee;
+  const base = p.base;
+  const distance = round2(miles * p.perMile);
+  const time = round2(minutes * p.perMin);
+  const fee = p.bookingFee;
   const subtotal = round2(base + distance + time + fee);
-  const total    = round2(subtotal < p.minimumFare ? p.minimumFare : subtotal);
+  const hitMin = subtotal < p.minimumFare;
+  const total = round2(hitMin ? p.minimumFare : subtotal);
 
   return {
-    id:       p.id,
-    label:    p.label,
-    desc:     p.desc,
-    eta:      etaLabel,
+    id: p.id,
+    label: p.label,
+    desc: p.desc,
+    eta: etaLabel,
     capacity: p.capacity,
     total,
   };
@@ -241,13 +141,11 @@ function calculateRidePrice(p, miles, minutes, etaLabel) {
 
 // ── Cloud Function ─────────────────────────────────────────────────────
 exports.Price = onCall(
-  {
-    region:   "us-east1",
-    invoker:  "public",
-    secrets:  [GOOGLE_MAPS_KEY],
-  },
+  { region: "us-east1", invoker: "public" },
   async (request) => {
-    const uid       = request.auth?.uid ?? null;
+
+    const uid = request.auth?.uid ?? null;
+
     const miles     = Number(request.data?.miles);
     const minutes   = Number(request.data?.durationMin);
     const pickupLat = Number(request.data?.pickupLat);
@@ -257,16 +155,14 @@ exports.Price = onCall(
       throw new HttpsError("invalid-argument", "Invalid miles or duration");
 
     const cleanMiles   = clamp(round2(miles),   0, 300);
-    const cleanMinutes = clamp(round2(minutes),  0, 600);
+    const cleanMinutes = clamp(round2(minutes), 0, 600);
     const hasPickup    = Number.isFinite(pickupLat) && Number.isFinite(pickupLng);
 
     let driverInfo = null;
     if (hasPickup) {
       try {
-        driverInfo = await getDriverEta(pickupLat, pickupLng, GOOGLE_MAPS_KEY.value());
-      } catch (err) {
-        console.error("[Price] getDriverEta threw unexpectedly:", err.message);
-      }
+        driverInfo = await getDriverEta(pickupLat, pickupLng);
+      } catch {}
     }
 
     const rides = Object.fromEntries(
@@ -276,26 +172,27 @@ exports.Price = onCall(
       ])
     );
 
-    // Fire-and-forget — doesn't block the price response
     db.collection("Search").add({
       uid,
-      pickup:    request.data?.pickup  ?? null,
-      dropoff:   request.data?.dropoff ?? null,
-      miles:     cleanMiles,
-      minutes:   cleanMinutes,
+      pickup: request.data?.pickup ?? null,
+      dropoff: request.data?.dropoff ?? null,
+      miles: cleanMiles,
+      minutes: cleanMinutes,
       pickupLat: hasPickup ? pickupLat : null,
       pickupLng: hasPickup ? pickupLng : null,
       driverInfo,
       rides,
       createdAt: FieldValue.serverTimestamp(),
-    }).catch((err) => console.error("[Price] Search write failed:", err));
+    }).catch((err) => {
+      console.error("[Price] Search write failed:", err);
+    });
 
     return {
-      trip:        { miles: cleanMiles, minutes: cleanMinutes },
+      trip: { miles: cleanMiles, minutes: cleanMinutes },
       rides,
       driverInfo,
-      currency:    "USD",
-      ok:          true,
+      currency: "USD",
+      ok: true,
       generatedAt: new Date().toISOString(),
     };
   }
