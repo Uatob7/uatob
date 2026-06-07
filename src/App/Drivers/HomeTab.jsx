@@ -78,7 +78,7 @@ function RotatingBadge({ dotCount, accounts, scheduledCount, scheduledNearestMi,
   const [activeBadge, setActiveBadge] = useState(0);
 
   const badges = [
-    dotCount > 0 && {
+    {
       color:  '#34D399',
       border: 'rgba(52,211,153,.25)',
       bg:     'rgba(5,10,6,.72)',
@@ -86,7 +86,7 @@ function RotatingBadge({ dotCount, accounts, scheduledCount, scheduledNearestMi,
       label:  `${dotCount} Searches`,
       sub:    null,
     },
-    accounts.length > 0 && {
+    {
       color:  '#67E8F9',
       border: 'rgba(103,232,249,.25)',
       bg:     'rgba(5,10,6,.72)',
@@ -94,12 +94,12 @@ function RotatingBadge({ dotCount, accounts, scheduledCount, scheduledNearestMi,
       label:  `${accounts.length} Riders`,
       sub:    null,
     },
-    scheduledCount > 0 && {
+    {
       color:  '#C084FC',
       border: 'rgba(192,132,252,.25)',
       bg:     'rgba(5,10,6,.72)',
       glow:   'rgba(192,132,252,.8)',
-      label:  `${scheduledCount} Scheduled`,
+      label:  `${scheduledRides.length} Scheduled`,
       sub:    fmtMi(scheduledNearestMi),
     },
   ].filter(Boolean);
@@ -354,7 +354,7 @@ export default function HomeTab({
   const dotCount       = searches.filter(s => typeof s.pickupLat === 'number' && typeof s.pickupLng === 'number').length;
   const scheduledCount = scheduledRides.filter(r => r.pickupLat && r.pickupLng).length;
   const driverTotal    = driverCounts.online + driverCounts.offline + driverCounts.approved;
-  const showLegend     = online && mapReady && (dotCount > 0 || accounts.length > 0 || scheduledCount > 0);
+  const showLegend     = online && mapReady;
   const showOnlineCount = online && mapReady;
 
   const scheduledNearestMi = nearestMi(driver?.lat, driver?.lng, scheduledRides);
