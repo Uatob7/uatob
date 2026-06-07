@@ -1,4 +1,3 @@
-// File: functions/rideTimeoutChecker.js
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const admin = require("firebase-admin");
 
@@ -32,43 +31,62 @@ exports.rideTimeoutChecker = onSchedule(
 
       try {
         // ─────────────────────────────────────────────
-        // 1. Determine when ride actually started tracking
+        // 1. Determine correct start time
         // ─────────────────────────────────────────────
 
-        let startTimeMs;
+        let startTimeMs = null;
 
         if (ride.isScheduled && ride.scheduledAt) {
-          // 🟢 scheduled ride → timeout starts from scheduledAt
+          // 🟢 Scheduled ride → timeout starts at scheduledAt
           startTimeMs = ride.scheduledAt.toMillis();
         } else if (ride.createdAt) {
-          // 🟡 immediate ride → timeout from creation
+          // 🟡 Immediate ride → timeout starts at createdAt
           startTimeMs = ride.createdAt.toMillis();
         } else {
+          console.warn(`[rideTimeoutChecker] Missing start time: ${rideId}`);
           return;
         }
+
+        // ─────────────────────────────────────────────
+        // 2. Timeout calculation
+        // ─────────────────────────────────────────────
 
         const etaMin = ride.driverInfo?.etaMin ?? 10;
         const timeoutMs = etaMin * 60 * 1000;
 
         const expiresAtMs = startTimeMs + timeoutMs;
 
-        // store once
-        if (!ride.expiresAt) {
+        // ─────────────────────────────────────────────
+        // 3. Store expiresAt once OR fix incorrect ones
+        // ─────────────────────────────────────────────
+
+        const shouldSetExpires =
+          !ride.expiresAt ||
+          ride.isScheduled; // 🔥 always correct scheduled rides
+
+        if (shouldSetExpires) {
           await doc.ref.update({
-            expiresAt: new Date(expiresAtMs),
+            expiresAt: admin.firestore.Timestamp.fromMillis(expiresAtMs),
             timeoutMinutes: etaMin,
           });
 
-          console.log(`🧠 Set timeout for ${rideId}`);
+          console.log(
+            `[rideTimeoutChecker] 🧠 Set expiresAt for ${rideId}`
+          );
         }
 
-        // not expired yet
+        // ─────────────────────────────────────────────
+        // 4. Timeout check
+        // ─────────────────────────────────────────────
+
         if (now < expiresAtMs) return;
 
-        // already timed out
         if (ride.status === "timeout") return;
 
-        // timeout ride
+        // ─────────────────────────────────────────────
+        // 5. Timeout ride
+        // ─────────────────────────────────────────────
+
         await doc.ref.update({
           status: "timeout",
           timedOutAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -78,7 +96,10 @@ exports.rideTimeoutChecker = onSchedule(
         console.log(`⏱ Ride ${rideId} → TIMEOUT`);
 
       } catch (err) {
-        console.error(`❌ Error processing ride ${rideId}:`, err);
+        console.error(
+          `[rideTimeoutChecker] ❌ Error processing ${rideId}:`,
+          err
+        );
       }
     });
 
