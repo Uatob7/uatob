@@ -600,7 +600,7 @@ function DriverAppInner({ uid }) {
   const [activeTab,         setActiveTab]         = useState("home");
   const [online,            setOnline]            = useState(false);
   const [activeTrip,        setActiveTrip]        = useState(null);
-  const [requestTimer,      setRequestTimer]      = useState(15);
+  const [requestTimer,      setRequestTimer]      = useState(60);  // ← 60 seconds
   const [notification,      setNotification]      = useState(null);
   const [tripBtnLabel,      setTripBtnLabel]      = useState("");
   const [dismissedRequests, setDismissedRequests] = useState(() => new Set());
@@ -694,19 +694,30 @@ function DriverAppInner({ uid }) {
 
   useEffect(() => { setTripBtnLabel(TRIP_BUTTON_LABELS[activeTrip?.status] ?? ""); }, [activeTrip?.status]);
 
+  // ── Request timer: always 60 seconds regardless of timeoutMinutes ──
   useEffect(() => {
-    if (!tripRequest) { clearInterval(timerRef.current); timerRef.current = null; setRequestTimer(60); return; }
-    const timeoutSeconds = (tripRequest.timeoutMinutes ?? 1) * 60;
-    setRequestTimer(timeoutSeconds);
+    if (!tripRequest) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+      setRequestTimer(60);
+      return;
+    }
+
+    setRequestTimer(60);
+
     timerRef.current = setInterval(async () => {
       setRequestTimer(t => {
         if (t <= 1) {
-          clearInterval(timerRef.current); timerRef.current = null;
+          clearInterval(timerRef.current);
+          timerRef.current = null;
           if (tripRequest?.id) callDeclineRide({ rideId: tripRequest.id, uid }).catch(() => {});
           setDismissedRequests(prev => {
             const next = new Set(prev);
             if (tripRequest?.id) next.add(tripRequest.id);
-            if (next.size > MAX_DISMISSED) { const arr = Array.from(next); return new Set(arr.slice(arr.length - MAX_DISMISSED)); }
+            if (next.size > MAX_DISMISSED) {
+              const arr = Array.from(next);
+              return new Set(arr.slice(arr.length - MAX_DISMISSED));
+            }
             return next;
           });
           showNotif("Request expired", "Looking for next...");
@@ -715,6 +726,7 @@ function DriverAppInner({ uid }) {
         return t - 1;
       });
     }, 1000);
+
     return () => { clearInterval(timerRef.current); timerRef.current = null; };
   }, [tripRequest?.id]);
 
