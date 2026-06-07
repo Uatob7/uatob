@@ -47,6 +47,7 @@ const { cardChecker } = require("./payments/cardChecker");
 const { setupDeposit } = require("./payments/setupDeposit");
 const { confirmCashCollection } = require("./payments/confirmCashCollection");
 const { validatePromoCode } = require("./payments/validatePromoCode");
+const { scheduledRideChecker } = require("./payments/scheduledRideChecker");
 
 // driver functions
 const { createDriverProfile } = require("./drivers/createDriverProfile");
@@ -135,6 +136,7 @@ exports.validatePromoCode = validatePromoCode;
 
 exports.onRidePaymentSucceeded = onRidePaymentSucceeded;
 exports.cardPayment = cardPayment;
+exports.scheduledRideChecker = scheduledRideChecker;
 exports.cashPayment = cashPayment;
 exports.checkDriverDeposit = checkDriverDeposit;
 exports.cashAppPayment = cashAppPayment;
