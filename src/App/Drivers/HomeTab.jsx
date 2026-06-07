@@ -107,9 +107,12 @@ function fmtMi(mi) {
 }
 
 function fmtClock(ms) {
-  const d = new Date(ms);
-  const p = n => String(n).padStart(2, '0');
-  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  const d  = new Date(ms);
+  const p  = n => String(n).padStart(2, '0');
+  const h  = d.getHours();
+  const ap = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12}:${p(d.getMinutes())}:${p(d.getSeconds())} ${ap}`;
 }
 
 function fmtCoord(v, axis) {
