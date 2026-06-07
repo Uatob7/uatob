@@ -198,6 +198,18 @@ function fmtUptime(onlineSinceMs, now) {
   return `${p(m)}:${p(sc)}`;
 }
 
+function fmtTimeAgo(ms, now) {
+  if (!ms) return null;
+  const diff = now - ms;
+  if (diff < 0) return null;
+  const s = Math.floor(diff / 1000);
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  return `${h}h ago`;
+}
+
 // ── GeoJSON builders ─────────────────────────────────────────────────────────
 function buildPickupGeoJSON(searches = []) {
   const features = searches
@@ -411,9 +423,10 @@ function AtmosphereOverlay() {
 }
 
 // ── CompassRose — bottom shows live uptime counter ───────────────────────────
-function CompassRose({ bearing, onlineSinceMs, now }) {
+function CompassRose({ bearing, onlineSinceMs, now, lastSearchAt }) {
   const hdg = normalizeHeading(bearing);
   const uptimeLabel = fmtUptime(onlineSinceMs, now);
+  const lastReqLabel = fmtTimeAgo(lastSearchAt, now);
 
   return (
     <div style={{
@@ -463,34 +476,25 @@ function CompassRose({ bearing, onlineSinceMs, now }) {
         </div>
       </div>
 
-      {/* Uptime counter — ticks up every second while online */}
-      {uptimeLabel ? (
-        <div style={{
-          marginTop: 5,
-          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
+      {/* Last search time ago / uptime fallback */}
+      <div style={{
+        marginTop: 5,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
+      }}>
+        <span style={{
+          fontFamily: MONO, fontSize: 10, fontWeight: 800,
+          color: lastReqLabel ? C.greenBright : C.inkText,
+          textShadow: lastReqLabel ? `0 0 8px ${C.greenBright}88` : 'none',
         }}>
-          <span style={{
-            fontFamily: MONO, fontSize: 10, fontWeight: 800,
-            color: C.greenBright,
-            textShadow: `0 0 8px ${C.greenBright}88`,
-          }}>
-            {uptimeLabel}
-          </span>
-          <span style={{
-            fontFamily: COND, fontSize: 7.5, fontWeight: 800,
-            letterSpacing: '.14em', color: C.inkTextDim, textTransform: 'uppercase',
-          }}>
-            online
-          </span>
-        </div>
-      ) : (
-        <div style={{
-          marginTop: 4, fontFamily: MONO, fontSize: 9,
-          fontWeight: 700, color: C.inkText,
+          {lastReqLabel ?? uptimeLabel ?? compassLabel(hdg)}
+        </span>
+        <span style={{
+          fontFamily: COND, fontSize: 7.5, fontWeight: 800,
+          letterSpacing: '.14em', color: C.inkTextDim, textTransform: 'uppercase',
         }}>
-          {compassLabel(hdg)}
-        </div>
-      )}
+          {lastReqLabel ? 'last req' : uptimeLabel ? 'online' : ''}
+        </span>
+      </div>
     </div>
   );
 }
@@ -1573,6 +1577,11 @@ export default function HomeTab({
     [driver?.lat, driver?.lng, searches, scheduledRides]
   );
 
+  const lastSearchAt = useMemo(() => {
+    const times = searches.map(s => tsToMillis(s.createdAt)).filter(Boolean);
+    return times.length ? Math.max(...times) : null;
+  }, [searches]);
+
   const showRadar       = online && mapReady && bootDone;
   const showBoot        = online && !bootDone;
   const showLegend      = showRadar;
@@ -1635,6 +1644,7 @@ export default function HomeTab({
               bearing={mapBearing}
               onlineSinceMs={onlineSinceRef.current}
               now={now}
+              lastSearchAt={lastSearchAt}
             />
             <RangeRuler zoom={mapZoom}/>
             <EdgeContacts contacts={contacts} mapBearing={mapBearing}/>
