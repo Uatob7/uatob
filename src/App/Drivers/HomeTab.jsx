@@ -143,6 +143,8 @@ function formatCountdown(ms) {
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
+  const d = Math.floor(h / 24);
+  if (d > 0) return `${d}d ${h % 24}h`;
   if (h > 0) return `${h}h ${m}m`;
   if (m > 0) return `${m}m`;
   return `${sec}s`;
@@ -172,7 +174,9 @@ function fmtPoolCountdown(whenMs, now) {
   const s = Math.floor(diff / 1000);
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
-  if (h > 0)  return { label: `${h}h ${m}m`,      color: C.violet,      urgent: false };
+  const d = Math.floor(h / 24);
+  if (d > 0)  return { label: `${d}d ${h % 24}h`,  color: C.violet,      urgent: false };
+  if (h > 0)  return { label: `${h}h ${m}m`,        color: C.violet,      urgent: false };
   if (m >= 5) return { label: `${m}m`,             color: C.violet,      urgent: false };
   if (m > 0)  return { label: `${m}m ${s % 60}s`, color: C.amberBright, urgent: true  };
   return            { label: `${s}s`,              color: C.red,         urgent: true  };
@@ -1019,9 +1023,11 @@ function ScheduledDrawer({ open, onToggle, scheduledRides, driver, now }) {
               const dist = (typeof driver?.lat === 'number' && hasCoords(r))
                 ? haversineMiles(driver.lat, driver.lng, r.pickupLat, r.pickupLng)
                 : null;
-              const cd   = r._when ? r._when - now : null;
-              const due  = cd !== null && cd <= 0;
-              const soon = cd !== null && cd > 0 && cd < 30 * 60 * 1000;
+              const cd      = r._when ? r._when - now : null;
+              const due     = cd !== null && cd <= 0;
+              const urgent  = cd !== null && cd > 0 && cd < 15 * 60 * 1000;
+              const warning = cd !== null && cd >= 15 * 60 * 1000 && cd < 30 * 60 * 1000;
+              const dotColor = due || urgent ? C.red : warning ? C.amberBright : C.violet;
               const pool = r._when ? fmtPoolCountdown(r._when, now) : null;
 
               return (
@@ -1034,9 +1040,9 @@ function ScheduledDrawer({ open, onToggle, scheduledRides, driver, now }) {
                   {/* Status dot */}
                   <div style={{
                     width: 9, height: 9, borderRadius: '50%', flexShrink: 0,
-                    background: due ? C.red : soon ? C.amberBright : C.violet,
-                    boxShadow: `0 0 8px ${due ? C.red : soon ? C.amberBright : C.violet}`,
-                    animation: (due || soon) ? 'htBlink 1.2s ease-in-out infinite' : 'none',
+                    background: dotColor,
+                    boxShadow: `0 0 8px ${dotColor}`,
+                    animation: (due || urgent || warning) ? 'htBlink 1.2s ease-in-out infinite' : 'none',
                   }}/>
 
                   {/* Pickup + meta */}
@@ -1080,11 +1086,11 @@ function ScheduledDrawer({ open, onToggle, scheduledRides, driver, now }) {
                     {/* Ride time countdown */}
                     <div style={{
                       fontFamily: MONO, fontSize: 11, fontWeight: 800,
-                      color: due ? C.red : soon ? C.amberBright : '#E9D5FF',
+                      color: due || urgent ? C.red : warning ? C.amberBright : '#E9D5FF',
                       padding: '3px 9px', borderRadius: 8,
-                      background: due  ? 'rgba(248,113,113,.14)'
-                                : soon ? 'rgba(251,191,36,.14)'
-                                :        'rgba(192,132,252,.12)',
+                      background: due || urgent ? 'rgba(248,113,113,.14)'
+                                : warning       ? 'rgba(251,191,36,.14)'
+                                :                 'rgba(192,132,252,.12)',
                     }}>
                       {cd !== null ? formatCountdown(cd) : '—'}
                     </div>
@@ -1662,130 +1668,3 @@ export default function HomeTab({
   );
 }
 
-
-
-
-(2) [{…}, {…}]
-0
-: 
-adminNotified
-: 
-true
-createdAt
-: 
-Timestamp {seconds: 1780803466, nanoseconds: 101000000}
-discountAmount
-: 
-null
-driverInfo
-: 
-{stale: false, etaMin: 0, nearestMiles: 0, driverCount: 1, etaLabel: '0–2 min'}
-driverPayout
-: 
-15.9
-dropoff
-: 
-"Orlando, FL, USA"
-dropoffCity
-: 
-"Orlando"
-dropoffLat
-: 
-28.5383832
-dropoffLng
-: 
--81.3789269
-dropoffZip
-: 
-""
-fareBreakdown
-: 
-{}
-fareTotal
-: 
-21.2
-id
-: 
-"0WHJxWV1Ox2C88YezgYy"
-isScheduled
-: 
-true
-paymentIntentId
-: 
-null
-paymentMethod
-: 
-"cash"
-paymentStatus
-: 
-"succeeded"
-payoutStatus
-: 
-"pending"
-pickup
-: 
-"6323 Laurelwood Ct, Orlando, FL 32818, USA"
-pickupCity
-: 
-"Orlando"
-pickupLat
-: 
-28.5730407
-pickupLng
-: 
--81.468849
-pickupZip
-: 
-"32818"
-platformFee
-: 
-5.3
-polyline
-: 
-"qqkmDd{fpNEiD@s@rk@IloAAjB?CaKe@mt@VgAb@e@dDFzAN`En@fGxANs@RiFDkG?iDK_@BeCKmgBH{BXeCX_Bd@aBhAwCbEmJd@wAl@oCTkBPgCB_BEum@FyCVwCZ_CZcBx@}CbAsCnAqCrm@k|@`AcBbAwB~@gCx@}Cd@aC\\kCZwE@mPGigAAiPJIL_H@uKIcCWeC_@yBeA{EKmA?oALqAVaA|AgFn@QZBf@RzA|ALTlAfE@PuAN_BXw@?y@Oy@a@iCkBkAe@eAOwAAoFBJdBEdAC|@@`K"
-promoCode
-: 
-null
-rideLabel
-: 
-"Standard"
-rideType
-: 
-"standard"
-scheduledAt
-: 
-Timestamp {seconds: 1781289000, nanoseconds: 0}
-status
-: 
-"scheduled"
-tripDistanceMiles
-: 
-8.43
-tripDurationMin
-: 
-16
-uid
-: 
-"duuEID4AofX1ooCLfSsfVMjJpUu1"
-updatedAt
-: 
-Timestamp {seconds: 1780803466, nanoseconds: 101000000}
-[[Prototype]]
-: 
-Object
-1
-: 
-{id: 'ky4XjAQrOBdCSu8sAJ9M', pickupZip: '', dropoffCity: 'Orlando', pickupCity: 'Kissimmee', fareBreakdown: {…}, …}
-length
-: 
-2
-[[Prototype]]
-: 
-Array(0)
-
-
-base on the scheduledAt
-June 12, 2026 at 2:30:00 PM UTC-
-
-
-for earch scheduled ride, show a card create a arrow next to it to show when that ride will be dispatched based on the scheduledAt time. If the ride is due within 15 minutes, show a red dot. If it's due within 30 minutes, show an amber dot. Otherwise, show a violet dot.
