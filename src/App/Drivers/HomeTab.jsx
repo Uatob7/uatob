@@ -388,7 +388,7 @@ export default function HomeTab({
               }}>
                 <div style={{ width:8, height:8, borderRadius:'50%', background:'#34D399', boxShadow:'0 0 8px rgba(52,211,153,.8)', animation:'htBlink 1.8s ease-in-out infinite', flexShrink:0 }}/>
                 <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10.5, fontWeight:700, color:'#34D399' }}>
-                  {dotCount} Riders
+                  {dotCount} Shearches
                 </span>
                 {fmtMi(searchNearestMi) && (
                   <>
