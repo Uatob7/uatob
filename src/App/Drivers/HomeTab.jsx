@@ -41,7 +41,7 @@ const COND = "'Barlow Condensed','Barlow',sans-serif";
 const ON_RADAR_RANGE_MI = 4.2;
 const MAX_EDGE_CONTACTS = 7;
 const RADAR_RINGS_MI    = [1, 2, 4, 6];
-const POOL_LEAD_MS      = 10 * 60 * 1000; // 10 min before scheduled time = enters pool
+const POOL_LEAD_MS      = 10 * 60 * 1000; // 10 min before scheduled time = enters pool / dispatched
 
 const BOOT_LINES = [
   'uatob dispatch terminal · v3.3',
@@ -165,21 +165,21 @@ function pickupLabelOf(r) {
     (hasCoords(r) ? `${r.pickupLat.toFixed(3)}, ${r.pickupLng.toFixed(3)}` : 'Pickup');
 }
 
-// How long until this scheduled ride enters the driver pool
-// Pool opens POOL_LEAD_MS (10 min) before the scheduled ride time
-function fmtPoolCountdown(whenMs, now) {
-  const poolAt = whenMs - POOL_LEAD_MS;
-  const diff   = poolAt - now;
-  if (diff <= 0) return { label: 'IN POOL', color: C.greenBright, urgent: true };
+// Countdown until this scheduled ride is dispatched to the driver pool.
+// Dispatch fires POOL_LEAD_MS (10 min) before the scheduled ride time.
+// Returns label + color + urgency, used by the per-ping map markers.
+function fmtDispatchCountdown(whenMs, now) {
+  const diff = (whenMs - POOL_LEAD_MS) - now;
+  if (diff <= 0) return { label: 'DISPATCHING', color: C.greenBright, urgent: true };
   const s = Math.floor(diff / 1000);
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const d = Math.floor(h / 24);
-  if (d > 0)  return { label: `${d}d ${h % 24}h`,  color: C.violet,      urgent: false };
-  if (h > 0)  return { label: `${h}h ${m}m`,        color: C.violet,      urgent: false };
-  if (m >= 5) return { label: `${m}m`,             color: C.violet,      urgent: false };
-  if (m > 0)  return { label: `${m}m ${s % 60}s`, color: C.amberBright, urgent: true  };
-  return            { label: `${s}s`,              color: C.red,         urgent: true  };
+  const m = Math.floor(s / 60) % 60;
+  const h = Math.floor(s / 3600) % 24;
+  const d = Math.floor(s / 86400);
+  if (d > 0)  return { label: `${d}d ${h}h`,                color: C.violet,      urgent: false };
+  if (h > 0)  return { label: m ? `${h}h ${m}m` : `${h}h`,   color: C.violet,      urgent: false };
+  if (m >= 5) return { label: `${m}m`,                       color: C.violet,      urgent: false };
+  if (m > 0)  return { label: `${m}m ${s % 60}s`,            color: C.amberBright, urgent: true  };
+  return            { label: `${s}s`,                        color: C.red,         urgent: true  };
 }
 
 // Format uptime as H:MM:SS or MM:SS
@@ -223,6 +223,51 @@ function buildScheduledGeoJSON(scheduledRides = []) {
       geometry: { type: 'Point', coordinates: [r.pickupLng, r.pickupLat] },
     }));
   return { type: 'FeatureCollection', features };
+}
+
+// ── Per-ping scheduled dispatch marker element ───────────────────────────────
+// Builds a tiny countdown bubble + downward triangle that pins to a scheduled
+// ride's pickup coords as a Mapbox Marker. Text/color updated imperatively.
+function makeSchedMarkerEl() {
+  const wrap = document.createElement('div');
+  wrap.style.cssText =
+    'position:relative;pointer-events:none;display:flex;flex-direction:column;align-items:center;';
+
+  const bubble = document.createElement('div');
+  bubble.style.cssText = [
+    'display:flex', 'align-items:center', 'gap:3px',
+    'padding:2px 7px', 'border-radius:7px', 'white-space:nowrap',
+    'background:rgba(12,8,20,.88)', 'backdrop-filter:blur(6px)',
+    '-webkit-backdrop-filter:blur(6px)',
+    'border:1px solid rgba(192,132,252,.5)',
+    "font-family:'JetBrains Mono','SFMono-Regular',monospace",
+    'font-size:9px', 'font-weight:800', 'letter-spacing:.03em', 'color:#C084FC',
+    'box-shadow:0 2px 10px rgba(0,0,0,.5)',
+  ].join(';');
+
+  // leading arrow glyph, matches the radar contact aesthetic
+  const arrow = document.createElement('span');
+  arrow.textContent = '→';
+  arrow.style.cssText = 'opacity:.85;font-size:9px;line-height:1;';
+
+  const label = document.createElement('span');
+  label.textContent = '—';
+
+  bubble.appendChild(arrow);
+  bubble.appendChild(label);
+
+  // small triangle pointing down at the ping
+  const tri = document.createElement('div');
+  tri.style.cssText = [
+    'width:0', 'height:0', 'margin-top:-1px',
+    'border-left:5px solid transparent', 'border-right:5px solid transparent',
+    'border-top:6px solid rgba(192,132,252,.5)',
+    'filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))',
+  ].join(';');
+
+  wrap.appendChild(bubble);
+  wrap.appendChild(tri);
+  return { el: wrap, refs: { bubble, label, arrow, tri } };
 }
 
 function nearestMi(driverLat, driverLng, items = []) {
@@ -940,7 +985,8 @@ function RotatingBadge({
   );
 }
 
-// ── ScheduledDrawer — with pool countdown arrow badge ────────────────────────
+// ── ScheduledDrawer — list view; per-ride dispatch countdown now lives on the
+//    map ping markers, so the in-row pool badge has been removed. ────────────
 function ScheduledDrawer({ open, onToggle, scheduledRides, driver, now }) {
   const rides = useMemo(() => {
     return [...scheduledRides]
@@ -1028,7 +1074,6 @@ function ScheduledDrawer({ open, onToggle, scheduledRides, driver, now }) {
               const urgent  = cd !== null && cd > 0 && cd < 15 * 60 * 1000;
               const warning = cd !== null && cd >= 15 * 60 * 1000 && cd < 30 * 60 * 1000;
               const dotColor = due || urgent ? C.red : warning ? C.amberBright : C.violet;
-              const pool = r._when ? fmtPoolCountdown(r._when, now) : null;
 
               return (
                 <div key={r.id || i} style={{
@@ -1078,45 +1123,16 @@ function ScheduledDrawer({ open, onToggle, scheduledRides, driver, now }) {
                     </div>
                   </div>
 
-                  {/* Right: ride countdown + pool entry badge stacked */}
+                  {/* Ride time countdown */}
                   <div style={{
-                    display: 'flex', flexDirection: 'column',
-                    alignItems: 'flex-end', gap: 4, flexShrink: 0,
+                    fontFamily: MONO, fontSize: 11, fontWeight: 800, flexShrink: 0,
+                    color: due || urgent ? C.red : warning ? C.amberBright : '#E9D5FF',
+                    padding: '3px 9px', borderRadius: 8,
+                    background: due || urgent ? 'rgba(248,113,113,.14)'
+                              : warning       ? 'rgba(251,191,36,.14)'
+                              :                 'rgba(192,132,252,.12)',
                   }}>
-                    {/* Ride time countdown */}
-                    <div style={{
-                      fontFamily: MONO, fontSize: 11, fontWeight: 800,
-                      color: due || urgent ? C.red : warning ? C.amberBright : '#E9D5FF',
-                      padding: '3px 9px', borderRadius: 8,
-                      background: due || urgent ? 'rgba(248,113,113,.14)'
-                                : warning       ? 'rgba(251,191,36,.14)'
-                                :                 'rgba(192,132,252,.12)',
-                    }}>
-                      {cd !== null ? formatCountdown(cd) : '—'}
-                    </div>
-
-                    {/* Pool entry arrow badge */}
-                    {pool && (
-                      <div style={{
-                        display: 'flex', alignItems: 'center', gap: 4,
-                        padding: '2px 7px', borderRadius: 6,
-                        background: `${pool.color}18`,
-                        border: `1px solid ${pool.color}44`,
-                        animation: pool.urgent ? 'htBlink 1.2s ease-in-out infinite' : 'none',
-                      }}>
-                        <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
-                          <path d="M2 5h6M6 2l3 3-3 3"
-                            stroke={pool.color} strokeWidth="1.6"
-                            strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                        <span style={{
-                          fontFamily: MONO, fontSize: 8.5, fontWeight: 800,
-                          color: pool.color, letterSpacing: '.04em',
-                        }}>
-                          {pool.label}
-                        </span>
-                      </div>
-                    )}
+                    {cd !== null ? formatCountdown(cd) : '—'}
                   </div>
                 </div>
               );
@@ -1194,7 +1210,6 @@ export default function HomeTab({
   onUnreadChange,
 }) {
 
-  console.log(scheduledRides);
   const mapContainerRef = useRef(null);
   const mapRef          = useRef(null);
   const sweepRef        = useRef(0);
@@ -1203,6 +1218,7 @@ export default function HomeTab({
   const pulseLayersRef  = useRef(false);
   const onlineSinceRef  = useRef(null);  // tracks when this session went online
   const bootTimersRef   = useRef([]);
+  const schedMarkersRef = useRef(new Map()); // id -> { marker, refs, when }
 
   const [mapReady, setMapReady]         = useState(false);
   const [driverCounts, setDriverCounts] = useState({ online: 0, offline: 0, approved: 0 });
@@ -1408,6 +1424,75 @@ export default function HomeTab({
     if (map.isStyleLoaded()) apply();
     else map.once('styledata', apply);
   }, [searches, scheduledRides, mapReady]);
+
+  // ── Scheduled dispatch markers: create / sync coords / remove ──────────
+  // One HTML Marker per scheduled ride, anchored to its pickup coords. Each
+  // wears a countdown triangle tag that counts down to dispatch (POOL_LEAD_MS
+  // before the scheduled time). Text/color is updated by the 1Hz tick below.
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !window.mapboxgl) return;
+    const map      = mapRef.current;
+    const mapboxgl = window.mapboxgl;
+    const store    = schedMarkersRef.current;
+    const seen     = new Set();
+
+    scheduledRides.filter(hasCoords).forEach(r => {
+      const id = r.id;
+      if (!id) return;
+      seen.add(id);
+      let entry = store.get(id);
+      if (!entry) {
+        const { el, refs } = makeSchedMarkerEl();
+        const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom', offset: [0, -9] })
+          .setLngLat([r.pickupLng, r.pickupLat])
+          .addTo(map);
+        entry = { marker, refs };
+        store.set(id, entry);
+      } else {
+        entry.marker.setLngLat([r.pickupLng, r.pickupLat]);
+      }
+      entry.when = tsToMillis(r.scheduledAt);
+    });
+
+    // remove markers for rides that no longer exist
+    store.forEach((entry, id) => {
+      if (!seen.has(id)) {
+        try { entry.marker.remove(); } catch (e) { /* gone */ }
+        store.delete(id);
+      }
+    });
+  }, [scheduledRides, mapReady]);
+
+  // ── Tear down all dispatch markers when the map goes away ──────────────
+  useEffect(() => {
+    if (mapReady) return;
+    const store = schedMarkersRef.current;
+    store.forEach(entry => { try { entry.marker.remove(); } catch (e) { /* gone */ } });
+    store.clear();
+  }, [mapReady]);
+
+  // ── Tick each dispatch countdown on the 1Hz clock ──────────────────────
+  useEffect(() => {
+    schedMarkersRef.current.forEach(entry => {
+      if (!entry.when) return;
+      const d = fmtDispatchCountdown(entry.when, now);
+      const { bubble, label, arrow, tri } = entry.refs;
+      label.textContent        = d.label;
+      label.style.color        = d.color;
+      arrow.style.color        = d.color;
+      bubble.style.borderColor = d.color + '88';
+      tri.style.borderTopColor = d.color + '88';
+      bubble.style.animation   = d.urgent ? 'htBlink 1.2s ease-in-out infinite' : 'none';
+    });
+  }, [now]);
+
+  // ── Unmount safety: clear markers + timers ─────────────────────────────
+  useEffect(() => () => {
+    schedMarkersRef.current.forEach(entry => {
+      try { entry.marker.remove(); } catch (e) { /* gone */ }
+    });
+    schedMarkersRef.current.clear();
+  }, []);
 
   // ── Pulse halo animation ───────────────────────────────────────────────
   useEffect(() => {
@@ -1667,4 +1752,3 @@ export default function HomeTab({
     </>
   );
 }
-
