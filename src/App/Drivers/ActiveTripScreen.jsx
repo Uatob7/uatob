@@ -836,17 +836,25 @@ function ActionSheet({ trip, stage, distToTarget, onAction, pending, error, onDi
               label="Pickup"
               text={pickup}
               dimmed={false}
-              mapUrl={trip?.pickupLat && trip?.pickupLng
-                ? `https://www.google.com/maps/dir/?api=1&destination=${trip.pickupLat},${trip.pickupLng}`
-                : null}
+              mapUrl={
+                (trip?.pickupLat && trip?.pickupLng)
+                  ? `https://www.google.com/maps/dir/?api=1&destination=${trip.pickupLat},${trip.pickupLng}`
+                  : (pickup && pickup !== '—')
+                    ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(pickup)}`
+                    : null
+              }
             />
             <AddrRow
               label="Drop-off"
               text={dropoff}
               dimmed={stage !== 'in_progress'}
-              mapUrl={trip?.dropoffLat && trip?.dropoffLng
-                ? `https://www.google.com/maps/dir/?api=1&destination=${trip.dropoffLat},${trip.dropoffLng}`
-                : null}
+              mapUrl={
+                (trip?.dropoffLat && trip?.dropoffLng)
+                  ? `https://www.google.com/maps/dir/?api=1&destination=${trip.dropoffLat},${trip.dropoffLng}`
+                  : (dropoff && dropoff !== '—')
+                    ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dropoff)}`
+                    : null
+              }
             />
           </div>
         </div>
