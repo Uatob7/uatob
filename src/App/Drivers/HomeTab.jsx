@@ -4,9 +4,12 @@ import {
   onSnapshot,
   getFirestore,
 } from "firebase/firestore";
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { firebase_app } from "@/firebase/config";
 
 const db = getFirestore(firebase_app);
+const _functions = getFunctions(firebase_app, 'us-east1');
+const callGetDriverToPickup = httpsCallable(_functions, 'getDriverToPickup');
 
 import StatusCard from '@/App/Drivers/StatusCard.jsx';
 
@@ -41,7 +44,7 @@ const COND = "'Barlow Condensed','Barlow',sans-serif";
 const ON_RADAR_RANGE_MI = 4.2;
 const MAX_EDGE_CONTACTS = 7;
 const RADAR_RINGS_MI    = [1, 2, 4, 6];
-const POOL_LEAD_MS      = 10 * 60 * 1000; // 10 min before scheduled time = enters pool / dispatched
+const POOL_LEAD_MS      = 10 * 60 * 1000;
 
 const BOOT_LINES = [
   'uatob dispatch terminal · v3.3',
@@ -168,9 +171,6 @@ function pickupLabelOf(r) {
     (hasCoords(r) ? `${r.pickupLat.toFixed(3)}, ${r.pickupLng.toFixed(3)}` : 'Pickup');
 }
 
-// Countdown until this scheduled ride is dispatched to the driver pool.
-// Dispatch fires POOL_LEAD_MS (10 min) before the scheduled ride time.
-// Returns label + color + urgency, used by the per-ping map markers.
 function fmtDispatchCountdown(whenMs, now) {
   const diff = (whenMs - POOL_LEAD_MS) - now;
   if (diff <= 0) return { label: 'DISPATCHING', color: C.greenBright, urgent: true };
@@ -185,7 +185,6 @@ function fmtDispatchCountdown(whenMs, now) {
   return            { label: `${s}s`,                        color: C.red,         urgent: true  };
 }
 
-// Format uptime as H:MM:SS or MM:SS
 function fmtUptime(onlineSinceMs, now) {
   if (!onlineSinceMs) return null;
   const elapsed = Math.max(0, now - onlineSinceMs);
@@ -208,6 +207,23 @@ function fmtTimeAgo(ms, now) {
   if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
   return `${h}h ago`;
+}
+
+// ── Polyline decoder ─────────────────────────────────────────────────────────
+function decodePolyline(encoded) {
+  if (!encoded) return [];
+  const pts = [];
+  let i = 0, lat = 0, lng = 0;
+  while (i < encoded.length) {
+    let b, shift = 0, result = 0;
+    do { b = encoded.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    shift = 0; result = 0;
+    do { b = encoded.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    pts.push([lat / 1e5, lng / 1e5]);
+  }
+  return pts;
 }
 
 // ── GeoJSON builders ─────────────────────────────────────────────────────────
@@ -241,8 +257,6 @@ function buildScheduledGeoJSON(scheduledRides = []) {
 }
 
 // ── Per-ping scheduled dispatch marker element ───────────────────────────────
-// Builds a tiny countdown bubble + downward triangle that pins to a scheduled
-// ride's pickup coords as a Mapbox Marker. Text/color updated imperatively.
 function makeSchedMarkerEl() {
   const wrap = document.createElement('div');
   wrap.style.cssText =
@@ -260,7 +274,6 @@ function makeSchedMarkerEl() {
     'box-shadow:0 2px 10px rgba(0,0,0,.5)',
   ].join(';');
 
-  // leading arrow glyph, matches the radar contact aesthetic
   const arrow = document.createElement('span');
   arrow.textContent = '→';
   arrow.style.cssText = 'opacity:.85;font-size:9px;line-height:1;';
@@ -271,7 +284,6 @@ function makeSchedMarkerEl() {
   bubble.appendChild(arrow);
   bubble.appendChild(label);
 
-  // small triangle pointing down at the ping
   const tri = document.createElement('div');
   tri.style.cssText = [
     'width:0', 'height:0', 'margin-top:-1px',
@@ -364,6 +376,8 @@ function Glyph({ name, size = 12, color = 'currentColor', stroke = 1.8 }) {
       return (<svg {...common}><path d="m6 9 6 6 6-6"/></svg>);
     case 'route':
       return (<svg {...common}><circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="5" r="2.5"/><path d="M8.5 19H14a3 3 0 0 0 0-6h-4a3 3 0 0 1 0-6h5.5"/></svg>);
+    case 'car':
+      return (<svg {...common}><path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1l2-4h12l2 4h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>);
     default:
       return null;
   }
@@ -422,7 +436,6 @@ function AtmosphereOverlay() {
   );
 }
 
-// ── CompassRose — bottom shows live uptime counter ───────────────────────────
 function CompassRose({ bearing, onlineSinceMs, now, lastSearchAt }) {
   const hdg = normalizeHeading(bearing);
   const uptimeLabel = fmtUptime(onlineSinceMs, now);
@@ -455,8 +468,6 @@ function CompassRose({ bearing, onlineSinceMs, now, lastSearchAt }) {
           <text x="50" y="71" textAnchor="middle" fontSize="9" fontWeight="800"
             fill={C.red} fontFamily="monospace" transform="rotate(180 50 67)">N</text>
         </svg>
-
-        {/* Center: uptime counter when online, heading otherwise */}
         <div style={{
           position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
@@ -476,8 +487,6 @@ function CompassRose({ bearing, onlineSinceMs, now, lastSearchAt }) {
           </span>
         </div>
       </div>
-
-      {/* Last search time ago / uptime fallback */}
       <div style={{
         marginTop: 5,
         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
@@ -948,6 +957,149 @@ function LegendKey() {
   );
 }
 
+// ── Active Trip HUD — shown when driver has an accepted ride ─────────────────
+function ActiveTripHud({ activeTrip, driver, now }) {
+  if (!activeTrip) return null;
+
+  const dLat = driver?.lat, dLng = driver?.lng;
+  const dist = (dLat && dLng && activeTrip.pickupLat && activeTrip.pickupLng)
+    ? haversineMiles(dLat, dLng, activeTrip.pickupLat, activeTrip.pickupLng)
+    : null;
+
+  const statusLabel = {
+    driver_assigned: 'EN ROUTE TO PICKUP',
+    arrived:         'ARRIVED · AWAITING RIDER',
+    in_progress:     'TRIP IN PROGRESS',
+  }[activeTrip.status] || 'ON TRIP';
+
+  const statusColor = {
+    driver_assigned: C.cyan,
+    arrived:         C.greenBright,
+    in_progress:     C.amberBright,
+  }[activeTrip.status] || C.greenBright;
+
+  const pickup  = activeTrip.pickup  || activeTrip.pickupLabel  || '—';
+  const dropoff = activeTrip.dropoff || activeTrip.dropoffLabel || '—';
+
+  return (
+    <div style={{
+      position: 'absolute', bottom: 110, left: 12, right: 12, zIndex: 22,
+      animation: 'htSlideDown .4s cubic-bezier(.34,1.2,.64,1) both',
+    }}>
+      <div style={{
+        background: 'linear-gradient(180deg, rgba(4,10,6,.94), rgba(2,6,4,.97))',
+        border: `1px solid ${statusColor}44`,
+        borderRadius: 16, overflow: 'hidden',
+        boxShadow: `0 8px 32px rgba(0,0,0,.6), 0 0 24px ${statusColor}22`,
+        backdropFilter: 'blur(14px)',
+      }}>
+        {/* Top accent */}
+        <div style={{
+          height: 2,
+          background: `linear-gradient(90deg, transparent, ${statusColor}, transparent)`,
+        }}/>
+
+        <div style={{ padding: '10px 14px 12px' }}>
+          {/* Status row */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            marginBottom: 10,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <div style={{
+                width: 7, height: 7, borderRadius: '50%',
+                background: statusColor, boxShadow: `0 0 8px ${statusColor}`,
+                animation: 'htBlink 1.4s ease-in-out infinite', flexShrink: 0,
+              }}/>
+              <span style={{
+                fontFamily: COND, fontSize: 10, fontWeight: 800, letterSpacing: '.16em',
+                color: statusColor, textTransform: 'uppercase',
+              }}>
+                {statusLabel}
+              </span>
+            </div>
+            {dist !== null && (
+              <span style={{
+                fontFamily: MONO, fontSize: 11, fontWeight: 800, color: statusColor,
+              }}>
+                {dist.toFixed(1)} mi
+              </span>
+            )}
+          </div>
+
+          {/* Route */}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'stretch' }}>
+            {/* Rail */}
+            <div style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              paddingTop: 3, flexShrink: 0,
+            }}>
+              <div style={{
+                width: 8, height: 8, borderRadius: '50%', background: C.greenBright,
+                boxShadow: `0 0 7px ${C.greenBright}88`,
+              }}/>
+              <div style={{
+                width: 1.5, flex: 1, minHeight: 18,
+                background: `linear-gradient(to bottom, ${C.greenBright}55, rgba(255,255,255,.1))`,
+                margin: '3px 0', borderRadius: 2,
+              }}/>
+              <div style={{
+                width: 8, height: 8,
+                background: 'rgba(255,255,255,.65)',
+                transform: 'rotate(45deg)', flexShrink: 0,
+                boxShadow: '0 0 5px rgba(255,255,255,.3)',
+              }}/>
+            </div>
+
+            {/* Addresses */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ marginBottom: 10 }}>
+                <div style={{
+                  fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.14em',
+                  color: C.inkTextDim, textTransform: 'uppercase', marginBottom: 2,
+                }}>
+                  Pickup
+                </div>
+                <div style={{
+                  fontFamily: MONO, fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,.88)',
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                }}>
+                  {pickup}
+                </div>
+              </div>
+              <div>
+                <div style={{
+                  fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.14em',
+                  color: C.inkTextDim, textTransform: 'uppercase', marginBottom: 2,
+                }}>
+                  Drop-off
+                </div>
+                <div style={{
+                  fontFamily: MONO, fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,.5)',
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                }}>
+                  {dropoff}
+                </div>
+              </div>
+            </div>
+
+            {/* Payout */}
+            {typeof activeTrip.driverPayout === 'number' && (
+              <div style={{
+                flexShrink: 0, display: 'flex', alignItems: 'center',
+                fontFamily: MONO, fontSize: 18, fontWeight: 800, color: C.amberBright,
+                textShadow: `0 0 14px ${C.amberBright}66`,
+              }}>
+                ${activeTrip.driverPayout.toFixed(2)}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RotatingBadge({
   dotCount, accounts, scheduledCount,
   scheduledNearestMi, searchNearestMi, earnings, fmtMi,
@@ -1035,8 +1187,6 @@ function RotatingBadge({
   );
 }
 
-// ── ScheduledDrawer — list view; per-ride dispatch countdown now lives on the
-//    map ping markers, so the in-row pool badge has been removed. ────────────
 function ScheduledDrawer({ open, onToggle, scheduledRides, driver, now }) {
   const rides = useMemo(() => {
     return [...scheduledRides]
@@ -1057,7 +1207,6 @@ function ScheduledDrawer({ open, onToggle, scheduledRides, driver, now }) {
       <div style={{
         margin: '0 auto', width: '100%', maxWidth: 480, pointerEvents: 'auto',
       }}>
-        {/* Handle */}
         <div
           onClick={onToggle}
           role="button"
@@ -1100,7 +1249,6 @@ function ScheduledDrawer({ open, onToggle, scheduledRides, driver, now }) {
           </div>
         </div>
 
-        {/* Body */}
         <div style={{
           margin: '0 12px',
           maxHeight: open ? '42vh' : 0,
@@ -1136,15 +1284,12 @@ function ScheduledDrawer({ open, onToggle, scheduledRides, driver, now }) {
                   borderBottom: i < rides.length - 1 ? '1px solid rgba(192,132,252,.1)' : 'none',
                   animation: `htFadeIn .3s ease ${i * 0.04}s both`,
                 }}>
-                  {/* Status dot */}
                   <div style={{
                     width: 9, height: 9, borderRadius: '50%', flexShrink: 0,
                     background: dotColor,
                     boxShadow: `0 0 8px ${dotColor}`,
                     animation: (due || urgent || warning) ? 'htBlink 1.2s ease-in-out infinite' : 'none',
                   }}/>
-
-                  {/* Pickup + meta */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{
                       fontFamily: MONO, fontSize: 12, fontWeight: 700, color: '#F3E8FF',
@@ -1213,8 +1358,6 @@ function ScheduledDrawer({ open, onToggle, scheduledRides, driver, now }) {
                       )}
                     </div>
                   </div>
-
-                  {/* Ride time countdown */}
                   <div style={{
                     fontFamily: MONO, fontSize: 11, fontWeight: 800, flexShrink: 0,
                     color: due || urgent ? C.red : warning ? C.amberBright : '#E9D5FF',
@@ -1283,6 +1426,11 @@ function RadarOverlay({ svgRef }) {
   );
 }
 
+// ── Trip route layers helper ─────────────────────────────────────────────────
+const TRIP_LAYERS  = ['ht-trip-route-glow','ht-trip-route-main','ht-trip-route-dash'];
+const TRIP_SOURCE  = 'ht-trip-route';
+const PICKUP_MARKER_ID = 'ht-pickup-marker';
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 export default function HomeTab({
   driver,
@@ -1303,15 +1451,19 @@ export default function HomeTab({
   supportUnread = 0,
 }) {
 
-  const mapContainerRef = useRef(null);
-  const mapRef          = useRef(null);
-  const sweepRef        = useRef(0);
-  const rafRef          = useRef(null);
-  const svgRef          = useRef(null);
-  const pulseLayersRef  = useRef(false);
-  const onlineSinceRef  = useRef(null);  // tracks when this session went online
-  const bootTimersRef   = useRef([]);
-  const schedMarkersRef = useRef(new Map()); // id -> { marker, refs, when }
+  const mapContainerRef  = useRef(null);
+  const mapRef           = useRef(null);
+  const sweepRef         = useRef(0);
+  const rafRef           = useRef(null);
+  const svgRef           = useRef(null);
+  const pulseLayersRef   = useRef(false);
+  const onlineSinceRef   = useRef(null);
+  const bootTimersRef    = useRef([]);
+  const schedMarkersRef  = useRef(new Map());
+  const tripPolylineRef  = useRef(null);
+  const prevTripIdRef    = useRef(null);
+  const pickupMarkerRef  = useRef(null);   // Mapbox Marker for pickup pin
+  const activeTripRef    = useRef(null);   // keeps latest activeTrip for drift guard
 
   const [mapReady, setMapReady]         = useState(false);
   const [driverCounts, setDriverCounts] = useState({ online: 0, offline: 0, approved: 0 });
@@ -1324,6 +1476,9 @@ export default function HomeTab({
   const [alert, setAlert]               = useState(null);
   const prevDotRef    = useRef(0);
   const alertTimerRef = useRef(null);
+
+  // Keep activeTripRef in sync for the drift guard
+  useEffect(() => { activeTripRef.current = activeTrip; }, [activeTrip]);
 
   // ── Live 1Hz clock ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -1379,6 +1534,9 @@ export default function HomeTab({
         mapRef.current.remove();
         mapRef.current         = null;
         pulseLayersRef.current = false;
+        tripPolylineRef.current = null;
+        prevTripIdRef.current   = null;
+        pickupMarkerRef.current = null;
         setMapReady(false);
       }
       return;
@@ -1470,7 +1628,12 @@ export default function HomeTab({
         pulseLayersRef.current = true;
 
         let bearing = -20;
-        const drift = setInterval(() => { bearing += 0.04; map.setBearing(bearing); }, 100);
+        const drift = setInterval(() => {
+          // Pause drift when on a trip so fitBounds isn't fought
+          if (activeTripRef.current) return;
+          bearing += 0.04;
+          map.setBearing(bearing);
+        }, 100);
         map.on('remove', () => clearInterval(drift));
 
         const telemetry = setInterval(() => {
@@ -1491,20 +1654,25 @@ export default function HomeTab({
         mapRef.current.remove();
         mapRef.current         = null;
         pulseLayersRef.current = false;
+        tripPolylineRef.current = null;
+        prevTripIdRef.current   = null;
+        pickupMarkerRef.current = null;
         setMapReady(false);
       }
     };
   }, [online]); // eslint-disable-line
 
-  // ── Re-center map on driver location update ────────────────────────────
+  // ── Re-center map on driver location update (radar mode only) ─────────
   useEffect(() => {
     if (!mapReady || !mapRef.current || !driver?.lat || !driver?.lng) return;
+    // Don't fight fitBounds during active trip
+    if (activeTrip) return;
     mapRef.current.easeTo({
       center:   [driver.lng, driver.lat],
       duration: 1200,
       easing:   t => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
     });
-  }, [driver?.lat, driver?.lng, mapReady]);
+  }, [driver?.lat, driver?.lng, mapReady, activeTrip]);
 
   // ── Update GeoJSON on data change ──────────────────────────────────────
   useEffect(() => {
@@ -1518,10 +1686,126 @@ export default function HomeTab({
     else map.once('styledata', apply);
   }, [searches, scheduledRides, mapReady]);
 
-  // ── Scheduled dispatch markers: create / sync coords / remove ──────────
-  // One HTML Marker per scheduled ride, anchored to its pickup coords. Each
-  // wears a countdown triangle tag that counts down to dispatch (POOL_LEAD_MS
-  // before the scheduled time). Text/color is updated by the 1Hz tick below.
+  // ── Active trip route: fetch polyline + draw on map ───────────────────
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !window.mapboxgl) return;
+    const map = mapRef.current;
+
+    // ── No active trip: clean up any route layers / markers ──────────
+    if (!activeTrip) {
+      TRIP_LAYERS.forEach(id => {
+        try { if (map.getLayer(id)) map.removeLayer(id); } catch(e) {}
+      });
+      try { if (map.getSource(TRIP_SOURCE)) map.removeSource(TRIP_SOURCE); } catch(e) {}
+      if (pickupMarkerRef.current) {
+        try { pickupMarkerRef.current.remove(); } catch(e) {}
+        pickupMarkerRef.current = null;
+      }
+      tripPolylineRef.current = null;
+      prevTripIdRef.current   = null;
+
+      // Restore normal radar centering
+      if (driver?.lat && driver?.lng) {
+        map.easeTo({ center: [driver.lng, driver.lat], duration: 900 });
+      }
+      return;
+    }
+
+    // Already have route for this trip id → just update driver marker position
+    if (activeTrip.id === prevTripIdRef.current && tripPolylineRef.current) return;
+    prevTripIdRef.current = activeTrip.id;
+
+    if (!driver?.lat || !driver?.lng || !activeTrip.pickupLat || !activeTrip.pickupLng) return;
+
+    callGetDriverToPickup({
+      driverLat: driver.lat,
+      driverLng: driver.lng,
+      pickupLat: activeTrip.pickupLat,
+      pickupLng: activeTrip.pickupLng,
+    }).then(({ data }) => {
+      if (!data?.success || !mapRef.current) return;
+      const polyline = data.polyline;
+      if (!polyline) return;
+      tripPolylineRef.current = polyline;
+
+      const coords = decodePolyline(polyline).map(p => [p[1], p[0]]);
+      const geo    = { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } };
+
+      const apply = () => {
+        if (!mapRef.current?.isStyleLoaded()) { setTimeout(apply, 80); return; }
+        const m = mapRef.current;
+
+        // Upsert source
+        if (m.getSource(TRIP_SOURCE)) {
+          m.getSource(TRIP_SOURCE).setData(geo);
+        } else {
+          m.addSource(TRIP_SOURCE, { type: 'geojson', data: geo });
+          m.addLayer({
+            id: 'ht-trip-route-glow', type: 'line', source: TRIP_SOURCE,
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: { 'line-color': '#ffffff', 'line-width': 10, 'line-opacity': 0.10, 'line-blur': 5 },
+          });
+          m.addLayer({
+            id: 'ht-trip-route-main', type: 'line', source: TRIP_SOURCE,
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: { 'line-color': '#22C55E', 'line-width': 3.5, 'line-opacity': 1 },
+          });
+          m.addLayer({
+            id: 'ht-trip-route-dash', type: 'line', source: TRIP_SOURCE,
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: { 'line-color': '#fff', 'line-width': 1.5, 'line-opacity': 0.35, 'line-dasharray': [0, 5] },
+          });
+        }
+
+        // Pickup pin marker
+        if (pickupMarkerRef.current) {
+          try { pickupMarkerRef.current.remove(); } catch(e) {}
+          pickupMarkerRef.current = null;
+        }
+        if (window.mapboxgl) {
+          const el = document.createElement('div');
+          el.style.cssText = [
+            'position:relative', 'width:14px', 'height:14px',
+          ].join(';');
+          el.innerHTML = `
+            <div style="width:14px;height:14px;border-radius:50%;background:#22C55E;border:2.5px solid #fff;box-shadow:0 0 12px rgba(34,197,94,.8);"></div>
+            <div style="position:absolute;inset:-6px;border-radius:50%;border:1.5px solid rgba(34,197,94,.4);animation:htBlink 2s ease-in-out infinite;"></div>
+          `;
+          pickupMarkerRef.current = new window.mapboxgl.Marker({ element: el, anchor: 'center' })
+            .setLngLat([activeTrip.pickupLng, activeTrip.pickupLat])
+            .addTo(m);
+        }
+
+        // Fit bounds: driver + pickup + route
+        const allPts = [
+          [driver.lng, driver.lat],
+          [activeTrip.pickupLng, activeTrip.pickupLat],
+          ...coords,
+        ];
+        const minLng = Math.min(...allPts.map(p => p[0]));
+        const maxLng = Math.max(...allPts.map(p => p[0]));
+        const minLat = Math.min(...allPts.map(p => p[1]));
+        const maxLat = Math.max(...allPts.map(p => p[1]));
+        m.fitBounds([[minLng, minLat], [maxLng, maxLat]], {
+          padding: 70, maxZoom: 15, duration: 1000,
+        });
+      };
+      apply();
+    }).catch(console.error);
+  }, [activeTrip?.id, mapReady]); // eslint-disable-line
+
+  // ── Keep driver pin re-centered during trip as location updates ────────
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !activeTrip || !driver?.lat || !driver?.lng) return;
+    // Gently ease toward driver during a trip without overriding fitBounds
+    mapRef.current.easeTo({
+      center:   [driver.lng, driver.lat],
+      duration: 800,
+      easing:   t => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
+    });
+  }, [driver?.lat, driver?.lng, activeTrip?.id, mapReady]);
+
+  // ── Scheduled dispatch markers ─────────────────────────────────────────
   useEffect(() => {
     if (!mapReady || !mapRef.current || !window.mapboxgl) return;
     const map      = mapRef.current;
@@ -1547,7 +1831,6 @@ export default function HomeTab({
       entry.when = tsToMillis(r.scheduledAt);
     });
 
-    // remove markers for rides that no longer exist
     store.forEach((entry, id) => {
       if (!seen.has(id)) {
         try { entry.marker.remove(); } catch (e) { /* gone */ }
@@ -1585,6 +1868,10 @@ export default function HomeTab({
       try { entry.marker.remove(); } catch (e) { /* gone */ }
     });
     schedMarkersRef.current.clear();
+    if (pickupMarkerRef.current) {
+      try { pickupMarkerRef.current.remove(); } catch(e) {}
+      pickupMarkerRef.current = null;
+    }
   }, []);
 
   // ── Pulse halo animation ───────────────────────────────────────────────
@@ -1670,7 +1957,7 @@ export default function HomeTab({
 
   const showRadar       = online && mapReady && bootDone;
   const showBoot        = online && !bootDone;
-  const showLegend      = showRadar;
+  const showLegend      = showRadar && !activeTrip;
   const showOnlineCount = showRadar;
 
   // ── New search alert ───────────────────────────────────────────────────
@@ -1691,7 +1978,7 @@ export default function HomeTab({
 
   useEffect(() => () => clearTimeout(alertTimerRef.current), []);
 
-  const moneyStr   = fmtMoney(earnings);
+  const moneyStr     = fmtMoney(earnings);
   const toggleDrawer = useCallback(() => setDrawerOpen(o => !o), []);
 
   return (
@@ -1719,8 +2006,8 @@ export default function HomeTab({
         {/* Offline standby */}
         {!online && <OfflineStandby driver={driver}/>}
 
-        {/* Atmosphere + radar + scanlines */}
-        {showRadar && (
+        {/* Atmosphere + radar + scanlines — hidden during active trip */}
+        {showRadar && !activeTrip && (
           <>
             <AtmosphereOverlay/>
             <RadarOverlay svgRef={svgRef}/>
@@ -1736,6 +2023,14 @@ export default function HomeTab({
             <EdgeContacts contacts={contacts} mapBearing={mapBearing}/>
             <LegendKey/>
           </>
+        )}
+
+        {/* During active trip: subtle atmosphere overlay only */}
+        {showRadar && activeTrip && (
+          <div style={{
+            position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none',
+            background: 'radial-gradient(ellipse at 50% 42%, transparent 45%, rgba(3,6,4,.35) 85%, rgba(3,6,4,.65) 100%)',
+          }}/>
         )}
 
         {/* Boot terminal */}
@@ -1776,7 +2071,7 @@ export default function HomeTab({
           />
         )}
 
-        {/* Rotating badge */}
+        {/* Rotating badge — only in radar mode */}
         {showLegend && (
           <RotatingBadge
             dotCount={dotCount}
@@ -1790,12 +2085,17 @@ export default function HomeTab({
         )}
 
         {/* Fleet count chip */}
-        {showOnlineCount && (
+        {showOnlineCount && !activeTrip && (
           <OnlineDriverChip online={driverCounts.online} total={driverTotal}/>
         )}
 
+        {/* Active trip HUD — route info + status */}
+        {showRadar && activeTrip && (
+          <ActiveTripHud activeTrip={activeTrip} driver={driver} now={now}/>
+        )}
+
         {/* Bottom stat strip */}
-        {showRadar && (
+        {showRadar && !activeTrip && (
           <div style={{
             position: 'absolute', bottom: 56, left: '50%', transform: 'translateX(-50%)',
             zIndex: 19, pointerEvents: 'none',
@@ -1811,10 +2111,10 @@ export default function HomeTab({
         )}
 
         {/* New request alert toast */}
-        {showRadar && <ContactAlert alert={alert}/>}
+        {showRadar && !activeTrip && <ContactAlert alert={alert}/>}
 
-        {/* Scheduled rides drawer */}
-        {showRadar && scheduledRides.length > 0 && (
+        {/* Scheduled rides drawer — hide during active trip */}
+        {showRadar && !activeTrip && scheduledRides.length > 0 && (
           <ScheduledDrawer
             open={drawerOpen}
             onToggle={toggleDrawer}
