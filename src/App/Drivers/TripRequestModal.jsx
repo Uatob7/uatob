@@ -4,8 +4,17 @@
  * Slide RIGHT  → Accept
  * Slide LEFT   → Decline
  *
- * Props (same contract as previous TripRequestModal)
- * ──────────────────────────────────────────────────
+ * Changes in this revision
+ * ────────────────────────
+ *   • Map stays mounted during route fetch — polyline draws the moment it
+ *     arrives without a full remount cycle.
+ *   • Driver marker redesigned: green puck with glow ring + nav-arrow glyph,
+ *     matching the ActiveTripScreen puck exactly.
+ *   • Addresses fully redacted until the driver accepts — only the city/state
+ *     area hint is shown, with the street replaced by "••••" blocks.
+ *
+ * Props (unchanged)
+ * ─────────────────
  *   driver          { uid, lat, lng, firstName }
  *   tripRequest     Firestore ride doc
  *   requestTimer    number (seconds remaining, 0–60)
@@ -20,13 +29,13 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { firebase_app } from '@/firebase/config';
 import { TYPE_COLOR, TYPE_LABEL } from '@/App/Drivers/constants.js';
 
-const functions           = getFunctions(firebase_app, 'us-east1');
+const functions             = getFunctions(firebase_app, 'us-east1');
 const callGetDriverToPickup = httpsCallable(functions, 'getDriverToPickup');
 
 const MAPBOX_TOKEN = 'pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA';
 const MB_VERSION   = 'v3.3.0';
 
-// ─── palette (matches ActiveTripScreen exactly) ────────────────────────────
+// ─── palette ──────────────────────────────────────────────────────────────
 const C = {
   bg:          '#050A06',
   panel:       'rgba(5,10,6,.82)',
@@ -55,7 +64,7 @@ const PAY_CFG = {
   cashapp: { label:'CASH APP', color:'#34D399', bg:'rgba(52,211,153,.12)', border:'rgba(52,211,153,.28)', icon:'$'  },
 };
 
-// ─── polyline decoder (identical to both source files) ────────────────────
+// ─── polyline decoder ─────────────────────────────────────────────────────
 function decodePolyline(encoded) {
   if (!encoded) return [];
   const pts = [];
@@ -72,7 +81,24 @@ function decodePolyline(encoded) {
   return pts;
 }
 
-// ─── address masker ────────────────────────────────────────────────────────
+// ─── address helpers ───────────────────────────────────────────────────────
+/**
+ * Redacted view (before accept): show only "City, ST" — no street at all.
+ * If we can't parse a city, show a fully dotted placeholder.
+ */
+function redactAddress(raw) {
+  if (!raw) return '— ••••';
+  const parts = String(raw).split(',').map(s => s.trim()).filter(Boolean);
+  // parts[0] = street, parts[1] = city, parts[2] = state, parts[3] = "USA"
+  const city  = parts[1] ?? '';
+  const state = parts[2] ?? '';
+  const area  = [city, state].filter(Boolean).join(', ');
+  return area ? `•••• ${area}` : '•••• ••••';
+}
+
+/**
+ * Revealed view (after accept): show real address with street number masked.
+ */
 function maskAddress(raw) {
   if (!raw) return '—';
   const parts = String(raw).split(',').map(s => s.trim()).filter(Boolean);
@@ -80,15 +106,12 @@ function maskAddress(raw) {
   const first = parts[0].replace(/^(\d+[A-Za-z]?)(\s+)/, (_, num, sp) =>
     `${'•'.repeat(Math.min(num.length, 4))}${sp}`
   );
-  const tail = parts.slice(1).filter(p => !/^USA$/i.test(p));
+  const tail   = parts.slice(1).filter(p => !/^USA$/i.test(p));
   const tailStr = tail.slice(0, 2).join(', ');
   return tailStr ? `${first} · ${tailStr}` : first;
 }
 
-// ─── lerp ─────────────────────────────────────────────────────────────────
-const lerp = (a, b, t) => a + (b - a) * t;
-
-// ─── global mapbox loader (deduped) ───────────────────────────────────────
+// ─── mapbox loader (deduped) ──────────────────────────────────────────────
 let _mbReady = false;
 let _mbQueue = [];
 function loadMapbox(cb) {
@@ -106,21 +129,76 @@ function loadMapbox(cb) {
   document.head.appendChild(script);
 }
 
+// ─── driver puck DOM factory (mirrors ActiveTripScreen makeDriverPuck) ────
+function makeDriverPuckEl() {
+  const outer = document.createElement('div');
+  outer.style.cssText = [
+    'position:relative', 'width:50px', 'height:50px',
+    'display:flex', 'align-items:center', 'justify-content:center',
+    'pointer-events:none',
+  ].join(';');
+
+  // ambient glow
+  const glow = document.createElement('div');
+  glow.style.cssText = [
+    'position:absolute', 'inset:-10px', 'border-radius:50%',
+    'background:radial-gradient(circle,rgba(74,222,128,.45) 0%,transparent 68%)',
+    'pointer-events:none',
+  ].join(';');
+
+  // pulsing accuracy ring
+  const ring = document.createElement('div');
+  ring.style.cssText = [
+    'position:absolute', 'inset:2px', 'border-radius:50%',
+    'border:2px solid rgba(74,222,128,.45)',
+    'animation:trm2-pulse 1.9s ease-in-out infinite',
+    'pointer-events:none',
+  ].join(';');
+
+  // body circle
+  const body = document.createElement('div');
+  body.style.cssText = [
+    'position:relative',
+    'width:40px', 'height:40px', 'border-radius:50%',
+    'background:linear-gradient(145deg,#4ADE80 0%,#16A34A 100%)',
+    'border:3px solid #fff',
+    'box-shadow:0 4px 18px rgba(34,197,94,.75),0 2px 6px rgba(0,0,0,.5)',
+    'display:flex', 'align-items:center', 'justify-content:center',
+    'z-index:1',
+  ].join(';');
+
+  // nav-arrow glyph (points up = north)
+  body.innerHTML = `
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+      stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 2 5 21l7-4 7 4z"/>
+    </svg>`;
+
+  outer.appendChild(glow);
+  outer.appendChild(ring);
+  outer.appendChild(body);
+  return outer;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // FULL-SCREEN MAPBOX BACKGROUND
+// Map mounts ONCE and stays alive — polyline/markers update reactively.
 // ═══════════════════════════════════════════════════════════════════════════
 function FullscreenMap({ driverLat, driverLng, pickupLat, pickupLng, polyline, onReady }) {
-  const containerRef   = useRef(null);
-  const mapRef         = useRef(null);
-  const markersRef     = useRef([]);
-  const initRef        = useRef(false);
+  const containerRef  = useRef(null);
+  const mapRef        = useRef(null);
+  const markersRef    = useRef([]);
+  const initRef       = useRef(false);
+  const styleReadyRef = useRef(false);
+  // queue of callbacks waiting for style load
+  const pendingRef    = useRef([]);
 
   const routeCoords = useMemo(() => {
     if (!polyline) return [];
     return decodePolyline(polyline).map(p => [p[1], p[0]]);
   }, [polyline]);
 
-  // init map once
+  // ── init map once ────────────────────────────────────────────────────────
   useEffect(() => {
     if (initRef.current || !containerRef.current) return;
     loadMapbox(() => {
@@ -135,111 +213,153 @@ function FullscreenMap({ driverLat, driverLng, pickupLat, pickupLng, polyline, o
         : [-81.3792, 28.5383];
 
       mapRef.current = new window.mapboxgl.Map({
-        container:        containerRef.current,
-        style:            'mapbox://styles/mapbox/dark-v11',
-        center:           ctr,
-        zoom:             13.5,
-        pitch:            52,
-        bearing:          -12,
-        interactive:      false,
+        container:          containerRef.current,
+        style:              'mapbox://styles/mapbox/dark-v11',
+        center:             ctr,
+        zoom:               13.5,
+        pitch:              52,
+        bearing:            -12,
+        interactive:        false,
         attributionControl: false,
-        fadeDuration:     300,
+        fadeDuration:       300,
       });
 
       mapRef.current.on('load', () => {
+        styleReadyRef.current = true;
         onReady?.();
+        // flush anything queued before style loaded
+        pendingRef.current.forEach(fn => fn());
+        pendingRef.current = [];
       });
     });
 
     return () => {
-      markersRef.current.forEach(m => { try { m.remove(); } catch {}});
+      markersRef.current.forEach(m => { try { m.remove(); } catch {} });
       markersRef.current = [];
-      if (mapRef.current) { try { mapRef.current.remove(); } catch {} mapRef.current = null; initRef.current = false; }
+      if (mapRef.current) {
+        try { mapRef.current.remove(); } catch {}
+        mapRef.current = null;
+        initRef.current = false;
+        styleReadyRef.current = false;
+      }
     };
   // eslint-disable-next-line
   }, []);
 
-  // draw route
+  // ── helper: run fn now if style ready, otherwise queue it ────────────────
+  const whenReady = useCallback((fn) => {
+    if (styleReadyRef.current && mapRef.current) {
+      fn();
+    } else {
+      pendingRef.current.push(fn);
+    }
+  }, []);
+
+  // ── draw / update route polyline ─────────────────────────────────────────
   useEffect(() => {
-    if (!mapRef.current || !routeCoords.length) return;
-    const attach = () => {
-      if (!mapRef.current?.isStyleLoaded()) { setTimeout(attach, 80); return; }
-      const geo = { type: 'Feature', geometry: { type: 'LineString', coordinates: routeCoords } };
-      if (mapRef.current.getSource('trm-route')) {
-        mapRef.current.getSource('trm-route').setData(geo);
+    if (!routeCoords.length) return;
+
+    whenReady(() => {
+      const map = mapRef.current;
+      if (!map) return;
+
+      const geo = {
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: routeCoords },
+      };
+
+      if (map.getSource('trm-route')) {
+        map.getSource('trm-route').setData(geo);
       } else {
-        mapRef.current.addSource('trm-route', { type: 'geojson', data: geo });
-        mapRef.current.addLayer({ id: 'trm-glow', type: 'line', source: 'trm-route',
+        map.addSource('trm-route', { type: 'geojson', data: geo });
+
+        // glow halo
+        map.addLayer({
+          id: 'trm-glow', type: 'line', source: 'trm-route',
           layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': C.green, 'line-width': 16, 'line-opacity': 0.14, 'line-blur': 9 } });
-        mapRef.current.addLayer({ id: 'trm-main', type: 'line', source: 'trm-route',
+          paint: { 'line-color': C.green, 'line-width': 18, 'line-opacity': 0.13, 'line-blur': 10 },
+        });
+        // bright core
+        map.addLayer({
+          id: 'trm-main', type: 'line', source: 'trm-route',
           layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': C.green, 'line-width': 4.5, 'line-opacity': 1 } });
-        mapRef.current.addLayer({ id: 'trm-dash', type: 'line', source: 'trm-route',
+          paint: { 'line-color': C.greenBright, 'line-width': 5, 'line-opacity': 1 },
+        });
+        // flowing dash overlay
+        map.addLayer({
+          id: 'trm-dash', type: 'line', source: 'trm-route',
           layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': '#EAFFF2', 'line-width': 2, 'line-opacity': 0.45, 'line-dasharray': [0, 5] } });
+          paint: { 'line-color': '#EAFFF2', 'line-width': 2, 'line-opacity': 0.45, 'line-dasharray': [0, 5] },
+        });
       }
 
-      // fit bounds
+      // fit the full route + both endpoints into view
       const pts = [...routeCoords];
       if (driverLat && driverLng) pts.push([driverLng, driverLat]);
       if (pickupLat && pickupLng) pts.push([pickupLng, pickupLat]);
       if (pts.length >= 2) {
-        const lngs = pts.map(p => p[0]), lats = pts.map(p => p[1]);
-        mapRef.current.fitBounds(
+        const lngs = pts.map(p => p[0]);
+        const lats  = pts.map(p => p[1]);
+        map.fitBounds(
           [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
-          { padding: { top: 160, bottom: 320, left: 56, right: 56 }, maxZoom: 15.5, pitch: 52, duration: 900 }
+          { padding: { top: 160, bottom: 320, left: 60, right: 60 }, maxZoom: 15.5, pitch: 52, duration: 900 },
         );
       }
-    };
-    attach();
-  }, [routeCoords, driverLat, driverLng, pickupLat, pickupLng]);
+    });
+  // eslint-disable-next-line
+  }, [routeCoords]);
 
-  // place markers
+  // ── place / update markers ───────────────────────────────────────────────
   useEffect(() => {
-    if (!mapRef.current) return;
-    const attach = () => {
-      if (!mapRef.current?.isStyleLoaded()) { setTimeout(attach, 80); return; }
+    whenReady(() => {
+      const map = mapRef.current;
+      if (!map) return;
+
+      // clear old markers
       markersRef.current.forEach(m => { try { m.remove(); } catch {} });
       markersRef.current = [];
 
+      // ── driver: green nav-puck ─────────────────────────────────────────
       if (driverLat && driverLng) {
-        const el = document.createElement('div');
-        el.style.cssText = 'position:relative;width:16px;height:16px;display:flex;align-items:center;justify-content:center;';
-        el.innerHTML = `
-          <div style="width:14px;height:14px;border-radius:50%;background:#3B82F6;border:2.5px solid #fff;box-shadow:0 0 14px rgba(59,130,246,.8);z-index:1;"></div>
-          <div style="position:absolute;inset:-8px;border-radius:50%;border:2px solid rgba(59,130,246,.35);animation:trm2-pulse 2s ease-in-out infinite;"></div>
-        `;
+        const el = makeDriverPuckEl();
         markersRef.current.push(
           new window.mapboxgl.Marker({ element: el, anchor: 'center' })
-            .setLngLat([driverLng, driverLat]).addTo(mapRef.current)
+            .setLngLat([driverLng, driverLat])
+            .addTo(map)
         );
       }
 
+      // ── pickup: green labelled pin (same as ActiveTripScreen) ──────────
       if (pickupLat && pickupLng) {
         const el = document.createElement('div');
         el.style.cssText = 'display:flex;flex-direction:column;align-items:center;pointer-events:none;';
         el.innerHTML = `
-          <div style="padding:4px 8px;border-radius:7px;background:rgba(3,6,4,.88);border:1.5px solid rgba(74,222,128,.5);box-shadow:0 4px 14px rgba(0,0,0,.5),0 0 12px rgba(74,222,128,.25);color:#4ADE80;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:800;white-space:nowrap;">
+          <div style="
+            padding:4px 9px;border-radius:7px;white-space:nowrap;
+            background:rgba(3,6,4,.9);border:1.5px solid rgba(74,222,128,.55);
+            box-shadow:0 4px 14px rgba(0,0,0,.55),0 0 12px rgba(74,222,128,.28);
+            color:#4ADE80;font-family:'JetBrains Mono',monospace;
+            font-size:10px;font-weight:800;letter-spacing:.04em;">
             ● PICKUP
           </div>
-          <div style="width:2px;height:9px;background:rgba(74,222,128,.55);margin-top:-1px;"></div>
-          <div style="width:6px;height:6px;border-radius:50%;background:#4ADE80;box-shadow:0 0 8px #4ADE80;"></div>
+          <div style="width:2px;height:10px;background:rgba(74,222,128,.5);margin-top:-1px;"></div>
+          <div style="width:7px;height:7px;border-radius:50%;background:#4ADE80;box-shadow:0 0 9px #4ADE80;"></div>
         `;
         markersRef.current.push(
           new window.mapboxgl.Marker({ element: el, anchor: 'bottom' })
-            .setLngLat([pickupLng, pickupLat]).addTo(mapRef.current)
+            .setLngLat([pickupLng, pickupLat])
+            .addTo(map)
         );
       }
-    };
-    attach();
+    });
+  // eslint-disable-next-line
   }, [driverLat, driverLng, pickupLat, pickupLng]);
 
   return <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TIMER RING (unchanged design)
+// TIMER RING
 // ═══════════════════════════════════════════════════════════════════════════
 function TimerRing({ timer, total = 60 }) {
   const R    = 20;
@@ -287,25 +407,55 @@ function RouteRail() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// BIDIRECTIONAL SLIDE CONTROL
+// ADDRESS ROW — shows redacted or revealed based on accepted prop
 // ═══════════════════════════════════════════════════════════════════════════
-/**
- * Thumb starts centered.
- * Drag RIGHT ≥ 75% of half-track → onAccept
- * Drag LEFT  ≥ 75% of half-track → onDecline
- * Release early → spring back to center.
- */
+function AddressRow({ label, raw, accepted, dimmed }) {
+  const display = accepted ? maskAddress(raw) : redactAddress(raw);
+  const isRedacted = !accepted;
+
+  return (
+    <div>
+      <div style={{
+        fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.14em',
+        color: C.inkDim, textTransform: 'uppercase', marginBottom: 2,
+      }}>
+        {label}
+      </div>
+      <div style={{
+        fontFamily: MONO, fontSize: 12,
+        fontWeight: dimmed ? 600 : 700,
+        color: isRedacted
+          ? 'rgba(255,255,255,.32)'
+          : dimmed
+          ? 'rgba(255,255,255,.5)'
+          : C.white,
+        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        letterSpacing: isRedacted ? '.06em' : 'normal',
+        // subtle blur when redacted to reinforce "hidden" feel
+        filter: isRedacted ? 'blur(0px)' : 'none',
+        transition: 'color .3s, filter .3s',
+      }}>
+        {display}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BIDIRECTIONAL SLIDE CONTROL
+// Thumb starts centered. RIGHT ≥ 75% → accept. LEFT ≥ 75% → decline.
+// ═══════════════════════════════════════════════════════════════════════════
 function BidirectionalSlide({ onAccept, onDecline, pending, disabled }) {
-  const trackRef   = useRef(null);
-  const halfRef    = useRef(0);          // half of usable travel
+  const trackRef    = useRef(null);
+  const halfRef     = useRef(0);
   const draggingRef = useRef(false);
-  const offsetRef  = useRef(0);          // live offset from center (px)
-  const [x, setX]         = useState(0);
+  const offsetRef   = useRef(0);
+  const [x, setX]           = useState(0);
   const [result, setResult] = useState(null); // 'accept' | 'decline' | null
 
-  const THUMB = 58;
-  const PAD   = 4;
-  const COMMIT = 0.75;   // fraction of half-track needed to commit
+  const THUMB  = 58;
+  const PAD    = 4;
+  const COMMIT = 0.75;
 
   const measure = useCallback(() => {
     if (!trackRef.current) return;
@@ -318,14 +468,14 @@ function BidirectionalSlide({ onAccept, onDecline, pending, disabled }) {
     return () => window.removeEventListener('resize', measure);
   }, [measure]);
 
-  const clientX = (e) => e.touches?.[0]?.clientX ?? e.clientX ?? 0;
+  const clientX  = (e) => e.touches?.[0]?.clientX ?? e.clientX ?? 0;
   const setOffset = (px) => { offsetRef.current = px; setX(px); };
 
   const onDown = (e) => {
     if (pending || disabled || result) return;
     draggingRef.current = true;
     measure();
-    const startX = clientX(e);
+    const startX      = clientX(e);
     const startOffset = offsetRef.current;
 
     const move = (ev) => {
@@ -354,7 +504,7 @@ function BidirectionalSlide({ onAccept, onDecline, pending, disabled }) {
         setResult('decline');
         onDecline?.();
       } else {
-        setOffset(0); // spring back
+        setOffset(0);
       }
     };
 
@@ -364,12 +514,9 @@ function BidirectionalSlide({ onAccept, onDecline, pending, disabled }) {
     window.addEventListener('touchend', up);
   };
 
-  // normalized 0→1 for right fill, 0→-1 for left fill
-  const ratio  = halfRef.current ? x / halfRef.current : 0;
-  const isRight = ratio > 0;
-  const isLeft  = ratio < 0;
-  const progress = Math.abs(ratio);
-
+  const ratio        = halfRef.current ? x / halfRef.current : 0;
+  const isRight      = ratio > 0;
+  const isLeft       = ratio < 0;
   const acceptColor  = C.greenBright;
   const declineColor = C.redDeep;
   const activeColor  = isRight ? acceptColor : isLeft ? declineColor : acceptColor;
@@ -377,21 +524,17 @@ function BidirectionalSlide({ onAccept, onDecline, pending, disabled }) {
   return (
     <div style={{ position: 'relative', userSelect: 'none' }}>
       {/* end labels */}
-      <div style={{
-        display: 'flex', justifyContent: 'space-between',
-        marginBottom: 8, padding: '0 2px',
-      }}>
+      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8, padding:'0 2px' }}>
         <span style={{
           fontFamily: COND, fontSize: 10, fontWeight: 800, letterSpacing: '.14em',
           color: isLeft ? declineColor : 'rgba(255,255,255,.22)',
           transition: 'color .2s',
           display: 'flex', alignItems: 'center', gap: 4,
         }}>
-          {/* left chevrons */}
           {[0,1,2].map(i => (
             <svg key={i} width="9" height="9" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
-              style={{ animation: `trm2-chev-left 1.3s ${i * 0.14}s ease-in-out infinite` }}>
+              style={{ animation:`trm2-chev-left 1.3s ${i*.14}s ease-in-out infinite` }}>
               <polyline points="15 6 9 12 15 18"/>
             </svg>
           ))}
@@ -407,7 +550,7 @@ function BidirectionalSlide({ onAccept, onDecline, pending, disabled }) {
           {[0,1,2].map(i => (
             <svg key={i} width="9" height="9" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
-              style={{ animation: `trm2-chev-right 1.3s ${i * 0.14}s ease-in-out infinite` }}>
+              style={{ animation:`trm2-chev-right 1.3s ${i*.14}s ease-in-out infinite` }}>
               <polyline points="9 6 15 12 9 18"/>
             </svg>
           ))}
@@ -430,47 +573,38 @@ function BidirectionalSlide({ onAccept, onDecline, pending, disabled }) {
           transition: 'border-color .2s',
         }}
       >
-        {/* left (decline) fill */}
+        {/* decline fill (left half) */}
         <div style={{
-          position: 'absolute',
-          top: 0, bottom: 0,
-          right: '50%',
+          position:'absolute', top:0, bottom:0, right:'50%',
           width: isLeft ? `${Math.abs(ratio) * 50}%` : 0,
           background: `linear-gradient(to left, ${declineColor}33, ${declineColor}18)`,
           transition: draggingRef.current ? 'none' : 'width .25s cubic-bezier(.34,1.1,.64,1)',
-        }} />
+        }}/>
 
-        {/* right (accept) fill */}
+        {/* accept fill (right half) */}
         <div style={{
-          position: 'absolute',
-          top: 0, bottom: 0,
-          left: '50%',
+          position:'absolute', top:0, bottom:0, left:'50%',
           width: isRight ? `${ratio * 50}%` : 0,
           background: `linear-gradient(to right, ${acceptColor}33, ${acceptColor}18)`,
           transition: draggingRef.current ? 'none' : 'width .25s cubic-bezier(.34,1.1,.64,1)',
-        }} />
+        }}/>
 
         {/* center notch */}
         <div style={{
-          position: 'absolute',
-          top: '50%', left: '50%',
-          transform: 'translate(-50%,-50%)',
-          width: 1.5, height: 28, borderRadius: 2,
-          background: 'rgba(255,255,255,.14)',
-          pointerEvents: 'none',
-        }} />
+          position:'absolute', top:'50%', left:'50%',
+          transform:'translate(-50%,-50%)',
+          width:1.5, height:28, borderRadius:2,
+          background:'rgba(255,255,255,.14)', pointerEvents:'none',
+        }}/>
 
-        {/* draggable thumb — positioned from center */}
+        {/* draggable thumb */}
         <div
           onPointerDown={onDown}
           onTouchStart={onDown}
           style={{
-            position: 'absolute',
-            top: PAD,
-            // center = (trackWidth - THUMB) / 2 = halfRef * 2 / 2 ... we compute via left offset
-            left: `calc(50% - ${THUMB / 2}px + ${x}px)`,
-            width: THUMB, height: THUMB,
-            borderRadius: 16,
+            position:'absolute', top:PAD,
+            left: `calc(50% - ${THUMB/2}px + ${x}px)`,
+            width:THUMB, height:THUMB, borderRadius:16,
             background: result === 'accept'
               ? `linear-gradient(135deg, ${acceptColor}, #16A34A)`
               : result === 'decline'
@@ -478,40 +612,30 @@ function BidirectionalSlide({ onAccept, onDecline, pending, disabled }) {
               : pending
               ? 'rgba(255,255,255,.1)'
               : `linear-gradient(135deg, ${activeColor}ee, ${activeColor}99)`,
-            boxShadow: pending
-              ? 'none'
-              : result === 'accept'
-              ? `0 4px 20px ${acceptColor}66, inset 0 1px 0 rgba(255,255,255,.3)`
-              : result === 'decline'
-              ? `0 4px 20px ${declineColor}66, inset 0 1px 0 rgba(255,255,255,.2)`
+            boxShadow: pending ? 'none'
+              : result === 'accept'  ? `0 4px 20px ${acceptColor}66, inset 0 1px 0 rgba(255,255,255,.3)`
+              : result === 'decline' ? `0 4px 20px ${declineColor}66, inset 0 1px 0 rgba(255,255,255,.2)`
               : `0 4px 20px ${activeColor}55, inset 0 1px 0 rgba(255,255,255,.25)`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            display:'flex', alignItems:'center', justifyContent:'center',
             cursor: pending || result ? 'default' : 'grab',
-            touchAction: 'none',
+            touchAction:'none',
             transition: draggingRef.current
               ? 'background .12s, box-shadow .12s'
               : 'left .28s cubic-bezier(.34,1.1,.64,1), background .2s, box-shadow .2s',
-            zIndex: 2,
+            zIndex:2,
           }}
         >
           {pending ? (
-            <div style={{
-              width: 22, height: 22, borderRadius: '50%',
-              border: '2px solid rgba(0,0,0,.25)', borderTop: '2px solid #000',
-              animation: 'trm2-spin .7s linear infinite',
-            }}/>
+            <div style={{ width:22, height:22, borderRadius:'50%', border:'2px solid rgba(0,0,0,.25)', borderTop:'2px solid #000', animation:'trm2-spin .7s linear infinite' }}/>
           ) : result === 'accept' ? (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
-              stroke="#000" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="20 6 9 17 4 12"/>
             </svg>
           ) : result === 'decline' ? (
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-              stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
           ) : (
-            /* double-headed arrow at rest */
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
               stroke={x !== 0 ? '#000' : C.white} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
               style={{ opacity: x !== 0 ? 1 : 0.8 }}>
@@ -539,43 +663,45 @@ export default function TripRequestModal({
   const [driverDist, setDriverDist] = useState(null);
   const [driverEta,  setDriverEta]  = useState(null);
   const [loadingGeo, setLoadingGeo] = useState(false);
-  const [mapLoaded,  setMapLoaded]  = useState(false);
+  // track whether driver has accepted — reveals full addresses
+  const [accepted,   setAccepted]   = useState(false);
   const prevTripId = useRef(null);
 
-  // inject keyframes
+  // ── inject keyframes + fonts ─────────────────────────────────────────────
   useEffect(() => {
     if (document.getElementById('trm2-css')) return;
     const style = document.createElement('style');
     style.id = 'trm2-css';
     style.textContent = `
       @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
-      @keyframes trm2-spin         { to { transform: rotate(360deg); } }
-      @keyframes trm2-blink        { 0%,100%{opacity:1} 50%{opacity:.2} }
-      @keyframes trm2-pulse        { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.3;transform:scale(.7)} }
-      @keyframes trm2-alert        { 0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0)} 50%{box-shadow:0 0 0 8px rgba(239,68,68,.2)} }
-      @keyframes trm2-slideup      { from{opacity:0;transform:translateY(30px)} to{opacity:1;transform:translateY(0)} }
-      @keyframes trm2-fadein       { from{opacity:0} to{opacity:1} }
-      @keyframes trm2-chev-right   { 0%,100%{opacity:.3;transform:translateX(0)} 50%{opacity:1;transform:translateX(2.5px)} }
-      @keyframes trm2-chev-left    { 0%,100%{opacity:.3;transform:translateX(0)} 50%{opacity:1;transform:translateX(-2.5px)} }
-      @keyframes trm2-shimmer      { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+      @keyframes trm2-spin        { to { transform: rotate(360deg); } }
+      @keyframes trm2-blink       { 0%,100%{opacity:1} 50%{opacity:.2} }
+      @keyframes trm2-pulse       { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.3;transform:scale(.75)} }
+      @keyframes trm2-alert       { 0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0)} 50%{box-shadow:0 0 0 8px rgba(239,68,68,.22)} }
+      @keyframes trm2-slideup     { from{opacity:0;transform:translateY(30px)} to{opacity:1;transform:translateY(0)} }
+      @keyframes trm2-fadein      { from{opacity:0} to{opacity:1} }
+      @keyframes trm2-chev-right  { 0%,100%{opacity:.3;transform:translateX(0)} 50%{opacity:1;transform:translateX(2.5px)} }
+      @keyframes trm2-chev-left   { 0%,100%{opacity:.3;transform:translateX(0)} 50%{opacity:1;transform:translateX(-2.5px)} }
+      @keyframes trm2-shimmer     { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
       .trm2-map .mapboxgl-ctrl-logo,
       .trm2-map .mapboxgl-ctrl-attrib { display:none !important; }
     `;
     document.head.appendChild(style);
   }, []);
 
-  // fetch route on new trip
+  // ── fetch route on new trip ───────────────────────────────────────────────
   useEffect(() => {
     if (!tripRequest || !driver) return;
     if (prevTripId.current === tripRequest.id) return;
     prevTripId.current = tripRequest.id;
+    setAccepted(false);
     setPolyline(null);
     setDriverDist(null);
     setDriverEta(null);
     setLoadingGeo(true);
     callGetDriverToPickup({
-      driverLat: driver.lat, driverLng: driver.lng,
-      pickupLat: tripRequest.pickupLat, pickupLng: tripRequest.pickupLng,
+      driverLat: Number(driver.lat), driverLng: Number(driver.lng),
+      pickupLat: Number(tripRequest.pickupLat), pickupLng: Number(tripRequest.pickupLng),
     }).then(({ data }) => {
       if (data?.success) {
         setDriverDist(data.distanceText ?? null);
@@ -588,237 +714,157 @@ export default function TripRequestModal({
 
   if (!tripRequest) return null;
 
-  const payMethod    = tripRequest.paymentMethod ?? 'card';
-  const payCfg       = PAY_CFG[payMethod] ?? PAY_CFG.card;
-  const rideColor    = TYPE_COLOR[tripRequest.rideType] ?? '#3B82F6';
-  const fare         = `$${tripRequest.driverPayout?.toFixed(2) ?? '0.00'}`;
-  const pickupText   = maskAddress(tripRequest.pickup);
-  const dropoffText  = maskAddress(tripRequest.dropoff);
-  const danger       = requestTimer <= 10;
+  const payMethod  = tripRequest.paymentMethod ?? 'card';
+  const payCfg     = PAY_CFG[payMethod] ?? PAY_CFG.card;
+  const rideColor  = TYPE_COLOR[tripRequest.rideType] ?? '#3B82F6';
+  const fare       = `$${tripRequest.driverPayout?.toFixed(2) ?? '0.00'}`;
+
+  const handleAccept = () => {
+    setAccepted(true);
+    onAccept?.();
+  };
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 800,
-      background: C.bg,
-      fontFamily: MONO,
-    }}>
-      {/* ── full-screen map ── */}
-      <div className="trm2-map" style={{ position: 'absolute', inset: 0 }}>
-        {!loadingGeo ? (
-          <FullscreenMap
-            driverLat={driver?.lat}
-            driverLng={driver?.lng}
-            pickupLat={tripRequest.pickupLat}
-            pickupLng={tripRequest.pickupLng}
-            polyline={polyline}
-            onReady={() => setMapLoaded(true)}
-          />
-        ) : (
-          /* shimmer placeholder while route loads */
-          <div style={{
-            position: 'absolute', inset: 0,
-            background: 'linear-gradient(90deg, #050A06 25%, #0C1410 50%, #050A06 75%)',
-            backgroundSize: '200% 100%',
-            animation: 'trm2-shimmer 1.8s ease-in-out infinite',
-          }} />
-        )}
+    <div style={{ position:'fixed', inset:0, zIndex:800, background:C.bg, fontFamily:MONO }}>
+
+      {/* ── full-screen map — always mounted, polyline feeds in reactively ── */}
+      <div className="trm2-map" style={{ position:'absolute', inset:0 }}>
+        <FullscreenMap
+          driverLat={driver?.lat}
+          driverLng={driver?.lng}
+          pickupLat={tripRequest.pickupLat}
+          pickupLng={tripRequest.pickupLng}
+          polyline={polyline}          // null until fetch completes → draws when it arrives
+        />
       </div>
 
-      {/* ── vignette (depth + bottom panel legibility) ── */}
+      {/* loading shimmer overlay (semi-transparent, doesn't hide map) */}
+      {loadingGeo && (
+        <div style={{
+          position:'absolute', inset:0, zIndex:3, pointerEvents:'none',
+          background:'linear-gradient(90deg,rgba(5,10,6,.7) 25%,rgba(12,20,16,.55) 50%,rgba(5,10,6,.7) 75%)',
+          backgroundSize:'200% 100%',
+          animation:'trm2-shimmer 1.8s ease-in-out infinite',
+        }}/>
+      )}
+
+      {/* ── depth vignette ── */}
       <div style={{
-        position: 'absolute', inset: 0, zIndex: 5, pointerEvents: 'none',
-        background: [
+        position:'absolute', inset:0, zIndex:5, pointerEvents:'none',
+        background:[
           'radial-gradient(ellipse at 50% 44%, transparent 35%, rgba(3,6,4,.3) 75%, rgba(3,6,4,.7) 100%)',
           'linear-gradient(to bottom, rgba(3,6,4,.55) 0%, transparent 22%, transparent 42%, rgba(2,5,3,.92) 100%)',
         ].join(', '),
-      }} />
+      }}/>
 
       {/* ── top ribbon ── */}
       <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20,
-        paddingTop: 'max(14px, env(safe-area-inset-top))',
-        pointerEvents: 'none',
+        position:'absolute', top:0, left:0, right:0, zIndex:20,
+        paddingTop:'max(14px, env(safe-area-inset-top))',
+        pointerEvents:'none',
       }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '0 18px', height: 44,
-        }}>
-          {/* brand */}
-          <span style={{
-            fontFamily: COND, fontSize: 12, fontWeight: 800, letterSpacing: '.22em',
-            color: 'rgba(255,255,255,.45)',
-          }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 18px', height:44 }}>
+          <span style={{ fontFamily:COND, fontSize:12, fontWeight:800, letterSpacing:'.22em', color:'rgba(255,255,255,.45)' }}>
             UATOB
           </span>
-
-          {/* center: NEW RIDE badge */}
           <div style={{
-            display: 'flex', alignItems: 'center', gap: 7,
-            background: C.panelDeep, backdropFilter: 'blur(12px)',
-            border: `1px solid ${rideColor}44`,
-            borderRadius: 99, padding: '5px 12px',
-            animation: 'trm2-fadein .4s ease both',
+            display:'flex', alignItems:'center', gap:7,
+            background:C.panelDeep, backdropFilter:'blur(12px)',
+            border:`1px solid ${rideColor}44`, borderRadius:99, padding:'5px 12px',
+            animation:'trm2-fadein .4s ease both',
           }}>
             {tripRequest.surgeMultiplier > 1 && <Zap size={10} color={rideColor}/>}
-            <span style={{
-              width: 6, height: 6, borderRadius: '50%',
-              background: rideColor, boxShadow: `0 0 8px ${rideColor}`,
-              animation: 'trm2-blink 1.4s ease-in-out infinite',
-              display: 'inline-block',
-            }}/>
-            <span style={{
-              fontFamily: COND, fontSize: 10, fontWeight: 800, letterSpacing: '.14em',
-              color: rideColor,
-            }}>
+            <span style={{ width:6, height:6, borderRadius:'50%', background:rideColor, boxShadow:`0 0 8px ${rideColor}`, animation:'trm2-blink 1.4s ease-in-out infinite', display:'inline-block' }}/>
+            <span style={{ fontFamily:COND, fontSize:10, fontWeight:800, letterSpacing:'.14em', color:rideColor }}>
               NEW {(TYPE_LABEL[tripRequest.rideType] ?? 'RIDE').toUpperCase()} REQUEST
             </span>
           </div>
-
-          {/* timer */}
-          <TimerRing timer={requestTimer} total={60} />
+          <TimerRing timer={requestTimer} total={60}/>
         </div>
-
-        {/* color accent line under ribbon */}
-        <div style={{
-          height: 2, marginTop: 4,
-          background: `linear-gradient(90deg, transparent, ${rideColor}99 30%, ${rideColor}99 70%, transparent)`,
-        }}/>
+        <div style={{ height:2, marginTop:4, background:`linear-gradient(90deg, transparent, ${rideColor}99 30%, ${rideColor}99 70%, transparent)` }}/>
       </div>
 
-      {/* ── LIVE + ETA pill (floats on the map) ── */}
+      {/* ── floating ETA pill ── */}
       {!loadingGeo && (driverDist || driverEta) && (
         <div style={{
-          position: 'absolute', top: 'calc(78px + env(safe-area-inset-top))',
-          left: '50%', transform: 'translateX(-50%)',
-          zIndex: 22, pointerEvents: 'none',
-          display: 'flex', alignItems: 'center', gap: 8,
-          background: C.panelDeep, backdropFilter: 'blur(12px)',
-          border: '1px solid rgba(255,255,255,.1)',
-          borderRadius: 99, padding: '5px 14px',
-          animation: 'trm2-fadein .5s .2s ease both',
-          whiteSpace: 'nowrap',
+          position:'absolute', top:'calc(78px + env(safe-area-inset-top))',
+          left:'50%', transform:'translateX(-50%)',
+          zIndex:22, pointerEvents:'none',
+          display:'flex', alignItems:'center', gap:8,
+          background:C.panelDeep, backdropFilter:'blur(12px)',
+          border:'1px solid rgba(255,255,255,.1)',
+          borderRadius:99, padding:'5px 14px',
+          animation:'trm2-fadein .5s .2s ease both',
+          whiteSpace:'nowrap',
         }}>
           <span style={{ width:6, height:6, borderRadius:'50%', background:C.greenBright, boxShadow:`0 0 6px ${C.greenBright}`, animation:'trm2-blink 1.6s ease-in-out infinite', display:'inline-block' }}/>
           {driverDist && (
-            <span style={{ fontFamily:MONO, fontSize:11, fontWeight:700, color:C.white }}>
-              {driverDist}
-            </span>
+            <span style={{ fontFamily:MONO, fontSize:11, fontWeight:700, color:C.white }}>{driverDist}</span>
           )}
           {driverDist && driverEta && (
             <span style={{ width:1, height:10, background:'rgba(255,255,255,.15)' }}/>
           )}
           {driverEta && (
-            <span style={{ fontFamily:MONO, fontSize:11, fontWeight:700, color:C.greenBright }}>
-              {driverEta} to pickup
-            </span>
+            <span style={{ fontFamily:MONO, fontSize:11, fontWeight:700, color:C.greenBright }}>{driverEta} to pickup</span>
           )}
         </div>
       )}
 
       {/* ── bottom panel ── */}
-      <div style={{
-        position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 30,
-        animation: 'trm2-slideup .45s cubic-bezier(.34,1.1,.64,1) both',
-      }}>
+      <div style={{ position:'absolute', bottom:0, left:0, right:0, zIndex:30, animation:'trm2-slideup .45s cubic-bezier(.34,1.1,.64,1) both' }}>
         <div style={{
-          background: C.panelDeep,
-          borderTop: `1px solid ${rideColor}28`,
-          borderRadius: '26px 26px 0 0',
-          backdropFilter: 'blur(20px)',
-          boxShadow: `0 -16px 56px rgba(0,0,0,.7), 0 0 44px ${rideColor}0e`,
-          padding: '12px 18px max(20px, calc(env(safe-area-inset-bottom) + 14px))',
+          background:C.panelDeep,
+          borderTop:`1px solid ${rideColor}28`,
+          borderRadius:'26px 26px 0 0',
+          backdropFilter:'blur(20px)',
+          boxShadow:`0 -16px 56px rgba(0,0,0,.7), 0 0 44px ${rideColor}0e`,
+          padding:'12px 18px max(20px, calc(env(safe-area-inset-bottom) + 14px))',
         }}>
           {/* drag handle */}
-          <div style={{ width:36, height:3.5, borderRadius:2, background:'rgba(255,255,255,.12)', margin:'0 auto 14px' }} />
+          <div style={{ width:36, height:3.5, borderRadius:2, background:'rgba(255,255,255,.12)', margin:'0 auto 14px' }}/>
 
-          {/* ── fare + payment row ── */}
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            marginBottom: 14,
-          }}>
-            {/* fare */}
+          {/* ── fare + payment ── */}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
             <div style={{ display:'flex', alignItems:'baseline', gap:5 }}>
-              <span style={{
-                fontFamily: COND, fontSize: 46, fontWeight: 900, lineHeight: 1,
-                letterSpacing: '.02em', color: C.white,
-              }}>
+              <span style={{ fontFamily:COND, fontSize:46, fontWeight:900, lineHeight:1, letterSpacing:'.02em', color:C.white }}>
                 {fare}
               </span>
               {tripRequest.surgeMultiplier > 1 && (
-                <span style={{
-                  display:'inline-flex', alignItems:'center', gap:3,
-                  background:'rgba(234,179,8,.12)', border:'1px solid rgba(234,179,8,.3)',
-                  borderRadius:6, padding:'3px 7px', marginLeft:4,
-                  fontFamily:COND, fontSize:10, fontWeight:800, letterSpacing:'.06em', color:'#EAB308',
-                }}>
-                  <Zap size={9} color="#EAB308" fill="#EAB308" />
+                <span style={{ display:'inline-flex', alignItems:'center', gap:3, background:'rgba(234,179,8,.12)', border:'1px solid rgba(234,179,8,.3)', borderRadius:6, padding:'3px 7px', marginLeft:4, fontFamily:COND, fontSize:10, fontWeight:800, letterSpacing:'.06em', color:'#EAB308' }}>
+                  <Zap size={9} color="#EAB308" fill="#EAB308"/>
                   {tripRequest.surgeMultiplier}× SURGE
                 </span>
               )}
             </div>
-
-            {/* payment badge */}
-            <div style={{
-              display:'inline-flex', alignItems:'center', gap:6,
-              background: payCfg.bg, border:`1px solid ${payCfg.border}`,
-              borderRadius:10, padding:'6px 12px',
-            }}>
+            <div style={{ display:'inline-flex', alignItems:'center', gap:6, background:payCfg.bg, border:`1px solid ${payCfg.border}`, borderRadius:10, padding:'6px 12px' }}>
               <span style={{ fontSize:12, color:payCfg.color }}>{payCfg.icon}</span>
-              <span style={{ fontFamily:MONO, fontSize:10, fontWeight:800, letterSpacing:'.1em', color:payCfg.color }}>
-                {payCfg.label}
-              </span>
+              <span style={{ fontFamily:MONO, fontSize:10, fontWeight:800, letterSpacing:'.1em', color:payCfg.color }}>{payCfg.label}</span>
             </div>
           </div>
 
           {/* ── route strip ── */}
-          <div style={{
-            display:'flex', gap:12, alignItems:'stretch',
-            background:'rgba(255,255,255,.03)', border:'1px solid rgba(255,255,255,.06)',
-            borderRadius:14, padding:'10px 13px', marginBottom:14,
-          }}>
+          <div style={{ display:'flex', gap:12, alignItems:'stretch', background:'rgba(255,255,255,.03)', border:'1px solid rgba(255,255,255,.06)', borderRadius:14, padding:'10px 13px', marginBottom:14 }}>
             <RouteRail/>
             <div style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', gap:9 }}>
-              {/* pickup */}
-              <div>
-                <div style={{ fontFamily:COND, fontSize:8, fontWeight:800, letterSpacing:'.14em', color:C.inkDim, textTransform:'uppercase', marginBottom:2 }}>
-                  Pickup
-                </div>
-                <div style={{ fontFamily:MONO, fontSize:12, fontWeight:700, color:C.white, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                  {pickupText}
-                </div>
-              </div>
-              {/* dropoff */}
-              <div>
-                <div style={{ fontFamily:COND, fontSize:8, fontWeight:800, letterSpacing:'.14em', color:C.inkDim, textTransform:'uppercase', marginBottom:2 }}>
-                  Drop-off
-                </div>
-                <div style={{ fontFamily:MONO, fontSize:12, fontWeight:600, color:'rgba(255,255,255,.55)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                  {dropoffText}
-                </div>
-              </div>
+              <AddressRow label="Pickup"   raw={tripRequest.pickup}  accepted={accepted} dimmed={false}/>
+              <AddressRow label="Drop-off" raw={tripRequest.dropoff} accepted={accepted} dimmed={true}/>
             </div>
-
-            {/* trip stats */}
             <div style={{ display:'flex', flexDirection:'column', gap:8, flexShrink:0, alignItems:'flex-end', justifyContent:'center' }}>
               {[
-                { label:'DIST',  value:`${tripRequest.tripDistanceMiles?.toFixed(1) ?? '—'} mi` },
-                { label:'TIME',  value:`${tripRequest.tripDurationMin ?? '—'} min` },
+                { label:'DIST', value:`${tripRequest.tripDistanceMiles?.toFixed(1) ?? '—'} mi` },
+                { label:'TIME', value:`${tripRequest.tripDurationMin ?? '—'} min` },
               ].map(s => (
                 <div key={s.label} style={{ textAlign:'right' }}>
-                  <div style={{ fontFamily:COND, fontSize:8, fontWeight:800, letterSpacing:'.12em', color:C.inkDim, marginBottom:1 }}>
-                    {s.label}
-                  </div>
-                  <div style={{ fontFamily:MONO, fontSize:13, fontWeight:700, color:C.white }}>
-                    {s.value}
-                  </div>
+                  <div style={{ fontFamily:COND, fontSize:8, fontWeight:800, letterSpacing:'.12em', color:C.inkDim, marginBottom:1 }}>{s.label}</div>
+                  <div style={{ fontFamily:MONO, fontSize:13, fontWeight:700, color:C.white }}>{s.value}</div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* ── bidirectional slide control ── */}
+          {/* ── bidirectional slide ── */}
           <BidirectionalSlide
-            onAccept={onAccept}
+            onAccept={handleAccept}
             onDecline={onDecline}
             pending={actionPending}
             disabled={false}
