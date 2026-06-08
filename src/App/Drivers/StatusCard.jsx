@@ -1,11 +1,12 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
-import { Trophy, TrendingUp, Share2 } from 'lucide-react';
+import { Trophy, TrendingUp } from 'lucide-react';
 import { C } from '@/App/Drivers/constants.js';
-import StatTiles      from '@/App/Drivers/StatTiles.jsx';
-import Achievements   from '@/App/Drivers/Achievements.jsx';
-import RecentSearches from '@/App/Drivers/RecentSearches.jsx';
-import ScheduledFace  from '@/App/Drivers/ScheduledFace.jsx';
-import StatusFace     from '@/App/Drivers/StatusFace.jsx';
+import StatTiles        from '@/App/Drivers/StatTiles.jsx';
+import Achievements     from '@/App/Drivers/Achievements.jsx';
+import RecentSearches   from '@/App/Drivers/RecentSearches.jsx';
+import ScheduledFace    from '@/App/Drivers/ScheduledFace.jsx';
+import StatusFace       from '@/App/Drivers/StatusFace.jsx';
+import NotificationFace from '@/App/Drivers/NotificationFace.jsx';
 
 // ── Helpers ────────────────────────────────────────────
 function tsToMillis(ts) {
@@ -17,14 +18,14 @@ function tsToMillis(ts) {
   return 0;
 }
 
-// Face order: 0=status, 1=scheduled, 2=stats, 3=achievements, 4=notification, 5=searches ← NEW
+// Face order: 0=status, 1=scheduled, 2=stats, 3=achievements, 4=notification, 5=searches
 const FACES   = ['status', 'scheduled', 'stats', 'achievements', 'notification', 'searches'];
 const FACE_MS = 5500;
 
 export default function StatusCard({
   online,
   scheduledRides = [],
-  searches,          // ← already being passed in; now consumed by face 5
+  searches,
   activeTrip,
   tripStage,
   onToggle,
@@ -118,12 +119,11 @@ export default function StatusCard({
       : mode === 'trip'
       ? { bg: 'linear-gradient(135deg,#0F172A 0%,#1E293B 50%,#0F172A 100%)', border: '1.5px solid rgba(34,197,94,.35)',   shadow: '0 12px 40px rgba(0,0,0,.25)' }
       : { bg: 'linear-gradient(135deg,#F0FDF4 0%,#DCFCE7 50%,#F0FDF4 100%)', border: '1.5px solid rgba(22,163,74,.30)',   shadow: '0 8px 28px rgba(22,163,74,.14)' },
-    scheduled:  { bg: 'linear-gradient(135deg,#0F0A1E 0%,#160F2C 50%,#1A1338 100%)', border: '1.5px solid rgba(129,140,248,.35)', shadow: '0 12px 40px rgba(0,0,0,.30)' },
-    stats:      { bg: 'linear-gradient(135deg,#0A0F1A 0%,#0F1A2E 50%,#0A0F1A 100%)', border: '1.5px solid rgba(59,130,246,.30)',  shadow: '0 12px 40px rgba(0,0,0,.28)' },
+    scheduled:    { bg: 'linear-gradient(135deg,#0F0A1E 0%,#160F2C 50%,#1A1338 100%)', border: '1.5px solid rgba(129,140,248,.35)', shadow: '0 12px 40px rgba(0,0,0,.30)' },
+    stats:        { bg: 'linear-gradient(135deg,#0A0F1A 0%,#0F1A2E 50%,#0A0F1A 100%)', border: '1.5px solid rgba(59,130,246,.30)',  shadow: '0 12px 40px rgba(0,0,0,.28)' },
     achievements: { bg: 'linear-gradient(135deg,#1A0A00 0%,#2C1400 50%,#1A0A00 100%)', border: '1.5px solid rgba(251,146,60,.30)', shadow: '0 12px 40px rgba(0,0,0,.28)' },
     notification: { bg: 'linear-gradient(135deg,#0A1A14 0%,#0F2A1E 50%,#0A1A14 100%)', border: '1.5px solid rgba(34,197,94,.30)',  shadow: '0 12px 40px rgba(0,0,0,.28)' },
-    // ── NEW ──
-    searches:   { bg: 'linear-gradient(135deg,#08101E 0%,#0D1829 55%,#080F1B 100%)', border: '1.5px solid rgba(96,165,250,.28)',  shadow: '0 12px 40px rgba(0,0,0,.30)' },
+    searches:     { bg: 'linear-gradient(135deg,#08101E 0%,#0D1829 55%,#080F1B 100%)', border: '1.5px solid rgba(96,165,250,.28)',  shadow: '0 12px 40px rgba(0,0,0,.30)' },
   };
 
   const dotColors = {
@@ -132,7 +132,7 @@ export default function StatusCard({
     stats:        '#60A5FA',
     achievements: '#FB923C',
     notification: '#34D399',
-    searches:     '#60A5FA', // ← NEW
+    searches:     '#60A5FA',
   };
 
   const currentStyle = faceStyles[face];
@@ -226,7 +226,6 @@ export default function StatusCard({
               <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:'linear-gradient(90deg,transparent,rgba(52,211,153,0.6),transparent)', animation:'scScan 3.8s linear infinite', pointerEvents:'none' }}/>
             </>
           )}
-          {/* ── NEW: searches decorative layer ── */}
           {face === 'searches' && (
             <>
               <div style={{ position:'absolute', top:-50, right:-50, width:180, height:180, borderRadius:'50%', background:'radial-gradient(circle,rgba(96,165,250,.16) 0%,transparent 70%)', filter:'blur(28px)', pointerEvents:'none' }}/>
@@ -291,33 +290,10 @@ export default function StatusCard({
 
             {/* ════ FACE: NOTIFICATION ════ */}
             {face === 'notification' && (
-              <div style={{ display:'flex', alignItems:'center', gap:14 }}>
-                <div style={{
-                  width:48, height:48, borderRadius:14, flexShrink:0,
-                  background:'linear-gradient(135deg,#34D399,#10B981)',
-                  display:'flex', alignItems:'center', justifyContent:'center',
-                  boxShadow:'0 6px 18px rgba(16,185,129,.4)',
-                }}>
-                  <Share2 size={20} color="#fff" strokeWidth={2.2}/>
-                </div>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'4px 10px', borderRadius:100, background:'rgba(52,211,153,.12)', border:'1px solid rgba(52,211,153,.25)', marginBottom:8 }}>
-                    <div style={{ width:6, height:6, borderRadius:'50%', background:'#34D399', boxShadow:'0 0 8px rgba(52,211,153,0.8)', animation:'scLiveDot 1.6s ease-in-out infinite' }}/>
-                    <span className="mono" style={{ fontSize:10, fontWeight:800, letterSpacing:'.12em', textTransform:'uppercase', color:'#6EE7B7' }}>
-                      {online ? "You're online" : 'Spread the word'}
-                    </span>
-                  </div>
-                  <div style={{ fontSize:13, fontWeight:600, color:'rgba(255,255,255,.82)', lineHeight:1.5 }}>
-                    {online
-                      ? <>You're online — share UaTob with <span style={{ color:'#6EE7B7', fontWeight:800 }}>everyone you know</span> and grow the network.</>
-                      : <>Tell your friends about UaTob. The more people who join, the more rides for <span style={{ color:'#6EE7B7', fontWeight:800 }}>everyone</span>.</>
-                    }
-                  </div>
-                </div>
-              </div>
+              <NotificationFace online={online} />
             )}
 
-            {/* ════ FACE: SEARCHES (NEW) ════ */}
+            {/* ════ FACE: SEARCHES ════ */}
             {face === 'searches' && (
               <RecentSearches
                 searches={searches ?? []}
