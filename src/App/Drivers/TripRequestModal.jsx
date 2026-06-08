@@ -4,23 +4,27 @@
  * The decision screen: a ride comes in, the driver has ~60s to take it.
  * Slide RIGHT → Accept · Slide LEFT → Decline.
  *
- * This revision brings it up to ActiveTripScreen quality:
- * ──────────────────────────────────────────────────────
+ * Built to match ActiveTripScreen quality, tuned for the accept/decline beat:
+ * ─────────────────────────────────────────────────────────────────────────
  *   • Animated route. The driver→pickup line draws itself in on arrival, then
  *     carries a flowing marching-dash overlay so it always reads as "live."
- *   • Radar ping at pickup. Concentric rings pulse out from the pickup pin —
- *     on-brand with the HomeTab radar aesthetic; reads as "rider waiting here."
- *   • Cinematic intro. The camera eases/zooms onto the scene as the panel rises.
+ *   • Radar scene. A slow conic sweep rotates over the map and concentric ping
+ *     rings pulse from the pickup pin — the HomeTab radar language, here meaning
+ *     "a rider is waiting right here."
+ *   • Compass-to-pickup. A small bearing arrow + cardinal direction so the
+ *     driver instantly knows which way the job is.
+ *   • Cinematic intro. The camera starts pulled back and eases in as the panel
+ *     rises; a soft haptic announces the request.
  *   • Urgency system. A draining top bar + countdown ring shift green→amber→red,
- *     and at ≤10s the whole sheet picks up a red heartbeat so a late accept is
- *     never an accident.
- *   • Driver-decision metrics. The fare counts up on mount and is paired with
- *     the numbers drivers actually judge a ride on: $/mi and $/min, plus pickup
- *     distance/ETA and the trip's own distance/time.
- *   • Context chips. Scheduled rides surface their time; long hauls flag as
- *     LONG TRIP; surge is called out.
- *   • Privacy preserved. Exact addresses stay redacted to a city/area hint until
- *     the driver accepts, then reveal with a smooth transition.
+ *     and at ≤10s the whole sheet picks up a red heartbeat (plus a single haptic
+ *     pulse on the threshold) so a late accept is never an accident.
+ *   • Driver-decision intelligence. The fare counts up on mount and is paired
+ *     with $/mi and $/min, an earnings-quality gauge, a deadhead ratio, and an
+ *     expandable fare breakdown — the numbers a driver actually judges a ride on.
+ *   • Rider context. A mini rider card (avatar, first name, rating, trips) is
+ *     fetched from the rider's account; the full address stays redacted until
+ *     accept, then reveals with a smooth transition.
+ *   • Real states. Distinct ACCEPTED and EXPIRED overlays close the loop.
  *
  * Props (unchanged — drop-in replacement)
  * ───────────────────────────────────────
@@ -35,9 +39,11 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Zap } from 'lucide-react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebase_app } from '@/firebase/config';
 import { TYPE_COLOR, TYPE_LABEL } from '@/App/Drivers/constants.js';
 
+const db                    = getFirestore(firebase_app);
 const functions             = getFunctions(firebase_app, 'us-east1');
 const callGetDriverToPickup = httpsCallable(functions, 'getDriverToPickup');
 
@@ -69,11 +75,13 @@ const MONO = "'JetBrains Mono','SFMono-Regular',monospace";
 const COND = "'Barlow Condensed','Barlow',sans-serif";
 
 // ─── tunables ───────────────────────────────────────────────────────────────
-const DRAW_MS         = 850;   // route draw-in duration
-const FARE_COUNT_MS   = 650;   // fare count-up duration
-const DASH_THROTTLE_MS = 55;   // flowing-dash frame interval
-const LONG_TRIP_MI    = 15;    // threshold to flag a long haul
-const DANGER_AT       = 10;    // seconds remaining → urgency escalation
+const DRAW_MS          = 850;   // route draw-in duration
+const FARE_COUNT_MS    = 650;   // fare count-up duration
+const DASH_THROTTLE_MS = 55;    // flowing-dash frame interval
+const LONG_TRIP_MI     = 15;    // threshold to flag a long haul
+const DANGER_AT        = 10;    // seconds remaining → urgency escalation
+const WARN_AT          = 20;    // seconds remaining → amber
+const GAUGE_MAX_PER_MI = 4.0;   // top of the earnings-quality gauge ($/mi)
 
 // ─── payment config ─────────────────────────────────────────────────────────
 const PAY_CFG = {
@@ -81,6 +89,14 @@ const PAY_CFG = {
   card:    { label:'CARD',     color:'#60A5FA', bg:'rgba(96,165,250,.12)', border:'rgba(96,165,250,.28)', icon:'💳' },
   cashapp: { label:'CASH APP', color:'#34D399', bg:'rgba(52,211,153,.12)', border:'rgba(52,211,153,.28)', icon:'$'  },
 };
+
+// earnings-quality tiers, judged on $/mile (rough operational read, not advice)
+const RATE_TIERS = [
+  { min: 0.00, label: 'LOW',   color: C.redDeep },
+  { min: 1.10, label: 'FAIR',  color: C.amberBright },
+  { min: 1.85, label: 'GOOD',  color: C.greenSoft },
+  { min: 2.75, label: 'GREAT', color: C.greenBright },
+];
 
 // animated marching-dash frames for the flowing route
 const DASH_FRAMES = [
@@ -90,10 +106,38 @@ const DASH_FRAMES = [
   [0, 3, 3, 1], [0, 3.5, 3, 0.5],
 ];
 
+const COMPASS_PTS = ['N','NE','E','SE','S','SW','W','NW'];
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════════════════════════
+const DEG = Math.PI / 180;
 const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+const clamp01 = (n) => Math.max(0, Math.min(1, n));
+
+/** great-circle distance in miles */
+function haversineMi(lat1, lng1, lat2, lng2) {
+  const R = 3958.8;
+  const dLat = (lat2 - lat1) * DEG;
+  const dLng = (lng2 - lng1) * DEG;
+  const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(lat1 * DEG) * Math.cos(lat2 * DEG) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/** initial bearing (deg, 0=N, clockwise) from A→B */
+function bearingDeg(lat1, lng1, lat2, lng2) {
+  const f1 = lat1 * DEG, f2 = lat2 * DEG;
+  const dl = (lng2 - lng1) * DEG;
+  const y = Math.sin(dl) * Math.cos(f2);
+  const x = Math.cos(f1) * Math.sin(f2) - Math.sin(f1) * Math.cos(f2) * Math.cos(dl);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
+/** bearing degrees → cardinal label */
+function cardinal(deg) {
+  return COMPASS_PTS[Math.round(((deg % 360) / 45)) % 8];
+}
 
 /** Google encoded polyline → [[lat,lng], ...] */
 function decodePolyline(encoded) {
@@ -112,9 +156,7 @@ function decodePolyline(encoded) {
   return pts;
 }
 
-/**
- * Redacted view (before accept): show only "City, ST" — no street at all.
- */
+/** Redacted view (before accept): only "City, ST" — no street. */
 function redactAddress(raw) {
   if (!raw) return '•••• ••••';
   const parts = String(raw).split(',').map(s => s.trim()).filter(Boolean);
@@ -124,9 +166,7 @@ function redactAddress(raw) {
   return area ? `•••• ${area}` : '•••• ••••';
 }
 
-/**
- * Revealed view (after accept): real address with the street number masked.
- */
+/** Revealed view (after accept): real address with street number masked. */
 function maskAddress(raw) {
   if (!raw) return '—';
   const parts = String(raw).split(',').map(s => s.trim()).filter(Boolean);
@@ -156,6 +196,31 @@ function fmtClock(ts) {
 
 /** money → "$12.34" */
 const money = (n) => `$${(Number(n) || 0).toFixed(2)}`;
+
+/** initials from a name */
+function getInitials(name) {
+  if (!name) return '?';
+  return name.trim().split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+}
+
+/** first token of a name */
+function firstName(name) {
+  if (!name) return 'Rider';
+  return name.trim().split(/\s+/)[0];
+}
+
+/** tier object for a $/mi value */
+function tierForRate(perMile) {
+  if (perMile == null) return RATE_TIERS[1];
+  let t = RATE_TIERS[0];
+  for (const tier of RATE_TIERS) if (perMile >= tier.min) t = tier;
+  return t;
+}
+
+/** fire a haptic pulse if the platform supports it */
+function haptic(pattern) {
+  try { if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(pattern); } catch (e) {}
+}
 
 // ─── mapbox loader (deduped) ─────────────────────────────────────────────────
 let _mbReady = false;
@@ -385,7 +450,7 @@ function FullscreenMap({ driverLat, driverLng, pickupLat, pickupLng, polyline, o
         const lats = pts.map(p => p[1]);
         map.fitBounds(
           [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
-          { padding: { top: 170, bottom: 340, left: 60, right: 60 }, maxZoom: 15.5, pitch: 52, duration: 1100 },
+          { padding: { top: 180, bottom: 360, left: 60, right: 60 }, maxZoom: 15.5, pitch: 52, duration: 1100 },
         );
       }
 
@@ -447,14 +512,86 @@ function FullscreenMap({ driverLat, driverLng, pickupLat, pickupLng, polyline, o
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// RADAR SWEEP — slow rotating conic overlay over the map (incoming-signal feel)
+// ═══════════════════════════════════════════════════════════════════════════════
+function RadarSweep({ active }) {
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, zIndex: 4, pointerEvents: 'none',
+      overflow: 'hidden', opacity: active ? 1 : 0, transition: 'opacity .6s ease',
+    }}>
+      <div style={{
+        position: 'absolute', top: '38%', left: '50%',
+        width: '160vmax', height: '160vmax',
+        transform: 'translate(-50%,-50%)',
+        background: 'conic-gradient(from 0deg, transparent 0deg, rgba(74,222,128,.10) 28deg, rgba(74,222,128,.02) 46deg, transparent 60deg)',
+        animation: 'trm2-sweep 6.5s linear infinite',
+        maskImage: 'radial-gradient(circle at center, #000 12%, transparent 62%)',
+        WebkitMaskImage: 'radial-gradient(circle at center, #000 12%, transparent 62%)',
+      }}/>
+      {[0.18, 0.34, 0.5].map((r, i) => (
+        <div key={i} style={{
+          position: 'absolute', top: '38%', left: '50%',
+          width: `${r * 200}vmin`, height: `${r * 200}vmin`,
+          transform: 'translate(-50%,-50%)', borderRadius: '50%',
+          border: '1px solid rgba(74,222,128,.05)',
+        }}/>
+      ))}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COMPASS-TO-PICKUP — bearing arrow + cardinal direction
+// ═══════════════════════════════════════════════════════════════════════════════
+function CompassToPickup({ bearing, distanceMi }) {
+  if (bearing == null) return null;
+  return (
+    <div style={{
+      position: 'absolute', top: 'calc(58px + env(safe-area-inset-top))', left: 14, zIndex: 21,
+      display: 'flex', alignItems: 'center', gap: 9,
+      background: C.panelDeep, backdropFilter: 'blur(12px)',
+      border: '1px solid rgba(74,222,128,.25)', borderRadius: 14, padding: '7px 11px 7px 8px',
+      boxShadow: '0 6px 20px rgba(0,0,0,.5)',
+      animation: 'trm2-fadein .5s .15s ease both', pointerEvents: 'none',
+    }}>
+      <div style={{ position: 'relative', width: 34, height: 34, flexShrink: 0 }}>
+        <div style={{
+          position: 'absolute', inset: 0, borderRadius: '50%',
+          border: '1.5px solid rgba(74,222,128,.25)',
+          background: 'radial-gradient(circle, rgba(74,222,128,.08), transparent 70%)',
+        }}/>
+        <div style={{
+          position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transform: `rotate(${bearing}deg)`, transition: 'transform .6s cubic-bezier(.34,1.1,.64,1)',
+        }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+            stroke={C.greenBright} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 3 18 21 12 17 6 21z" fill={C.greenBright} fillOpacity="0.18"/>
+          </svg>
+        </div>
+      </div>
+      <div>
+        <div style={{ fontFamily: MONO, fontSize: 12, fontWeight: 800, color: C.greenBright, lineHeight: 1 }}>
+          {cardinal(bearing)}
+        </div>
+        <div style={{ fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.12em', color: C.inkDim, marginTop: 3 }}>
+          {distanceMi != null ? `${distanceMi.toFixed(1)} MI OUT` : 'TO PICKUP'}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // TIMER RING — escalates to red as time runs out
 // ═══════════════════════════════════════════════════════════════════════════════
 function TimerRing({ timer, total = 60 }) {
   const R    = 20;
   const circ = 2 * Math.PI * R;
-  const pct  = Math.max(0, Math.min(1, timer / total));
+  const pct  = clamp01(timer / total);
   const danger = timer <= DANGER_AT;
-  const warn   = timer <= 20 && !danger;
+  const warn   = timer <= WARN_AT && !danger;
   const stroke = danger ? C.redDeep : warn ? C.amberBright : C.greenBright;
 
   return (
@@ -465,22 +602,18 @@ function TimerRing({ timer, total = 60 }) {
           stroke={stroke} strokeWidth="3" strokeLinecap="round"
           strokeDasharray={circ}
           strokeDashoffset={circ * (1 - pct)}
-          style={{
-            transition: 'stroke-dashoffset 1s linear, stroke .3s ease',
-            filter: `drop-shadow(0 0 5px ${stroke}aa)`,
-          }}
+          style={{ transition: 'stroke-dashoffset 1s linear, stroke .3s ease', filter: `drop-shadow(0 0 5px ${stroke}aa)` }}
         />
       </svg>
       <div style={{
         position: 'absolute', inset: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontFamily: MONO, fontSize: 15, fontWeight: 700,
-        color: danger ? C.redDeep : C.white,
-        borderRadius: '50%',
+        color: danger ? C.redDeep : C.white, borderRadius: '50%',
         animation: danger ? 'trm2-alert 1s ease-in-out infinite' : 'none',
         transition: 'color .3s',
       }}>
-        {timer}
+        {Math.max(0, timer)}
       </div>
     </div>
   );
@@ -536,19 +669,26 @@ function AddressRow({ label, raw, accepted, dimmed }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// METRIC TILE — small label/value stack
+// METRIC TILE + SKELETON
 // ═══════════════════════════════════════════════════════════════════════════════
-function MetricTile({ label, value, accent }) {
+function MetricTile({ label, value, accent, loading }) {
   return (
     <div style={{ textAlign: 'center', minWidth: 0, flex: 1 }}>
-      <div style={{
-        fontFamily: MONO, fontSize: 14, fontWeight: 800,
-        color: accent || C.white, lineHeight: 1.15,
-        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-      }}>
-        {value}
-      </div>
-      <div style={{ fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.13em', color: C.inkDim, marginTop: 3 }}>
+      {loading ? (
+        <div style={{
+          height: 15, width: 46, margin: '0 auto', borderRadius: 5,
+          background: 'linear-gradient(90deg,rgba(255,255,255,.05) 25%,rgba(255,255,255,.12) 50%,rgba(255,255,255,.05) 75%)',
+          backgroundSize: '200% 100%', animation: 'trm2-shimmer 1.4s ease-in-out infinite',
+        }}/>
+      ) : (
+        <div style={{
+          fontFamily: MONO, fontSize: 14, fontWeight: 800, color: accent || C.white, lineHeight: 1.15,
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>
+          {value}
+        </div>
+      )}
+      <div style={{ fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.13em', color: C.inkDim, marginTop: 4 }}>
         {label}
       </div>
     </div>
@@ -562,12 +702,201 @@ function Chip({ color, bg, border, children, icon }) {
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 4,
-      background: bg, border: `1px solid ${border}`, borderRadius: 7,
-      padding: '3px 8px',
+      background: bg, border: `1px solid ${border}`, borderRadius: 7, padding: '3px 8px',
       fontFamily: COND, fontSize: 10, fontWeight: 800, letterSpacing: '.08em', color,
     }}>
       {icon}{children}
     </span>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RIDER CARD — avatar, first name, rating, trips (fetched from account)
+// ═══════════════════════════════════════════════════════════════════════════════
+const cardWrap = {
+  display: 'flex', alignItems: 'center', gap: 11,
+  background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)',
+  borderRadius: 14, padding: '9px 13px', marginBottom: 12,
+};
+const avatar = {
+  width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  boxShadow: '0 3px 14px rgba(0,0,0,.4)',
+};
+
+function RiderCard({ rider, loading }) {
+  if (loading) {
+    return (
+      <div style={cardWrap}>
+        <div style={{ ...avatar, background: 'rgba(255,255,255,.06)', animation: 'trm2-shimmer 1.4s ease-in-out infinite', backgroundSize: '200% 100%' }}/>
+        <div style={{ flex: 1 }}>
+          <div style={{ height: 12, width: '52%', borderRadius: 4, background: 'rgba(255,255,255,.08)', marginBottom: 6 }}/>
+          <div style={{ height: 9, width: '34%', borderRadius: 4, background: 'rgba(255,255,255,.05)' }}/>
+        </div>
+      </div>
+    );
+  }
+  if (!rider) return null;
+  const rating = typeof rider.rating === 'number' ? rider.rating.toFixed(1) : null;
+  const trips  = typeof rider.totalRides === 'number' ? rider.totalRides
+               : typeof rider.tripsCount === 'number' ? rider.tripsCount : null;
+
+  return (
+    <div style={cardWrap}>
+      <div style={{ ...avatar, background: 'linear-gradient(135deg,#8B5CF6 0%,#4C1D95 100%)', border: '2px solid rgba(255,255,255,.6)' }}>
+        <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 800, color: '#fff' }}>{getInitials(rider.name)}</span>
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: COND, fontSize: 15, fontWeight: 800, letterSpacing: '.03em', color: C.white, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {firstName(rider.name)}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 5 }}>
+          {rating && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill={C.amberBright}>
+                <polygon points="12 2 15 9 22 9 16.5 13.5 18.5 21 12 16.5 5.5 21 7.5 13.5 2 9 9 9"/>
+              </svg>
+              <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: C.amberBright }}>{rating}</span>
+            </span>
+          )}
+          {trips != null && (
+            <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: C.ink }}>
+              {trips} <span style={{ fontFamily: COND, fontWeight: 700, letterSpacing: '.08em', color: C.inkDim }}>TRIPS</span>
+            </span>
+          )}
+        </div>
+      </div>
+      <span style={{ fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.14em', color: C.inkDim }}>RIDER</span>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EARNINGS-QUALITY GAUGE — where this ride's $/mi sits across tiers
+// ═══════════════════════════════════════════════════════════════════════════════
+function EarningsGauge({ perMile }) {
+  if (perMile == null) return null;
+  const tier = tierForRate(perMile);
+  const fill = clamp01(perMile / GAUGE_MAX_PER_MI);
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+        <span style={{ fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.14em', color: C.inkDim }}>
+          EARNINGS QUALITY
+        </span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 800, color: tier.color }}>
+            {money(perMile)}<span style={{ color: C.ink, fontWeight: 600 }}>/mi</span>
+          </span>
+          <span style={{
+            fontFamily: COND, fontSize: 9, fontWeight: 900, letterSpacing: '.12em',
+            color: tier.color, background: `${tier.color}1f`, border: `1px solid ${tier.color}44`,
+            borderRadius: 5, padding: '1.5px 6px',
+          }}>
+            {tier.label}
+          </span>
+        </span>
+      </div>
+      <div style={{ position: 'relative', height: 8, borderRadius: 6, overflow: 'hidden', background: 'rgba(255,255,255,.05)' }}>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex' }}>
+          <div style={{ width: `${(1.10/GAUGE_MAX_PER_MI)*100}%`, background: 'rgba(239,68,68,.12)' }}/>
+          <div style={{ width: `${((1.85-1.10)/GAUGE_MAX_PER_MI)*100}%`, background: 'rgba(251,191,36,.12)' }}/>
+          <div style={{ width: `${((2.75-1.85)/GAUGE_MAX_PER_MI)*100}%`, background: 'rgba(52,211,153,.12)' }}/>
+          <div style={{ flex: 1, background: 'rgba(74,222,128,.14)' }}/>
+        </div>
+        <div style={{
+          position: 'absolute', top: 0, bottom: 0, left: 0, width: `${fill * 100}%`,
+          background: `linear-gradient(90deg, ${tier.color}aa, ${tier.color})`,
+          boxShadow: `0 0 10px ${tier.color}aa`,
+          transition: 'width .7s cubic-bezier(.34,1.1,.64,1)',
+        }}/>
+        <div style={{
+          position: 'absolute', top: -2, bottom: -2, left: `calc(${fill * 100}% - 1px)`,
+          width: 2, background: '#fff', boxShadow: '0 0 6px rgba(255,255,255,.7)',
+          transition: 'left .7s cubic-bezier(.34,1.1,.64,1)',
+        }}/>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FARE BREAKDOWN — expandable line items
+// ═══════════════════════════════════════════════════════════════════════════════
+function prettyKey(k) {
+  return String(k)
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase())
+    .trim();
+}
+
+function FareBreakdown({ trip, payout }) {
+  const [open, setOpen] = useState(false);
+
+  const rows = useMemo(() => {
+    const fb = trip?.fareBreakdown;
+    const out = [];
+    if (fb && typeof fb === 'object') {
+      for (const [k, v] of Object.entries(fb)) {
+        if (typeof v === 'number') out.push({ label: prettyKey(k), value: v });
+      }
+    }
+    if (out.length) return out;
+    const total    = Number(trip?.fareTotal) || null;
+    const platform = Number(trip?.platformFee) || null;
+    const summary = [];
+    if (total != null)    summary.push({ label: 'Rider Pays', value: total });
+    if (platform != null) summary.push({ label: 'Platform Fee', value: -platform });
+    summary.push({ label: 'Your Payout', value: payout, strong: true });
+    return summary;
+  }, [trip, payout]);
+
+  if (!rows.length) return null;
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)',
+          borderRadius: open ? '12px 12px 0 0' : 12, padding: '9px 13px', cursor: 'pointer',
+          fontFamily: COND, fontSize: 10, fontWeight: 800, letterSpacing: '.12em', color: C.ink,
+          transition: 'border-radius .2s',
+        }}
+      >
+        FARE BREAKDOWN
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.ink} strokeWidth="2.4"
+          strokeLinecap="round" strokeLinejoin="round"
+          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform .25s ease' }}>
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+      <div style={{
+        overflow: 'hidden', maxHeight: open ? rows.length * 34 + 16 : 0,
+        transition: 'max-height .3s cubic-bezier(.34,1.05,.64,1)',
+        background: 'rgba(255,255,255,.02)', border: open ? '1px solid rgba(255,255,255,.06)' : '1px solid transparent',
+        borderTop: 'none', borderRadius: '0 0 12px 12px',
+      }}>
+        <div style={{ padding: '6px 13px 10px' }}>
+          {rows.map((r, i) => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '5px 0', borderTop: i === 0 ? 'none' : '1px solid rgba(255,255,255,.04)',
+            }}>
+              <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: r.strong ? 800 : 600, color: r.strong ? C.white : C.ink }}>
+                {r.label}
+              </span>
+              <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 800, color: r.strong ? C.greenBright : r.value < 0 ? C.red : C.white }}>
+                {r.value < 0 ? `−${money(Math.abs(r.value))}` : money(r.value)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -581,6 +910,7 @@ function BidirectionalSlide({ onAccept, onDecline, pending, disabled }) {
   const offsetRef   = useRef(0);
   const [x, setX]           = useState(0);
   const [result, setResult] = useState(null); // 'accept' | 'decline' | null
+  const [nudge, setNudge]   = useState(false); // one-time idle teaching nudge
 
   const THUMB  = 58;
   const PAD    = 4;
@@ -594,14 +924,17 @@ function BidirectionalSlide({ onAccept, onDecline, pending, disabled }) {
   useEffect(() => {
     measure();
     window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [measure]);
+    const t  = setTimeout(() => { if (!draggingRef.current && !result) setNudge(true); }, 700);
+    const t2 = setTimeout(() => setNudge(false), 1500);
+    return () => { window.removeEventListener('resize', measure); clearTimeout(t); clearTimeout(t2); };
+  }, [measure, result]);
 
   const clientX   = (e) => e.touches?.[0]?.clientX ?? e.clientX ?? 0;
   const setOffset = (px) => { offsetRef.current = px; setX(px); };
 
   const onDown = (e) => {
     if (pending || disabled || result) return;
+    setNudge(false);
     draggingRef.current = true;
     measure();
     const startX      = clientX(e);
@@ -627,10 +960,12 @@ function BidirectionalSlide({ onAccept, onDecline, pending, disabled }) {
       if (ratio >= COMMIT) {
         setOffset(halfRef.current);
         setResult('accept');
+        haptic([18, 40, 18]);
         onAccept?.();
       } else if (ratio <= -COMMIT) {
         setOffset(-halfRef.current);
         setResult('decline');
+        haptic(24);
         onDecline?.();
       } else {
         setOffset(0);
@@ -694,6 +1029,14 @@ function BidirectionalSlide({ onAccept, onDecline, pending, disabled }) {
           overflow: 'hidden', transition: 'border-color .2s', touchAction: 'none',
         }}
       >
+        {/* idle shimmer sweep */}
+        {!pending && !result && x === 0 && (
+          <div style={{
+            position: 'absolute', inset: 0, pointerEvents: 'none',
+            background: 'linear-gradient(105deg, transparent 40%, rgba(255,255,255,.06) 50%, transparent 60%)',
+            backgroundSize: '200% 100%', animation: 'trm2-shimmer 3.4s ease-in-out infinite',
+          }}/>
+        )}
         {/* decline fill (left) */}
         <div style={{
           position:'absolute', top:0, bottom:0, right:'50%',
@@ -719,7 +1062,8 @@ function BidirectionalSlide({ onAccept, onDecline, pending, disabled }) {
           onPointerDown={onDown}
           onTouchStart={onDown}
           style={{
-            position:'absolute', top:PAD, left:`calc(50% - ${THUMB/2}px + ${x}px)`,
+            position:'absolute', top:PAD,
+            left:`calc(50% - ${THUMB/2}px + ${x + (nudge ? 7 : 0)}px)`,
             width:THUMB, height:THUMB, borderRadius:16,
             background: result === 'accept'  ? `linear-gradient(135deg, ${acceptColor}, #16A34A)`
                       : result === 'decline' ? `linear-gradient(135deg, ${declineColor}, #B91C1C)`
@@ -733,7 +1077,7 @@ function BidirectionalSlide({ onAccept, onDecline, pending, disabled }) {
             cursor: pending || result ? 'default' : 'grab', touchAction:'none',
             transition: draggingRef.current
               ? 'background .12s, box-shadow .12s'
-              : 'left .28s cubic-bezier(.34,1.1,.64,1), background .2s, box-shadow .2s',
+              : 'left .3s cubic-bezier(.34,1.3,.64,1), background .2s, box-shadow .2s',
             zIndex:2,
           }}
         >
@@ -761,6 +1105,109 @@ function BidirectionalSlide({ onAccept, onDecline, pending, disabled }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// ACCEPTED OVERLAY — brief success beat before the parent swaps screens
+// ═══════════════════════════════════════════════════════════════════════════════
+function AcceptedOverlay({ rider }) {
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, zIndex: 90,
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      background: 'radial-gradient(ellipse at 50% 45%, rgba(8,20,12,.86), rgba(2,5,3,.96))',
+      backdropFilter: 'blur(6px)', animation: 'trm2-fadein .25s ease both',
+    }}>
+      <div style={{ position: 'relative', width: 110, height: 110, marginBottom: 22 }}>
+        {[0,1].map(i => (
+          <div key={i} style={{
+            position: 'absolute', inset: 0, borderRadius: '50%',
+            border: `2px solid ${C.greenBright}`,
+            animation: `trm2-burst 1.4s ${i*0.25}s cubic-bezier(0,.4,.6,1) infinite`,
+          }}/>
+        ))}
+        <div style={{
+          position: 'absolute', inset: 18, borderRadius: '50%',
+          background: 'rgba(34,197,94,.18)', border: `2px solid ${C.greenBright}88`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: `0 0 40px ${C.greenBright}55`,
+          animation: 'trm2-checkpop .5s cubic-bezier(.34,1.8,.64,1) both',
+        }}>
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none"
+            stroke={C.greenBright} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+      </div>
+      <div style={{ fontFamily: COND, fontSize: 26, fontWeight: 900, letterSpacing: '.18em', color: C.greenBright, textTransform: 'uppercase' }}>
+        Ride Accepted
+      </div>
+      <div style={{ fontFamily: MONO, fontSize: 12, fontWeight: 600, color: C.ink, marginTop: 8, letterSpacing: '.04em' }}>
+        {rider?.name ? `Heading to ${firstName(rider.name)}` : 'Starting navigation…'}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EXPIRED OVERLAY — request timed out
+// ═══════════════════════════════════════════════════════════════════════════════
+function ExpiredOverlay() {
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, zIndex: 88,
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      background: 'rgba(2,5,3,.84)', backdropFilter: 'blur(5px)',
+      animation: 'trm2-fadein .3s ease both',
+    }}>
+      <div style={{
+        width: 70, height: 70, borderRadius: '50%', marginBottom: 18,
+        border: '2px solid rgba(255,255,255,.18)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.5)"
+          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
+        </svg>
+      </div>
+      <div style={{ fontFamily: COND, fontSize: 22, fontWeight: 900, letterSpacing: '.16em', color: 'rgba(255,255,255,.6)', textTransform: 'uppercase' }}>
+        Request Expired
+      </div>
+      <div style={{ fontFamily: MONO, fontSize: 11, fontWeight: 600, color: C.inkDim, marginTop: 8 }}>
+        Passed to the next driver
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// NOTE CALLOUT — rider's pickup instructions / special requests (if any)
+// ═══════════════════════════════════════════════════════════════════════════════
+function NoteCallout({ note }) {
+  const text = (note || '').toString().trim();
+  if (!text) return null;
+  return (
+    <div style={{
+      display: 'flex', gap: 9, alignItems: 'flex-start',
+      background: 'rgba(103,232,249,.06)', border: '1px solid rgba(103,232,249,.2)',
+      borderRadius: 12, padding: '9px 12px', marginBottom: 12,
+    }}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.cyan}
+        strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
+        style={{ flexShrink: 0, marginTop: 1 }}>
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <path d="M14 2v6h6M8 13h8M8 17h6"/>
+      </svg>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.14em', color: 'rgba(103,232,249,.7)', marginBottom: 2 }}>
+          RIDER NOTE
+        </div>
+        <div style={{ fontFamily: MONO, fontSize: 11, fontWeight: 600, color: C.white, lineHeight: 1.45 }}>
+          {text}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function TripRequestModal({
@@ -771,15 +1218,19 @@ export default function TripRequestModal({
   onDecline,
   actionPending = false,
 }) {
-  const [polyline,   setPolyline]   = useState(null);
-  const [driverDist, setDriverDist] = useState(null);
-  const [driverEta,  setDriverEta]  = useState(null);
-  const [loadingGeo, setLoadingGeo] = useState(false);
-  const [accepted,   setAccepted]   = useState(false);
-  const [mapReady,   setMapReady]   = useState(false);
+  const [polyline,    setPolyline]    = useState(null);
+  const [driverDist,  setDriverDist]  = useState(null);
+  const [driverEta,   setDriverEta]   = useState(null);
+  const [loadingGeo,  setLoadingGeo]  = useState(false);
+  const [accepted,    setAccepted]    = useState(false);
+  const [mapReady,    setMapReady]    = useState(false);
   const [displayFare, setDisplayFare] = useState(0);   // count-up value
-  const prevTripId = useRef(null);
-  const fareRafRef = useRef(0);
+  const [rider,       setRider]       = useState(null);
+  const [riderLoading, setRiderLoading] = useState(false);
+
+  const prevTripId     = useRef(null);
+  const fareRafRef     = useRef(0);
+  const dangerFiredRef = useRef(false);
 
   const payout = Number(tripRequest?.driverPayout) || 0;
 
@@ -801,11 +1252,27 @@ export default function TripRequestModal({
       @keyframes trm2-chev-right  { 0%,100%{opacity:.3;transform:translateX(0)} 50%{opacity:1;transform:translateX(2.5px)} }
       @keyframes trm2-chev-left   { 0%,100%{opacity:.3;transform:translateX(0)} 50%{opacity:1;transform:translateX(-2.5px)} }
       @keyframes trm2-shimmer     { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+      @keyframes trm2-sweep       { to { transform: translate(-50%,-50%) rotate(360deg); } }
+      @keyframes trm2-burst       { 0%{transform:scale(.4);opacity:.8} 100%{transform:scale(1.25);opacity:0} }
+      @keyframes trm2-checkpop    { from{transform:scale(.5);opacity:0} to{transform:scale(1);opacity:1} }
       .trm2-map .mapboxgl-ctrl-logo,
       .trm2-map .mapboxgl-ctrl-attrib { display:none !important; }
     `;
     document.head.appendChild(style);
   }, []);
+
+  // ── announce the request with a soft haptic ──────────────────────────────────
+  useEffect(() => {
+    if (tripRequest?.id) { haptic([0, 60, 70, 60]); dangerFiredRef.current = false; }
+  }, [tripRequest?.id]);
+
+  // ── single haptic pulse when we cross into the danger window ─────────────────
+  useEffect(() => {
+    if (requestTimer <= DANGER_AT && requestTimer > 0 && !dangerFiredRef.current) {
+      dangerFiredRef.current = true;
+      haptic([30, 30, 30]);
+    }
+  }, [requestTimer]);
 
   // ── fetch route + reset on new trip ──────────────────────────────────────────
   useEffect(() => {
@@ -830,6 +1297,18 @@ export default function TripRequestModal({
       .finally(() => setLoadingGeo(false));
   // eslint-disable-next-line
   }, [tripRequest?.id]);
+
+  // ── fetch rider account for the rider card ───────────────────────────────────
+  useEffect(() => {
+    const uid = tripRequest?.uid;
+    if (!uid) { setRider(null); return; }
+    setRiderLoading(true);
+    setRider(null);
+    getDoc(doc(db, 'Accounts', uid))
+      .then(snap => { if (snap.exists()) setRider(snap.data()); })
+      .catch(() => {})
+      .finally(() => setRiderLoading(false));
+  }, [tripRequest?.uid]);
 
   // ── fare count-up on each new trip ───────────────────────────────────────────
   useEffect(() => {
@@ -862,7 +1341,20 @@ export default function TripRequestModal({
   // earnings rate — the numbers a driver actually decides on
   const perMile = miles > 0 ? payout / miles : null;
   const perMin  = mins  > 0 ? payout / mins  : null;
+
+  // deadhead: unpaid distance to pickup vs paid trip distance
+  const deadheadMi = (driver?.lat && driver?.lng && tripRequest.pickupLat && tripRequest.pickupLng)
+    ? haversineMi(driver.lat, driver.lng, tripRequest.pickupLat, tripRequest.pickupLng)
+    : null;
+  const deadheadRatio = (deadheadMi != null && miles > 0) ? deadheadMi / miles : null;
+
+  // bearing to pickup for the compass
+  const pickupBearing = (driver?.lat && driver?.lng && tripRequest.pickupLat && tripRequest.pickupLng)
+    ? bearingDeg(driver.lat, driver.lng, tripRequest.pickupLat, tripRequest.pickupLng)
+    : null;
+
   const danger  = requestTimer <= DANGER_AT;
+  const expired = requestTimer <= 0 && !accepted;
 
   const handleAccept = () => { setAccepted(true); onAccept?.(); };
 
@@ -881,6 +1373,9 @@ export default function TripRequestModal({
         />
       </div>
 
+      {/* radar sweep over the map */}
+      <RadarSweep active={mapReady && !accepted && !expired}/>
+
       {/* loading shimmer (semi-transparent, doesn't hide the map) */}
       {(loadingGeo || !mapReady) && (
         <div style={{
@@ -896,17 +1391,22 @@ export default function TripRequestModal({
         position:'absolute', inset:0, zIndex:5, pointerEvents:'none',
         background:[
           'radial-gradient(ellipse at 50% 42%, transparent 34%, rgba(3,6,4,.3) 74%, rgba(3,6,4,.7) 100%)',
-          'linear-gradient(to bottom, rgba(3,6,4,.55) 0%, transparent 20%, transparent 40%, rgba(2,5,3,.92) 100%)',
+          'linear-gradient(to bottom, rgba(3,6,4,.55) 0%, transparent 20%, transparent 38%, rgba(2,5,3,.92) 100%)',
         ].join(', '),
       }}/>
 
       {/* ── urgency vignette when time is short ── */}
-      {danger && (
+      {danger && !expired && (
         <div style={{
           position:'absolute', inset:0, zIndex:6, pointerEvents:'none',
           background:'radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(239,68,68,.14) 100%)',
           animation:'trm2-alert 1s ease-in-out infinite',
         }}/>
+      )}
+
+      {/* ── compass to pickup ── */}
+      {mapReady && !accepted && !expired && (
+        <CompassToPickup bearing={pickupBearing} distanceMi={deadheadMi}/>
       )}
 
       {/* ── top ribbon ── */}
@@ -936,18 +1436,18 @@ export default function TripRequestModal({
         {/* draining urgency bar */}
         <div style={{ height:2.5, margin:'4px 16px 0', background:'rgba(255,255,255,.07)', borderRadius:2 }}>
           <div style={{
-            height:'100%', width:`${Math.max(0, Math.min(1, requestTimer/60)) * 100}%`,
-            background: danger ? C.redDeep : requestTimer <= 20 ? C.amberBright : rideColor,
+            height:'100%', width:`${clamp01(requestTimer/60) * 100}%`,
+            background: danger ? C.redDeep : requestTimer <= WARN_AT ? C.amberBright : rideColor,
             borderRadius:2, boxShadow:`0 0 10px currentColor`,
             transition:'width 1s linear, background .3s ease',
           }}/>
         </div>
       </div>
 
-      {/* ── floating pickup-proximity pill (mirrors ActiveTripScreen EtaCard) ── */}
-      {!loadingGeo && (driverDist || driverEta) && (
+      {/* ── floating pickup-proximity pill ── */}
+      {!loadingGeo && (driverDist || driverEta) && !accepted && !expired && (
         <div style={{
-          position:'absolute', top:'calc(82px + env(safe-area-inset-top))',
+          position:'absolute', top:'calc(60px + env(safe-area-inset-top))',
           left:'50%', transform:'translateX(-50%)', zIndex:22, pointerEvents:'none',
           display:'flex', alignItems:'center', gap:9,
           background:C.panelDeep, backdropFilter:'blur(14px)',
@@ -976,12 +1476,16 @@ export default function TripRequestModal({
           boxShadow:`0 -16px 56px rgba(0,0,0,.7), 0 0 44px ${rideColor}0e`,
           padding:'12px 18px max(20px, calc(env(safe-area-inset-bottom) + 14px))',
           animation: danger ? 'trm2-heartbeat 1s ease-in-out infinite' : 'none',
+          maxHeight:'82vh', overflowY:'auto',
         }}>
           {/* drag handle */}
           <div style={{ width:36, height:3.5, borderRadius:2, background:'rgba(255,255,255,.12)', margin:'0 auto 12px' }}/>
 
+          {/* ── rider card ── */}
+          <RiderCard rider={rider} loading={riderLoading}/>
+
           {/* ── fare hero + payment ── */}
-          <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', marginBottom:6 }}>
+          <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', marginBottom:8 }}>
             <div>
               <div style={{ display:'flex', alignItems:'baseline', gap:6 }}>
                 <span style={{ fontFamily:COND, fontSize:48, fontWeight:900, lineHeight:.9, letterSpacing:'.01em', color:C.white }}>
@@ -994,7 +1498,6 @@ export default function TripRequestModal({
                   </span>
                 )}
               </div>
-              {/* earnings rate — driver's decision metric */}
               {(perMile || perMin) && (
                 <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:5 }}>
                   {perMile && (
@@ -1034,7 +1537,12 @@ export default function TripRequestModal({
               )}
             </div>
           )}
-          {!(isScheduled || isLongTrip) && <div style={{ height:8 }}/>}
+
+          {/* ── rider note / special instructions ── */}
+          <NoteCallout note={tripRequest.riderNote ?? tripRequest.note ?? tripRequest.notes} />
+
+          {/* ── earnings-quality gauge ── */}
+          <EarningsGauge perMile={perMile}/>
 
           {/* ── route strip ── */}
           <div style={{ display:'flex', gap:12, alignItems:'stretch', background:'rgba(255,255,255,.03)', border:'1px solid rgba(255,255,255,.06)', borderRadius:14, padding:'10px 13px', marginBottom:12 }}>
@@ -1047,7 +1555,7 @@ export default function TripRequestModal({
 
           {/* ── trip metrics row ── */}
           <div style={{
-            display:'flex', alignItems:'stretch', gap:0, marginBottom:14,
+            display:'flex', alignItems:'stretch', gap:0, marginBottom:12,
             background:'rgba(255,255,255,.025)', border:'1px solid rgba(255,255,255,.05)',
             borderRadius:12, padding:'9px 4px',
           }}>
@@ -1055,18 +1563,31 @@ export default function TripRequestModal({
             <div style={{ width:1, background:'rgba(255,255,255,.07)', margin:'2px 0' }}/>
             <MetricTile label="TRIP TIME" value={mins > 0 ? `${mins} min` : '—'}/>
             <div style={{ width:1, background:'rgba(255,255,255,.07)', margin:'2px 0' }}/>
-            <MetricTile label="TO PICKUP" value={driverDist || '—'} accent={C.greenBright}/>
+            <MetricTile label="TO PICKUP" value={driverDist || '—'} accent={C.greenBright} loading={loadingGeo}/>
+            <div style={{ width:1, background:'rgba(255,255,255,.07)', margin:'2px 0' }}/>
+            <MetricTile
+              label="DEADHEAD"
+              value={deadheadRatio != null ? `${Math.round(deadheadRatio * 100)}%` : '—'}
+              accent={deadheadRatio != null && deadheadRatio > 0.5 ? C.amberBright : C.greenSoft}
+            />
           </div>
+
+          {/* ── fare breakdown ── */}
+          <FareBreakdown trip={tripRequest} payout={payout}/>
 
           {/* ── bidirectional slide ── */}
           <BidirectionalSlide
             onAccept={handleAccept}
             onDecline={onDecline}
             pending={actionPending}
-            disabled={false}
+            disabled={expired}
           />
         </div>
       </div>
+
+      {/* ── terminal states ── */}
+      {accepted && <AcceptedOverlay rider={rider}/>}
+      {expired && <ExpiredOverlay/>}
     </div>
   );
 }
