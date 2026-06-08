@@ -585,7 +585,10 @@ export default function ActiveTripScreen({ driver, activeTrip, onTripComplete })
     if (typeof dLat !== 'number' || typeof dLng !== 'number') return;
     try {
       mapRef.current.getSource(SRC_DRIVER)?.setData(driverGeoJSON(dLat, dLng));
-      mapRef.current.easeTo({ center: [dLng, dLat], duration: 1400 });
+      // Only re-center when no route is drawn; otherwise fitBounds owns the camera
+      if (!routeSrcRef.current) {
+        mapRef.current.easeTo({ center: [dLng, dLat], duration: 1400 });
+      }
     } catch (e) { /* map gone */ }
   }, [dLat, dLng, mapReady]);
 
@@ -720,17 +723,26 @@ export default function ActiveTripScreen({ driver, activeTrip, onTripComplete })
     const minLat = Math.min(...allPts.map(p => p[1]));
     const maxLat = Math.max(...allPts.map(p => p[1]));
     map.fitBounds([[minLng, minLat], [maxLng, maxLat]], {
-      padding: { top: 100, bottom: 260, left: 50, right: 50 },
-      maxZoom: 15, duration: 1200,
+      padding: { top: 110, bottom: 230, left: 60, right: 60 },
+      maxZoom: 14, duration: 1200,
     });
   }
 
   function fitMapFallback() {
     const map = mapRef.current;
-    if (!map || !activeTrip?.pickupLat) return;
-    map.flyTo({
-      center: [activeTrip.pickupLng, activeTrip.pickupLat],
-      zoom: 14, duration: 900,
+    if (!map) return;
+    const pts = [];
+    if (dLat && dLng) pts.push([dLng, dLat]);
+    if (activeTrip?.pickupLat) pts.push([activeTrip.pickupLng, activeTrip.pickupLat]);
+    if (!pts.length) return;
+    if (pts.length === 1) { map.flyTo({ center: pts[0], zoom: 14, duration: 900 }); return; }
+    const minLng = Math.min(...pts.map(p => p[0]));
+    const maxLng = Math.max(...pts.map(p => p[0]));
+    const minLat = Math.min(...pts.map(p => p[1]));
+    const maxLat = Math.max(...pts.map(p => p[1]));
+    map.fitBounds([[minLng, minLat], [maxLng, maxLat]], {
+      padding: { top: 110, bottom: 230, left: 60, right: 60 },
+      maxZoom: 14, duration: 1000,
     });
   }
 
