@@ -4,16 +4,25 @@
  * Full-screen, navigation-grade trip view rendered whenever the driver has an
  * assigned ride. Replaces the radar HomeTab UI for the duration of the trip.
  *
- * Fixes in this build:
- * ──────────────────────────────────────────────────────
- *   • Error toast is now a fixed, centered overlay (no longer misaligned inside
- *     the bottom sheet).
- *   • SlideAction thumb springs back when the action fails. The `failed` prop
- *     (driven by `!!error` in ActionSheet) resets `committed` state and returns
- *     the thumb to position 0 so the driver can retry.
- *   • 1-mile proximity gate on the "arrive" action. If the driver is more than
- *     1 mile from the pickup when they slide, the action is rejected before any
- *     Cloud Function call and a centered toast explains the distance.
+ * What this build adds (on top of the realtime follow engine):
+ * ──────────────────────────────────────────────────────────────────────────
+ *   • LIVE SPEED. The device GPS speed (or a movement-derived fallback) is
+ *     smoothed and surfaced two ways: a radial SPEEDOMETER gauge on the left
+ *     rail and a compact MPH readout in the top bar. ETA is now speed-aware —
+ *     when you're actually moving it uses your real pace, falling back to the
+ *     route's duration when you're stopped.
+ *   • TAP-TO-NAVIGATE. Tapping either address (or the big Navigate button)
+ *     launches Google Maps turn-by-turn to the CORRECT destination — pickup
+ *     coords for the pickup row, drop-off coords for the drop-off row, and the
+ *     current leg's target for the Navigate button.
+ *   • CORRECT DROP-OFF METRICS. The instant the leg changes (pickup → drop-off
+ *     when the trip starts) the live metrics are cleared, so the card never
+ *     shows the leftover ~18 ft from reaching the pickup. During the ride it
+ *     shows ETA, distance, and minutes to the DROP-OFF, recomputed live.
+ *
+ * Carried over from the previous build:
+ *   • Centered error toast, slide-to-confirm with spring-back on failure, and
+ *     the 1-mile proximity gate on the "arrive" action.
  */
 
 import {
@@ -65,12 +74,17 @@ const COND = "'Barlow Condensed','Barlow',sans-serif";
 // ─── tunables ─────────────────────────────────────────────────────────────────
 const SMOOTH_POS             = 0.16;
 const SMOOTH_BEARING         = 0.18;
+const SMOOTH_SPEED           = 0.22;  // ease factor for the displayed speed
 const TRIM_EVERY_FRAMES      = 2;
 const FOLLOW_THROTTLE_MS     = 220;
 const FALLBACK_SPEED_MPH     = 24;
 const MIN_MOVE_FOR_BEARING_M = 4;
 const STALE_FIX_MS           = 30000;
 const ARRIVE_MAX_MILES       = 1.0;   // proximity gate for "arrive" action
+const SPEED_GAUGE_MAX_MPH    = 80;    // top of the speedometer arc
+const SPEED_FLOOR_FOR_ETA    = 6;     // mph; below this we trust the route duration
+const SPEED_DERIVE_MIN_DT_S  = 0.4;   // ignore sub-this dt when deriving speed
+const MPS_TO_MPH             = 2.2369362921;
 
 // ─── trip state machine ───────────────────────────────────────────────────────
 const STAGES = {
@@ -236,6 +250,12 @@ function fmtArrivalClock(min) {
   return `${h}:${m} ${ap}`;
 }
 
+// speed (m/s) → integer mph string; null-safe
+function fmtSpeedMph(mph) {
+  if (mph === null || mph === undefined || !isFinite(mph) || mph < 0) return '—';
+  return `${Math.round(mph)}`;
+}
+
 function getInitials(name) {
   if (!name) return '?';
   return name.trim().split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();
@@ -244,6 +264,31 @@ function getInitials(name) {
 function firstName(name) {
   if (!name) return '—';
   return name.trim().split(/\s+/)[0];
+}
+
+// ─── Google Maps deep-link ───────────────────────────────────────────────────
+// Prefers exact coordinates; falls back to the text address. `dir_action=navigate`
+// launches turn-by-turn in the Google Maps app on a phone (universal link).
+function navUrl(lat, lng, fallbackText) {
+  const base = 'https://www.google.com/maps/dir/?api=1&travelmode=driving&dir_action=navigate&destination=';
+  if (typeof lat === 'number' && typeof lng === 'number' && isFinite(lat) && isFinite(lng)) {
+    return `${base}${lat},${lng}`;
+  }
+  if (fallbackText && fallbackText !== '—') {
+    return `${base}${encodeURIComponent(fallbackText)}`;
+  }
+  return null;
+}
+
+// open a maps URL in a new tab/app without losing the PWA context
+function openNav(url) {
+  if (!url) return;
+  try {
+    const w = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!w) window.location.href = url;   // popup blocked → navigate
+  } catch (e) {
+    window.location.href = url;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -275,22 +320,14 @@ function ErrorToast({ message, onDismiss }) {
       }}
     >
       <div style={{
-        fontFamily: MONO,
-        fontSize: 11,
-        fontWeight: 700,
-        color: C.red,
-        lineHeight: 1.55,
-        marginBottom: 4,
+        fontFamily: MONO, fontSize: 11, fontWeight: 700, color: C.red,
+        lineHeight: 1.55, marginBottom: 4,
       }}>
         ⚠ {message}
       </div>
       <div style={{
-        fontFamily: COND,
-        fontSize: 9,
-        fontWeight: 800,
-        letterSpacing: '.14em',
-        color: 'rgba(248,113,113,.5)',
-        textTransform: 'uppercase',
+        fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.14em',
+        color: 'rgba(248,113,113,.5)', textTransform: 'uppercase',
       }}>
         Tap to dismiss
       </div>
@@ -340,15 +377,42 @@ function RouteRail({ status }) {
   );
 }
 
-function AddrRow({ label, text, dimmed, mapUrl }) {
+// ─── AddrRow ──────────────────────────────────────────────────────────────────
+// The whole row is tappable when a nav URL is available — tapping launches
+// Google Maps turn-by-turn to this row's destination. `active` highlights the
+// leg the driver is currently navigating.
+function AddrRow({ label, text, dimmed, mapUrl, active }) {
+  const tappable = !!mapUrl;
+  const handle = (e) => { e.preventDefault(); e.stopPropagation(); openNav(mapUrl); };
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    <div
+      onClick={tappable ? handle : undefined}
+      role={tappable ? 'button' : undefined}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        cursor: tappable ? 'pointer' : 'default',
+        borderRadius: 10,
+        padding: tappable ? '2px 2px' : 0,
+        transition: 'background .15s ease',
+        background: active ? 'rgba(103,232,249,.06)' : 'transparent',
+      }}
+    >
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
           fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.14em',
-          color: C.inkDim, textTransform: 'uppercase', marginBottom: 2,
+          color: active ? C.cyan : C.inkDim, textTransform: 'uppercase', marginBottom: 2,
+          display: 'flex', alignItems: 'center', gap: 5,
         }}>
           {label}
+          {active && (
+            <span style={{
+              fontFamily: COND, fontSize: 7.5, fontWeight: 900, letterSpacing: '.12em',
+              color: C.cyan, background: 'rgba(103,232,249,.14)', borderRadius: 4,
+              padding: '0 4px',
+            }}>
+              NAVIGATING
+            </span>
+          )}
         </div>
         <div style={{
           fontFamily: MONO, fontSize: 12, fontWeight: dimmed ? 600 : 700,
@@ -358,41 +422,39 @@ function AddrRow({ label, text, dimmed, mapUrl }) {
           {text || '—'}
         </div>
       </div>
-      {mapUrl && (
-        <a
-          href={mapUrl}
-          target="_blank"
-          rel="noopener noreferrer"
+      {tappable && (
+        <div
           style={{
-            flexShrink: 0, width: 30, height: 30, borderRadius: 9,
+            flexShrink: 0, width: 32, height: 32, borderRadius: 9,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(103,232,249,.10)',
-            border: '1px solid rgba(103,232,249,.28)',
-            color: C.cyan, textDecoration: 'none',
+            background: active ? 'rgba(103,232,249,.16)' : 'rgba(103,232,249,.10)',
+            border: `1px solid ${active ? 'rgba(103,232,249,.5)' : 'rgba(103,232,249,.28)'}`,
+            color: C.cyan,
           }}
-          aria-label={`Open ${label} in maps`}
+          aria-label={`Navigate to ${label} in Google Maps`}
         >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+          {/* navigation arrow */}
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 21s-7-5.2-7-11a7 7 0 0 1 14 0c0 5.8-7 11-7 11Z"/>
-            <circle cx="12" cy="10" r="2.5"/>
+            <polygon points="3 11 22 2 13 21 11 13 3 11"/>
           </svg>
-        </a>
+        </div>
       )}
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// TOP HUD
+// TOP HUD — now carries a compact live MPH readout
 // ═══════════════════════════════════════════════════════════════════════════════
-function TopBar({ statusLabel, statusColor, rideId, paymentMethod, progress, gpsLive }) {
+function TopBar({ statusLabel, statusColor, rideId, paymentMethod, progress, gpsLive, mph }) {
   const pm = (paymentMethod || '').toLowerCase();
   const pmColor  = pm === 'cash' ? C.amberBright : pm === 'card' ? C.cyan : C.ink;
   const pmBg     = pm === 'cash' ? 'rgba(251,191,36,.15)' : pm === 'card' ? 'rgba(103,232,249,.15)' : 'rgba(255,255,255,.07)';
   const pmBorder = pm === 'cash' ? 'rgba(251,191,36,.35)' : pm === 'card' ? 'rgba(103,232,249,.35)' : 'rgba(255,255,255,.12)';
   const pmLabel  = pm === 'cash' ? '$ CASH' : pm === 'card' ? '▣ CARD' : pm.toUpperCase();
   const pct = Math.max(0, Math.min(1, progress ?? 0));
+  const showMph = gpsLive && mph != null && isFinite(mph);
 
   return (
     <div style={{
@@ -423,6 +485,16 @@ function TopBar({ statusLabel, statusColor, rideId, paymentMethod, progress, gps
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          {showMph && (
+            <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 3 }}>
+              <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 800, color: C.greenBright }}>
+                {Math.round(mph)}
+              </span>
+              <span style={{ fontFamily: COND, fontSize: 7.5, fontWeight: 800, letterSpacing: '.1em', color: C.inkDim }}>
+                MPH
+              </span>
+            </span>
+          )}
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: 4,
             fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '.1em',
@@ -468,7 +540,8 @@ function TopBar({ statusLabel, statusColor, rideId, paymentMethod, progress, gps
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// LIVE ETA CARD
+// LIVE ETA CARD — ETA (min), distance, and arrival clock to the active target
+// During in_progress the target is the DROP-OFF, so all three read to drop-off.
 // ═══════════════════════════════════════════════════════════════════════════════
 function EtaCard({ etaMin, distMi, status, arrivalClock }) {
   const accent = status === 'driver_assigned' ? C.cyan
@@ -527,6 +600,99 @@ function EtaCard({ etaMin, distMi, status, arrivalClock }) {
         </div>
         <div style={{ fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.16em', color: C.inkDim, marginTop: 3 }}>
           ARRIVAL
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SPEEDOMETER — radial live-speed gauge (left rail)
+// 270° arc, 0 → SPEED_GAUGE_MAX_MPH, colour escalates with speed. Reads the
+// smoothed device speed; shows "—" until we have a live GPS fix.
+// ═══════════════════════════════════════════════════════════════════════════════
+function Speedometer({ mph, gpsLive }) {
+  const has   = gpsLive && mph != null && isFinite(mph) && mph >= 0;
+  const val   = has ? Math.max(0, Math.min(SPEED_GAUGE_MAX_MPH, mph)) : 0;
+  const frac  = val / SPEED_GAUGE_MAX_MPH;
+
+  const R     = 30;
+  const CIRC  = 2 * Math.PI * R;
+  const ARC   = 0.75;                 // 270° of the circle is the gauge
+  const track = `${ARC * CIRC} ${CIRC}`;
+  const value = `${frac * ARC * CIRC} ${CIRC}`;
+
+  const accent = !has        ? C.inkDim
+               : mph >= 72    ? C.redDeep
+               : mph >= 55    ? C.amberBright
+               :                C.greenBright;
+
+  return (
+    <div style={{
+      position: 'absolute',
+      left: 12, top: '46%', transform: 'translateY(-50%)',
+      zIndex: 27, pointerEvents: 'none',
+      width: 84, height: 84,
+      animation: 'ats-slidein-left .45s cubic-bezier(.34,1.2,.64,1) both',
+    }}>
+      <div style={{
+        position: 'relative', width: 84, height: 84, borderRadius: '50%',
+        background: 'radial-gradient(circle at 50% 42%, rgba(8,16,10,.78), rgba(2,5,3,.92))',
+        border: `1px solid ${accent}33`,
+        boxShadow: `0 8px 26px rgba(0,0,0,.6), 0 0 22px ${accent}14`,
+        backdropFilter: 'blur(10px)',
+      }}>
+        <svg width="84" height="84" viewBox="0 0 80 80"
+          style={{ position: 'absolute', inset: 0 }}>
+          {/* track (270° arc, gap at the bottom) */}
+          <circle
+            cx="40" cy="40" r={R} fill="none"
+            stroke="rgba(255,255,255,.08)" strokeWidth="5" strokeLinecap="round"
+            strokeDasharray={track}
+            transform="rotate(135 40 40)"
+          />
+          {/* value */}
+          <circle
+            cx="40" cy="40" r={R} fill="none"
+            stroke={accent} strokeWidth="5" strokeLinecap="round"
+            strokeDasharray={value}
+            transform="rotate(135 40 40)"
+            style={{
+              transition: 'stroke-dasharray .25s linear, stroke .3s ease',
+              filter: `drop-shadow(0 0 5px ${accent}aa)`,
+            }}
+          />
+          {/* tick marks around the arc — lit up to the current speed */}
+          {Array.from({ length: 9 }).map((_, i) => {
+            const ang = (135 + 270 * (i / 8)) * Math.PI / 180;
+            const x1 = 40 + 23.5 * Math.cos(ang), y1 = 40 + 23.5 * Math.sin(ang);
+            const x2 = 40 + 27.5 * Math.cos(ang), y2 = 40 + 27.5 * Math.sin(ang);
+            const lit = has && (i / 8) <= frac + 0.001;
+            return (
+              <line key={i} x1={x1} y1={y1} x2={x2} y2={y2}
+                stroke={lit ? accent : 'rgba(255,255,255,.16)'}
+                strokeWidth="1.4" strokeLinecap="round"
+                style={{ transition: 'stroke .3s ease' }}/>
+            );
+          })}
+        </svg>
+        <div style={{
+          position: 'absolute', inset: 0,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <span style={{
+            fontFamily: MONO, fontSize: 22, fontWeight: 800, lineHeight: .95,
+            color: has ? C.white : C.inkDim,
+            textShadow: has ? `0 0 14px ${accent}66` : 'none',
+          }}>
+            {has ? Math.round(val) : '—'}
+          </span>
+          <span style={{
+            fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.18em',
+            color: accent, marginTop: 1,
+          }}>
+            MPH
+          </span>
         </div>
       </div>
     </div>
@@ -622,11 +788,8 @@ function RecenterFab({ visible, onClick }) {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SLIDE-TO-CONFIRM CONTROL
-// ─────────────────────────────────────────────────────────────────────────────
-// FIX: `committed` replaces the old `done` flag. The thumb only shows a check
-// when committed=true AND failed=false AND pending=false. If the parent sets
-// failed=true (via !!error), the useEffect springs the thumb back to 0 so the
-// driver can retry without remounting the component.
+// `committed` fires onConfirm and holds the thumb at the end while the call is
+// in flight. If the parent reports `failed` (via !!error) the thumb springs back.
 // ═══════════════════════════════════════════════════════════════════════════════
 function SlideAction({ label, color, onConfirm, pending, failed }) {
   const trackRef    = useRef(null);
@@ -634,16 +797,15 @@ function SlideAction({ label, color, onConfirm, pending, failed }) {
   const draggingRef = useRef(false);
   const offsetRef   = useRef(0);
   const [x, setX]        = useState(0);
-  const [committed, setCommitted] = useState(false); // fired; awaiting resolution
+  const [committed, setCommitted] = useState(false);
 
-  // Spring back the thumb when the parent reports a failure
-  // NEW — resets on every failed change (true OR false)
-// This covers: initial failure AND the moment the user dismisses the toast
-useEffect(() => {
-  setCommitted(false);
-  offsetRef.current = 0;
-  setX(0);
-}, [failed]);
+  // Reset on every `failed` change (true OR false): covers the failure itself
+  // and the moment the user dismisses the toast, returning the thumb to start.
+  useEffect(() => {
+    setCommitted(false);
+    offsetRef.current = 0;
+    setX(0);
+  }, [failed]);
 
   const measure = useCallback(() => {
     if (!trackRef.current) return 0;
@@ -682,10 +844,10 @@ useEffect(() => {
 
       if (offsetRef.current >= maxRef.current * 0.88) {
         setOffset(maxRef.current);
-        setCommitted(true);   // hold the thumb at the end while the call is in-flight
+        setCommitted(true);
         onConfirm?.();
       } else {
-        setOffset(0);         // didn't make it — spring back
+        setOffset(0);
       }
     };
 
@@ -711,7 +873,6 @@ useEffect(() => {
         boxShadow: `inset 0 0 0 1px rgba(255,255,255,.02)`,
       }}
     >
-      {/* fill behind thumb */}
       <div style={{
         position: 'absolute', inset: 0,
         width: `${PAD + THUMB + x}px`,
@@ -719,7 +880,6 @@ useEffect(() => {
         transition: draggingRef.current ? 'none' : 'width .28s cubic-bezier(.34,1.1,.64,1)',
       }}/>
 
-      {/* label */}
       <div style={{
         position: 'absolute', inset: 0, display: 'flex',
         alignItems: 'center', justifyContent: 'center',
@@ -734,7 +894,6 @@ useEffect(() => {
         {label}
       </div>
 
-      {/* chevrons hint */}
       {!pending && !showDone && (
         <div style={{
           position: 'absolute', right: 18, top: 0, bottom: 0,
@@ -751,7 +910,6 @@ useEffect(() => {
         </div>
       )}
 
-      {/* thumb */}
       <div
         onPointerDown={onDown}
         onTouchStart={onDown}
@@ -789,18 +947,54 @@ useEffect(() => {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// NAVIGATE BUTTON — launches Google Maps to the current leg's destination
+// ═══════════════════════════════════════════════════════════════════════════════
+function NavigateButton({ targetWord, url, accent }) {
+  if (!url) return null;
+  return (
+    <button
+      onClick={() => openNav(url)}
+      style={{
+        width: '100%', marginBottom: 10, cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
+        background: `linear-gradient(135deg, ${accent}1f, ${accent}0d)`,
+        border: `1px solid ${accent}44`, borderRadius: 14,
+        padding: '11px 14px',
+        fontFamily: COND, fontSize: 13, fontWeight: 900, letterSpacing: '.12em',
+        textTransform: 'uppercase', color: accent,
+        WebkitTapHighlightColor: 'transparent',
+      }}
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+        stroke={accent} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+      </svg>
+      Navigate to {targetWord} · Google Maps
+    </button>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // BOTTOM ACTION SHEET
-// ─────────────────────────────────────────────────────────────────────────────
-// FIX: error block removed from here entirely — ErrorToast is now a fixed
-// overlay rendered at the root. `failed={!!error}` is passed to SlideAction.
+// ErrorToast is a fixed overlay at the root; `failed={!!error}` springs the
+// slider back. The Navigate button + tappable address rows open Google Maps to
+// the right destination for the current leg.
 // ═══════════════════════════════════════════════════════════════════════════════
 function ActionSheet({ trip, stage, distToTarget, onAction, pending, error }) {
   const cfg = STAGES[stage] || STAGES.driver_assigned;
   if (stage === 'completed') return <CompletedSheet trip={trip}/>;
 
+  const phase   = cfg.phase;
   const pickup  = trip?.pickup  || trip?.pickupLabel  || trip?.pickupAddress  || '—';
   const dropoff = trip?.dropoff || trip?.dropoffLabel || trip?.dropoffAddress || '—';
   const distStr = distToTarget !== null ? fmtMi(distToTarget) : null;
+
+  const pickupUrl  = navUrl(trip?.pickupLat,  trip?.pickupLng,  pickup);
+  const dropoffUrl = navUrl(trip?.dropoffLat, trip?.dropoffLng, dropoff);
+
+  // current leg's destination → drives the Navigate button
+  const targetWord = phase === 'toDropoff' ? 'DROP-OFF' : 'PICKUP';
+  const targetUrl  = phase === 'toDropoff' ? dropoffUrl : pickupUrl;
 
   return (
     <div style={{
@@ -819,7 +1013,7 @@ function ActionSheet({ trip, stage, distToTarget, onAction, pending, error }) {
         {/* drag handle */}
         <div style={{ width: 36, height: 3.5, borderRadius: 2, background: 'rgba(255,255,255,.12)', margin: '0 auto 10px' }}/>
 
-        {/* route summary */}
+        {/* route summary — rows are tappable → Google Maps nav */}
         <div style={{
           display: 'flex', gap: 12, alignItems: 'stretch', marginBottom: 10,
           background: 'rgba(255,255,255,.03)', borderRadius: 12,
@@ -830,29 +1024,53 @@ function ActionSheet({ trip, stage, distToTarget, onAction, pending, error }) {
             <AddrRow
               label="Pickup"
               text={pickup}
-              dimmed={false}
-              mapUrl={
-                (trip?.pickupLat && trip?.pickupLng)
-                  ? `https://www.google.com/maps/dir/?api=1&destination=${trip.pickupLat},${trip.pickupLng}`
-                  : (pickup && pickup !== '—')
-                    ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(pickup)}`
-                    : null
-              }
+              dimmed={phase === 'toDropoff'}
+              active={phase === 'toPickup'}
+              mapUrl={pickupUrl}
             />
             <AddrRow
               label="Drop-off"
               text={dropoff}
-              dimmed={stage !== 'in_progress'}
-              mapUrl={
-                (trip?.dropoffLat && trip?.dropoffLng)
-                  ? `https://www.google.com/maps/dir/?api=1&destination=${trip.dropoffLat},${trip.dropoffLng}`
-                  : (dropoff && dropoff !== '—')
-                    ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dropoff)}`
-                    : null
-              }
+              dimmed={phase !== 'toDropoff'}
+              active={phase === 'toDropoff'}
+              mapUrl={dropoffUrl}
             />
           </div>
         </div>
+
+        {/* Navigate CTA → current leg destination */}
+        <NavigateButton targetWord={targetWord} url={targetUrl} accent={cfg.statusColor}/>
+
+        {/* rider note, if the rider left one */}
+        {(() => {
+          const note = trip?.riderNote || trip?.note || trip?.notes;
+          if (!note) return null;
+          return (
+            <div style={{
+              display: 'flex', alignItems: 'flex-start', gap: 8,
+              background: 'rgba(192,132,252,.08)', border: '1px solid rgba(192,132,252,.26)',
+              borderRadius: 12, padding: '9px 12px', marginBottom: 10,
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, marginTop: 1 }}
+                stroke={C.violet} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/>
+              </svg>
+              <div style={{ minWidth: 0 }}>
+                <div style={{
+                  fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.14em',
+                  color: 'rgba(192,132,252,.7)', textTransform: 'uppercase', marginBottom: 2,
+                }}>
+                  Rider note
+                </div>
+                <div style={{ fontFamily: MONO, fontSize: 11.5, fontWeight: 600, color: C.white, lineHeight: 1.45 }}>
+                  {note}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* hint */}
         <div style={{
@@ -893,6 +1111,11 @@ function CompletedSheet({ trip }) {
   const payout = trip?.driverPayout;
   const miles  = trip?.tripDistanceMiles;
   const mins   = trip?.tripDurationMin;
+  const avgMph = (typeof miles === 'number' && miles > 0 && typeof mins === 'number' && mins > 0)
+    ? miles / (mins / 60) : null;
+  const recap = (typeof miles === 'number' && miles > 0 && typeof mins === 'number' && mins > 0)
+    ? `${miles.toFixed(1)} mi in ${mins} min${avgMph ? ` · avg ${Math.round(avgMph)} mph` : ''}`
+    : null;
   return (
     <div style={{
       position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 32,
@@ -948,7 +1171,19 @@ function CompletedSheet({ trip }) {
           {typeof mins === 'number' && mins > 0 && (
             <StatChip label="DURATION" value={`${mins} min`}/>
           )}
+          {avgMph != null && (
+            <StatChip label="AVG SPEED" value={`${Math.round(avgMph)} mph`}/>
+          )}
         </div>
+
+        {recap && (
+          <div style={{
+            fontFamily: MONO, fontSize: 10, fontWeight: 600, letterSpacing: '.04em',
+            color: C.inkDim, marginTop: 12,
+          }}>
+            {recap}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1300,6 +1535,141 @@ function DriverChatPanel({ messages, input, setInput, onSend, onClose, sending }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// ARRIVAL BANNER — pulses in when the driver is within a few hundred feet of the
+// active target (pickup or drop-off). Gives a clear "you're basically there" cue
+// so the driver knows when to start looking for the rider / the address.
+// ═══════════════════════════════════════════════════════════════════════════════
+function ArrivalBanner({ visible, targetWord, distMi, accent }) {
+  if (!visible) return null;
+  return (
+    <div style={{
+      position: 'absolute',
+      top: 'calc(120px + env(safe-area-inset-top))',
+      left: '50%', transform: 'translateX(-50%)',
+      zIndex: 27, pointerEvents: 'none',
+      display: 'flex', alignItems: 'center', gap: 9,
+      background: 'rgba(2,5,3,.92)', backdropFilter: 'blur(14px)',
+      border: `1px solid ${accent}55`,
+      borderRadius: 999, padding: '7px 15px 7px 12px',
+      boxShadow: `0 8px 26px rgba(0,0,0,.55), 0 0 24px ${accent}26`,
+      animation: 'ats-banner-pop .4s cubic-bezier(.34,1.4,.64,1) both',
+      whiteSpace: 'nowrap',
+    }}>
+      <span style={{
+        width: 9, height: 9, borderRadius: '50%', background: accent,
+        boxShadow: `0 0 10px ${accent}`,
+        animation: 'ats-pulse-ring 1.1s ease-in-out infinite',
+      }}/>
+      <span style={{
+        fontFamily: COND, fontSize: 12, fontWeight: 900, letterSpacing: '.12em',
+        color: accent, textTransform: 'uppercase',
+      }}>
+        Arriving — {targetWord} ahead
+      </span>
+      <span style={{
+        fontFamily: MONO, fontSize: 11, fontWeight: 800, color: C.white,
+      }}>
+        {fmtMi(distMi)}
+      </span>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// REROUTE CHIP — surfaces when the driver has wandered off the drawn route.
+// It's only a hint (we don't auto-refetch mid-leg to avoid thrashing the Routes
+// API); it tells the driver to follow Google Maps, which they can open in a tap.
+// ═══════════════════════════════════════════════════════════════════════════════
+function RerouteChip({ visible, onOpenNav }) {
+  if (!visible) return null;
+  return (
+    <button
+      onClick={onOpenNav}
+      style={{
+        position: 'absolute',
+        bottom: 'calc(316px + env(safe-area-inset-bottom))',
+        left: '50%', transform: 'translateX(-50%)',
+        zIndex: 31, cursor: 'pointer',
+        display: 'flex', alignItems: 'center', gap: 8,
+        background: 'rgba(2,5,3,.92)', backdropFilter: 'blur(14px)',
+        border: `1px solid ${C.amber}55`,
+        borderRadius: 999, padding: '7px 14px',
+        boxShadow: `0 8px 26px rgba(0,0,0,.55), 0 0 22px ${C.amber}22`,
+        animation: 'ats-banner-pop .35s cubic-bezier(.34,1.3,.64,1) both',
+        WebkitTapHighlightColor: 'transparent',
+      }}
+    >
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+        stroke={C.amber} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
+        style={{ animation: 'ats-spin 2.4s linear infinite' }}>
+        <path d="M21 2v6h-6"/>
+        <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
+        <path d="M3 22v-6h6"/>
+        <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
+      </svg>
+      <span style={{
+        fontFamily: COND, fontSize: 11, fontWeight: 900, letterSpacing: '.12em',
+        color: C.amber, textTransform: 'uppercase',
+      }}>
+        Off route · tap to re-open maps
+      </span>
+    </button>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TRIP STATS STRIP — the in-progress "rider is in the car" focus bar.
+// Pinned just above the action sheet, it keeps the three things the driver cares
+// about while driving to the drop-off front and center: MINUTES, MILES, and the
+// live MPH. This is the direct answer to "show me eta + distance + minutes to
+// the drop-off" — all three update live, all referenced to the DROP-OFF.
+// ═══════════════════════════════════════════════════════════════════════════════
+function TripStatsStrip({ visible, etaMin, distMi, mph, gpsLive }) {
+  if (!visible) return null;
+  const mphStr = (gpsLive && mph != null && isFinite(mph)) ? `${Math.round(mph)}` : '—';
+  return (
+    <div style={{
+      position: 'absolute',
+      bottom: 'calc(258px + env(safe-area-inset-bottom))',
+      left: '50%', transform: 'translateX(-50%)',
+      zIndex: 31, pointerEvents: 'none',
+      display: 'flex', alignItems: 'stretch',
+      background: 'rgba(2,5,3,.9)', backdropFilter: 'blur(14px)',
+      border: `1px solid ${C.amberBright}2e`,
+      borderRadius: 14, padding: '7px 4px',
+      boxShadow: `0 8px 26px rgba(0,0,0,.55), 0 0 22px ${C.amberBright}14`,
+      animation: 'ats-slideup .4s cubic-bezier(.34,1.2,.64,1) both',
+    }}>
+      <StripCell value={fmtEtaMin(etaMin)} unit="MIN"  label="TO DROP-OFF" accent={C.amberBright}/>
+      <div style={{ width: 1, background: 'rgba(255,255,255,.08)', margin: '2px 0' }}/>
+      <StripCell value={fmtMi(distMi)}     unit=""     label="REMAINING"   accent={C.white}/>
+      <div style={{ width: 1, background: 'rgba(255,255,255,.08)', margin: '2px 0' }}/>
+      <StripCell value={mphStr}            unit="MPH"  label="CURRENT"      accent={C.greenBright}/>
+    </div>
+  );
+}
+
+function StripCell({ value, unit, label, accent }) {
+  return (
+    <div style={{ textAlign: 'center', padding: '0 13px', minWidth: 58 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 2 }}>
+        <span style={{ fontFamily: MONO, fontSize: 16, fontWeight: 800, color: accent, lineHeight: 1 }}>
+          {value}
+        </span>
+        {unit && (
+          <span style={{ fontFamily: COND, fontSize: 8.5, fontWeight: 800, color: accent, letterSpacing: '.06em' }}>
+            {unit}
+          </span>
+        )}
+      </div>
+      <div style={{ fontFamily: COND, fontSize: 7.5, fontWeight: 800, letterSpacing: '.14em', color: C.inkDim, marginTop: 3 }}>
+        {label}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function ActiveTripScreen({
@@ -1327,6 +1697,11 @@ export default function ActiveTripScreen({
   const lastFollowRef          = useRef(0);
   const lastFixForBearingRef   = useRef(null);
 
+  // ── refs: live speed ─────────────────────────────────────────────────────
+  const targetSpeedRef    = useRef(0);    // mph, from latest fix
+  const renderedSpeedRef  = useRef(0);    // mph, smoothed for display
+  const lastSpeedFixRef   = useRef(null); // {lat,lng,ts} for derived speed
+
   // ── refs: route ──────────────────────────────────────────────────────────
   const routeCoordsRef      = useRef([]);
   const routeLenMiRef       = useRef(0);
@@ -1335,6 +1710,7 @@ export default function ActiveTripScreen({
   const routeReadyRef       = useRef(false);
   const fetchedPhaseRef     = useRef(null);
   const lastInstalledPolyRef = useRef(null);
+  const offRouteFramesRef   = useRef(0);
 
   // ── refs: misc ───────────────────────────────────────────────────────────
   const watchIdRef       = useRef(null);
@@ -1353,6 +1729,8 @@ export default function ActiveTripScreen({
   const [followMode, setFollowMode]     = useState(true);
   const [showRecenter, setShowRecenter] = useState(false);
   const [liveMetrics, setLiveMetrics]   = useState({ etaMin: null, distMi: null, progress: 0 });
+  const [liveSpeedMph, setLiveSpeedMph] = useState(null);
+  const [offRoute, setOffRoute]         = useState(false);
   const [showChat, setShowChat]         = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
   const [unreadCount, setUnreadCount]   = useState(0);
@@ -1420,18 +1798,31 @@ export default function ActiveTripScreen({
   // eslint-disable-next-line
   }, [showChat, chatMessages]);
 
-  // ── GPS watch ────────────────────────────────────────────────────────────
+  // ── GPS watch — now also captures speed (device or movement-derived) ──────
   useEffect(() => {
     if (!useDeviceLocation || typeof navigator === 'undefined' || !navigator.geolocation) return;
     let firstFix = false;
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
         if (!mountedRef.current) return;
-        const { latitude, longitude, heading } = pos.coords;
+        const { latitude, longitude, heading, speed } = pos.coords;
+        const tnow = Date.now();
+
+        // speed: prefer the device's reported m/s, else derive from movement
+        let mps = (typeof speed === 'number' && speed >= 0 && isFinite(speed)) ? speed : null;
+        const prev = lastSpeedFixRef.current;
+        if (mps == null && prev) {
+          const meters = haversineMi(prev.lat, prev.lng, latitude, longitude) * 1609.34;
+          const dt = (tnow - prev.ts) / 1000;
+          if (dt >= SPEED_DERIVE_MIN_DT_S) mps = meters / dt;
+        }
+        lastSpeedFixRef.current = { lat: latitude, lng: longitude, ts: tnow };
+
         setSelfPos({
           lat: latitude, lng: longitude,
           heading: (typeof heading === 'number' && !isNaN(heading)) ? heading : null,
-          ts: Date.now(),
+          speed: mps,
+          ts: tnow,
         });
         if (!firstFix) { firstFix = true; setGpsLive(true); }
       },
@@ -1535,11 +1926,12 @@ export default function ActiveTripScreen({
   // eslint-disable-next-line
   }, []);
 
-  // ── feed fix into animation target + derive heading ──────────────────────
+  // ── feed fix into animation target + derive heading + speed target ────────
   useEffect(() => {
     if (typeof dLat !== 'number' || typeof dLng !== 'number') return;
     targetRef.current = [dLng, dLat];
 
+    // heading
     if (fresh && selfPos?.heading != null) {
       targetBearingRef.current = selfPos.heading;
     } else {
@@ -1552,7 +1944,27 @@ export default function ActiveTripScreen({
       }
     }
     lastFixForBearingRef.current = [dLng, dLat];
+
+    // speed target (mph), clamped to a sane band against GPS spikes
+    if (fresh && selfPos?.speed != null && isFinite(selfPos.speed)) {
+      const mph = selfPos.speed * MPS_TO_MPH;
+      targetSpeedRef.current = Math.max(0, Math.min(120, mph));
+    } else if (!fresh) {
+      targetSpeedRef.current = 0;
+    }
   }, [dLat, dLng, fresh, selfPos]);
+
+  // ── clear stale metrics the instant the leg changes ──────────────────────
+  // Prevents the card from briefly showing the previous leg's distance — e.g.
+  // the ~18 ft left over from reaching the pickup — when the trip starts and the
+  // target flips to the drop-off. Falls back to the straight-line distance to
+  // the new target until the new route installs.
+  useEffect(() => {
+    setLiveMetrics({ etaMin: null, distMi: null, progress: 0 });
+    projIdxRef.current = 0;
+    offRouteFramesRef.current = 0;
+    setOffRoute(false);
+  }, [phase]);
 
   // ── route fetch + draw ───────────────────────────────────────────────────
   useEffect(() => {
@@ -1711,6 +2123,12 @@ export default function ActiveTripScreen({
 
       bearingRef.current = lerpAngle(bearingRef.current, targetBearingRef.current, SMOOTH_BEARING);
 
+      // smooth the displayed speed toward the latest target
+      renderedSpeedRef.current = lerp(renderedSpeedRef.current, targetSpeedRef.current, SMOOTH_SPEED);
+      if (frameNoRef.current % 10 === 0) {
+        setLiveSpeedMph(renderedSpeedRef.current);
+      }
+
       if (driverMkrRef.current) driverMkrRef.current.setLngLat(r);
       if (puckRef.current) {
         const screenHeading = followMode ? 0 : bearingRef.current - map.getBearing();
@@ -1723,6 +2141,18 @@ export default function ActiveTripScreen({
         const proj = projectOntoRoute(coords, r, projIdxRef.current);
         if (proj.idx >= projIdxRef.current) projIdxRef.current = proj.idx;
 
+        // off-route detection (debounced). proj.dist2 is in scaled-degree²
+        // space; sqrt → ~degrees latitude, ×69 → miles. >~0.04 mi (≈210 ft)
+        // off the drawn line for ~20 sampled frames flags a reroute hint.
+        const offMi = Math.sqrt(proj.dist2) * 69;
+        if (offMi > 0.04) {
+          offRouteFramesRef.current++;
+          if (offRouteFramesRef.current === 20) setOffRoute(true);
+        } else {
+          if (offRouteFramesRef.current >= 20) setOffRoute(false);
+          offRouteFramesRef.current = 0;
+        }
+
         const remain = remainingFrom(coords, { ...proj, idx: projIdxRef.current });
         const travel = traveledTo(coords, { ...proj, idx: projIdxRef.current });
 
@@ -1732,12 +2162,19 @@ export default function ActiveTripScreen({
         const remainMi = pathLengthMi(remain);
         const total    = routeLenMiRef.current || remainMi || 1;
         const progress = Math.max(0, Math.min(1, 1 - remainMi / total));
+
+        // speed-aware ETA: when actually moving use the live pace, otherwise
+        // fall back to the route's duration, then to a constant city speed.
+        const liveMph = renderedSpeedRef.current;
         let etaMin;
-        if (routeDurSecRef.current > 0) {
+        if (liveMph > SPEED_FLOOR_FOR_ETA) {
+          etaMin = (remainMi / liveMph) * 60;
+        } else if (routeDurSecRef.current > 0) {
           etaMin = (routeDurSecRef.current / 60) * (remainMi / total);
         } else {
           etaMin = (remainMi / FALLBACK_SPEED_MPH) * 60;
         }
+
         if (frameNoRef.current % 18 === 0) {
           setLiveMetrics({ etaMin, distMi: remainMi, progress });
         }
@@ -1788,11 +2225,7 @@ export default function ActiveTripScreen({
     }
   }, [trip?.id, chatInput, driver?.uid]);
 
-  // ── action handler ───────────────────────────────────────────────────────
-  // FIX: proximity gate — if "arrive" is triggered and the driver is more than
-  // ARRIVE_MAX_MILES from the pickup, reject immediately and surface an error
-  // toast. Because we bail before setPending(true), the SlideAction `failed`
-  // prop fires and the thumb springs back without a network call.
+  // ── action handler — 1-mile proximity gate on "arrive" ───────────────────
   const handleAction = useCallback(async (action, rideId) => {
     if (!action || !rideId) return;
 
@@ -1808,7 +2241,7 @@ export default function ActiveTripScreen({
           setError(
             `You're ${fmtMi(dist)} away — get within 1 mile of the pickup to mark arrived.`
           );
-          return; // bail: no setPending, so failed=true springs the thumb back immediately
+          return; // bail before setPending → failed=true springs the thumb back
         }
       }
     }
@@ -1837,15 +2270,29 @@ export default function ActiveTripScreen({
     [pickupMkrRef, dropoffMkrRef, driverMkrRef].forEach(r => {
       if (r.current) { try { r.current.remove(); } catch (e) {} }
     });
+    cancelAnimationFrame(rafRef.current);
   }, []);
 
   // ── derived metrics ──────────────────────────────────────────────────────
   const displayDist    = liveMetrics.distMi != null ? liveMetrics.distMi : crowDistMi;
   const displayEta     = liveMetrics.etaMin != null
     ? liveMetrics.etaMin
-    : (crowDistMi != null ? (crowDistMi / FALLBACK_SPEED_MPH) * 60 : null);
+    : (crowDistMi != null
+        ? (crowDistMi / (renderedSpeedRef.current > SPEED_FLOOR_FOR_ETA ? renderedSpeedRef.current : FALLBACK_SPEED_MPH)) * 60
+        : null);
   const displayProgress = liveMetrics.progress || 0;
   const arrivalClock   = displayEta != null ? fmtArrivalClock(displayEta) : '—';
+
+  // which leg are we navigating, and the Google Maps link for it
+  const targetWord   = phase === 'toDropoff' ? 'DROP-OFF' : 'PICKUP';
+  const activeNavUrl = phase === 'toDropoff'
+    ? navUrl(trip?.dropoffLat, trip?.dropoffLng, trip?.dropoff || trip?.dropoffLabel || trip?.dropoffAddress)
+    : navUrl(trip?.pickupLat,  trip?.pickupLng,  trip?.pickup  || trip?.pickupLabel  || trip?.pickupAddress);
+
+  // "basically there" cue — within ~315 ft of the active target
+  const nearTarget = displayDist != null && displayDist < 0.06
+                     && status !== 'arrived' && status !== 'completed';
+  const showStatsStrip = status === 'in_progress' && !showChat;
 
   // ─── render ──────────────────────────────────────────────────────────────
   return (
@@ -1855,9 +2302,12 @@ export default function ActiveTripScreen({
         @keyframes ats-blink          { 0%,100%{opacity:1} 50%{opacity:.25} }
         @keyframes ats-slidedown      { from{opacity:0;transform:translate(-50%,-12px)} to{opacity:1;transform:translate(-50%,0)} }
         @keyframes ats-slidein-right  { from{opacity:0;transform:translateX(16px)} to{opacity:1;transform:translateX(0)} }
+        @keyframes ats-slidein-left   { from{opacity:0;transform:translate(-16px,-50%)} to{opacity:1;transform:translate(0,-50%)} }
         @keyframes ats-slideup        { from{opacity:0;transform:translateY(22px)} to{opacity:1;transform:translateY(0)} }
         @keyframes ats-popin          { from{opacity:0;transform:scale(.55)} to{opacity:1;transform:scale(1)} }
         @keyframes ats-chev           { 0%,100%{opacity:.3;transform:translateX(0)} 50%{opacity:1;transform:translateX(2px)} }
+        @keyframes ats-banner-pop     { from{opacity:0;transform:translate(-50%,-8px) scale(.92)} to{opacity:1;transform:translate(-50%,0) scale(1)} }
+        @keyframes ats-pulse-ring     { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.5);opacity:.45} }
         .mapboxgl-ctrl-logo { display:none !important; }
       `}</style>
 
@@ -1889,7 +2339,7 @@ export default function ActiveTripScreen({
           background: 'radial-gradient(ellipse at 50% 44%, transparent 38%, rgba(3,6,4,.28) 78%, rgba(3,6,4,.62) 100%)',
         }}/>
 
-        {/* ── fixed centered error toast (replaces in-sheet version) ── */}
+        {/* fixed centered error toast */}
         <ErrorToast message={error} onDismiss={() => setError(null)} />
 
         {/* top HUD */}
@@ -1900,6 +2350,7 @@ export default function ActiveTripScreen({
           paymentMethod={trip?.paymentMethod}
           progress={displayProgress}
           gpsLive={gpsLive}
+          mph={liveSpeedMph}
         />
 
         {/* ETA card */}
@@ -1912,8 +2363,39 @@ export default function ActiveTripScreen({
           />
         )}
 
+        {/* live speedometer */}
+        {mapReady && status !== 'completed' && (
+          <Speedometer mph={liveSpeedMph} gpsLive={gpsLive}/>
+        )}
+
         {/* rider card */}
         {mapReady && status !== 'completed' && <RiderCard rider={rider}/>}
+
+        {/* arrival proximity banner */}
+        {mapReady && (
+          <ArrivalBanner
+            visible={nearTarget}
+            targetWord={targetWord}
+            distMi={displayDist}
+            accent={stage.statusColor}
+          />
+        )}
+
+        {/* in-progress drop-off focus strip: MIN · MILES · MPH to drop-off */}
+        {mapReady && (
+          <TripStatsStrip
+            visible={showStatsStrip}
+            etaMin={displayEta}
+            distMi={displayDist}
+            mph={liveSpeedMph}
+            gpsLive={gpsLive}
+          />
+        )}
+
+        {/* off-route hint → re-open Google Maps for the active leg */}
+        {mapReady && status !== 'completed' && (
+          <RerouteChip visible={offRoute} onOpenNav={() => openNav(activeNavUrl)}/>
+        )}
 
         {/* recenter FAB */}
         {mapReady && status !== 'completed' && (
@@ -1937,7 +2419,7 @@ export default function ActiveTripScreen({
           />
         )}
 
-        {/* bottom action sheet — error prop wires failed into SlideAction */}
+        {/* bottom action sheet */}
         <ActionSheet
           trip={trip}
           stage={status}
@@ -1950,3 +2432,52 @@ export default function ActiveTripScreen({
     </>
   );
 }
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * INTEGRATION NOTES
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * PROPS
+ * ─────
+ *   driver            { uid, lat, lng, ... }   — the signed-in driver. lat/lng is
+ *                                                used as a fallback origin until a
+ *                                                live GPS fix arrives.
+ *   activeTrip        the Rides/{id} doc, including:
+ *                       status            'driver_assigned' | 'arrived' |
+ *                                         'in_progress' | 'completed'
+ *                       uid               rider's Accounts/{uid}
+ *                       pickupLat/Lng, dropoffLat/Lng
+ *                       pickup / pickupLabel / pickupAddress (display strings)
+ *                       dropoff / dropoffLabel / dropoffAddress
+ *                       driverEtaPolyline + driverEtaMin   (driver → pickup leg)
+ *                       polyline + tripDurationMin         (pickup → drop-off leg)
+ *                       paymentMethod ('cash' | 'card'), driverPayout,
+ *                       tripDistanceMiles, tripDurationMin (for the completed sheet)
+ *   onTripComplete    () => void  — fired ~2.8s after the trip is marked complete.
+ *   useDeviceLocation boolean (default true) — set false to drive purely from the
+ *                       `driver` prop (e.g. on desktop / when previewing).
+ *
+ * BACKEND TOUCHPOINTS (us-east1)
+ * ──────────────────────────────
+ *   updateTripStatus({ rideId, action })   action ∈ 'arrive' | 'start' | 'complete'
+ *                                           → returns { status }
+ *   getDriverToPickup({ driverLat, driverLng, pickupLat, pickupLng })
+ *                                           → { polyline, duration }  (duration sec)
+ *   Firestore: Rides/{id} (live), Rides/{id}/Messages (chat), Accounts/{uid} (rider).
+ *
+ * THE FOUR THINGS THIS BUILD ADDED
+ * ────────────────────────────────
+ *   1. LIVE MPH. The GPS watch reads pos.coords.speed (m/s); if the device
+ *      doesn't report it we derive speed from the distance between consecutive
+ *      fixes. It's smoothed (SMOOTH_SPEED) and shown in the Speedometer gauge and
+ *      the top bar. ETA blends this in: above SPEED_FLOOR_FOR_ETA mph we use your
+ *      real pace, otherwise the route's duration, then FALLBACK_SPEED_MPH.
+ *
+ *   2. TAP-TO-NAVIGATE. navUrl() builds a Google Maps universal link with
+ *      dir_action=navigate, so a tap opens turn-by-turn in the Maps app on a
+ *      phone. The pickup row → pickup coords, the drop-off row → drop-off coords,
+ *      and the big Navigate button + the off-route chip → the CURRENT leg. Falls
+ *      back to the text address if coordinates are missing.
+ *
+ *   3. CORRECT DROP-OFF METRICS
