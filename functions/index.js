@@ -52,6 +52,7 @@ const { validatePromoCode } = require("./payments/validatePromoCode");
 const { scheduledRideChecker } = require("./payments/scheduledRideChecker");
 
 // driver functions
+const { driverFeed } = require("./drivers/driverFeed");
 const { createDriverProfile } = require("./drivers/createDriverProfile");
 const { checkDriverDeposit } = require("./drivers/checkDriverDeposit");
 const { DriverStatus } = require("./drivers/DriverStatus");
@@ -114,6 +115,7 @@ const { updateAccountPresence } = require("./accounts/updateAccountPresence");
 
 // Exports
 exports.createAccount = createAccount;
+exports.driverFeed = driverFeed;
 exports.onAccountCreated = onAccountCreated;
 exports.ATOB = ATOB;
 exports.riderLocation = riderLocation;

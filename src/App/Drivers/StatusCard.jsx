@@ -40,6 +40,7 @@ export default function StatusCard({
   const [badgeIdx, setBadgeIdx] = useState(0);
   const onlineSinceRef          = useRef(null);
   const cycleRef                = useRef(null);
+  const userPausedRef           = useRef(false); // ← tracks manual dot tap
 
   // ── Online duration ────────────────────────────────
   useEffect(() => {
@@ -83,6 +84,7 @@ export default function StatusCard({
   const startCycle = () => {
     clearInterval(cycleRef.current);
     if (activeTrip) return;
+    if (userPausedRef.current) return; // ← don't restart if user manually navigated
     cycleRef.current = setInterval(() => {
       setFaceIdx(i => {
         const next = (i + 1) % activeFaces.length;
@@ -102,11 +104,13 @@ export default function StatusCard({
     return () => clearInterval(cycleRef.current);
   }, [activeTrip, upcomingRides.length]); // eslint-disable-line
 
+  // ── Manual dot tap — stops auto-cycle permanently until trip state changes ──
   const goFace = (i) => {
+    userPausedRef.current = true;    // ← user took control, kill auto-cycle
+    clearInterval(cycleRef.current);
     setFaceIdx(i);
     if (activeFaces[i] === 'scheduled') setRideIdx(Math.floor(Math.random() * Math.max(1, upcomingRides.length)));
     if (activeFaces[i] === 'achievements') setBadgeIdx(bi => bi + 1);
-    startCycle();
   };
 
   const face = activeFaces[faceIdx];
@@ -290,7 +294,7 @@ export default function StatusCard({
 
             {/* ════ FACE: NOTIFICATION ════ */}
             {face === 'notification' && (
-              <NotificationFace online={online} />
+              <NotificationFace online={online} driver={driver} />
             )}
 
             {/* ════ FACE: SEARCHES ════ */}
