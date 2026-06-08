@@ -1,8 +1,6 @@
 // src/App/UaTob/UaTobApp.jsx
 import React, { useState, useEffect } from 'react';
-import { Route, User, LogIn, X, Eye, EyeOff, Loader2, CheckCircle, Mail, Lock } from 'lucide-react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-
+import { Route, User, LogIn, X, Eye, EyeOff, Loader2, CheckCircle } from 'lucide-react';
 
 import { THEME as T } from '@/App/UaTob/pricing.js';
 import CSS from '@/App/UaTob/styles.js';
@@ -27,10 +25,7 @@ import { useRides } from '@/App/UaTob/useRides';
 import { useActiveRides } from '@/App/UaTob/useActiveRides';
 import { useUserAccount } from '@/App/UaTob/useUserAccount';
 import { useCompletedRides } from '@/App/UaTob/useCompletedRides';
-
-// ── Callable ──────────────────────────────────────────────────────────
-const functions         = getFunctions(firebase_app, 'us-east1');
-const callCreateAccount = httpsCallable(functions, 'createAccount');
+import { useCreateAccount } from '@/App/UaTob/useCreateAccount';
 
 // ── Status buckets ────────────────────────────────────────────────────
 const SEARCHING_STATUSES = ['searching_driver'];
@@ -60,23 +55,23 @@ function AuthTerms() {
 }
 
 // ── Inline Auth Modal ─────────────────────────────────────────────────
-function InlineAuthModal({ onClose, onAuthSuccess }) {
-  const [mode,     setMode]     = useState('login');
-  const [email,    setEmail]    = useState('');
-  const [password, setPassword] = useState('');
-  const [name,     setName]     = useState('');
-  const [showPw,   setShowPw]   = useState(false);
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState('');
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [resetEmail, setResetEmail] = useState('');
-  const [resetLoading, setResetLoading] = useState(false);
-  const [resetMessage, setResetMessage] = useState('');
+function InlineAuthModal({ onClose, onAuthSuccess, createAccount }) {
+  const [mode,        setMode]        = useState('login');
+  const [email,       setEmail]       = useState('');
+  const [password,    setPassword]    = useState('');
+  const [name,        setName]        = useState('');
+  const [showPw,      setShowPw]      = useState(false);
+  const [loading,     setLoading]     = useState(false);
+  const [error,       setError]       = useState('');
+
+  const [showForgot,    setShowForgot]    = useState(false);
+  const [resetEmail,    setResetEmail]    = useState('');
+  const [resetLoading,  setResetLoading]  = useState(false);
+  const [resetMessage,  setResetMessage]  = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
+    setLoading(true); setError('');
     try {
       const result = mode === 'login'
         ? await signIn(email, password)
@@ -87,7 +82,7 @@ function InlineAuthModal({ onClose, onAuthSuccess }) {
       if (mode === 'signup') {
         const user = result.result?.user ?? result.user;
         if (!user?.uid) throw new Error('Sign-up succeeded but UID is missing.');
-        await callCreateAccount({ uid: user.uid, email: user.email, name });
+        await createAccount({ uid: user.uid, email: user.email, name });
       }
 
       onAuthSuccess();
@@ -100,9 +95,7 @@ function InlineAuthModal({ onClose, onAuthSuccess }) {
 
   const handleForgotPassword = async (e) => {
     e.preventDefault();
-    setResetLoading(true);
-    setError('');
-    setResetMessage('');
+    setResetLoading(true); setError(''); setResetMessage('');
 
     if (!resetEmail.trim()) {
       setError('Please enter your email address');
@@ -111,18 +104,13 @@ function InlineAuthModal({ onClose, onAuthSuccess }) {
     }
 
     const result = await resetPassword(resetEmail.trim().toLowerCase());
-    
     if (result.success) {
       setResetMessage(result.message);
       setResetEmail('');
-      setTimeout(() => {
-        setShowForgotPassword(false);
-        setResetMessage('');
-      }, 3000);
+      setTimeout(() => { setShowForgot(false); setResetMessage(''); }, 3000);
     } else {
       setError(result.error.message);
     }
-    
     setResetLoading(false);
   };
 
@@ -134,10 +122,9 @@ function InlineAuthModal({ onClose, onAuthSuccess }) {
           position:'absolute', top:16, right:16,
           width:32, height:32, borderRadius:'50%',
           background:'#F3F4F6', border:'none', cursor:'pointer',
-          display:'flex', alignItems:'center', justifyContent:'center',
-          color:'#6B7280',
+          display:'flex', alignItems:'center', justifyContent:'center', color:'#6B7280',
         }}>
-          <X size={16} />
+          <X size={16}/>
         </button>
 
         <div style={{ marginBottom:22 }}>
@@ -162,15 +149,13 @@ function InlineAuthModal({ onClose, onAuthSuccess }) {
           {mode === 'signup' && (
             <div className="auth-input-wrap">
               <input className="auth-input" type="text" placeholder="Full name"
-                value={name} onChange={e => setName(e.target.value)} required autoComplete="name" />
+                value={name} onChange={e => setName(e.target.value)} required autoComplete="name"/>
             </div>
           )}
-
           <div className="auth-input-wrap">
             <input className="auth-input" type="email" placeholder="Email address"
-              value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" />
+              value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email"/>
           </div>
-
           <div className="auth-input-wrap">
             <input
               className="auth-input has-toggle"
@@ -182,26 +167,14 @@ function InlineAuthModal({ onClose, onAuthSuccess }) {
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
             />
             <button type="button" className="auth-eye-btn" onClick={() => setShowPw(p => !p)}>
-              {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+              {showPw ? <EyeOff size={16}/> : <Eye size={16}/>}
             </button>
           </div>
 
           {mode === 'login' && (
-            <div style={{ textAlign: 'right', marginBottom: '12px' }}>
-              <button
-                type="button"
-                onClick={() => setShowForgotPassword(true)}
-                disabled={loading}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#16A34A',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  textDecoration: 'underline',
-                }}
-              >
+            <div style={{ textAlign:'right', marginBottom:12 }}>
+              <button type="button" onClick={() => setShowForgot(true)} disabled={loading}
+                style={{ background:'none', border:'none', color:'#16A34A', fontSize:12, fontWeight:600, cursor:'pointer', textDecoration:'underline' }}>
                 Forgot password?
               </button>
             </div>
@@ -209,13 +182,12 @@ function InlineAuthModal({ onClose, onAuthSuccess }) {
 
           <button className="auth-submit" type="submit" disabled={loading}>
             {loading
-              ? <Loader2 size={16} style={{ animation:'spinAnim 1s linear infinite' }} />
-              : mode === 'login' ? 'Sign In' : 'Create Account'
-            }
+              ? <Loader2 size={16} style={{ animation:'spinAnim 1s linear infinite' }}/>
+              : mode === 'login' ? 'Sign In' : 'Create Account'}
           </button>
         </form>
 
-        <AuthTerms />
+        <AuthTerms/>
 
         <div style={{ textAlign:'center', marginTop:10, fontSize:13, color:'#6B7280' }}>
           {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
@@ -224,176 +196,62 @@ function InlineAuthModal({ onClose, onAuthSuccess }) {
             {mode === 'login' ? 'Sign up' : 'Sign in'}
           </button>
         </div>
-
       </div>
 
-      {showForgotPassword && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'rgba(0,0,0,.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '20px',
-          }}
-          onClick={() => setShowForgotPassword(false)}
-        >
-          <div
-            style={{
-              background: '#fff',
-              borderRadius: '16px',
-              padding: '32px 24px',
-              maxWidth: 400,
-              width: '100%',
-              boxShadow: '0 20px 60px rgba(0,0,0,.3)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
+      {/* ── Forgot password sub-modal ── */}
+      {showForgot && (
+        <div style={{
+          position:'absolute', inset:0,
+          background:'rgba(0,0,0,.5)',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          zIndex:1000, padding:20,
+        }} onClick={() => setShowForgot(false)}>
+          <div style={{
+            background:'#fff', borderRadius:16, padding:'32px 24px',
+            maxWidth:400, width:'100%', boxShadow:'0 20px 60px rgba(0,0,0,.3)',
+          }} onClick={e => e.stopPropagation()}>
+
             {resetMessage ? (
               <>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'center',
-                    marginBottom: 16,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 64,
-                      height: 64,
-                      background: 'rgba(22,163,74,.1)',
-                      borderRadius: 32,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <CheckCircle size={32} color="#16A34A" />
+                <div style={{ display:'flex', justifyContent:'center', marginBottom:16 }}>
+                  <div style={{ width:64, height:64, background:'rgba(22,163,74,.1)', borderRadius:32, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    <CheckCircle size={32} color="#16A34A"/>
                   </div>
                 </div>
-                <h3
-                  style={{
-                    fontSize: 18,
-                    fontWeight: 700,
-                    color: '#111827',
-                    marginBottom: 8,
-                    textAlign: 'center',
-                  }}
-                >
-                  Check Your Email
-                </h3>
-                <p
-                  style={{
-                    fontSize: 13,
-                    color: '#6B7280',
-                    textAlign: 'center',
-                    lineHeight: 1.6,
-                  }}
-                >
+                <h3 style={{ fontSize:18, fontWeight:700, color:'#111827', marginBottom:8, textAlign:'center' }}>Check Your Email</h3>
+                <p style={{ fontSize:13, color:'#6B7280', textAlign:'center', lineHeight:1.6 }}>
                   We've sent a password reset link to <strong>{resetEmail}</strong>. The link will expire in 1 hour.
                 </p>
               </>
             ) : (
               <>
-                <h3
-                  style={{
-                    fontSize: 18,
-                    fontWeight: 700,
-                    color: '#111827',
-                    marginBottom: 8,
-                  }}
-                >
-                  Reset Your Password
-                </h3>
-                <p
-                  style={{
-                    fontSize: 13,
-                    color: '#6B7280',
-                    marginBottom: 20,
-                    lineHeight: 1.6,
-                  }}
-                >
+                <h3 style={{ fontSize:18, fontWeight:700, color:'#111827', marginBottom:8 }}>Reset Your Password</h3>
+                <p style={{ fontSize:13, color:'#6B7280', marginBottom:20, lineHeight:1.6 }}>
                   Enter your email address and we'll send you a link to reset your password.
                 </p>
 
                 {error && (
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: '#DC2626',
-                      marginBottom: 16,
-                      fontWeight: 600,
-                      padding: '10px 12px',
-                      background: 'rgba(220,38,38,.05)',
-                      borderRadius: '8px',
-                      border: '1px solid rgba(220,38,38,.2)',
-                    }}
-                  >
+                  <div style={{ fontSize:12, color:'#DC2626', marginBottom:16, fontWeight:600, padding:'10px 12px', background:'rgba(220,38,38,.05)', borderRadius:8, border:'1px solid rgba(220,38,38,.2)' }}>
                     {error}
                   </div>
                 )}
 
                 <form onSubmit={handleForgotPassword}>
-                  <div style={{ marginBottom: 20 }}>
+                  <div style={{ marginBottom:20 }}>
                     <input
-                      type="email"
-                      placeholder="your@email.com"
-                      value={resetEmail}
-                      onChange={(e) => setResetEmail(e.target.value)}
+                      type="email" placeholder="your@email.com"
+                      value={resetEmail} onChange={e => setResetEmail(e.target.value)}
                       disabled={resetLoading}
-                      style={{
-                        width: '100%',
-                        background: '#F9FAFB',
-                        border: '1px solid #D1D5DB',
-                        borderRadius: '8px',
-                        padding: '12px 14px',
-                        color: '#111827',
-                        fontFamily: 'inherit',
-                        fontSize: 14,
-                        fontWeight: 500,
-                        outline: 'none',
-                      }}
+                      style={{ width:'100%', background:'#F9FAFB', border:'1px solid #D1D5DB', borderRadius:8, padding:'12px 14px', color:'#111827', fontFamily:'inherit', fontSize:14, fontWeight:500, outline:'none' }}
                     />
                   </div>
-
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <button
-                      type="button"
-                      onClick={() => setShowForgotPassword(false)}
-                      disabled={resetLoading}
-                      style={{
-                        flex: 1,
-                        padding: '12px 16px',
-                        border: '1px solid #D1D5DB',
-                        background: '#fff',
-                        color: '#111827',
-                        borderRadius: '8px',
-                        fontSize: 14,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                      }}
-                    >
+                  <div style={{ display:'flex', gap:10 }}>
+                    <button type="button" onClick={() => setShowForgot(false)} disabled={resetLoading}
+                      style={{ flex:1, padding:'12px 16px', border:'1px solid #D1D5DB', background:'#fff', color:'#111827', borderRadius:8, fontSize:14, fontWeight:600, cursor:'pointer' }}>
                       Cancel
                     </button>
-                    <button
-                      type="submit"
-                      disabled={resetLoading}
-                      style={{
-                        flex: 1,
-                        padding: '12px 16px',
-                        border: 'none',
-                        background: '#16A34A',
-                        color: '#fff',
-                        borderRadius: '8px',
-                        fontSize: 14,
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                      }}
-                    >
+                    <button type="submit" disabled={resetLoading}
+                      style={{ flex:1, padding:'12px 16px', border:'none', background:'#16A34A', color:'#fff', borderRadius:8, fontSize:14, fontWeight:700, cursor:'pointer' }}>
                       {resetLoading ? 'Sending…' : 'Send Reset Link'}
                     </button>
                   </div>
@@ -414,10 +272,10 @@ function UaTobFooter({ onBookRideClick }) {
       <div className="footer-grid">
 
         <div className="footer-brand-col">
-          <UaTobWordmark iconSize={34} />
+          <UaTobWordmark iconSize={34}/>
           <p className="footer-brand-blurb">
             Distance-based ride pricing built for Orlando.
-            <br />Fair fares for riders, better earnings for drivers.
+            <br/>Fair fares for riders, better earnings for drivers.
           </p>
           <div className="footer-orlando-badge">
             <svg width="9" height="11" viewBox="0 0 10 13" fill="none">
@@ -427,7 +285,7 @@ function UaTobFooter({ onBookRideClick }) {
           </div>
           <div style={{ marginTop:14 }}>
             <a className="footer-driver-cta" href="https://uatob.com/driver" target="_blank" rel="noopener noreferrer">
-              <Route size={12} />
+              <Route size={12}/>
               Drive with UaTob
             </a>
           </div>
@@ -451,25 +309,21 @@ function UaTobFooter({ onBookRideClick }) {
 
       </div>
 
-      <div className="footer-divider" />
+      <div className="footer-divider"/>
 
       <div className="footer-bottom">
         <div>
-          <div className="footer-legal">
-            © {new Date().getFullYear()} UaTob · All rights reserved
-          </div>
+          <div className="footer-legal">© {new Date().getFullYear()} UaTob · All rights reserved</div>
           <div className="footer-legal-links">
             <a className="footer-legal-link" href="/privacy">Privacy Policy</a>
             <a className="footer-legal-link" href="/terms">Terms of Service</a>
             <a className="footer-legal-link" href="/accessibility">Accessibility</a>
           </div>
         </div>
-
         <div className="footer-socials">
           <a className="footer-social-btn" href="https://instagram.com/uatob" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
-              <circle cx="12" cy="12" r="4"/>
+              <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><circle cx="12" cy="12" r="4"/>
               <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/>
             </svg>
           </a>
@@ -496,13 +350,14 @@ function UaTobFooter({ onBookRideClick }) {
 
 // ── MAIN APP ──────────────────────────────────────────────────────────
 export default function UaTobApp({ uid }) {
-  const { uid: authUid } = useAuthContext();
-  const resolvedUid = authUid ?? uid;
+  const { uid: authUid }          = useAuthContext();
+  const resolvedUid               = authUid ?? uid;
+  const { createAccount }         = useCreateAccount();
 
   // ── Data hooks ────────────────────────────────────────────────────
   const { completedRides }               = useCompletedRides(resolvedUid);
   const { rides, loading: ridesLoading } = useUserRides(resolvedUid);
-  const { trips } = useRides();
+  const { trips }                        = useRides();
   const { active }                       = useActiveRides(resolvedUid);
   const { account }                      = useUserAccount(resolvedUid);
 
@@ -510,8 +365,6 @@ export default function UaTobApp({ uid }) {
 
   // ── Booking state ─────────────────────────────────────────────────
   const [bookingPayload,  setBookingPayload]  = useState(saved?.bookingPayload  ?? null);
-
-
   const [pickupCoords,    setPickupCoords]    = useState(saved?.pickupCoords    ?? null);
   const [dropoffCoords,   setDropoffCoords]   = useState(saved?.dropoffCoords   ?? null);
 
@@ -555,8 +408,7 @@ export default function UaTobApp({ uid }) {
   const isSearching = !!activeRide && SEARCHING_STATUSES.includes(activeRide.status);
   const isTracking  = !!activeRide && TRACKING_STATUSES.includes(activeRide.status);
   const isTimeout   = !!activeRide && activeRide.status === 'timeout';
-
-  const isCompact = compactMode && !isTracking;
+  const isCompact   = compactMode && !isTracking;
 
   useEffect(() => {
     if (activeRide) setShowPayment(false);
@@ -569,36 +421,9 @@ export default function UaTobApp({ uid }) {
     if (unreviewed) setReviewingRide(unreviewed);
   }, [completedRides, isTracking, isSearching]);
 
+  // ── Handlers ──────────────────────────────────────────────────────
   const handlePriceReady = () => setCompactMode(true);
 
-  // ── Booking-flow auth submit ──────────────────────────────────────
-  const handleBookingAuth = async (e) => {
-    e.preventDefault();
-    setAuthLoading(true);
-    setAuthError('');
-    try {
-      const result = authMode === 'login'
-        ? await signIn(email, password)
-        : await signUp(email, password);
-
-      if (result.error) throw new Error(result.error.message || 'Authentication failed');
-
-      if (authMode === 'signup') {
-        const user = result.result?.user ?? result.user;
-        if (!user?.uid) throw new Error('Sign-up succeeded but UID is missing.');
-        await callCreateAccount({ uid: user.uid, email: user.email, name });
-      }
-
-      setShowBookingAuth(false);
-      setShowPayment(true);
-    } catch (err) {
-      setAuthError(err.message || 'Authentication failed');
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
-  // ── Handlers ──────────────────────────────────────────────────────
   const handlePayloadChange = (payload) => {
     if (!payload) return;
     setBookingPayload(payload);
@@ -624,6 +449,31 @@ export default function UaTobApp({ uid }) {
       setShowBookingAuth(true);
       setAuthMode('login');
       setEmail(''); setPassword(''); setName(''); setAuthError('');
+    }
+  };
+
+  const handleBookingAuth = async (e) => {
+    e.preventDefault();
+    setAuthLoading(true); setAuthError('');
+    try {
+      const result = authMode === 'login'
+        ? await signIn(email, password)
+        : await signUp(email, password);
+
+      if (result.error) throw new Error(result.error.message || 'Authentication failed');
+
+      if (authMode === 'signup') {
+        const user = result.result?.user ?? result.user;
+        if (!user?.uid) throw new Error('Sign-up succeeded but UID is missing.');
+        await createAccount({ uid: user.uid, email: user.email, name });
+      }
+
+      setShowBookingAuth(false);
+      setShowPayment(true);
+    } catch (err) {
+      setAuthError(err.message || 'Authentication failed');
+    } finally {
+      setAuthLoading(false);
     }
   };
 
@@ -658,21 +508,13 @@ export default function UaTobApp({ uid }) {
   const HeaderRight = () => (
     <div style={{ display:'flex', alignItems:'center' }}>
       {!resolvedUid ? (
-        <button
-          className="login-badge"
-          onClick={() => setShowAuthModal(true)}
-          aria-label="Sign in"
-        >
-          <LogIn size={13} />
+        <button className="login-badge" onClick={() => setShowAuthModal(true)} aria-label="Sign in">
+          <LogIn size={13}/>
           Login
         </button>
       ) : (
-        <button
-          className="account-btn"
-          onClick={() => setShowDashboard(true)}
-          aria-label="My account"
-        >
-          <User size={16} color="#fff" />
+        <button className="account-btn" onClick={() => setShowDashboard(true)} aria-label="My account">
+          <User size={16} color="#fff"/>
         </button>
       )}
     </div>
@@ -689,72 +531,66 @@ export default function UaTobApp({ uid }) {
       <style>{EXTRA_CSS}</style>
 
       {/* Ambient blobs */}
-      <div style={{ position:'fixed', top:'-15%', right:'-8%', width:'550px', height:'550px', background:'radial-gradient(circle,rgba(22,163,74,.05) 0%,transparent 65%)', borderRadius:'50%', animation:'float 14s ease-in-out infinite', pointerEvents:'none', zIndex:0 }}/>
-      <div style={{ position:'fixed', bottom:'-20%', left:'-12%', width:'700px', height:'700px', background:'radial-gradient(circle,rgba(17,24,39,.03) 0%,transparent 65%)', borderRadius:'50%', animation:'float 18s ease-in-out infinite reverse', pointerEvents:'none', zIndex:0 }}/>
+      <div style={{ position:'fixed', top:'-15%', right:'-8%', width:550, height:550, background:'radial-gradient(circle,rgba(22,163,74,.05) 0%,transparent 65%)', borderRadius:'50%', animation:'float 14s ease-in-out infinite', pointerEvents:'none', zIndex:0 }}/>
+      <div style={{ position:'fixed', bottom:'-20%', left:'-12%', width:700, height:700, background:'radial-gradient(circle,rgba(17,24,39,.03) 0%,transparent 65%)', borderRadius:'50%', animation:'float 18s ease-in-out infinite reverse', pointerEvents:'none', zIndex:0 }}/>
 
-      <div style={{ maxWidth:'680px', margin:'0 auto', padding:'28px 20px 0', position:'relative', zIndex:1 }}>
+      <div style={{ maxWidth:680, margin:'0 auto', padding:'28px 20px 0', position:'relative', zIndex:1 }}>
 
         {/* ── Header ── */}
         <div style={{
           display:'flex', alignItems:'center', justifyContent:'space-between',
-          marginBottom: isCompact ? '24px' : '40px',
-          animation: mounted ? 'slideUp .55s ease-out forwards' : 'none',
-          opacity:0,
+          marginBottom: isCompact ? 24 : 40,
+          animation: mounted ? 'slideUp .55s ease-out forwards' : 'none', opacity:0,
         }}>
-          <UaTobWordmark iconSize={42} />
-          <HeaderRight />
+          <UaTobWordmark iconSize={42}/>
+          <HeaderRight/>
         </div>
 
-        {/* ── INITIAL STATE: Hero + UatobView ── */}
+        {/* ── Initial state: Hero + UatobView ── */}
         {!isCompact && !isTracking && (
           <>
             {!activeRide && (
-              <div style={{ marginBottom:'32px', animation: mounted ? 'slideUp .65s ease-out .08s forwards' : 'none', opacity:0 }}>
+              <div style={{ marginBottom:32, animation: mounted ? 'slideUp .65s ease-out .08s forwards' : 'none', opacity:0 }}>
                 <div style={{
-                  display:'inline-flex', alignItems:'center', gap:'6px',
+                  display:'inline-flex', alignItems:'center', gap:6,
                   background:T.accentLight, border:`1px solid ${T.accentBorder}`,
-                  borderRadius:'100px', padding:'5px 14px',
-                  fontSize:'11px', fontWeight:700, color:T.accent,
-                  letterSpacing:'1px', textTransform:'uppercase', marginBottom:'18px',
+                  borderRadius:100, padding:'5px 14px',
+                  fontSize:11, fontWeight:700, color:T.accent,
+                  letterSpacing:'1px', textTransform:'uppercase', marginBottom:18,
                 }}>
-                  <Route size={12} />
+                  <Route size={12}/>
                   Distance-Based Pricing
                 </div>
-                <h1 style={{ fontSize:'clamp(30px,6vw,52px)', fontWeight:900, lineHeight:1.02, letterSpacing:'-2px', marginBottom:'14px', color:T.text }}>
+                <h1 style={{ fontSize:'clamp(30px,6vw,52px)', fontWeight:900, lineHeight:1.02, letterSpacing:'-2px', marginBottom:14, color:T.text }}>
                   Your destination,
-                  <br />
+                  <br/>
                   <span style={{ background:'linear-gradient(135deg,#111827 0%,#16A34A 100%)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text' }}>
                     always waiting.
                   </span>
                 </h1>
-                <p style={{ fontSize:'15px', color:T.textMuted, fontWeight:500, lineHeight:1.65 }}>
+                <p style={{ fontSize:15, color:T.textMuted, fontWeight:500, lineHeight:1.65 }}>
                   Fare is calculated live based on the actual
-                  <br />distance from A to B — no surprises.
+                  <br/>distance from A to B — no surprises.
                 </p>
               </div>
             )}
-
-            <div style={{ marginBottom:'36px' }}>
-              <UatobView trips={trips} />
+            <div style={{ marginBottom:36 }}>
+              <UatobView trips={trips}/>
             </div>
           </>
         )}
 
-        {/* ── COMPACT STATE: MapView ── */}
+        {/* ── Compact state: MapView ── */}
         {isCompact && (
-          <div style={{
-            marginBottom:'16px',
-            animation: mounted ? 'slideUp .45s ease-out forwards' : 'none',
-            opacity:0,
-          }}>
-            <MapView bookingPayload={bookingPayload} />
+          <div style={{ marginBottom:16, animation: mounted ? 'slideUp .45s ease-out forwards' : 'none', opacity:0 }}>
+            <MapView bookingPayload={bookingPayload}/>
           </div>
         )}
 
         {/* ── Main panel ── */}
         <div style={{ animation: mounted ? 'slideUp .65s ease-out .18s forwards' : 'none', opacity:0 }}>
           {isTracking ? (
-            <LiveTrackingPanel active={active} onRideDone={resetRide} />
+            <LiveTrackingPanel active={active} onRideDone={resetRide}/>
           ) : (
             <BookingPanel
               onBookNow={handleBookNow}
@@ -771,20 +607,18 @@ export default function UaTobApp({ uid }) {
       {!isCompact && !isTracking && (
         <UaTobFooter
           onBookRideClick={() => {
-            if (!resolvedUid) {
-              setShowAuthModal(true);
-            } else {
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }
+            if (!resolvedUid) setShowAuthModal(true);
+            else window.scrollTo({ top:0, behavior:'smooth' });
           }}
         />
       )}
 
-      {/* ── Inline header auth modal ── */}
+      {/* ── Header auth modal ── */}
       {showAuthModal && !resolvedUid && (
         <InlineAuthModal
           onClose={() => setShowAuthModal(false)}
           onAuthSuccess={() => setShowAuthModal(false)}
+          createAccount={createAccount}
         />
       )}
 
@@ -818,7 +652,7 @@ export default function UaTobApp({ uid }) {
         />
       )}
 
-      {/* ── Confirmation modal (searching + timeout) ── */}
+      {/* ── Confirmation modal ── */}
       {(isSearching || isTimeout) && (
         <ConfirmationModal
           rides={rides}
@@ -856,22 +690,18 @@ export default function UaTobApp({ uid }) {
             backdropFilter:'blur(12px)',
             borderBottom:'1px solid #DDE5DD',
           }}>
-            <button
-              onClick={() => setShowDashboard(false)}
-              style={{
-                display:'flex', alignItems:'center', gap:6,
-                background:'#111827', color:'#fff',
-                border:'none', borderRadius:100,
-                padding:'7px 14px',
-                fontSize:12, fontWeight:800,
-                cursor:'pointer',
-                fontFamily:'"Outfit",system-ui,sans-serif',
-              }}
-            >
-              <X size={13} /> Close
+            <button onClick={() => setShowDashboard(false)} style={{
+              display:'flex', alignItems:'center', gap:6,
+              background:'#111827', color:'#fff',
+              border:'none', borderRadius:100,
+              padding:'7px 14px',
+              fontSize:12, fontWeight:800,
+              cursor:'pointer',
+              fontFamily:'"Outfit",system-ui,sans-serif',
+            }}>
+              <X size={13}/> Close
             </button>
           </div>
-
           <RiderDashboard
             account={account}
             active={active}
