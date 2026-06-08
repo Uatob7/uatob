@@ -1,9 +1,11 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
-import { Power, Radar, Zap, MapPin, Calendar, Clock, ChevronRight, Navigation, Trophy, TrendingUp, Star, Share2 } from 'lucide-react';
+import { Trophy, TrendingUp, Share2 } from 'lucide-react';
 import { C } from '@/App/Drivers/constants.js';
 import StatTiles      from '@/App/Drivers/StatTiles.jsx';
 import Achievements   from '@/App/Drivers/Achievements.jsx';
-import RecentSearches from '@/App/Drivers/RecentSearches.jsx'; // ← NEW
+import RecentSearches from '@/App/Drivers/RecentSearches.jsx';
+import ScheduledFace  from '@/App/Drivers/ScheduledFace.jsx';
+import StatusFace     from '@/App/Drivers/StatusFace.jsx';
 
 // ── Helpers ────────────────────────────────────────────
 function tsToMillis(ts) {
@@ -13,36 +15,6 @@ function tsToMillis(ts) {
   if (ts instanceof Date) return ts.getTime();
   if (typeof ts === 'number') return ts;
   return 0;
-}
-
-function fmtScheduled(ts) {
-  if (!ts) return null;
-  const ms = tsToMillis(ts);
-  if (!ms) return null;
-  const d = new Date(ms);
-  const diffMs = ms - Date.now();
-  const diffH = diffMs / 1000 / 3600;
-  if (diffH < 0) return null;
-  if (diffH < 24) return d.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-  return d.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
-}
-
-function parseCity(ride) {
-  return ride.pickupCity
-    || (ride.pickup ? ride.pickup.split(',').slice(-2, -1)[0]?.trim() : null)
-    || 'Orlando';
-}
-
-function fmtCountdown(ts) {
-  if (!ts) return null;
-  const ms = tsToMillis(ts);
-  const diff = ms - Date.now();
-  if (diff <= 0) return 'Now';
-  const h = Math.floor(diff / 3600000);
-  const m = Math.floor((diff % 3600000) / 60000);
-  if (h > 0) return `in ${h}h ${m}m`;
-  if (m > 0) return `in ${m}m`;
-  return 'Soon';
 }
 
 // Face order: 0=status, 1=scheduled, 2=stats, 3=achievements, 4=notification, 5=searches ← NEW
@@ -114,7 +86,7 @@ export default function StatusCard({
       setFaceIdx(i => {
         const next = (i + 1) % activeFaces.length;
         if (activeFaces[next] === 'scheduled') {
-          setRideIdx(ri => (ri + 1) % Math.max(1, upcomingRides.length));
+          setRideIdx(Math.floor(Math.random() * Math.max(1, upcomingRides.length)));
         }
         if (activeFaces[next] === 'achievements') {
           setBadgeIdx(bi => bi + 1);
@@ -131,6 +103,7 @@ export default function StatusCard({
 
   const goFace = (i) => {
     setFaceIdx(i);
+    if (activeFaces[i] === 'scheduled') setRideIdx(Math.floor(Math.random() * Math.max(1, upcomingRides.length)));
     if (activeFaces[i] === 'achievements') setBadgeIdx(bi => bi + 1);
     startCycle();
   };
@@ -268,128 +241,26 @@ export default function StatusCard({
 
             {/* ════ FACE: STATUS ════ */}
             {face === 'status' && (
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:14 }}>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
-                    <div style={{
-                      display:'inline-flex', alignItems:'center', gap:6,
-                      padding:'4px 10px', borderRadius:100,
-                      background: mode==='trip' ? 'rgba(255,255,255,0.10)' : mode==='waiting' ? 'rgba(22,163,74,.12)' : C.surfaceAlt,
-                      border: mode==='trip' ? '1px solid rgba(255,255,255,0.15)' : mode==='waiting' ? '1px solid rgba(22,163,74,.20)' : `1px solid ${C.border}`,
-                    }}>
-                      <div style={{
-                        width:6, height:6, borderRadius:'50%',
-                        background: mode==='offline' ? C.textDim : '#22C55E',
-                        boxShadow: mode!=='offline' ? '0 0 8px rgba(34,197,94,0.7)' : 'none',
-                        animation: mode!=='offline' ? 'scLiveDot 1.6s ease-in-out infinite' : 'none',
-                      }}/>
-                      <span className="mono" style={{ fontSize:10, fontWeight:800, letterSpacing:'.12em', textTransform:'uppercase', color: mode==='trip' ? 'rgba(255,255,255,0.85)' : mode==='waiting' ? C.onlineGreen : C.textDim }}>
-                        {mode==='trip' ? 'On trip' : mode==='waiting' ? 'Online · ready' : 'Offline'}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="condensed" style={{ fontSize:26, fontWeight:900, color: mode==='trip' ? '#fff' : C.text, letterSpacing:'-0.5px', lineHeight:1.1, marginBottom:4, opacity: mode==='offline' ? 0.65 : 1 }}>
-                    {mode==='offline' && "You're offline"}
-                    {mode==='waiting' && 'Looking for rides'}
-                    {mode==='trip'    && `Active trip · ${(tripStage ?? '').replace('_', ' ')}`}
-                  </div>
-                  <div style={{ display:'flex', alignItems:'center', gap:10, fontSize:12, fontWeight:600, color: mode==='trip' ? 'rgba(255,255,255,0.55)' : mode==='waiting' ? '#15803D' : C.textDim, flexWrap:'wrap' }}>
-                    {mode==='offline' && <span>Tap "Go online" to start earning</span>}
-                    {mode==='waiting' && (
-                      <>
-                        <span style={{ display:'inline-flex', alignItems:'center', gap:4 }}><Radar size={12} strokeWidth={2.2}/> Scanning area</span>
-                        {sinceMs && <><span style={{ width:3, height:3, borderRadius:'50%', background:'rgba(22,163,74,.35)' }}/><span>Online {onlineLabel}</span></>}
-                        {nearbyCount > 0 && <><span style={{ width:3, height:3, borderRadius:'50%', background:'rgba(22,163,74,.35)' }}/><span style={{ display:'inline-flex', alignItems:'center', gap:4 }}><MapPin size={11} strokeWidth={2.2}/>{nearbyCount} nearby</span></>}
-                      </>
-                    )}
-                    {mode==='trip' && <span style={{ display:'inline-flex', alignItems:'center', gap:5 }}><Zap size={12} fill="#22C55E" strokeWidth={0}/> Earning · stay focused</span>}
-                  </div>
-                </div>
-
-                {!activeTrip && (
-                  <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8, flexShrink:0 }}>
-                    <button
-                      onClick={e => { e.stopPropagation(); onToggle(); }}
-                      style={{
-                        background: online ? 'linear-gradient(135deg,#22C55E 0%,#16A34A 55%,#15803D 100%)' : 'linear-gradient(135deg,#0F172A,#1F2937 55%,#0F172A)',
-                        border:'none', borderRadius:100,
-                        padding: online ? '13px 18px' : '13px 22px',
-                        color:'#fff', fontFamily:"'Barlow',sans-serif",
-                        fontWeight:800, fontSize:14, letterSpacing:'.3px',
-                        cursor:'pointer', display:'flex', alignItems:'center', gap:7,
-                        transition:'filter .15s, transform .1s',
-                        boxShadow: online ? '0 8px 20px rgba(22,163,74,.35)' : '0 8px 20px rgba(0,0,0,.18)',
-                        animation: online ? 'scOnlinePulse 2.4s ease-in-out infinite' : 'none',
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.filter='brightness(1.08)'}
-                      onMouseLeave={e => e.currentTarget.style.filter=''}
-                      onMouseDown={e  => e.currentTarget.style.transform='scale(.97)'}
-                      onMouseUp={e    => e.currentTarget.style.transform=''}
-                    >
-                      <Power size={15} strokeWidth={2.6} fill={online ? '#fff' : 'transparent'}/>
-                      {online ? 'Online' : 'Go online'}
-                    </button>
-                  </div>
-                )}
-
-                {activeTrip && (
-                  <div style={{ flexShrink:0, width:48, height:48, borderRadius:14, background:'rgba(34,197,94,0.15)', border:'1.5px solid rgba(34,197,94,0.35)', display:'flex', alignItems:'center', justifyContent:'center', position:'relative' }}>
-                    <Zap size={20} color="#4ADE80" fill="#4ADE80" strokeWidth={2}/>
-                    <div style={{ position:'absolute', inset:-6, borderRadius:18, border:'2px solid rgba(34,197,94,0.4)', animation:'scRadar 2s ease-out infinite', pointerEvents:'none' }}/>
-                  </div>
-                )}
-              </div>
+              <StatusFace
+                mode={mode}
+                online={online}
+                activeTrip={activeTrip}
+                tripStage={tripStage}
+                sinceMs={sinceMs}
+                onlineLabel={onlineLabel}
+                nearbyCount={nearbyCount}
+                onToggle={onToggle}
+              />
             )}
 
             {/* ════ FACE: SCHEDULED ════ */}
             {face === 'scheduled' && (
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:14 }}>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'4px 10px', borderRadius:100, background:'rgba(129,140,248,.14)', border:'1px solid rgba(129,140,248,.28)', marginBottom:8 }}>
-                    <div style={{ width:6, height:6, borderRadius:'50%', background:'#818CF8', boxShadow:'0 0 8px rgba(129,140,248,0.8)', animation:'scLiveDot 1.6s ease-in-out infinite' }}/>
-                    <span className="mono" style={{ fontSize:10, fontWeight:800, letterSpacing:'.12em', textTransform:'uppercase', color:'#A5B4FC' }}>
-                      {!hasScheduled ? 'No upcoming rides' : upcomingRides.length > 1 ? `Ride ${rideIdx + 1} of ${upcomingRides.length}` : 'Scheduled ride'}
-                    </span>
-                  </div>
-                  <div className="condensed" style={{ fontSize:26, fontWeight:900, color:'#fff', letterSpacing:'-0.5px', lineHeight:1.1, marginBottom:4, animation:'scCountGlow 3s ease-in-out infinite' }}>
-                    {!hasScheduled ? 'Schedule a ride' : upcomingRides.length === 1 ? '1 ride scheduled' : `${upcomingRides.length} rides scheduled`}
-                  </div>
-                  {hasScheduled && currentRide ? (
-                    <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-                      {(currentRide.scheduledAt || currentRide.createdAt) && (
-                        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                          <Clock size={11} color='rgba(165,180,252,.7)' strokeWidth={2.2}/>
-                          <span style={{ fontSize:12, fontWeight:700, color:'rgba(165,180,252,.9)' }}>{fmtScheduled(currentRide.scheduledAt || currentRide.createdAt) ?? '—'}</span>
-                          <span style={{ fontSize:10.5, fontWeight:700, color:'#818CF8', background:'rgba(129,140,248,.14)', border:'1px solid rgba(129,140,248,.25)', padding:'1px 7px', borderRadius:99 }}>
-                            {fmtCountdown(currentRide.scheduledAt || currentRide.createdAt)}
-                          </span>
-                        </div>
-                      )}
-                      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                        <MapPin size={11} color='rgba(165,180,252,.7)' strokeWidth={2.2}/>
-                        <span style={{ fontSize:12, fontWeight:600, color:'rgba(255,255,255,.55)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{parseCity(currentRide)}</span>
-                        {currentRide.fareBreakdown?.fareTotal && (
-                          <><span style={{ color:'rgba(255,255,255,.2)', fontSize:11 }}>·</span><span style={{ fontFamily:'"JetBrains Mono",monospace', fontSize:12, fontWeight:700, color:'#A5B4FC' }}>${Number(currentRide.fareBreakdown.fareTotal).toFixed(2)}</span></>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ fontSize:12, fontWeight:600, color:'rgba(165,180,252,.5)' }}>No rides coming up</div>
-                  )}
-                </div>
-                <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8, flexShrink:0 }}>
-                  <div style={{ width:44, height:44, borderRadius:13, background:'rgba(129,140,248,.14)', border:'1px solid rgba(129,140,248,.28)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                    <Calendar size={20} color="#A5B4FC" strokeWidth={2}/>
-                  </div>
-                  {upcomingRides.length > 1 && (
-                    <div style={{ display:'flex', gap:4 }}>
-                      {upcomingRides.slice(0, Math.min(5, upcomingRides.length)).map((_,i) => (
-                        <div key={i} style={{ width: i===rideIdx ? 14 : 5, height:5, borderRadius:3, background: i===rideIdx ? '#818CF8' : 'rgba(255,255,255,.2)', boxShadow: i===rideIdx ? '0 0 8px rgba(129,140,248,.7)' : 'none', transition:'all .3s ease' }}/>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
+              <ScheduledFace
+                hasScheduled={hasScheduled}
+                upcomingRides={upcomingRides}
+                currentRide={currentRide}
+                rideIdx={rideIdx}
+              />
             )}
 
             {/* ════ FACE: STATS ════ */}

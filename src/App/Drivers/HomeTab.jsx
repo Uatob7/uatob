@@ -147,7 +147,7 @@ function formatCountdown(ms) {
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
   const d = Math.floor(h / 24);
-  if (d > 0) return `${d}d ${h % 24}h`;
+  if (d > 0) return `${d}d ${h % 24}h ${m}m`;
   if (h > 0) return `${h}h ${m}m`;
   if (m > 0) return `${m}m`;
   return `${sec}s`;
@@ -1169,6 +1169,45 @@ function ScheduledDrawer({ open, onToggle, scheduledRides, driver, now }) {
                             whiteSpace: 'nowrap',
                           }}>
                             {r.dropoffLabel}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 6, marginTop: 4,
+                      flexWrap: 'wrap',
+                    }}>
+                      {r.rideType && (
+                        <span style={{
+                          fontFamily: MONO, fontSize: 8.5, fontWeight: 700,
+                          letterSpacing: '.06em', textTransform: 'uppercase',
+                          color: C.violet, background: 'rgba(192,132,252,.14)',
+                          borderRadius: 5, padding: '1px 6px',
+                        }}>
+                          {r.rideType}
+                        </span>
+                      )}
+                      {typeof r.driverPayout === 'number' && (
+                        <span style={{
+                          fontFamily: MONO, fontSize: 9, fontWeight: 800,
+                          color: C.amberBright,
+                        }}>
+                          ${r.driverPayout.toFixed(2)}
+                        </span>
+                      )}
+                      {typeof r.tripDistanceMiles === 'number' && (
+                        <>
+                          <span style={{ fontFamily: MONO, fontSize: 8.5, color: 'rgba(192,132,252,.35)' }}>·</span>
+                          <span style={{ fontFamily: MONO, fontSize: 9, fontWeight: 600, color: 'rgba(192,132,252,.7)' }}>
+                            {r.tripDistanceMiles.toFixed(2)} mi
+                          </span>
+                        </>
+                      )}
+                      {typeof r.tripDurationMin === 'number' && (
+                        <>
+                          <span style={{ fontFamily: MONO, fontSize: 8.5, color: 'rgba(192,132,252,.35)' }}>·</span>
+                          <span style={{ fontFamily: MONO, fontSize: 9, fontWeight: 600, color: 'rgba(192,132,252,.7)' }}>
+                            {r.tripDurationMin} min
                           </span>
                         </>
                       )}
