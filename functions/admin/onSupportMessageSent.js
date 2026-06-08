@@ -139,7 +139,7 @@ async function notifyAdmin(msg) {
         },
         data: {
           type:     "driver_support_message",
-          url:      "https://admin.uatob.com",
+          url:      "https://admin.com",
           driverId: driverId ?? "",
           threadId: threadId ?? "",
         },
@@ -329,7 +329,7 @@ function buildDriverEmailHtml({ firstName, safeMsg }) {
 
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
       <tr><td align="center" style="padding:2px 0 22px;">
-        ${button("https://driver.uatob.com", "Open App &amp; Reply →", T.green, "#06140C", 260)}
+        ${button("https://uatob.com/driver", "Open App &amp; Reply →", T.green, "#06140C", 260)}
       </td></tr>
     </table>`;
 
@@ -389,7 +389,7 @@ function buildAdminEmailHtml({ safeName, safeMsg, driverId, threadId }) {
 
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
       <tr><td align="center" style="padding:26px 0 22px;">
-        ${button("https://admin.uatob.com", "Reply in Admin Panel →", T.green, "#06140C", 280)}
+        ${button("https://uatob.com/admin", "Reply in Admin Panel →", T.green, "#06140C", 280)}
       </td></tr>
     </table>`;
 
