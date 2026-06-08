@@ -161,29 +161,57 @@ function RouteRail({ status }) {
 }
 
 /** single address row */
-function AddrRow({ label, text, dimmed }) {
+function AddrRow({ label, text, dimmed, mapUrl }) {
   return (
-    <div>
-      <div style={{
-        fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.14em',
-        color: C.inkDim, textTransform: 'uppercase', marginBottom: 2,
-      }}>
-        {label}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.14em',
+          color: C.inkDim, textTransform: 'uppercase', marginBottom: 2,
+        }}>
+          {label}
+        </div>
+        <div style={{
+          fontFamily: MONO, fontSize: 12, fontWeight: dimmed ? 600 : 700,
+          color: dimmed ? 'rgba(255,255,255,.45)' : C.white,
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>
+          {text || '—'}
+        </div>
       </div>
-      <div style={{
-        fontFamily: MONO, fontSize: 12, fontWeight: dimmed ? 600 : 700,
-        color: dimmed ? 'rgba(255,255,255,.45)' : C.white,
-        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-        maxWidth: '100%',
-      }}>
-        {text || '—'}
-      </div>
+      {mapUrl && (
+        <a
+          href={mapUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            flexShrink: 0, width: 30, height: 30, borderRadius: 9,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(103,232,249,.10)',
+            border: '1px solid rgba(103,232,249,.28)',
+            color: C.cyan, textDecoration: 'none',
+          }}
+          aria-label={`Open ${label} in maps`}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 21s-7-5.2-7-11a7 7 0 0 1 14 0c0 5.8-7 11-7 11Z"/>
+            <circle cx="12" cy="10" r="2.5"/>
+          </svg>
+        </a>
+      )}
     </div>
   );
 }
 
 /** top HUD ribbon */
-function TopBar({ statusLabel, statusColor, rideId }) {
+function TopBar({ statusLabel, statusColor, rideId, paymentMethod }) {
+  const pm = (paymentMethod || '').toLowerCase();
+  const pmColor  = pm === 'cash' ? C.amberBright : pm === 'card' ? C.cyan : C.ink;
+  const pmBg     = pm === 'cash' ? 'rgba(251,191,36,.15)' : pm === 'card' ? 'rgba(103,232,249,.15)' : 'rgba(255,255,255,.07)';
+  const pmBorder = pm === 'cash' ? 'rgba(251,191,36,.35)' : pm === 'card' ? 'rgba(103,232,249,.35)' : 'rgba(255,255,255,.12)';
+  const pmLabel  = pm === 'cash' ? '$ CASH' : pm === 'card' ? '▣ CARD' : pm.toUpperCase();
+
   return (
     <div style={{
       position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30,
@@ -210,13 +238,27 @@ function TopBar({ statusLabel, statusColor, rideId }) {
           {statusLabel}
         </span>
       </div>
-      {/* ride id badge */}
-      <span style={{
-        fontFamily: MONO, fontSize: 9, fontWeight: 700,
-        color: C.inkDim, letterSpacing: '.06em',
-      }}>
-        #{(rideId || '').slice(-6).toUpperCase()}
-      </span>
+
+      {/* right: payment method + ride id */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {pm && (
+          <span style={{
+            fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '.08em',
+            color: pmColor,
+            background: pmBg,
+            border: `1px solid ${pmBorder}`,
+            borderRadius: 6, padding: '2px 7px',
+          }}>
+            {pmLabel}
+          </span>
+        )}
+        <span style={{
+          fontFamily: MONO, fontSize: 9, fontWeight: 700,
+          color: C.inkDim, letterSpacing: '.06em',
+        }}>
+          #{(rideId || '').slice(-6).toUpperCase()}
+        </span>
+      </div>
     </div>
   );
 }
@@ -334,8 +376,22 @@ function ActionSheet({
         }}>
           <RouteRail status={stage}/>
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 9 }}>
-            <AddrRow label="Pickup"   text={pickup}  dimmed={false}/>
-            <AddrRow label="Drop-off" text={dropoff} dimmed={stage !== 'in_progress'}/>
+            <AddrRow
+              label="Pickup"
+              text={pickup}
+              dimmed={false}
+              mapUrl={trip?.pickupLat && trip?.pickupLng
+                ? `https://www.google.com/maps/dir/?api=1&destination=${trip.pickupLat},${trip.pickupLng}`
+                : null}
+            />
+            <AddrRow
+              label="Drop-off"
+              text={dropoff}
+              dimmed={stage !== 'in_progress'}
+              mapUrl={trip?.dropoffLat && trip?.dropoffLng
+                ? `https://www.google.com/maps/dir/?api=1&destination=${trip.dropoffLat},${trip.dropoffLng}`
+                : null}
+            />
           </div>
         </div>
 
@@ -834,6 +890,7 @@ export default function ActiveTripScreen({ driver, activeTrip, onTripComplete })
           statusLabel={stage.statusLabel}
           statusColor={stage.statusColor}
           rideId={activeTrip?.id}
+          paymentMethod={activeTrip?.paymentMethod}
         />
 
         {/* distance + payout pill */}
