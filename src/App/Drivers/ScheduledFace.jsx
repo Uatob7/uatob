@@ -14,8 +14,7 @@ function fmtScheduled(ts) {
   const ms = tsToMillis(ts);
   if (!ms) return null;
   const d = new Date(ms);
-  const diffMs = ms - Date.now();
-  const diffH = diffMs / 1000 / 3600;
+  const diffH = (ms - Date.now()) / 1000 / 3600;
   if (diffH < 0) return null;
   if (diffH < 24) return d.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
   return d.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
@@ -30,7 +29,7 @@ function fmtCountdown(ts) {
   const m = Math.floor((diff % 3600000) / 60000);
   const d = Math.floor(totalH / 24);
   const h = totalH % 24;
-  if (d > 0) return `in ${d}d ${h}h ${m}m`;
+  if (d > 0) return `in ${d}d ${h}h`;
   if (h > 0) return `in ${h}h ${m}m`;
   if (m > 0) return `in ${m}m`;
   return 'Soon';
@@ -42,51 +41,54 @@ function parseCity(ride) {
     || 'Orlando';
 }
 
-const DOT = <span style={{ color:'rgba(165,180,252,.3)', fontSize:10, lineHeight:1 }}>·</span>;
+const DOT = <span style={{ color:'rgba(165,180,252,.28)', fontSize:10, lineHeight:1 }}>·</span>;
 
 export default function ScheduledFace({ hasScheduled, upcomingRides, currentRide, rideIdx }) {
   const ts = currentRide?.scheduledAt || currentRide?.createdAt;
+  const multi = upcomingRides.length > 1;
 
   return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:14 }}>
       <div style={{ flex:1, minWidth:0 }}>
 
-        {/* Badge */}
-        <div style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'3px 9px', borderRadius:100, background:'rgba(129,140,248,.14)', border:'1px solid rgba(129,140,248,.28)', marginBottom:5 }}>
-          <div style={{ width:5, height:5, borderRadius:'50%', background:'#818CF8', boxShadow:'0 0 8px rgba(129,140,248,0.8)', animation:'scLiveDot 1.6s ease-in-out infinite' }}/>
-          <span className="mono" style={{ fontSize:9.5, fontWeight:800, letterSpacing:'.12em', textTransform:'uppercase', color:'#A5B4FC' }}>
-            {!hasScheduled ? 'No upcoming rides' : upcomingRides.length > 1 ? `Ride ${rideIdx + 1} of ${upcomingRides.length}` : 'Scheduled ride'}
+        {/* Title line — live dot + heading + inline count tag (badge folded in here) */}
+        <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:hasScheduled && currentRide ? 5 : 3 }}>
+          <div style={{ width:6, height:6, borderRadius:'50%', flexShrink:0, background:'#818CF8', boxShadow:'0 0 8px rgba(129,140,248,0.8)', animation:'scLiveDot 1.6s ease-in-out infinite' }}/>
+          <span className="condensed" style={{ fontSize:20, fontWeight:900, color:'#fff', letterSpacing:'-0.4px', lineHeight:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', animation:'scCountGlow 3s ease-in-out infinite' }}>
+            {!hasScheduled
+              ? 'Schedule a ride'
+              : upcomingRides.length === 1 ? '1 ride scheduled' : `${upcomingRides.length} rides scheduled`}
           </span>
-        </div>
-
-        {/* Heading */}
-        <div className="condensed" style={{ fontSize:24, fontWeight:900, color:'#fff', letterSpacing:'-0.5px', lineHeight:1.1, marginBottom:5, animation:'scCountGlow 3s ease-in-out infinite' }}>
-          {!hasScheduled ? 'Schedule a ride' : upcomingRides.length === 1 ? '1 ride scheduled' : `${upcomingRides.length} rides scheduled`}
+          {multi && (
+            <span className="mono" style={{ flexShrink:0, fontSize:9, fontWeight:800, letterSpacing:'.06em', color:'#A5B4FC', background:'rgba(129,140,248,.16)', border:'1px solid rgba(129,140,248,.28)', padding:'1px 6px', borderRadius:99 }}>
+              {rideIdx + 1}/{upcomingRides.length}
+            </span>
+          )}
         </div>
 
         {hasScheduled && currentRide ? (
           <>
-            {/* Row 1: time + city */}
-            <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'nowrap', overflow:'hidden', marginBottom:4 }}>
+            {/* Meta row: time + countdown + city */}
+            <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'nowrap', overflow:'hidden', marginBottom:5 }}>
               {ts && (
                 <>
                   <Clock size={10} color='rgba(165,180,252,.7)' strokeWidth={2.2}/>
                   <span style={{ fontSize:11, fontWeight:700, color:'rgba(165,180,252,.9)', whiteSpace:'nowrap' }}>
                     {fmtScheduled(ts) ?? '—'}
                   </span>
-                  <span style={{ fontSize:10, fontWeight:700, color:'#818CF8', background:'rgba(129,140,248,.14)', border:'1px solid rgba(129,140,248,.25)', padding:'1px 6px', borderRadius:99, whiteSpace:'nowrap' }}>
+                  <span style={{ fontSize:9.5, fontWeight:800, color:'#818CF8', background:'rgba(129,140,248,.14)', border:'1px solid rgba(129,140,248,.25)', padding:'1px 6px', borderRadius:99, whiteSpace:'nowrap' }}>
                     {fmtCountdown(ts)}
                   </span>
                   {DOT}
                 </>
               )}
-              <MapPin size={10} color='rgba(165,180,252,.55)' strokeWidth={2.2}/>
+              <MapPin size={10} color='rgba(165,180,252,.55)' strokeWidth={2.2} style={{ flexShrink:0 }}/>
               <span style={{ fontSize:11, fontWeight:600, color:'rgba(255,255,255,.5)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
                 {parseCity(currentRide)}
               </span>
             </div>
 
-            {/* Row 2: ride details chips */}
+            {/* Chips row */}
             <div style={{ display:'flex', alignItems:'center', gap:5, flexWrap:'wrap' }}>
               {currentRide.rideType && (
                 <span style={{ fontFamily:'"JetBrains Mono",monospace', fontSize:9, fontWeight:700, letterSpacing:'.06em', textTransform:'uppercase', color:'#818CF8', background:'rgba(129,140,248,.16)', border:'1px solid rgba(129,140,248,.28)', padding:'1px 6px', borderRadius:5 }}>
@@ -110,7 +112,7 @@ export default function ScheduledFace({ hasScheduled, upcomingRides, currentRide
                 <>
                   {DOT}
                   <span style={{ fontFamily:'"JetBrains Mono",monospace', fontSize:10, fontWeight:600, color:'rgba(165,180,252,.7)' }}>
-                    {currentRide.tripDistanceMiles.toFixed(2)} mi
+                    {currentRide.tripDistanceMiles.toFixed(1)} mi
                   </span>
                 </>
               )}
@@ -125,16 +127,16 @@ export default function ScheduledFace({ hasScheduled, upcomingRides, currentRide
             </div>
           </>
         ) : (
-          <div style={{ fontSize:12, fontWeight:600, color:'rgba(165,180,252,.5)' }}>No rides coming up</div>
+          <div style={{ fontSize:11.5, fontWeight:600, color:'rgba(165,180,252,.5)' }}>No rides coming up</div>
         )}
       </div>
 
       {/* Right: calendar icon + pagination dots */}
-      <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8, flexShrink:0 }}>
-        <div style={{ width:40, height:40, borderRadius:12, background:'rgba(129,140,248,.14)', border:'1px solid rgba(129,140,248,.28)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-          <Calendar size={18} color="#A5B4FC" strokeWidth={2}/>
+      <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:7, flexShrink:0 }}>
+        <div style={{ width:36, height:36, borderRadius:11, background:'rgba(129,140,248,.14)', border:'1px solid rgba(129,140,248,.28)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <Calendar size={16} color="#A5B4FC" strokeWidth={2}/>
         </div>
-        {upcomingRides.length > 1 && (
+        {multi && (
           <div style={{ display:'flex', gap:3 }}>
             {upcomingRides.slice(0, Math.min(5, upcomingRides.length)).map((_, i) => (
               <div key={i} style={{ width: i === rideIdx ? 12 : 4, height:4, borderRadius:2, background: i === rideIdx ? '#818CF8' : 'rgba(255,255,255,.2)', boxShadow: i === rideIdx ? '0 0 8px rgba(129,140,248,.7)' : 'none', transition:'all .3s ease' }}/>
