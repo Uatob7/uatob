@@ -1,102 +1,160 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { firebase_app } from '@/firebase/config';
+// src/App/UaTob/useRoute.js
+import { useState, useEffect, useRef } from 'react';
 
-const functions = getFunctions(firebase_app, 'us-east1');
-const callATOB  = httpsCallable(functions, 'ATOB');
+const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_SECRET_KEY;
 
-function round2(val) {
-  const n = Number(val);
-  return Number.isFinite(n) ? Number(n.toFixed(2)) : 0;
+const DEBOUNCE_MS = 600;
+
+function formatDuration(minutes) {
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
-function parseDurationMin(data) {
-  if (data.duration_minutes) return data.duration_minutes;
-  if (data.route?.duration_seconds) return Math.ceil(data.route.duration_seconds / 60);
-  if (data.duration_text) {
-    const h = (data.duration_text.match(/(\d+)\s*hour/) || [])[1] || 0;
-    const m = (data.duration_text.match(/(\d+)\s*min/)  || [])[1] || 0;
-    return Number(h) * 60 + Number(m);
+async function geocodeAddress(address) {
+  const res = await fetch(
+    `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${API_KEY}`
+  );
+  const data = await res.json();
+  if (data.status !== 'OK' || !data.results?.length)
+    return { city: '', zip: '', lat: null, lng: null };
+
+  const components = data.results[0].address_components || [];
+  let city = '', zip = '';
+  for (const c of components) {
+    if (!city && c.types.includes('locality'))                    city = c.long_name;
+    if (!city && c.types.includes('administrative_area_level_2')) city = c.long_name;
+    if (!zip  && c.types.includes('postal_code'))                 zip  = c.long_name;
   }
-  return 0;
+  return {
+    city, zip,
+    lat: data.results[0].geometry?.location?.lat ?? null,
+    lng: data.results[0].geometry?.location?.lng ?? null,
+  };
 }
 
-/**
- * useRoute
- *
- * Fetches route data (distance, duration, polyline, city/zip/lat/lng)
- * whenever pickup or dropoff changes. Debounced by 700 ms.
- *
- * Returns:
- *   tripData  — null until a successful fetch
- *   loading   — true while fetching
- *   error     — string if fetch failed
- *   reset     — clears all state
- */
+async function computeRoute(origin, destination, signal) {
+  const [routeRes, [pickupGeo, dropoffGeo]] = await Promise.all([
+    fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+      method: 'POST',
+      signal,
+      headers: {
+        'Content-Type':     'application/json',
+        'X-Goog-Api-Key':   API_KEY,
+        'X-Goog-FieldMask': 'routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline',
+      },
+      body: JSON.stringify({
+        origin:            { address: origin },
+        destination:       { address: destination },
+        travelMode:        'DRIVE',
+        routingPreference: 'TRAFFIC_AWARE',
+      }),
+    }),
+    Promise.all([
+      geocodeAddress(origin),
+      geocodeAddress(destination),
+    ]),
+  ]);
+
+  if (!routeRes.ok) {
+    const err = await routeRes.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `Routes API ${routeRes.status}`);
+  }
+
+  const data   = await routeRes.json();
+  const routes = data?.routes;
+  if (!routes?.length) throw new Error('Route not found');
+
+  const route          = routes[0];
+  const distanceMeters = route.distanceMeters ?? 0;
+  const miles          = Number((distanceMeters / 1609.34).toFixed(2));
+  const seconds        = parseInt(route.duration?.replace('s', '') || '0', 10);
+  const durationMin    = Math.ceil(seconds / 60);
+
+  return {
+    pickup:       origin,
+    dropoff:      destination,
+    miles,
+    durationMin,
+    durationText: formatDuration(durationMin),
+    polyline:     route.polyline?.encodedPolyline ?? null,
+    pickupCity:   pickupGeo.city,
+    pickupZip:    pickupGeo.zip,
+    pickupLat:    pickupGeo.lat,
+    pickupLng:    pickupGeo.lng,
+    dropoffCity:  dropoffGeo.city,
+    dropoffZip:   dropoffGeo.zip,
+    dropoffLat:   dropoffGeo.lat,
+    dropoffLng:   dropoffGeo.lng,
+  };
+}
+
 export function useRoute(pickup, dropoff) {
   const [tripData, setTripData] = useState(null);
   const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState('');
+  const [error,    setError]    = useState(null);
 
-  const requestSeqRef   = useRef(0);
-  const lastFetchedRef  = useRef('');
+  const abortRef  = useRef(null);
+  const timerRef  = useRef(null);
+  const resetFlag = useRef(false);
 
-  const reset = useCallback(() => {
-    setTripData(null); setLoading(false); setError('');
-    lastFetchedRef.current = '';
-  }, []);
+  function reset() {
+    resetFlag.current = true;
+    clearTimeout(timerRef.current);
+    abortRef.current?.abort();
+    setTripData(null);
+    setLoading(false);
+    setError(null);
+  }
 
   useEffect(() => {
-    const p = pickup?.trim()  ?? '';
-    const d = dropoff?.trim() ?? '';
+    const p = pickup?.trim();
+    const d = dropoff?.trim();
 
+    // Clear results if either field is empty
     if (!p || !d) {
-      reset(); return;
+      clearTimeout(timerRef.current);
+      abortRef.current?.abort();
+      setTripData(null);
+      setLoading(false);
+      setError(null);
+      return;
     }
 
-    const key = `${p}||${d}`;
-    // Skip if we already have fresh data for this exact pair
-    if (lastFetchedRef.current === key && tripData) return;
+    resetFlag.current = false;
+    clearTimeout(timerRef.current);
+    abortRef.current?.abort();
 
-    const seq = ++requestSeqRef.current;
+    timerRef.current = setTimeout(async () => {
+      if (resetFlag.current) return;
 
-    const timer = setTimeout(async () => {
-      setLoading(true); setError(''); setTripData(null);
+      abortRef.current = new AbortController();
+      setLoading(true);
+      setError(null);
+      setTripData(null);
+
       try {
-        const { data } = await callATOB({ origin: p, destination: d });
-        if (requestSeqRef.current !== seq) return;
-
-        const durationMin = Math.max(1, Number(parseDurationMin(data) || 0));
-        lastFetchedRef.current = key;
-
-        setTripData({
-          pickup:      p,
-          dropoff:     d,
-          miles:       round2(data.distance_miles ?? 0),
-          durationMin,
-          durationText: data.duration_text || `${durationMin} min`,
-          pickupCity:  data.pickup?.city  ?? '',
-          pickupZip:   data.pickup?.zip   ?? '',
-          pickupLat:   data.pickup?.lat   ?? null,
-          pickupLng:   data.pickup?.lng   ?? null,
-          dropoffCity: data.dropoff?.city ?? '',
-          dropoffZip:  data.dropoff?.zip  ?? '',
-          dropoffLat:  data.dropoff?.lat  ?? null,
-          dropoffLng:  data.dropoff?.lng  ?? null,
-          polyline:    data.route?.polyline ?? null,
-        });
+        const result = await computeRoute(p, d, abortRef.current.signal);
+        if (!resetFlag.current) {
+          setTripData(result);
+          setError(null);
+        }
       } catch (err) {
-        if (requestSeqRef.current !== seq) return;
-        setError(err.message || 'Failed to calculate route');
-        setTripData(null);
-        lastFetchedRef.current = '';
+        if (err.name === 'AbortError') return;
+        if (!resetFlag.current) {
+          setError(err.message || 'Route calculation failed');
+          setTripData(null);
+        }
       } finally {
-        if (requestSeqRef.current === seq) setLoading(false);
+        if (!resetFlag.current) setLoading(false);
       }
-    }, 700);
+    }, DEBOUNCE_MS);
 
-    return () => clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      clearTimeout(timerRef.current);
+      abortRef.current?.abort();
+    };
   }, [pickup, dropoff]);
 
   return { tripData, loading, error, reset };

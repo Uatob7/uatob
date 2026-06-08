@@ -1,44 +1,73 @@
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
-const { defineSecret } = require("firebase-functions/params");
-const axios = require("axios");
+// src/App/UaTob/useAutocomplete.js
+import { useState, useRef, useCallback } from 'react';
 
-const GOOGLE_MAPS_KEY = defineSecret("GOOGLE_MAPS_KEY");
+const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_SECRET_KEY;
 
-exports.Autocomplete = onCall(
-    {
-    region: "us-east1",
-    secrets: [GOOGLE_MAPS_KEY],
-    invoker: "public",  // 👈 this is what's missing
-  },
-  async (request) => {
-    const trimmed = request.data?.input?.trim();
+export function useAutocomplete(debounceMs = 250) {
+  const [predictions, setPredictions] = useState([]);
+  const timerRef    = useRef(null);
+  const controllerRef = useRef(null);
 
-    if (!trimmed || trimmed.length < 3)
-      throw new HttpsError("invalid-argument", "Input must be at least 3 characters");
+  const fetch = useCallback((input) => {
+    clearTimeout(timerRef.current);
 
-    try {
-      const response = await axios.post(
-        "https://places.googleapis.com/v1/places:autocomplete",
-        { input: trimmed, includedRegionCodes: ["us"] },
-        {
-          headers: {
-            "Content-Type":     "application/json",
-            "X-Goog-Api-Key":   GOOGLE_MAPS_KEY.value(),
-            "X-Goog-FieldMask": "suggestions.placePrediction.text,suggestions.placePrediction.placeId",
-          },
-        }
-      );
-
-      const suggestions = response.data?.suggestions ?? [];
-      const predictions = suggestions.map((s) => ({
-        description: s?.placePrediction?.text?.text || "",
-        place_id:    s?.placePrediction?.placeId    || "",
-      }));
-
-      return { predictions, status: "OK" };
-    } catch (err) {
-      console.error("Autocomplete error:", err?.response?.data || err.message);
-      throw new HttpsError("internal", err?.response?.data?.error?.message || err.message || "Autocomplete failed");
+    if (!input || input.trim().length < 3) {
+      setPredictions([]);
+      return;
     }
-  }
-);
+
+    timerRef.current = setTimeout(async () => {
+      // Cancel any in-flight request
+      controllerRef.current?.abort();
+      controllerRef.current = new AbortController();
+
+      try {
+        const res = await window.fetch(
+          'https://places.googleapis.com/v1/places:autocomplete',
+          {
+            method: 'POST',
+            signal: controllerRef.current.signal,
+            headers: {
+              'Content-Type':     'application/json',
+              'X-Goog-Api-Key':   API_KEY,
+              'X-Goog-FieldMask': 'suggestions.placePrediction.text,suggestions.placePrediction.placeId,suggestions.placePrediction.structuredFormat',
+            },
+            body: JSON.stringify({
+              input: input.trim(),
+              includedRegionCodes: ['us'],
+            }),
+          }
+        );
+
+        if (!res.ok) throw new Error(`Places API ${res.status}`);
+
+        const data = await res.json();
+        const suggestions = data?.suggestions ?? [];
+
+        const mapped = suggestions.map((s) => ({
+          description: s?.placePrediction?.text?.text || '',
+          place_id:    s?.placePrediction?.placeId    || '',
+          structured_formatting: {
+            main_text:      s?.placePrediction?.structuredFormat?.mainText?.text      || '',
+            secondary_text: s?.placePrediction?.structuredFormat?.secondaryText?.text || '',
+          },
+        }));
+
+        setPredictions(mapped);
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.error('Autocomplete error:', err);
+          setPredictions([]);
+        }
+      }
+    }, debounceMs);
+  }, [debounceMs]);
+
+  const clear = useCallback(() => {
+    clearTimeout(timerRef.current);
+    controllerRef.current?.abort();
+    setPredictions([]);
+  }, []);
+
+  return { predictions, fetch, clear };
+}
