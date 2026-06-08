@@ -4,17 +4,10 @@ import {
   Navigation, Clock, Car, Users, Zap,
   ChevronRight, Loader2, AlertCircle, LocateFixed, MapPin, X,
 } from 'lucide-react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { useAuthContext } from '@/context/AuthContext';
-import { firebase_app } from '@/firebase/config';
-
-
-// ── Callables ─────────────────────────────────────────────────────────
-const functions        = getFunctions(firebase_app, 'us-east1');
-const callATOB         = httpsCallable(functions, 'ATOB');
-const callPrice        = httpsCallable(functions, 'Price');
-const callAutocomplete = httpsCallable(functions, 'Autocomplete');
-const callGeo          = httpsCallable(functions, 'Geo');
+import { useAutocomplete } from '@/hooks/useAutocomplete';
+import { useRoute }        from '@/hooks/useRoute';
+import { useQuotes }       from '@/hooks/useQuotes';
+import { useGeo }          from '@/hooks/useGeo';
 
 // ── Theme tokens ──────────────────────────────────────────────────────
 const T = {
@@ -39,58 +32,13 @@ function clearBookingForm()     { try { localStorage.removeItem(LS_KEY); } catch
 
 // ── Helpers ───────────────────────────────────────────────────────────
 function safeNum(val, fallback = 0) { const n = Number(val); return Number.isFinite(n) ? n : fallback; }
-function round2(val) { return Number(safeNum(val).toFixed(2)); }
 function getRideIcon(rideId) {
   if (rideId === 'premium') return Zap;
   if (rideId === 'xl')      return Users;
   return Car;
 }
 
-// ── Network helpers ───────────────────────────────────────────────────
-async function fetchTripData(pickup, dropoff) {
-  const { data } = await callATOB({ origin: pickup, destination: dropoff });
-
-  let durationMin = data.duration_minutes;
-  if (!durationMin && data.route?.duration_seconds)
-    durationMin = Math.ceil(data.route.duration_seconds / 60);
-  if (!durationMin && data.duration_text) {
-    const h = (data.duration_text.match(/(\d+)\s*hour/) || [])[1] || 0;
-    const m = (data.duration_text.match(/(\d+)\s*min/)  || [])[1] || 0;
-    durationMin = Number(h) * 60 + Number(m);
-  }
-
-  return {
-    pickup, dropoff,
-    miles:        round2(data.distance_miles ?? 0),
-    durationMin:  Math.max(1, Number(durationMin || 0)),
-    durationText: data.duration_text || `${Math.max(1, Number(durationMin || 0))} min`,
-    pickupCity:   data.pickup?.city  ?? '',  pickupZip:  data.pickup?.zip  ?? '',
-    pickupLat:    data.pickup?.lat   ?? null, pickupLng: data.pickup?.lng  ?? null,
-    dropoffCity:  data.dropoff?.city ?? '',  dropoffZip: data.dropoff?.zip ?? '',
-    dropoffLat:   data.dropoff?.lat  ?? null, dropoffLng: data.dropoff?.lng ?? null,
-    polyline:     data.route?.polyline ?? null,
-  };
-}
-
-// FIX #1: uid no longer sent. Price reads it from request.auth server-side.
-// Sending it from the client was a no-op (and previously a security hole
-// the server has now closed). Leaving it out keeps the payload smaller
-// and the contract honest.
-async function fetchQuotesData(tripData) {
-  const { data } = await callPrice(tripData);
-  if (!data.ok) throw new Error(data.error || 'Pricing error');
-  if (data.rides)
-    Object.values(data.rides).forEach(r => { r.total = Number(r.total).toFixed(2); });
-  return data;
-}
-
-async function reverseGeocode(lat, lng) {
-  const { data } = await callGeo({ lat, lng });
-  if (!data.address) throw new Error('Could not find your address.');
-  return { address: data.address };
-}
-
-// ── CSS ───────────────────────────────────────────────────────────────
+// ── CSS (unchanged) ───────────────────────────────────────────────────
 const PANEL_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap');
 
@@ -183,7 +131,6 @@ const PANEL_CSS = `
   .bp-empty      { padding:22px 18px; text-align:center; font-size:13px; font-weight:500; color:#D1D5DB; font-family:'Outfit',system-ui,sans-serif; border-top:1px solid #F9FAFB; }
   .bp-fadeup     { animation:bp-fadeUp .3s ease-out both; }
 
-  /* ── Driver banner ── */
   .bp-driver-banner { display:flex; align-items:center; gap:10px; padding:10px 14px; border-top:1px solid #F3F4F6; background:#FAFAFA; }
   .bp-driver-banner.unavail { background:${T.amberBg}; border-top-color:${T.amberBorder}; }
   .bp-driver-dot { width:7px; height:7px; border-radius:50%; background:#16A34A; flex-shrink:0; animation:bp-dotPulse 1.6s ease-in-out infinite; }
@@ -238,28 +185,19 @@ function LocationAlert({ onAllow, onDeny, loading, error }) {
 }
 
 // ── Driver availability banner ────────────────────────────────────────
-// FIX #2: Now handles three states explicitly:
-//   - driverInfo === null  → no drivers at all (Price returned null)
-//   - driverInfo.stale     → driver location may be outdated
-//   - normal               → fresh driver(s) nearby
 function DriverBanner({ driverInfo }) {
-  // No drivers at all — be honest, don't just hide
   if (!driverInfo) {
     return (
       <div className="bp-driver-banner unavail">
         <div className="bp-driver-dot unavail"/>
-        <span className="bp-driver-text unavail">
-          Drivers limited in your area
-        </span>
+        <span className="bp-driver-text unavail">Drivers limited in your area</span>
         <span className="bp-driver-sub">we'll keep searching</span>
       </div>
     );
   }
-
   const stale = driverInfo.stale;
   const count = driverInfo.driverCount ?? 1;
   const miles = driverInfo.nearestMiles;
-
   return (
     <div className="bp-driver-banner">
       <div className={`bp-driver-dot${stale ? ' stale' : ''}`}/>
@@ -268,60 +206,59 @@ function DriverBanner({ driverInfo }) {
           ? `${count} driver nearby · estimated location`
           : `${count} driver${count !== 1 ? 's' : ''} nearby`}
       </span>
-      {miles != null && (
-        <span className="bp-driver-sub">{miles} mi away</span>
-      )}
+      {miles != null && <span className="bp-driver-sub">{miles} mi away</span>}
     </div>
   );
 }
 
 // ── PlaceInput ────────────────────────────────────────────────────────
 function PlaceInput({ isPickup, placeholder, value, onChange, onLocationRequest, isFocused, onFocus, onBlur }) {
-  const [suggestions, setSuggestions] = useState([]);
+  const { predictions, fetch: fetchSuggestions, clear: clearSuggestions } = useAutocomplete(250);
   const [ghostText,   setGhostText]   = useState('');
   const [activeIndex, setActiveIndex] = useState(-1);
-  const wrapRef     = useRef(null);
-  const debounceRef = useRef(null);
+  const wrapRef = useRef(null);
 
+  // Close dropdown on outside click
   useEffect(() => {
     const handler = (e) => {
       if (wrapRef.current && !wrapRef.current.contains(e.target)) {
-        setSuggestions([]); setGhostText('');
+        clearSuggestions(); setGhostText('');
       }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  async function fetchSuggestions(query) {
-    if (!query || query.length < 2) { setSuggestions([]); setGhostText(''); return; }
-    try {
-      const { data } = await callAutocomplete({ input: query });
-      const preds = data.predictions || [];
-      setSuggestions(preds);
-      const first = preds[0]?.description || '';
-      setGhostText(first.toLowerCase().startsWith(query.toLowerCase()) ? first.slice(query.length) : '');
-    } catch { setSuggestions([]); setGhostText(''); }
-  }
+  }, [clearSuggestions]);
 
   function handleChange(e) {
     const val = e.target.value;
     onChange(val);
     setActiveIndex(-1);
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => fetchSuggestions(val), 250);
+    fetchSuggestions(val);
+    // Ghost text: re-derive after predictions update (see effect below)
   }
 
+  // Derive ghost text whenever predictions change
+  useEffect(() => {
+    const first = predictions[0]?.description || '';
+    setGhostText(
+      first.toLowerCase().startsWith(value.toLowerCase()) && value.length > 0
+        ? first.slice(value.length)
+        : ''
+    );
+  }, [predictions, value]);
+
   function handleSelect(desc) {
-    onChange(desc); setSuggestions([]); setGhostText(''); setActiveIndex(-1);
+    onChange(desc); clearSuggestions(); setGhostText(''); setActiveIndex(-1);
   }
 
   function handleKeyDown(e) {
-    if ((e.key === 'Tab' || e.key === 'ArrowRight') && ghostText && activeIndex === -1) { e.preventDefault(); handleSelect(value + ghostText); return; }
-    if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIndex(i => Math.min(i + 1, suggestions.length - 1)); }
+    if ((e.key === 'Tab' || e.key === 'ArrowRight') && ghostText && activeIndex === -1) {
+      e.preventDefault(); handleSelect(value + ghostText); return;
+    }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIndex(i => Math.min(i + 1, predictions.length - 1)); }
     if (e.key === 'ArrowUp')   { e.preventDefault(); setActiveIndex(i => Math.max(i - 1, -1)); }
-    if (e.key === 'Enter' && activeIndex >= 0) { e.preventDefault(); handleSelect(suggestions[activeIndex].description); }
-    if (e.key === 'Escape') { setSuggestions([]); setGhostText(''); }
+    if (e.key === 'Enter' && activeIndex >= 0) { e.preventDefault(); handleSelect(predictions[activeIndex].description); }
+    if (e.key === 'Escape') { clearSuggestions(); setGhostText(''); }
   }
 
   return (
@@ -366,14 +303,15 @@ function PlaceInput({ isPickup, placeholder, value, onChange, onLocationRequest,
       )}
 
       {value && (
-        <button type="button" className="bp-clear-btn" onClick={() => { onChange(''); setSuggestions([]); setGhostText(''); }}>
+        <button type="button" className="bp-clear-btn"
+          onClick={() => { onChange(''); clearSuggestions(); setGhostText(''); }}>
           <X size={11}/>
         </button>
       )}
 
-      {suggestions.length > 0 && (
+      {predictions.length > 0 && (
         <div className="bp-dropdown">
-          {suggestions.map((s, i) => {
+          {predictions.map((s, i) => {
             const main      = s.structured_formatting?.main_text || s.description;
             const secondary = s.structured_formatting?.secondary_text || '';
             return (
@@ -453,49 +391,9 @@ function BreakdownLines({ quote, tripData }) {
   );
 }
 
-// ── MAIN COMPONENT ────────────────────────────────────────────────────
-export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady, onCancel }) {
-  const { uid } = useAuthContext();
-  const saved   = useMemo(() => loadBookingForm(), []);
-
-  const [pickup,       setPickupRaw]    = useState(saved?.pickup       ?? '');
-  const [dropoff,      setDropoffRaw]   = useState(saved?.dropoff      ?? '');
-  const [selectedRide, setSelectedRide] = useState(saved?.selectedRide ?? 'standard');
-  const [tripData,     setTripData]     = useState(saved?.tripData     ?? null);
-  const [quotesData,   setQuotesData]   = useState(saved?.quotesData   ?? null);
-
-  const [loadingTrip,   setLoadingTrip]   = useState(false);
-  const [loadingQuotes, setLoadingQuotes] = useState(false);
-  const [error,         setError]         = useState('');
-  const [showBreakdown, setShowBreakdown] = useState(false);
-
-  const [focusedInput,      setFocusedInput]      = useState(null);
-  const [showLocationAlert, setShowLocationAlert] = useState(false);
-  const [locationLoading,   setLocationLoading]   = useState(false);
-  const [locationError,     setLocationError]     = useState('');
-
-  const priceReadyFiredRef  = useRef(false);
-  const tripRequestRef      = useRef(0);
-  const quoteRequestRef     = useRef(0);
-  const lastFetchedTripRef  = useRef(saved?.tripData ? `${saved.tripData.pickup}||${saved.tripData.dropoff}` : '');
-
-  const onPayloadChangeRef = useRef(onPayloadChange);
-  const onPriceReadyRef    = useRef(onPriceReady);
-  const selectedRideRef    = useRef(selectedRide);
-
-  useEffect(() => { onPayloadChangeRef.current = onPayloadChange; }, [onPayloadChange]);
-  useEffect(() => { onPriceReadyRef.current    = onPriceReady;    }, [onPriceReady]);
-  useEffect(() => { selectedRideRef.current    = selectedRide;    }, [selectedRide]);
-
-  function setPickup(val)  { setPickupRaw(val);  saveBookingForm({ pickup: val, dropoff,      selectedRide, tripData, quotesData }); }
-  function setDropoff(val) { setDropoffRaw(val); saveBookingForm({ pickup,      dropoff: val, selectedRide, tripData, quotesData }); }
-
-  useEffect(() => {
-    if (pickup || dropoff) saveBookingForm({ pickup, dropoff, selectedRide, tripData, quotesData });
-    else clearBookingForm();
-  }, [pickup, dropoff, selectedRide, tripData, quotesData]);
-
-  const buildPayload = useCallback((trip, quote, quotes, rideId) => ({
+// ── buildPayload helper ───────────────────────────────────────────────
+function buildPayload(trip, quote, quotes, rideId) {
+  return {
     pickup:            trip.pickup,
     dropoff:           trip.dropoff,
     pickupCity:        trip.pickupCity  || '',  pickupZip:   trip.pickupZip  || '',
@@ -517,142 +415,112 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
     polyline:          trip.polyline   || null,
     status:            'searching_driver',
     createdAt:         new Date().toISOString(),
-  }), []);
+  };
+}
+
+// ── MAIN COMPONENT ────────────────────────────────────────────────────
+export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady, onCancel }) {
+  const saved = useMemo(() => loadBookingForm(), []);
+
+  const [pickup,       setPickupRaw]    = useState(saved?.pickup       ?? '');
+  const [dropoff,      setDropoffRaw]   = useState(saved?.dropoff      ?? '');
+  const [selectedRide, setSelectedRide] = useState(saved?.selectedRide ?? 'standard');
+  const [showBreakdown, setShowBreakdown] = useState(false);
+  const [focusedInput,  setFocusedInput]  = useState(null);
+
+  // Location alert UI state
+  const [showLocationAlert, setShowLocationAlert] = useState(false);
+
+  // ── Hooks ──────────────────────────────────────────────────────────
+  const { tripData,   loading: loadingTrip,   error: routeError,  reset: resetRoute  } = useRoute(pickup, dropoff);
+  const { quotesData, loading: loadingQuotes, error: quotesError, reset: resetQuotes } = useQuotes(tripData);
+  const { resolve: resolveGeo, loading: geoLoading, error: geoError, clear: clearGeoError } = useGeo();
+
+  const error     = routeError || quotesError;
+  const isLoading = loadingTrip || loadingQuotes;
+
+  // ── Persist form ───────────────────────────────────────────────────
+  function setPickup(val)  { setPickupRaw(val);  saveBookingForm({ pickup: val, dropoff,      selectedRide }); }
+  function setDropoff(val) { setDropoffRaw(val); saveBookingForm({ pickup,      dropoff: val, selectedRide }); }
 
   useEffect(() => {
-    if (!tripData || !quotesData) return;
-    const quote = quotesData?.rides?.[selectedRide];
-    if (!quote || typeof onPayloadChangeRef.current !== 'function') return;
-    onPayloadChangeRef.current(buildPayload(tripData, quote, quotesData, selectedRide));
-  }, [selectedRide, quotesData, tripData, buildPayload]);
-
-  const handleLocationAllow = useCallback(async () => {
-    setLocationError(''); setLocationLoading(true);
-    try {
-      const pos = await new Promise((res, rej) =>
-        navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 })
-      );
-      const geo = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
-      setPickup(geo.address);
-      setShowLocationAlert(false); setLocationError('');
-    } catch (err) {
-      if (err.code === 1) setLocationError('Location access was denied. Please allow it in browser settings.');
-      else if (err.code === 2) setLocationError('Could not detect your location. Try again or enter manually.');
-      else if (err.code === 3) setLocationError('Location request timed out. Please try again.');
-      else setLocationError(err.message || 'Could not get your location.');
-    } finally { setLocationLoading(false); }
-  }, []);
-
-  const handleLocationDeny = useCallback(() => { setShowLocationAlert(false); setLocationError(''); }, []);
-
-  // ── Step 1: trip data ─────────────────────────────────────────────
-  useEffect(() => {
-    const p = pickup.trim(), d = dropoff.trim();
-    if (!p || !d) {
-      setTripData(null); setQuotesData(null); setError('');
-      setLoadingTrip(false); setLoadingQuotes(false); setShowBreakdown(false);
-      lastFetchedTripRef.current = '';
-      priceReadyFiredRef.current = false;
-      return;
-    }
-    const key = `${p}||${d}`;
-    if (lastFetchedTripRef.current === key && tripData && quotesData) return;
-    const requestId = ++tripRequestRef.current;
-    const t = setTimeout(async () => {
-      try {
-        setLoadingTrip(true); setLoadingQuotes(false); setError('');
-        setTripData(null); setQuotesData(null); setShowBreakdown(false);
-        const trip = await fetchTripData(p, d);
-        if (tripRequestRef.current !== requestId) return;
-        lastFetchedTripRef.current = key;
-        setTripData(trip);
-      } catch (err) {
-        if (tripRequestRef.current !== requestId) return;
-        setError(err.message || 'Failed to calculate route');
-        setTripData(null); setQuotesData(null);
-        lastFetchedTripRef.current = '';
-      } finally {
-        if (tripRequestRef.current === requestId) setLoadingTrip(false);
-      }
-    }, 700);
-    return () => clearTimeout(t);
+    if (!pickup && !dropoff) clearBookingForm();
   }, [pickup, dropoff]);
 
-  // ── Step 2: quotes ────────────────────────────────────────────────
-  // FIX #1: no longer passes uid to Price. Server reads it from auth context.
-  useEffect(() => {
-    if (!tripData || quotesData) return;
-    const requestId = ++quoteRequestRef.current;
-    async function loadQuotes() {
-      try {
-        setLoadingQuotes(true); setError('');
-        const quotes = await fetchQuotesData(tripData);
-        if (quoteRequestRef.current !== requestId) return;
+  // ── Derived ────────────────────────────────────────────────────────
+  const rideOptions = useMemo(() => Object.values(quotesData?.rides || {}), [quotesData]);
 
-        const keys           = Object.keys(quotes?.rides || {});
-        const resolvedRideId = (quotes.rides?.[selectedRideRef.current])
-          ? selectedRideRef.current
-          : (keys[0] ?? selectedRideRef.current);
+  // If the currently-selected ride type doesn't exist in the new quotes, fall back to first available
+  const resolvedRideId = useMemo(() => {
+    if (!quotesData) return selectedRide;
+    return quotesData.rides?.[selectedRide] ? selectedRide : (Object.keys(quotesData.rides || {})[0] ?? selectedRide);
+  }, [quotesData, selectedRide]);
 
-        setQuotesData(quotes);
-        if (resolvedRideId !== selectedRideRef.current) setSelectedRide(resolvedRideId);
-
-        const quote = quotes.rides?.[resolvedRideId];
-        if (quote && typeof onPayloadChangeRef.current === 'function') {
-          onPayloadChangeRef.current(buildPayload(tripData, quote, quotes, resolvedRideId));
-        }
-
-        if (!priceReadyFiredRef.current) {
-          priceReadyFiredRef.current = true;
-          onPriceReadyRef.current?.();
-        }
-      } catch (err) {
-        if (quoteRequestRef.current !== requestId) return;
-        setError(err.message || 'Failed to calculate prices');
-        setQuotesData(null);
-      } finally {
-        if (quoteRequestRef.current === requestId) setLoadingQuotes(false);
-      }
-    }
-    loadQuotes();
-  }, [tripData, buildPayload]);
-
-  const rideOptions   = useMemo(() => Object.values(quotesData?.rides || {}), [quotesData]);
-  const selectedQuote = useMemo(() => quotesData?.rides?.[selectedRide] || null, [quotesData, selectedRide]);
+  const selectedQuote = useMemo(() => quotesData?.rides?.[resolvedRideId] || null, [quotesData, resolvedRideId]);
   const driverInfo    = useMemo(() => quotesData?.driverInfo ?? null, [quotesData]);
 
-  const isLoading = loadingTrip || loadingQuotes;
-  const hasQuote  = !!tripData && !!quotesData && !!selectedQuote && !error && !isLoading;
+  const hasQuote = !!tripData && !!quotesData && !!selectedQuote && !error && !isLoading;
 
-  // FIX #2 helpers — selectedQuote.eta can be null when no drivers exist
-  const selectedEta       = selectedQuote?.eta ?? null;
-  const isStaleEtaSelected= typeof selectedEta === 'string' && selectedEta.startsWith('~');
-  const etaUnavailable    = selectedEta == null;
+  const selectedEta        = selectedQuote?.eta ?? null;
+  const isStaleEtaSelected = typeof selectedEta === 'string' && selectedEta.startsWith('~');
+  const etaUnavailable     = selectedEta == null;
+
+  // ── Notify parent of payload changes ──────────────────────────────
+  const onPayloadChangeRef = useRef(onPayloadChange);
+  const onPriceReadyRef    = useRef(onPriceReady);
+  const priceReadyFiredRef = useRef(false);
+  useEffect(() => { onPayloadChangeRef.current = onPayloadChange; }, [onPayloadChange]);
+  useEffect(() => { onPriceReadyRef.current    = onPriceReady;    }, [onPriceReady]);
 
   useEffect(() => {
-    if (hasQuote && !priceReadyFiredRef.current) {
+    if (!hasQuote || !selectedQuote) return;
+    onPayloadChangeRef.current?.(buildPayload(tripData, selectedQuote, quotesData, resolvedRideId));
+    if (!priceReadyFiredRef.current) {
       priceReadyFiredRef.current = true;
       onPriceReadyRef.current?.();
     }
-  }, [hasQuote]);
+  }, [hasQuote, selectedQuote, quotesData, tripData, resolvedRideId]);
 
+  // Reset priceReady flag when trip clears
+  useEffect(() => {
+    if (!tripData) priceReadyFiredRef.current = false;
+  }, [tripData]);
+
+  // ── Geo handler ────────────────────────────────────────────────────
+  const handleLocationAllow = useCallback(async () => {
+    try {
+      const address = await resolveGeo();
+      setPickup(address);
+      setShowLocationAlert(false);
+    } catch {
+      // geoError is already set inside useGeo; LocationAlert will display it
+    }
+  }, [resolveGeo]);
+
+  const handleLocationDeny = useCallback(() => {
+    setShowLocationAlert(false);
+    clearGeoError();
+  }, [clearGeoError]);
+
+  // ── Cancel / reset ─────────────────────────────────────────────────
   const handleCancel = useCallback(() => {
     clearBookingForm();
     setPickupRaw(''); setDropoffRaw('');
-    setTripData(null); setQuotesData(null);
-    setError(''); setShowBreakdown(false);
-    setShowLocationAlert(false); setLocationError('');
-    lastFetchedTripRef.current  = '';
-    priceReadyFiredRef.current  = false;
+    resetRoute(); resetQuotes();
+    setShowBreakdown(false);
+    setShowLocationAlert(false);
+    clearGeoError();
+    priceReadyFiredRef.current = false;
     onCancel?.();
-  }, [onCancel]);
+  }, [resetRoute, resetQuotes, clearGeoError, onCancel]);
 
+  // ── Book now ───────────────────────────────────────────────────────
   const handleBookNow = useCallback(() => {
     if (!tripData || !quotesData || !selectedQuote) return;
-    const payload = buildPayload(tripData, selectedQuote, quotesData, selectedRide);
+    const payload = buildPayload(tripData, selectedQuote, quotesData, resolvedRideId);
     clearBookingForm();
-    if (typeof onBookNow === 'function') onBookNow(payload);
-  }, [tripData, quotesData, selectedQuote, selectedRide, buildPayload, onBookNow]);
+    onBookNow?.(payload);
+  }, [tripData, quotesData, selectedQuote, resolvedRideId, onBookNow]);
 
   const showCancelBtn = !!(pickup.trim() || dropoff.trim());
 
@@ -660,12 +528,12 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
     <>
       <style>{PANEL_CSS}</style>
 
-      {(showLocationAlert || locationLoading || locationError) && (
+      {(showLocationAlert || geoLoading || geoError) && (
         <LocationAlert
           onAllow={handleLocationAllow}
           onDeny={handleLocationDeny}
-          loading={locationLoading}
-          error={locationError}
+          loading={geoLoading}
+          error={geoError}
         />
       )}
 
@@ -686,7 +554,7 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
             placeholder="Where are you?"
             value={pickup}
             onChange={setPickup}
-            onLocationRequest={() => { setLocationError(''); setShowLocationAlert(true); }}
+            onLocationRequest={() => { clearGeoError(); setShowLocationAlert(true); }}
             isFocused={focusedInput === 'pickup'}
             onFocus={() => setFocusedInput('pickup')}
             onBlur={() => setFocusedInput(null)}
@@ -739,8 +607,6 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
                 <div className="bp-stat-sub">{selectedQuote.label}</div>
               </div>
             </div>
-
-            {/* Driver availability banner — handles null/stale/normal */}
             <DriverBanner driverInfo={driverInfo}/>
           </>
         )}
@@ -755,23 +621,17 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
         <div className="bp-card bp-fadeup" style={{ marginBottom:10 }}>
           <div style={{ padding:'14px 16px 0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
             <span style={{ fontSize:11, fontWeight:800, letterSpacing:'1.2px', textTransform:'uppercase', color:'#9CA3AF', fontFamily:'Outfit,sans-serif' }}>Choose Ride</span>
-            {/* FIX #3: header advisory matches the reality of eta state */}
             {!driverInfo && (
-              <span style={{ fontSize:10.5, fontWeight:700, color:T.amber, fontFamily:'Outfit,sans-serif' }}>
-                ⚠ Drivers limited
-              </span>
+              <span style={{ fontSize:10.5, fontWeight:700, color:T.amber, fontFamily:'Outfit,sans-serif' }}>⚠ Drivers limited</span>
             )}
             {driverInfo?.stale && (
-              <span style={{ fontSize:10.5, fontWeight:700, color:'#9CA3AF', fontFamily:'Outfit,sans-serif' }}>
-                ⚠ Estimated wait times
-              </span>
+              <span style={{ fontSize:10.5, fontWeight:700, color:'#9CA3AF', fontFamily:'Outfit,sans-serif' }}>⚠ Estimated wait times</span>
             )}
           </div>
           <div className="bp-ride-grid" style={{ marginTop:10 }}>
             {rideOptions.map((ride) => {
-              const active   = selectedRide === ride.id;
-              const IconComp = getRideIcon(ride.id);
-              // FIX #2: ride.eta can be null. Render an honest "no ETA" pill in that case.
+              const active     = resolvedRideId === ride.id;
+              const IconComp   = getRideIcon(ride.id);
               const etaUnavail = ride.eta == null;
               const isStaleEta = typeof ride.eta === 'string' && ride.eta.startsWith('~');
               return (
@@ -795,13 +655,9 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
                   <div className="bp-ride-price">${Number(ride.total).toFixed(2)}</div>
                   <div className="bp-ride-meta">
                     {etaUnavail ? (
-                      <span className="bp-ride-tag unavail">
-                        <AlertCircle size={10}/>No ETA
-                      </span>
+                      <span className="bp-ride-tag unavail"><AlertCircle size={10}/>No ETA</span>
                     ) : (
-                      <span className={`bp-ride-tag${isStaleEta ? ' stale' : ''}`}>
-                        <Clock size={10}/>{ride.eta}
-                      </span>
+                      <span className={`bp-ride-tag${isStaleEta ? ' stale' : ''}`}><Clock size={10}/>{ride.eta}</span>
                     )}
                     <span className="bp-ride-tag"><Users size={10}/>{ride.capacity}</span>
                   </div>
@@ -822,22 +678,10 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
                 <div className="bp-fare-amount">${selectedQuote.total}</div>
                 <div className="bp-fare-sub">
                   {tripData.miles} mi · ~{tripData.durationMin} min
-                  {/* FIX #2: only render ETA if we have one. Honest "drivers limited"
-                      otherwise instead of the green "10-15 min pickup" lie */}
                   {etaUnavailable ? (
-                    <span style={{
-                      marginLeft: 8,
-                      color: T.amber,
-                      fontWeight: 700,
-                    }}>
-                      · drivers limited
-                    </span>
+                    <span style={{ marginLeft:8, color:T.amber, fontWeight:700 }}>· drivers limited</span>
                   ) : (
-                    <span style={{
-                      marginLeft: 8,
-                      color: isStaleEtaSelected ? '#9CA3AF' : T.accent,
-                      fontWeight: 700,
-                    }}>
+                    <span style={{ marginLeft:8, color: isStaleEtaSelected ? '#9CA3AF' : T.accent, fontWeight:700 }}>
                       · {selectedEta} pickup
                     </span>
                   )}
