@@ -13,7 +13,10 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { getFunctions, httpsCallable }               from 'firebase/functions';
+import { getFirestore, doc, getDoc }                 from 'firebase/firestore';
 import { firebase_app }                              from '@/firebase/config';
+
+const db = getFirestore(firebase_app);
 
 const _functions        = getFunctions(firebase_app, 'us-east1');
 const callUpdateTrip    = httpsCallable(_functions, 'updateTripStatus');
@@ -518,13 +521,59 @@ function CompletedSheet({ trip }) {
   );
 }
 
+// ─── helpers ─────────────────────────────────────────────────────────────────
+function getInitials(name) {
+  if (!name) return '?';
+  return name.trim().split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+}
+
+// ─── driver marker HTML element ──────────────────────────────────────────────
+function makeDriverMarkerEl() {
+  const outer = document.createElement('div');
+  outer.style.cssText = 'position:relative;width:46px;height:46px;display:flex;align-items:center;justify-content:center;';
+
+  const glow = document.createElement('div');
+  glow.style.cssText = [
+    'position:absolute', 'inset:-6px', 'border-radius:50%',
+    'background:radial-gradient(circle,rgba(34,197,94,.35) 0%,transparent 70%)',
+    'pointer-events:none',
+  ].join(';');
+
+  const ring = document.createElement('div');
+  ring.style.cssText = [
+    'position:absolute', 'inset:0', 'border-radius:50%',
+    'border:2px solid rgba(74,222,128,.55)',
+    'animation:ats-blink 1.8s ease-in-out infinite',
+    'pointer-events:none',
+  ].join(';');
+
+  const body = document.createElement('div');
+  body.style.cssText = [
+    'width:42px', 'height:42px', 'border-radius:50%',
+    'background:linear-gradient(145deg,#4ADE80 0%,#16A34A 100%)',
+    'border:3px solid #fff',
+    'box-shadow:0 4px 18px rgba(34,197,94,.75),0 2px 6px rgba(0,0,0,.5)',
+    'display:flex', 'align-items:center', 'justify-content:center',
+    'position:relative',
+  ].join(';');
+
+  body.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+    stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1l2-4h12l2 4h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/>
+    <circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/>
+  </svg>`;
+
+  outer.appendChild(glow);
+  outer.appendChild(ring);
+  outer.appendChild(body);
+  return outer;
+}
+
 // ─── map source/layer constants ───────────────────────────────────────────────
 const SRC_ROUTE   = 'ats-route';
 const LYR_GLOW    = 'ats-route-glow';
 const LYR_MAIN    = 'ats-route-main';
 const LYR_DASH    = 'ats-route-dash';
-const SRC_DRIVER  = 'ats-driver';
-const LYR_DRIVER  = 'ats-driver-dot';
 
 // ─── main component ───────────────────────────────────────────────────────────
 export default function ActiveTripScreen({ driver, activeTrip, onTripComplete }) {
@@ -537,10 +586,19 @@ export default function ActiveTripScreen({ driver, activeTrip, onTripComplete })
   const driverMkrRef  = useRef(null);
   const prevTripIdRef = useRef(null);
 
-  const [mapReady, setMapReady]   = useState(false);
-  const [pending,  setPending]    = useState(false);
-  const [error,    setError]      = useState(null);
-  const [localStatus, setLocalStatus] = useState(null); // optimistic update
+  const [mapReady, setMapReady]       = useState(false);
+  const [pending,  setPending]        = useState(false);
+  const [error,    setError]          = useState(null);
+  const [localStatus, setLocalStatus] = useState(null);
+  const [riderAccount, setRiderAccount] = useState(null);
+
+  useEffect(() => {
+    const uid = activeTrip?.uid;
+    if (!uid) return;
+    getDoc(doc(db, 'Accounts', uid))
+      .then(snap => { if (snap.exists()) setRiderAccount(snap.data()); })
+      .catch(() => {});
+  }, [activeTrip?.uid]);
 
   // effective status: prefer local optimistic state
   const status = localStatus || activeTrip?.status || 'driver_assigned';
@@ -600,21 +658,15 @@ export default function ActiveTripScreen({ driver, activeTrip, onTripComplete })
       map.on('load', () => {
         mapRef.current = map;
 
-        // driver dot source (GeoJSON point)
-        map.addSource(SRC_DRIVER, {
-          type: 'geojson',
-          data: driverGeoJSON(driver?.lat, driver?.lng),
-        });
-        map.addLayer({
-          id: LYR_DRIVER, type: 'circle', source: SRC_DRIVER,
-          paint: {
-            'circle-radius':       9,
-            'circle-color':        '#22C55E',
-            'circle-stroke-color': '#fff',
-            'circle-stroke-width': 2.5,
-            'circle-blur':         0,
-          },
-        });
+        // driver marker (custom HTML)
+        if (window.mapboxgl && typeof driver?.lat === 'number') {
+          driverMkrRef.current = new window.mapboxgl.Marker({
+            element: makeDriverMarkerEl(),
+            anchor: 'center',
+          })
+            .setLngLat([driver.lng, driver.lat])
+            .addTo(map);
+        }
         driverSrcRef.current = true;
 
         setMapReady(true);
@@ -640,7 +692,17 @@ export default function ActiveTripScreen({ driver, activeTrip, onTripComplete })
     if (!mapReady || !mapRef.current || !driverSrcRef.current) return;
     if (typeof dLat !== 'number' || typeof dLng !== 'number') return;
     try {
-      mapRef.current.getSource(SRC_DRIVER)?.setData(driverGeoJSON(dLat, dLng));
+      // Slide the car marker to the new position
+      if (driverMkrRef.current) {
+        driverMkrRef.current.setLngLat([dLng, dLat]);
+      } else if (window.mapboxgl && mapRef.current) {
+        driverMkrRef.current = new window.mapboxgl.Marker({
+          element: makeDriverMarkerEl(),
+          anchor: 'center',
+        })
+          .setLngLat([dLng, dLat])
+          .addTo(mapRef.current);
+      }
       // Only re-center when no route is drawn; otherwise fitBounds owns the camera
       if (!routeSrcRef.current) {
         mapRef.current.easeTo({ center: [dLng, dLat], duration: 1400 });
@@ -674,15 +736,6 @@ export default function ActiveTripScreen({ driver, activeTrip, onTripComplete })
     });
   }, [activeTrip?.id, mapReady, dLat, dLng]); // eslint-disable-line
 
-  function driverGeoJSON(lat, lng) {
-    return {
-      type: 'Feature',
-      geometry: {
-        type:        'Point',
-        coordinates: [lng ?? 0, lat ?? 0],
-      },
-    };
-  }
 
   function drawRoute(coords) {
     const map = mapRef.current;
@@ -697,17 +750,17 @@ export default function ActiveTripScreen({ driver, activeTrip, onTripComplete })
         id: LYR_GLOW, type: 'line', source: SRC_ROUTE,
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint:  { 'line-color': '#fff', 'line-width': 12, 'line-opacity': .08, 'line-blur': 6 },
-      }, LYR_DRIVER); // insert beneath driver dot
+      });
       map.addLayer({
         id: LYR_MAIN, type: 'line', source: SRC_ROUTE,
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint:  { 'line-color': '#22C55E', 'line-width': 4, 'line-opacity': 1 },
-      }, LYR_DRIVER);
+      });
       map.addLayer({
         id: LYR_DASH, type: 'line', source: SRC_ROUTE,
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint:  { 'line-color': '#fff', 'line-width': 1.8, 'line-opacity': .3, 'line-dasharray': [0, 5] },
-      }, LYR_DRIVER);
+      });
       routeSrcRef.current = true;
     }
   }
@@ -892,6 +945,37 @@ export default function ActiveTripScreen({ driver, activeTrip, onTripComplete })
           rideId={activeTrip?.id}
           paymentMethod={activeTrip?.paymentMethod}
         />
+
+        {riderAccount && (
+          <div style={{
+            position: 'absolute', top: 56, right: 14, zIndex: 29,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+            animation: 'ats-slidedown .4s cubic-bezier(.34,1.2,.64,1) both',
+            pointerEvents: 'none',
+          }}>
+            <div style={{
+              width: 40, height: 40, borderRadius: '50%',
+              background: 'linear-gradient(135deg, #8B5CF6 0%, #4C1D95 100%)',
+              border: '2.5px solid rgba(255,255,255,.65)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontFamily: MONO, fontSize: 13, fontWeight: 800, color: '#fff',
+              boxShadow: '0 4px 18px rgba(139,92,246,.65), 0 2px 6px rgba(0,0,0,.45)',
+            }}>
+              {getInitials(riderAccount.name)}
+            </div>
+            <div style={{
+              fontFamily: COND, fontSize: 10, fontWeight: 800, letterSpacing: '.1em',
+              color: 'rgba(255,255,255,.8)',
+              background: 'rgba(2,4,3,.75)', backdropFilter: 'blur(8px)',
+              borderRadius: 6, padding: '2px 6px',
+              border: '1px solid rgba(139,92,246,.25)',
+              maxWidth: 72, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              textAlign: 'center',
+            }}>
+              {riderAccount.name?.split(' ')[0] || '—'}
+            </div>
+          </div>
+        )}
 
         {/* distance + payout pill */}
         {mapReady && (
