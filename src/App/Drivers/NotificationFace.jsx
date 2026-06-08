@@ -1,14 +1,22 @@
 import { useState, useEffect } from 'react';
 import { Share2, Edit3, X, CreditCard, DollarSign, Clock, ChevronLeft } from 'lucide-react';
-import { db } from '@/firebase';
 import {
-  collection, addDoc, query, orderBy, where,
-  onSnapshot, serverTimestamp, Timestamp,
-} from 'firebase/firestore';
+  collection,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+  limit,
+  Timestamp,
+  getFirestore,
+} from "firebase/firestore";
+import { firebase_app } from "@/firebase/config";
+
+const db = getFirestore(firebase_app);
 import { loadStripe } from '@stripe/stripe-js';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+const stripePromise      = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
 
 // ── Steps ─────────────────────────────────────────────
 // 0 = feed  1 = compose  2 = pay-method  3 = card-processing  4 = cashapp-instructions  5 = success

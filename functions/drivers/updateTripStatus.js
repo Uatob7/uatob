@@ -28,7 +28,7 @@ const TRANSITIONS = {
     targetLat: "pickupLat",  targetLng: "pickupLng",  targetName: "pickup",
   },
   complete: {
-    from: "in_progress",     to: "completed",   field: "completedAt",
+    from: "in_progress",     to: ";;; ",   field: "completedAt",
     targetLat: "dropoffLat", targetLng: "dropoffLng", targetName: "dropoff",
   },
 };
