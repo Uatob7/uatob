@@ -38,6 +38,8 @@ const { onRideStatusChangedNotifyRider } = require("./ride/onRideStatusChangedNo
 const { trackView } = require("./ride/trackView");
 const { updateRiderPhone } = require("./ride/updateRiderPhone");
 const { autoRefundTimeoutRides } = require("./ride/autoRefundTimeoutRides");
+const { refreshRidePolylines } = require("./ride/refreshRidePolylines");
+const { onRideStatusChangedRefreshPolylines } = require("./ride/onRideStatusChangedRefreshPolylines");
 
 // Payment functions
 const { cashPayment } = require("./payments/cashPayment");
@@ -122,6 +124,8 @@ exports.cancelRide = cancelRide;
 exports.extendRideSearch = extendRideSearch;
 exports.Geo = Geo;
 exports.autoRefundTimeoutRides = autoRefundTimeoutRides;
+exports.refreshRidePolylines = refreshRidePolylines;
+exports.onRideStatusChangedRefreshPolylines = onRideStatusChangedRefreshPolylines;
 exports.onRideCancelled = onRideCancelled;
 exports.onRideDriverArrived = onRideDriverArrived;
 exports.onRideDriverArriving = onRideDriverArriving;

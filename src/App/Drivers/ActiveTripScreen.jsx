@@ -46,7 +46,7 @@ import {
   useMemo,
 } from 'react';
 import { getFunctions, httpsCallable }       from 'firebase/functions';
-import { getFirestore, doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, onSnapshot, collection, addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { firebase_app }                       from '@/firebase/config';
 
 const db = getFirestore(firebase_app);
@@ -1085,6 +1085,241 @@ const DASH_FRAMES = [
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// CHAT FAB — opens rider chat, shows unread badge
+// ═══════════════════════════════════════════════════════════════════════════════
+function ChatFab({ unread, onClick }) {
+  return (
+    <div style={{
+      position: 'absolute',
+      left: 14, bottom: 'calc(258px + env(safe-area-inset-bottom))',
+      zIndex: 33,
+    }}>
+      <button
+        onClick={onClick}
+        aria-label="Open rider chat"
+        style={{
+          position: 'relative',
+          width: 46, height: 46, borderRadius: 14, border: 'none', cursor: 'pointer',
+          background: C.panelDeep, backdropFilter: 'blur(12px)',
+          boxShadow: `0 6px 22px rgba(0,0,0,.6), inset 0 0 0 1px rgba(103,232,249,.3)`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: C.cyan, overflow: 'visible',
+        }}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        {unread > 0 && (
+          <div style={{
+            position: 'absolute', top: -5, right: -5,
+            minWidth: 18, height: 18, borderRadius: 9,
+            background: C.red, color: '#fff',
+            fontFamily: MONO, fontSize: 9, fontWeight: 800,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '0 3px',
+            boxShadow: `0 2px 8px ${C.red}88`,
+            animation: 'ats-blink 1.4s ease-in-out infinite',
+          }}>
+            {unread > 9 ? '9+' : unread}
+          </div>
+        )}
+      </button>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DRIVER CHAT PANEL — full-screen overlay for rider ↔ driver messages
+// ═══════════════════════════════════════════════════════════════════════════════
+const DRIVER_QUICK_REPLIES = ['On my way', "I've arrived", 'Be there in 2 min', 'Look for my car'];
+
+function DriverChatPanel({ messages, input, setInput, onSend, onClose, sending }) {
+  const listRef   = useRef(null);
+  const bottomRef = useRef(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  function formatTime(ts) {
+    if (!ts?.seconds) return '';
+    return new Date(ts.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, zIndex: 40,
+      display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+    }}>
+      {/* backdrop */}
+      <div onClick={onClose} style={{
+        position: 'absolute', inset: 0,
+        background: 'rgba(0,0,0,.55)', backdropFilter: 'blur(2px)',
+      }}/>
+
+      {/* panel */}
+      <div style={{
+        position: 'relative', zIndex: 1,
+        background: C.panelDeep,
+        borderTop: `1px solid ${C.cyan}28`,
+        borderRadius: '24px 24px 0 0',
+        backdropFilter: 'blur(20px)',
+        boxShadow: '0 -12px 48px rgba(0,0,0,.7)',
+        display: 'flex', flexDirection: 'column',
+        maxHeight: '75vh',
+        paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+        animation: 'ats-slideup .35s cubic-bezier(.34,1.1,.64,1) both',
+      }}>
+        {/* drag handle */}
+        <div style={{ width: 36, height: 3.5, borderRadius: 2, background: 'rgba(255,255,255,.12)', margin: '12px auto 0' }}/>
+
+        {/* header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '12px 16px 10px',
+          borderBottom: `1px solid ${C.inkFaint}`,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+              stroke={C.cyan} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            <span style={{ fontFamily: COND, fontSize: 13, fontWeight: 800, letterSpacing: '.08em', color: C.white }}>
+              RIDER CHAT
+            </span>
+          </div>
+          <button onClick={onClose} style={{
+            background: 'rgba(255,255,255,.07)', border: 'none', cursor: 'pointer',
+            borderRadius: 8, padding: '5px 10px',
+            fontFamily: COND, fontSize: 10, fontWeight: 800, letterSpacing: '.1em',
+            color: C.ink, display: 'flex', alignItems: 'center', gap: 4,
+          }}>
+            ✕ CLOSE
+          </button>
+        </div>
+
+        {/* message list */}
+        <div
+          ref={listRef}
+          style={{
+            flex: 1, overflowY: 'auto', padding: '14px 16px',
+            display: 'flex', flexDirection: 'column', gap: 8,
+            overscrollBehavior: 'contain',
+          }}
+        >
+          {messages.length === 0 && (
+            <div style={{
+              textAlign: 'center', color: C.ink,
+              fontFamily: COND, fontSize: 12, fontWeight: 600,
+              letterSpacing: '.06em', marginTop: 20,
+            }}>
+              No messages yet.
+            </div>
+          )}
+          {messages.map(msg => {
+            const isDriver = msg.senderRole === 'driver';
+            return (
+              <div key={msg.id} style={{ display: 'flex', justifyContent: isDriver ? 'flex-end' : 'flex-start' }}>
+                <div style={{
+                  maxWidth: '78%', padding: '9px 13px',
+                  borderRadius: isDriver ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+                  background: isDriver ? C.cyan : 'rgba(255,255,255,.08)',
+                  border: isDriver ? 'none' : `1px solid ${C.inkFaint}`,
+                }}>
+                  {!isDriver && (
+                    <div style={{
+                      fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.1em',
+                      color: C.inkDim, textTransform: 'uppercase', marginBottom: 3,
+                    }}>
+                      RIDER
+                    </div>
+                  )}
+                  <div style={{
+                    fontFamily: MONO, fontSize: 12, fontWeight: 500,
+                    color: isDriver ? '#000' : C.white, lineHeight: 1.4,
+                  }}>
+                    {msg.text}
+                  </div>
+                  <div style={{
+                    fontFamily: MONO, fontSize: 9,
+                    color: isDriver ? 'rgba(0,0,0,.5)' : C.inkDim,
+                    marginTop: 4, textAlign: isDriver ? 'right' : 'left',
+                  }}>
+                    {formatTime(msg.createdAt)}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          <div ref={bottomRef} style={{ height: 1 }}/>
+        </div>
+
+        {/* quick replies */}
+        <div style={{
+          display: 'flex', gap: 6, padding: '8px 16px', flexWrap: 'wrap',
+          borderTop: `1px solid ${C.inkFaint}`,
+        }}>
+          {DRIVER_QUICK_REPLIES.map(qr => (
+            <button key={qr} onClick={() => onSend(qr)} style={{
+              background: 'none', border: `1px solid ${C.inkFaint}`,
+              borderRadius: 99, padding: '4px 10px',
+              fontFamily: COND, fontSize: 10, fontWeight: 700, letterSpacing: '.06em',
+              color: C.ink, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all .15s',
+            }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = C.cyan; e.currentTarget.style.color = C.cyan; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = C.inkFaint; e.currentTarget.style.color = C.ink; }}
+            >
+              {qr}
+            </button>
+          ))}
+        </div>
+
+        {/* input */}
+        <div style={{ display: 'flex', gap: 8, padding: '8px 16px', alignItems: 'flex-end' }}>
+          <textarea
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend(); } }}
+            placeholder="Message rider…"
+            rows={1}
+            style={{
+              flex: 1, resize: 'none',
+              background: 'rgba(255,255,255,.07)',
+              border: `1.5px solid ${C.inkFaint}`,
+              borderRadius: 12, padding: '10px 13px',
+              fontFamily: MONO, fontSize: 12, color: C.white,
+              outline: 'none', lineHeight: 1.4,
+              transition: 'border-color .2s', maxHeight: 80, overflowY: 'auto',
+            }}
+            onFocus={e => (e.target.style.borderColor = C.cyan)}
+            onBlur={e  => (e.target.style.borderColor = C.inkFaint)}
+          />
+          <button
+            onClick={() => onSend()}
+            disabled={!input.trim() || sending}
+            style={{
+              width: 40, height: 40, borderRadius: 12, border: 'none',
+              background: !input.trim() || sending ? 'rgba(255,255,255,.08)' : C.cyan,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: !input.trim() || sending ? 'not-allowed' : 'pointer',
+              flexShrink: 0, transition: 'all .2s',
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+              stroke={!input.trim() || sending ? C.inkDim : '#000'}
+              strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"/>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function ActiveTripScreen({
@@ -1119,6 +1354,7 @@ export default function ActiveTripScreen({
   const projIdxRef     = useRef(0);        // last matched segment index (monotonic)
   const routeReadyRef  = useRef(false);
   const fetchedPhaseRef = useRef(null);    // 'toPickup' | 'toDropoff'
+  const lastInstalledPolyRef = useRef(null); // last Firestore polyline string installed
 
   // ── refs: misc ─────────────────────────────────────────────────────────────
   const watchIdRef     = useRef(null);
@@ -1137,6 +1373,11 @@ export default function ActiveTripScreen({
   const [followMode, setFollowMode]   = useState(true);
   const [showRecenter, setShowRecenter] = useState(false);
   const [liveMetrics, setLiveMetrics] = useState({ etaMin: null, distMi: null, progress: 0 });
+  const [showChat, setShowChat]       = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [chatInput, setChatInput]     = useState('');
+  const [chatSending, setChatSending] = useState(false);
 
   // ── merge live Firestore doc over the prop ──────────────────────────────────
   const trip = useMemo(() => ({ ...(activeTrip || {}), ...(liveTrip || {}) }), [activeTrip, liveTrip]);
@@ -1177,6 +1418,32 @@ export default function ActiveTripScreen({
       .then(snap => { if (snap.exists() && mountedRef.current) setRider(snap.data()); })
       .catch(() => {});
   }, [trip?.uid]);
+
+  // ── ride messages subscription ──────────────────────────────────────────────
+  useEffect(() => {
+    const id = trip?.id;
+    if (!id) return;
+    const unsub = onSnapshot(collection(db, 'Rides', id, 'Messages'), snap => {
+      if (!mountedRef.current) return;
+      const msgs = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0));
+      setChatMessages(msgs);
+      setUnreadCount(msgs.filter(m => m.senderRole === 'rider' && !m.readByDriver).length);
+    }, () => {});
+    return () => unsub();
+  }, [trip?.id]);
+
+  // mark rider messages as read whenever the chat panel is open
+  useEffect(() => {
+    if (!showChat || !trip?.id) return;
+    chatMessages
+      .filter(m => m.senderRole === 'rider' && !m.readByDriver)
+      .forEach(m =>
+        updateDoc(doc(db, 'Rides', trip.id, 'Messages', m.id), { readByDriver: true }).catch(() => {})
+      );
+  // eslint-disable-next-line
+  }, [showChat, chatMessages]);
 
   // ── device geolocation watch (the realtime heartbeat) ───────────────────────
   useEffect(() => {
@@ -1322,18 +1589,32 @@ export default function ActiveTripScreen({
     if (!mapReady || !mapRef.current) return;
     if (typeof dLat !== 'number' || typeof dLng !== 'number') return;
     if (!targetLat || !targetLng) return;
-    if (fetchedPhaseRef.current === phase && routeReadyRef.current) return;
 
+    // Use the Firestore-stored polyline (refreshed by the server scheduler).
+    // toPickup → driverEtaPolyline; toDropoff → polyline.
+    const storedPoly = phase === 'toPickup'
+      ? (trip?.driverEtaPolyline ?? null)
+      : (trip?.polyline ?? null);
+    const storedDurSec = phase === 'toPickup'
+      ? (trip?.driverEtaMin || 0) * 60
+      : (trip?.tripDurationMin || 0) * 60;
+
+    if (storedPoly && storedPoly !== lastInstalledPolyRef.current) {
+      const decoded = decodePolyline(storedPoly);
+      if (decoded.length >= 2) {
+        lastInstalledPolyRef.current = storedPoly;
+        fetchedPhaseRef.current = phase;
+        installRoute(decoded.map(p => [p[1], p[0]]), storedDurSec);
+        return;
+      }
+    }
+
+    // Already up-to-date — skip
+    if (storedPoly || (fetchedPhaseRef.current === phase && routeReadyRef.current)) return;
+
+    // No stored polyline yet — fall back to a live API call
     const phaseAtCall = phase;
     fetchedPhaseRef.current = phase;
-
-    // For the in-progress leg, prefer the ride's stored pickup→dropoff polyline.
-    const stored = phase === 'toDropoff' ? decodePolyline(trip?.polyline) : [];
-    if (stored.length >= 2) {
-      const coords = stored.map(p => [p[1], p[0]]);
-      installRoute(coords, /*durSec*/ (trip?.tripDurationMin || 0) * 60);
-      return;
-    }
 
     callGetRoute({
       driverLat: dLat, driverLng: dLng,
@@ -1351,7 +1632,7 @@ export default function ActiveTripScreen({
       installRoute([[dLng, dLat], [targetLng, targetLat]], 0);
     });
   // eslint-disable-next-line
-  }, [mapReady, phase, dLat, dLng, targetLat, targetLng]);
+  }, [mapReady, phase, dLat, dLng, targetLat, targetLng, trip?.driverEtaPolyline, trip?.polyline]);
 
   /** install a fresh route for the current phase and draw it */
   function installRoute(coords, durSec) {
@@ -1539,6 +1820,29 @@ export default function ActiveTripScreen({
   // eslint-disable-next-line
   }, []);
 
+  // ── chat send handler ────────────────────────────────────────────────────────
+  const handleSendChat = useCallback(async (text) => {
+    const trimmed = (text ?? chatInput).trim();
+    const id = trip?.id;
+    if (!trimmed || !id) return;
+    setChatSending(true);
+    try {
+      await addDoc(collection(db, 'Rides', id, 'Messages'), {
+        text: trimmed,
+        senderUid: driver?.uid,
+        senderRole: 'driver',
+        createdAt: serverTimestamp(),
+        readByDriver: true,
+        readByRider: false,
+      });
+      setChatInput('');
+    } catch (err) {
+      console.error('[ActiveTripScreen] send message:', err);
+    } finally {
+      if (mountedRef.current) setChatSending(false);
+    }
+  }, [trip?.id, chatInput, driver?.uid]);
+
   // ── action handler ───────────────────────────────────────────────────────────
   const handleAction = useCallback(async (action, rideId) => {
     if (!action || !rideId) return;
@@ -1644,6 +1948,23 @@ export default function ActiveTripScreen({
         {/* recenter */}
         {mapReady && status !== 'completed' && (
           <RecenterFab visible={showRecenter} onClick={handleRecenter}/>
+        )}
+
+        {/* chat FAB */}
+        {mapReady && status !== 'completed' && (
+          <ChatFab unread={unreadCount} onClick={() => setShowChat(true)}/>
+        )}
+
+        {/* chat overlay */}
+        {showChat && (
+          <DriverChatPanel
+            messages={chatMessages}
+            input={chatInput}
+            setInput={setChatInput}
+            onSend={handleSendChat}
+            onClose={() => setShowChat(false)}
+            sending={chatSending}
+          />
         )}
 
         {/* bottom action sheet */}
