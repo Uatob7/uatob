@@ -46,6 +46,22 @@ const MAX_EDGE_CONTACTS = 7;
 const RADAR_RINGS_MI    = [1, 2, 4, 6];
 const POOL_LEAD_MS      = 10 * 60 * 1000;
 
+// ── Live-tracking tunables (new) ─────────────────────────────────────────────
+// These govern the realtime "follow the driver" behavior layered on top of the
+// existing radar. None of them change the visual design — they only control how
+// the camera tracks the device GPS and how the movement trail is sampled.
+const FOLLOW_SMOOTH        = 0.14;          // camera ease toward latest fix, per frame (0..1)
+const FOLLOW_BEARING_SMOOTH = 0.10;         // reserved: heading ease (kept subtle)
+const STALE_FIX_MS         = 30000;         // a GPS fix older than this is treated as unknown
+const GEO_OPTS             = { enableHighAccuracy: true, maximumAge: 1000, timeout: 12000 };
+const SHOW_MOVEMENT_TRAIL  = true;          // subtle breadcrumb behind the driver (radar only)
+const TRAIL_MAX_POINTS     = 60;            // ring-buffer length of the trail
+const TRAIL_MIN_MOVE_MI    = 0.004;         // ~21 ft minimum spacing between trail samples
+const TRAIL_PUSH_EVERY     = 4;             // sample the trail every Nth follow frame
+const MIN_MOVE_FOR_BEARING_MI = 0.0025;     // ignore GPS jitter below this when deriving heading
+
+const EMPTY_LINE = { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } };
+
 const BOOT_LINES = [
   'uatob dispatch terminal · v3.3',
   'establishing secure uplink .......... ok',
@@ -69,6 +85,8 @@ function tsToMillis(ts) {
   }
   return 0;
 }
+
+const lerp = (a, b, t) => a + (b - a) * t;
 
 function haversineMiles(lat1, lng1, lat2, lng2) {
   const R    = 3958.8;
@@ -130,6 +148,23 @@ function fmtMoney(v) {
   else if (v && typeof v === 'object') n = v.today ?? v.total ?? v.amount ?? v.value ?? null;
   if (n === null || !isFinite(n)) return null;
   return `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// ── Live-telemetry formatters (new) ──────────────────────────────────────────
+function msToMph(ms) {
+  if (ms == null || !isFinite(ms) || ms < 0) return null;
+  return ms * 2.236936;
+}
+
+function fmtSpeed(ms) {
+  const mph = msToMph(ms);
+  if (mph == null) return null;
+  return `${Math.round(mph)}`;
+}
+
+function fmtAccuracy(m) {
+  if (m == null || !isFinite(m)) return null;
+  return m < 1000 ? `±${Math.round(m)}m` : `±${(m / 1000).toFixed(1)}km`;
 }
 
 function formatDuration(ms) {
@@ -337,6 +372,93 @@ const KIND_COLOR = {
   sched:  C.violet,
 };
 
+// ═════════════════════════════════════════════════════════════════════════════
+// LIVE DRIVER POSITION HOOK (new)
+// Subscribes to the device GPS via watchPosition and exposes a merged driver
+// object (device fix layered over the prop), the raw fix, and a `live` flag.
+// This is what makes the radar follow the driver in realtime — no refresh, no
+// waiting on a Firestore round-trip. When the device has no usable fix we fall
+// straight back to the `driver` prop so nothing regresses.
+// ═════════════════════════════════════════════════════════════════════════════
+function useLiveDriverPosition(propDriver, enabled, onMove) {
+  const [fix, setFix]   = useState(null);
+  const [live, setLive] = useState(false);
+  const watchRef        = useRef(null);
+  const lastRef         = useRef(null);  // last [lng,lat] used to derive heading
+  const onMoveRef       = useRef(onMove);
+
+  useEffect(() => { onMoveRef.current = onMove; }, [onMove]);
+
+  useEffect(() => {
+    if (!enabled || typeof navigator === 'undefined' || !navigator.geolocation) {
+      setLive(false);
+      return;
+    }
+    let firstFix = false;
+    lastRef.current = null;
+
+    watchRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude, longitude, heading, speed, accuracy } = pos.coords;
+
+        // prefer the device's reported heading; otherwise derive from movement
+        let hdg = (typeof heading === 'number' && !isNaN(heading)) ? heading : null;
+        if (hdg == null && lastRef.current) {
+          const moved = haversineMiles(lastRef.current[1], lastRef.current[0], latitude, longitude);
+          if (moved >= MIN_MOVE_FOR_BEARING_MI) {
+            hdg = bearingBetween(lastRef.current[1], lastRef.current[0], latitude, longitude);
+          }
+        }
+        lastRef.current = [longitude, latitude];
+
+        const next = {
+          lat:      latitude,
+          lng:      longitude,
+          heading:  hdg,
+          speed:    (typeof speed === 'number' && speed >= 0) ? speed : null,
+          accuracy: (typeof accuracy === 'number') ? accuracy : null,
+          ts:       Date.now(),
+        };
+        setFix(next);
+        if (!firstFix) { firstFix = true; setLive(true); }
+
+        // let the parent persist the live location if it wants to (optional)
+        try { onMoveRef.current?.(next); } catch (e) {}
+      },
+      () => { setLive(false); },
+      GEO_OPTS,
+    );
+
+    return () => {
+      if (watchRef.current != null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchRef.current);
+      }
+      watchRef.current = null;
+      setLive(false);
+    };
+  }, [enabled]);
+
+  // a fix older than STALE_FIX_MS is treated as unknown
+  const fresh = fix && (Date.now() - fix.ts) < STALE_FIX_MS;
+
+  const merged = useMemo(() => {
+    if (fresh && fix) {
+      return {
+        ...(propDriver || {}),
+        lat:      fix.lat,
+        lng:      fix.lng,
+        heading:  fix.heading ?? propDriver?.heading ?? null,
+        speed:    fix.speed,
+        accuracy: fix.accuracy,
+      };
+    }
+    return propDriver || null;
+  // eslint-disable-next-line
+  }, [fix, fresh, propDriver?.lat, propDriver?.lng]);
+
+  return { driver: merged, fix: fresh ? fix : null, live: live && !!fresh };
+}
+
 // ── Small presentational pieces ──────────────────────────────────────────────
 function SignalBars({ active = true, color = C.greenBright }) {
   const heights = [5, 8, 11, 14];
@@ -376,6 +498,8 @@ function Glyph({ name, size = 12, color = 'currentColor', stroke = 1.8 }) {
       return (<svg {...common}><path d="m6 9 6 6 6-6"/></svg>);
     case 'route':
       return (<svg {...common}><circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="5" r="2.5"/><path d="M8.5 19H14a3 3 0 0 0 0-6h-4a3 3 0 0 1 0-6h5.5"/></svg>);
+    case 'speed':
+      return (<svg {...common}><path d="M12 14a2 2 0 1 0 0-.01"/><path d="M12 14l5-5"/><path d="M4.5 18a9 9 0 1 1 15 0"/></svg>);
     case 'car':
       return (<svg {...common}><path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1l2-4h12l2 4h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>);
     default:
@@ -584,13 +708,21 @@ function EdgeContacts({ contacts, mapBearing }) {
   );
 }
 
-function TopRibbon({ now, online, mapReady, activeTrip, tripStage, tripStageColor, heading, lat, lng }) {
+function TopRibbon({
+  now, online, mapReady, activeTrip, tripStage, tripStageColor,
+  heading, lat, lng, speed, accuracy, gpsLive,
+}) {
   const liveColor = activeTrip ? (tripStageColor || C.cyan)
                   : online      ? C.greenBright
                   :               C.inkTextDim;
   const liveLabel = activeTrip ? (tripStage || 'ON TRIP')
                   : online      ? (mapReady ? 'LIVE' : 'SYNC')
                   :               'STANDBY';
+  // GPS lock label carries live accuracy when we have it (in-language telemetry)
+  const lockLabel = (typeof lat === 'number')
+    ? (gpsLive && accuracy ? accuracy : 'LOCK')
+    : 'NO FIX';
+  const showSpeed = gpsLive && speed != null && Number(speed) >= 1;
   return (
     <div style={{
       position: 'absolute', top: 0, left: 0, right: 0, height: 26, zIndex: 24,
@@ -627,13 +759,23 @@ function TopRibbon({ now, online, mapReady, activeTrip, tripStage, tripStageColo
             {liveLabel}
           </span>
         </div>
+        {showSpeed && (
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
+            <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 800, color: C.greenSoft }}>
+              {speed}
+            </span>
+            <span style={{ fontFamily: COND, fontSize: 7.5, fontWeight: 800, letterSpacing: '.1em', color: C.inkTextDim }}>
+              MPH
+            </span>
+          </div>
+        )}
         <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,.45)' }}>
           {fmtClock(now)}
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: C.greenSoft }}>
           <Glyph name="sat" size={11} color={online ? C.greenSoft : C.inkTextDim}/>
           <span style={{ fontFamily: MONO, fontSize: 8.5, fontWeight: 700, color: C.inkTextDim }}>
-            {typeof lat === 'number' ? 'LOCK' : 'NO FIX'}
+            {lockLabel}
           </span>
         </div>
         <SignalBars active={online} color={C.greenBright}/>
@@ -993,14 +1135,12 @@ function ActiveTripHud({ activeTrip, driver, now }) {
         boxShadow: `0 8px 32px rgba(0,0,0,.6), 0 0 24px ${statusColor}22`,
         backdropFilter: 'blur(14px)',
       }}>
-        {/* Top accent */}
         <div style={{
           height: 2,
           background: `linear-gradient(90deg, transparent, ${statusColor}, transparent)`,
         }}/>
 
         <div style={{ padding: '10px 14px 12px' }}>
-          {/* Status row */}
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             marginBottom: 10,
@@ -1027,9 +1167,7 @@ function ActiveTripHud({ activeTrip, driver, now }) {
             )}
           </div>
 
-          {/* Route */}
           <div style={{ display: 'flex', gap: 10, alignItems: 'stretch' }}>
-            {/* Rail */}
             <div style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center',
               paddingTop: 3, flexShrink: 0,
@@ -1051,7 +1189,6 @@ function ActiveTripHud({ activeTrip, driver, now }) {
               }}/>
             </div>
 
-            {/* Addresses */}
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ marginBottom: 10 }}>
                 <div style={{
@@ -1083,7 +1220,6 @@ function ActiveTripHud({ activeTrip, driver, now }) {
               </div>
             </div>
 
-            {/* Payout */}
             {typeof activeTrip.driverPayout === 'number' && (
               <div style={{
                 flexShrink: 0, display: 'flex', alignItems: 'center',
@@ -1430,8 +1566,12 @@ function RadarOverlay({ svgRef }) {
 const TRIP_LAYERS  = ['ht-trip-route-glow','ht-trip-route-main','ht-trip-route-dash'];
 const TRIP_SOURCE  = 'ht-trip-route';
 const PICKUP_MARKER_ID = 'ht-pickup-marker';
+const TRAIL_SOURCE = 'ht-trail';
+const TRAIL_LAYERS = ['ht-trail-glow','ht-trail-line'];
 
-// ── Main ─────────────────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+// MAIN
+// ═════════════════════════════════════════════════════════════════════════════
 export default function HomeTab({
   driver,
   online,
@@ -1449,6 +1589,7 @@ export default function HomeTab({
   onUnreadChange,
   onOpenSupport,
   supportUnread = 0,
+  onDriverMove,          // optional: (fix) => void — persist live location if desired
 }) {
 
   const mapContainerRef  = useRef(null);
@@ -1465,6 +1606,13 @@ export default function HomeTab({
   const pickupMarkerRef  = useRef(null);   // Mapbox Marker for pickup pin
   const activeTripRef    = useRef(null);   // keeps latest activeTrip for drift guard
 
+  // ── live-follow engine refs (new) ──────────────────────────────────────
+  const followRafRef     = useRef(0);      // master follow loop handle
+  const targetCenterRef  = useRef(null);   // [lng,lat] latest live fix
+  const renderedCenterRef = useRef(null);  // [lng,lat] currently displayed center
+  const trailRef         = useRef([]);     // ring buffer of recent [lng,lat]
+  const trailReadyRef    = useRef(false);  // trail source/layers installed?
+
   const [mapReady, setMapReady]         = useState(false);
   const [driverCounts, setDriverCounts] = useState({ online: 0, offline: 0, approved: 0 });
   const [now, setNow]                   = useState(Date.now());
@@ -1477,7 +1625,17 @@ export default function HomeTab({
   const prevDotRef    = useRef(0);
   const alertTimerRef = useRef(null);
 
-  // Keep activeTripRef in sync for the drift guard
+  // ── Live device position (the realtime heartbeat) ──────────────────────
+  // Effective driver = device GPS fix layered over the prop. While the watch
+  // is active the radar follows the device; if it can't get a fix we fall back
+  // to the `driver` prop transparently.
+  const { driver: liveDriver, fix: liveFix, live: gpsLive } =
+    useLiveDriverPosition(driver, online, onDriverMove);
+
+  const liveLat = liveDriver?.lat;
+  const liveLng = liveDriver?.lng;
+
+  // Keep activeTripRef in sync for the drift / follow guards
   useEffect(() => { activeTripRef.current = activeTrip; }, [activeTrip]);
 
   // ── Live 1Hz clock ─────────────────────────────────────────────────────
@@ -1527,16 +1685,39 @@ export default function HomeTab({
     return () => unsub();
   }, []);
 
+  // ── Push a point onto the live movement trail (radar only) ─────────────
+  const pushTrail = useCallback((pt) => {
+    if (!SHOW_MOVEMENT_TRAIL || !pt) return;
+    const arr  = trailRef.current;
+    const last = arr[arr.length - 1];
+    if (last) {
+      const d = haversineMiles(last[1], last[0], pt[1], pt[0]);
+      if (d < TRAIL_MIN_MOVE_MI) return;     // skip GPS jitter
+    }
+    arr.push([pt[0], pt[1]]);
+    if (arr.length > TRAIL_MAX_POINTS) arr.shift();
+
+    const map = mapRef.current;
+    if (!map || !trailReadyRef.current) return;
+    const src = map.getSource(TRAIL_SOURCE);
+    if (!src) return;
+    const coords = arr.length > 1 ? arr : [arr[0] || pt, pt];
+    try { src.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords } }); } catch (e) {}
+  }, []);
+
   // ── Init / destroy Mapbox ──────────────────────────────────────────────
   useEffect(() => {
     if (!online) {
       if (mapRef.current) {
         mapRef.current.remove();
-        mapRef.current         = null;
-        pulseLayersRef.current = false;
+        mapRef.current          = null;
+        pulseLayersRef.current  = false;
         tripPolylineRef.current = null;
         prevTripIdRef.current   = null;
         pickupMarkerRef.current = null;
+        trailReadyRef.current   = false;
+        trailRef.current        = [];
+        renderedCenterRef.current = null;
         setMapReady(false);
       }
       return;
@@ -1557,8 +1738,8 @@ export default function HomeTab({
       const mapboxgl       = window.mapboxgl;
       mapboxgl.accessToken = MAPBOX_TOKEN;
 
-      const centerLng = driver?.lng ?? scheduledRides[0]?.pickupLng ?? -81.3792;
-      const centerLat = driver?.lat ?? scheduledRides[0]?.pickupLat ?? 28.5383;
+      const centerLng = liveLng ?? driver?.lng ?? scheduledRides[0]?.pickupLng ?? -81.3792;
+      const centerLat = liveLat ?? driver?.lat ?? scheduledRides[0]?.pickupLat ?? 28.5383;
 
       const map = new mapboxgl.Map({
         container:          mapContainerRef.current,
@@ -1573,6 +1754,32 @@ export default function HomeTab({
 
       map.on('load', () => {
         mapRef.current = map;
+
+        // seed the follow engine with our best-known position
+        renderedCenterRef.current = [centerLng, centerLat];
+        if (!targetCenterRef.current) targetCenterRef.current = [centerLng, centerLat];
+
+        // ── live movement trail (installed beneath the contact dots) ──
+        map.addSource(TRAIL_SOURCE, { type: 'geojson', lineMetrics: true, data: EMPTY_LINE });
+        map.addLayer({
+          id: 'ht-trail-glow', type: 'line', source: TRAIL_SOURCE,
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: { 'line-color': '#4ADE80', 'line-width': 7, 'line-opacity': 0.12, 'line-blur': 4 },
+        });
+        map.addLayer({
+          id: 'ht-trail-line', type: 'line', source: TRAIL_SOURCE,
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: {
+            'line-width': 3,
+            'line-gradient': [
+              'interpolate', ['linear'], ['line-progress'],
+              0,   'rgba(74,222,128,0)',
+              0.6, 'rgba(74,222,128,0.25)',
+              1,   'rgba(74,222,128,0.7)',
+            ],
+          },
+        });
+        trailReadyRef.current = true;
 
         map.addSource('ht-searches',  { type: 'geojson', data: buildPickupGeoJSON(searches)          });
         map.addSource('ht-scheduled', { type: 'geojson', data: buildScheduledGeoJSON(scheduledRides) });
@@ -1652,27 +1859,86 @@ export default function HomeTab({
     return () => {
       if (mapRef.current) {
         mapRef.current.remove();
-        mapRef.current         = null;
-        pulseLayersRef.current = false;
+        mapRef.current          = null;
+        pulseLayersRef.current  = false;
         tripPolylineRef.current = null;
         prevTripIdRef.current   = null;
         pickupMarkerRef.current = null;
+        trailReadyRef.current   = false;
+        trailRef.current        = [];
+        renderedCenterRef.current = null;
         setMapReady(false);
       }
     };
   }, [online]); // eslint-disable-line
 
-  // ── Re-center map on driver location update (radar mode only) ─────────
+  // ── Feed the latest live position into the follow target ───────────────
   useEffect(() => {
-    if (!mapReady || !mapRef.current || !driver?.lat || !driver?.lng) return;
-    // Don't fight fitBounds during active trip
-    if (activeTrip) return;
-    mapRef.current.easeTo({
-      center:   [driver.lng, driver.lat],
-      duration: 1200,
-      easing:   t => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
+    if (typeof liveLat !== 'number' || typeof liveLng !== 'number') return;
+    targetCenterRef.current = [liveLng, liveLat];
+    if (!renderedCenterRef.current) renderedCenterRef.current = [liveLng, liveLat];
+  }, [liveLat, liveLng]);
+
+  // ── Master follow loop: smoothly keep the driver centered (radar mode) ─
+  // This is the heart of the live-follow behavior — instead of an easeTo on
+  // each prop change, we exponentially ease the rendered center toward the
+  // latest fix every frame, so the world slides under a driver who stays put
+  // at the radar's center. We never touch the camera during an active trip
+  // (fitBounds owns it then) and we sample the movement trail here too.
+  useEffect(() => {
+    if (!mapReady || !online) { cancelAnimationFrame(followRafRef.current); return; }
+    let alive = true;
+    let frame = 0;
+
+    const loop = () => {
+      if (!alive) return;
+      followRafRef.current = requestAnimationFrame(loop);
+      const map = mapRef.current;
+      if (!map) return;
+      const target = targetCenterRef.current;
+      if (!target) return;
+      if (!renderedCenterRef.current) renderedCenterRef.current = [target[0], target[1]];
+
+      const r = renderedCenterRef.current;
+      r[0] = lerp(r[0], target[0], FOLLOW_SMOOTH);
+      r[1] = lerp(r[1], target[1], FOLLOW_SMOOTH);
+
+      // Only own the camera in radar mode; during a trip fitBounds is in charge
+      if (!activeTripRef.current) {
+        try { map.setCenter(r); } catch (e) { /* torn down */ }
+        frame++;
+        if (frame % TRAIL_PUSH_EVERY === 0) pushTrail(target);
+      }
+    };
+
+    followRafRef.current = requestAnimationFrame(loop);
+    return () => { alive = false; cancelAnimationFrame(followRafRef.current); };
+  }, [mapReady, online, pushTrail]);
+
+  // ── Toggle / clear the movement trail around active trips ──────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !map || !trailReadyRef.current) return;
+    const vis = (!activeTrip && SHOW_MOVEMENT_TRAIL) ? 'visible' : 'none';
+    TRAIL_LAYERS.forEach(id => {
+      try { if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis); } catch (e) {}
     });
-  }, [driver?.lat, driver?.lng, mapReady, activeTrip]);
+    if (activeTrip) {
+      trailRef.current = [];
+      try { map.getSource(TRAIL_SOURCE)?.setData(EMPTY_LINE); } catch (e) {}
+    }
+  }, [activeTrip, mapReady]);
+
+  // ── Fallback re-center when device GPS is unavailable ──────────────────
+  // The follow loop already eases toward `targetCenterRef` (which falls back
+  // to the prop), so this only nudges the camera if we somehow have no target
+  // yet — e.g. permission denied and a late-arriving prop position.
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || gpsLive) return;
+    if (activeTrip) return;
+    if (typeof driver?.lat !== 'number' || typeof driver?.lng !== 'number') return;
+    if (!targetCenterRef.current) targetCenterRef.current = [driver.lng, driver.lat];
+  }, [driver?.lat, driver?.lng, mapReady, activeTrip, gpsLive]);
 
   // ── Update GeoJSON on data change ──────────────────────────────────────
   useEffect(() => {
@@ -1703,23 +1969,19 @@ export default function HomeTab({
       }
       tripPolylineRef.current = null;
       prevTripIdRef.current   = null;
-
-      // Restore normal radar centering
-      if (driver?.lat && driver?.lng) {
-        map.easeTo({ center: [driver.lng, driver.lat], duration: 900 });
-      }
       return;
     }
 
-    // Already have route for this trip id → just update driver marker position
+    // Already have route for this trip id → nothing to refetch
     if (activeTrip.id === prevTripIdRef.current && tripPolylineRef.current) return;
     prevTripIdRef.current = activeTrip.id;
 
-    if (!driver?.lat || !driver?.lng || !activeTrip.pickupLat || !activeTrip.pickupLng) return;
+    if (typeof liveLat !== 'number' || typeof liveLng !== 'number' ||
+        !activeTrip.pickupLat || !activeTrip.pickupLng) return;
 
     callGetDriverToPickup({
-      driverLat: driver.lat,
-      driverLng: driver.lng,
+      driverLat: liveLat,
+      driverLng: liveLng,
       pickupLat: activeTrip.pickupLat,
       pickupLng: activeTrip.pickupLng,
     }).then(({ data }) => {
@@ -1735,7 +1997,6 @@ export default function HomeTab({
         if (!mapRef.current?.isStyleLoaded()) { setTimeout(apply, 80); return; }
         const m = mapRef.current;
 
-        // Upsert source
         if (m.getSource(TRIP_SOURCE)) {
           m.getSource(TRIP_SOURCE).setData(geo);
         } else {
@@ -1757,16 +2018,13 @@ export default function HomeTab({
           });
         }
 
-        // Pickup pin marker
         if (pickupMarkerRef.current) {
           try { pickupMarkerRef.current.remove(); } catch(e) {}
           pickupMarkerRef.current = null;
         }
         if (window.mapboxgl) {
           const el = document.createElement('div');
-          el.style.cssText = [
-            'position:relative', 'width:14px', 'height:14px',
-          ].join(';');
+          el.style.cssText = ['position:relative', 'width:14px', 'height:14px'].join(';');
           el.innerHTML = `
             <div style="width:14px;height:14px;border-radius:50%;background:#22C55E;border:2.5px solid #fff;box-shadow:0 0 12px rgba(34,197,94,.8);"></div>
             <div style="position:absolute;inset:-6px;border-radius:50%;border:1.5px solid rgba(34,197,94,.4);animation:htBlink 2s ease-in-out infinite;"></div>
@@ -1776,9 +2034,8 @@ export default function HomeTab({
             .addTo(m);
         }
 
-        // Fit bounds: driver + pickup + route
         const allPts = [
-          [driver.lng, driver.lat],
+          [liveLng, liveLat],
           [activeTrip.pickupLng, activeTrip.pickupLat],
           ...coords,
         ];
@@ -1793,17 +2050,6 @@ export default function HomeTab({
       apply();
     }).catch(console.error);
   }, [activeTrip?.id, mapReady]); // eslint-disable-line
-
-  // ── Keep driver pin re-centered during trip as location updates ────────
-  useEffect(() => {
-    if (!mapReady || !mapRef.current || !activeTrip || !driver?.lat || !driver?.lng) return;
-    // Gently ease toward driver during a trip without overriding fitBounds
-    mapRef.current.easeTo({
-      center:   [driver.lng, driver.lat],
-      duration: 800,
-      easing:   t => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
-    });
-  }, [driver?.lat, driver?.lng, activeTrip?.id, mapReady]);
 
   // ── Scheduled dispatch markers ─────────────────────────────────────────
   useEffect(() => {
@@ -1872,6 +2118,7 @@ export default function HomeTab({
       try { pickupMarkerRef.current.remove(); } catch(e) {}
       pickupMarkerRef.current = null;
     }
+    cancelAnimationFrame(followRafRef.current);
   }, []);
 
   // ── Pulse halo animation ───────────────────────────────────────────────
@@ -1932,22 +2179,22 @@ export default function HomeTab({
     return () => cancelAnimationFrame(rafRef.current);
   }, [mapReady, online]);
 
-  // ── Derived values ─────────────────────────────────────────────────────
+  // ── Derived values (now relative to the LIVE position) ─────────────────
   const dotCount       = useMemo(() => searches.filter(hasCoords).length, [searches]);
   const scheduledCount = useMemo(() => scheduledRides.filter(hasCoords).length, [scheduledRides]);
   const driverTotal    = driverCounts.online + driverCounts.offline + driverCounts.approved;
 
   const scheduledNearestMi = useMemo(
-    () => nearestMi(driver?.lat, driver?.lng, scheduledRides),
-    [driver?.lat, driver?.lng, scheduledRides]
+    () => nearestMi(liveLat, liveLng, scheduledRides),
+    [liveLat, liveLng, scheduledRides]
   );
   const searchNearestMi = useMemo(
-    () => nearestMi(driver?.lat, driver?.lng, searches),
-    [driver?.lat, driver?.lng, searches]
+    () => nearestMi(liveLat, liveLng, searches),
+    [liveLat, liveLng, searches]
   );
   const contacts = useMemo(
-    () => gatherContacts(driver, searches, scheduledRides),
-    [driver?.lat, driver?.lng, searches, scheduledRides]
+    () => gatherContacts(liveDriver, searches, scheduledRides),
+    [liveLat, liveLng, searches, scheduledRides]
   );
 
   const lastSearchAt = useMemo(() => {
@@ -1959,6 +2206,9 @@ export default function HomeTab({
   const showBoot        = online && !bootDone;
   const showLegend      = showRadar && !activeTrip;
   const showOnlineCount = showRadar;
+
+  const speedStr = fmtSpeed(liveFix?.speed);
+  const accStr   = fmtAccuracy(liveFix?.accuracy);
 
   // ── New search alert ───────────────────────────────────────────────────
   useEffect(() => {
@@ -2004,7 +2254,7 @@ export default function HomeTab({
         }}/>
 
         {/* Offline standby */}
-        {!online && <OfflineStandby driver={driver}/>}
+        {!online && <OfflineStandby driver={liveDriver || driver}/>}
 
         {/* Atmosphere + radar + scanlines — hidden during active trip */}
         {showRadar && !activeTrip && (
@@ -2066,8 +2316,11 @@ export default function HomeTab({
             tripStage={tripStage}
             tripStageColor={tripStageColor}
             heading={mapBearing}
-            lat={driver?.lat}
-            lng={driver?.lng}
+            lat={liveLat}
+            lng={liveLng}
+            speed={speedStr}
+            accuracy={accStr}
+            gpsLive={gpsLive}
           />
         )}
 
@@ -2091,7 +2344,7 @@ export default function HomeTab({
 
         {/* Active trip HUD — route info + status */}
         {showRadar && activeTrip && (
-          <ActiveTripHud activeTrip={activeTrip} driver={driver} now={now}/>
+          <ActiveTripHud activeTrip={activeTrip} driver={liveDriver || driver} now={now}/>
         )}
 
         {/* Bottom stat strip */}
@@ -2119,7 +2372,7 @@ export default function HomeTab({
             open={drawerOpen}
             onToggle={toggleDrawer}
             scheduledRides={scheduledRides}
-            driver={driver}
+            driver={liveDriver || driver}
             now={now}
           />
         )}
@@ -2147,7 +2400,7 @@ export default function HomeTab({
               tripStage={tripStage}
               onToggle={onToggleOnline}
               scheduledRides={scheduledRides}
-              driver={driver}
+              driver={liveDriver || driver}
             />
           </div>
         </div>
