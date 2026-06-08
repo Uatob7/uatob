@@ -4,38 +4,16 @@
  * Full-screen, navigation-grade trip view rendered whenever the driver has an
  * assigned ride. Replaces the radar HomeTab UI for the duration of the trip.
  *
- * What changed vs. the previous build (the "Uber feel"):
+ * Fixes in this build:
  * ──────────────────────────────────────────────────────
- *   • Realtime self-positioning. The driver dot is driven by the device GPS
- *     (`navigator.geolocation.watchPosition`) instead of waiting on a server
- *     round-trip, so the puck moves the instant the phone moves.
- *   • Buttery puck motion. A single master rAF loop exponentially smooths the
- *     rendered position toward the latest fix — no teleporting between updates,
- *     no fixed-duration tweens that stutter when fixes arrive quickly.
- *   • Heading-aware car. The marker rotates to face travel direction using GPS
- *     heading when present, otherwise a movement-derived bearing, interpolated
- *     along the shortest arc so it never spins the long way around.
- *   • Live route trimming. The traveled portion of the route is consumed behind
- *     the car in realtime (projected onto the line, monotonic forward search),
- *     leaving a bright "road ahead" — exactly like turn-by-turn nav.
- *   • Flowing route. The remaining route carries an animated marching-dash
- *     overlay so the path always reads as "live."
- *   • Chase camera. Optional follow-cam keeps the puck centered and rotates the
- *     map to travel heading; a recenter FAB re-engages it after the user pans.
- *   • Live ETA + distance. Recomputed every tick from remaining route length
- *     and the route's own duration estimate, with a real arrival clock time.
- *   • Slide-to-confirm. Stage actions (arrive / start / complete) use a
- *     slide-to-act control to prevent fat-finger mistakes at speed.
- *   • Self-healing realtime. An internal Firestore onSnapshot on the ride doc
- *     merges live backend changes (status, payout, location) over the prop, so
- *     the screen stays correct even if the parent listener lags.
- *
- * Props
- * ─────
- *   driver            { uid, lat, lng, firstName }
- *   activeTrip        Firestore ride doc (driver_assigned | arrived | in_progress | completed)
- *   onTripComplete    () => void   — called after status reaches "completed"
- *   useDeviceLocation boolean      — default true; set false to render from prop coords only
+ *   • Error toast is now a fixed, centered overlay (no longer misaligned inside
+ *     the bottom sheet).
+ *   • SlideAction thumb springs back when the action fails. The `failed` prop
+ *     (driven by `!!error` in ActionSheet) resets `committed` state and returns
+ *     the thumb to position 0 so the driver can retry.
+ *   • 1-mile proximity gate on the "arrive" action. If the driver is more than
+ *     1 mile from the pickup when they slide, the action is rejected before any
+ *     Cloud Function call and a centered toast explains the distance.
  */
 
 import {
@@ -53,14 +31,14 @@ const db = getFirestore(firebase_app);
 
 const _functions     = getFunctions(firebase_app, 'us-east1');
 const callUpdateTrip = httpsCallable(_functions, 'updateTripStatus');
-const callGetRoute   = httpsCallable(_functions, 'getDriverToPickup'); // reused as a generic A→B route
+const callGetRoute   = httpsCallable(_functions, 'getDriverToPickup');
 
 // ─── tokens ──────────────────────────────────────────────────────────────────
 const MAPBOX_TOKEN = 'pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA';
 const MAP_STYLE    = 'mapbox://styles/mapbox/dark-v11';
 const MB_VERSION   = 'v3.3.0';
 
-// ─── palette (matches HomeTab) ────────────────────────────────────────────────
+// ─── palette ─────────────────────────────────────────────────────────────────
 const C = {
   bg:          '#050A06',
   panel:       'rgba(5,10,6,.82)',
@@ -85,13 +63,14 @@ const MONO = "'JetBrains Mono','SFMono-Regular',monospace";
 const COND = "'Barlow Condensed','Barlow',sans-serif";
 
 // ─── tunables ─────────────────────────────────────────────────────────────────
-const SMOOTH_POS        = 0.16;   // exponential follow factor for the puck (0..1 per frame)
-const SMOOTH_BEARING    = 0.18;   // exponential follow factor for heading
-const TRIM_EVERY_FRAMES = 2;      // recompute route trim every N frames
-const FOLLOW_THROTTLE_MS = 220;   // min interval between chase-cam easeTo calls
-const FALLBACK_SPEED_MPH = 24;    // city-speed assumption when route duration is unknown
-const MIN_MOVE_FOR_BEARING_M = 4; // ignore GPS jitter below this when deriving heading
-const STALE_FIX_MS      = 30000;  // a fix older than this is treated as unknown
+const SMOOTH_POS             = 0.16;
+const SMOOTH_BEARING         = 0.18;
+const TRIM_EVERY_FRAMES      = 2;
+const FOLLOW_THROTTLE_MS     = 220;
+const FALLBACK_SPEED_MPH     = 24;
+const MIN_MOVE_FOR_BEARING_M = 4;
+const STALE_FIX_MS           = 30000;
+const ARRIVE_MAX_MILES       = 1.0;   // proximity gate for "arrive" action
 
 // ─── trip state machine ───────────────────────────────────────────────────────
 const STAGES = {
@@ -143,7 +122,6 @@ const STAGES = {
 const DEG = Math.PI / 180;
 const EARTH_MI = 3958.8;
 
-/** great-circle distance in miles */
 function haversineMi(lat1, lng1, lat2, lng2) {
   const dLat = (lat2 - lat1) * DEG;
   const dLng = (lng2 - lng1) * DEG;
@@ -153,7 +131,6 @@ function haversineMi(lat1, lng1, lat2, lng2) {
   return EARTH_MI * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-/** initial bearing (deg, 0=N, clockwise) from A→B */
 function bearingDeg(lat1, lng1, lat2, lng2) {
   const φ1 = lat1 * DEG, φ2 = lat2 * DEG;
   const Δλ = (lng2 - lng1) * DEG;
@@ -162,16 +139,13 @@ function bearingDeg(lat1, lng1, lat2, lng2) {
   return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 }
 
-/** interpolate an angle along the shortest arc */
 function lerpAngle(a, b, t) {
   let d = ((b - a + 540) % 360) - 180;
   return (a + d * t + 360) % 360;
 }
 
-/** linear interpolation */
 const lerp = (a, b, t) => a + (b - a) * t;
 
-/** Google encoded polyline → [[lat,lng], ...] */
 function decodePolyline(encoded) {
   if (!encoded) return [];
   const pts = [];
@@ -188,11 +162,6 @@ function decodePolyline(encoded) {
   return pts;
 }
 
-/**
- * Project point p onto segment a→b in a locally-flat frame (lng scaled by
- * cos(lat) so distances stay roughly isotropic). Returns the clamped param t,
- * the squared planar distance, and the snapped point. Coordinates are [lng,lat].
- */
 function projectOnSegment(p, a, b) {
   const latRef = ((a[1] + b[1]) / 2) * DEG;
   const kx = Math.cos(latRef) || 1e-6;
@@ -208,11 +177,6 @@ function projectOnSegment(p, a, b) {
   return { t, dist2: ddx * ddx + ddy * ddy, point: [cx / kx, cy] };
 }
 
-/**
- * Snap point p onto the route (array of [lng,lat]). Searches forward from a
- * remembered index (with a tiny look-back window) so progress stays monotonic
- * and the car never appears to jump backward on overlapping geometry.
- */
 function projectOntoRoute(coords, p, fromIdx = 0) {
   if (!coords || coords.length < 2) {
     return { idx: 0, t: 0, point: coords?.[0] || p, dist2: 0 };
@@ -226,7 +190,6 @@ function projectOntoRoute(coords, p, fromIdx = 0) {
   return best;
 }
 
-/** remaining route from a projection: [snapPoint, ...coords after idx] */
 function remainingFrom(coords, proj) {
   const out = [proj.point];
   for (let i = proj.idx + 1; i < coords.length; i++) out.push(coords[i]);
@@ -234,7 +197,6 @@ function remainingFrom(coords, proj) {
   return out;
 }
 
-/** traveled route up to a projection: [...coords up to idx, snapPoint] */
 function traveledTo(coords, proj) {
   const out = [];
   for (let i = 0; i <= proj.idx; i++) out.push(coords[i]);
@@ -242,7 +204,6 @@ function traveledTo(coords, proj) {
   return out;
 }
 
-/** total length of a [lng,lat] path in miles */
 function pathLengthMi(coords) {
   let s = 0;
   for (let i = 1; i < coords.length; i++) {
@@ -265,7 +226,6 @@ function fmtEtaMin(min) {
   return `${Math.round(min)}`;
 }
 
-/** add `min` minutes to now → "9:41 PM" */
 function fmtArrivalClock(min) {
   if (min === null || !isFinite(min)) return '—';
   const d = new Date(Date.now() + min * 60000);
@@ -287,10 +247,61 @@ function firstName(name) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// ERROR TOAST — fixed, horizontally centered overlay
+// ═══════════════════════════════════════════════════════════════════════════════
+function ErrorToast({ message, onDismiss }) {
+  if (!message) return null;
+  return (
+    <div
+      onClick={onDismiss}
+      style={{
+        position: 'fixed',
+        top: 'max(64px, calc(env(safe-area-inset-top) + 56px))',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: 50,
+        width: 'min(360px, calc(100vw - 32px))',
+        padding: '13px 18px',
+        background: 'rgba(239,68,68,.18)',
+        border: '1px solid rgba(239,68,68,.5)',
+        borderRadius: 18,
+        backdropFilter: 'blur(18px)',
+        WebkitBackdropFilter: 'blur(18px)',
+        boxShadow: '0 10px 40px rgba(0,0,0,.6), 0 0 0 1px rgba(239,68,68,.15)',
+        cursor: 'pointer',
+        animation: 'ats-slidedown .32s cubic-bezier(.34,1.1,.64,1) both',
+        textAlign: 'center',
+        pointerEvents: 'auto',
+      }}
+    >
+      <div style={{
+        fontFamily: MONO,
+        fontSize: 11,
+        fontWeight: 700,
+        color: C.red,
+        lineHeight: 1.55,
+        marginBottom: 4,
+      }}>
+        ⚠ {message}
+      </div>
+      <div style={{
+        fontFamily: COND,
+        fontSize: 9,
+        fontWeight: 800,
+        letterSpacing: '.14em',
+        color: 'rgba(248,113,113,.5)',
+        textTransform: 'uppercase',
+      }}>
+        Tap to dismiss
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // SMALL PRESENTATIONAL PRIMITIVES
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/** pulsing dot */
 function Dot({ color, size = 8, pulse = true }) {
   return (
     <div style={{
@@ -302,7 +313,6 @@ function Dot({ color, size = 8, pulse = true }) {
   );
 }
 
-/** route rail: green circle → dashed line → diamond */
 function RouteRail({ status }) {
   const bottomColor = status === 'in_progress' ? C.amberBright : C.white;
   return (
@@ -330,7 +340,6 @@ function RouteRail({ status }) {
   );
 }
 
-/** single address row with optional "open in maps" deep link */
 function AddrRow({ label, text, dimmed, mapUrl }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -375,7 +384,7 @@ function AddrRow({ label, text, dimmed, mapUrl }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// TOP HUD — status ribbon + live progress bar
+// TOP HUD
 // ═══════════════════════════════════════════════════════════════════════════════
 function TopBar({ statusLabel, statusColor, rideId, paymentMethod, progress, gpsLive }) {
   const pm = (paymentMethod || '').toLowerCase();
@@ -396,7 +405,6 @@ function TopBar({ statusLabel, statusColor, rideId, paymentMethod, progress, gps
         height: 44, display: 'flex', alignItems: 'center',
         justifyContent: 'space-between', padding: '0 16px',
       }}>
-        {/* brand + status */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
           <span style={{
             fontFamily: COND, fontSize: 11, fontWeight: 800, letterSpacing: '.22em',
@@ -414,7 +422,6 @@ function TopBar({ statusLabel, statusColor, rideId, paymentMethod, progress, gps
           </span>
         </div>
 
-        {/* right: GPS health + payment + ride id */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -447,7 +454,6 @@ function TopBar({ statusLabel, statusColor, rideId, paymentMethod, progress, gps
         </div>
       </div>
 
-      {/* live progress bar */}
       <div style={{ height: 2.5, margin: '0 16px 0', background: 'rgba(255,255,255,.07)', borderRadius: 2 }}>
         <div style={{
           height: '100%', width: `${pct * 100}%`,
@@ -462,7 +468,7 @@ function TopBar({ statusLabel, statusColor, rideId, paymentMethod, progress, gps
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// LIVE ETA CARD — minutes, distance, arrival clock
+// LIVE ETA CARD
 // ═══════════════════════════════════════════════════════════════════════════════
 function EtaCard({ etaMin, distMi, status, arrivalClock }) {
   const accent = status === 'driver_assigned' ? C.cyan
@@ -485,7 +491,6 @@ function EtaCard({ etaMin, distMi, status, arrivalClock }) {
       animation: 'ats-slidedown .45s cubic-bezier(.34,1.2,.64,1) both',
       minWidth: 244,
     }}>
-      {/* ETA minutes */}
       <div style={{ flex: 1, textAlign: 'center', padding: '0 12px' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 3 }}>
           <span style={{
@@ -505,7 +510,6 @@ function EtaCard({ etaMin, distMi, status, arrivalClock }) {
 
       <div style={{ width: 1, background: 'rgba(255,255,255,.08)', margin: '2px 0' }}/>
 
-      {/* distance */}
       <div style={{ flex: 1, textAlign: 'center', padding: '0 10px' }}>
         <div style={{ fontFamily: MONO, fontSize: 17, fontWeight: 800, color: C.white, lineHeight: 1.2 }}>
           {fmtMi(distMi)}
@@ -517,7 +521,6 @@ function EtaCard({ etaMin, distMi, status, arrivalClock }) {
 
       <div style={{ width: 1, background: 'rgba(255,255,255,.08)', margin: '2px 0' }}/>
 
-      {/* arrival clock */}
       <div style={{ flex: 1, textAlign: 'center', padding: '0 10px' }}>
         <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 800, color: C.greenSoft, lineHeight: 1.3 }}>
           {arrivalClock}
@@ -531,7 +534,7 @@ function EtaCard({ etaMin, distMi, status, arrivalClock }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// RIDER CARD — avatar, name, rating, payment
+// RIDER CARD
 // ═══════════════════════════════════════════════════════════════════════════════
 function RiderCard({ rider }) {
   if (!rider) return null;
@@ -586,7 +589,7 @@ function RiderCard({ rider }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// RECENTER FAB — re-engage chase camera
+// RECENTER FAB
 // ═══════════════════════════════════════════════════════════════════════════════
 function RecenterFab({ visible, onClick }) {
   return (
@@ -619,40 +622,50 @@ function RecenterFab({ visible, onClick }) {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SLIDE-TO-CONFIRM CONTROL
+// ─────────────────────────────────────────────────────────────────────────────
+// FIX: `committed` replaces the old `done` flag. The thumb only shows a check
+// when committed=true AND failed=false AND pending=false. If the parent sets
+// failed=true (via !!error), the useEffect springs the thumb back to 0 so the
+// driver can retry without remounting the component.
 // ═══════════════════════════════════════════════════════════════════════════════
-function SlideAction({ label, color, onConfirm, pending }) {
+function SlideAction({ label, color, onConfirm, pending, failed }) {
   const trackRef    = useRef(null);
   const maxRef      = useRef(0);
   const draggingRef = useRef(false);
-  const offsetRef   = useRef(0);     // live thumb offset (px) — always current
-  const [x, setX]   = useState(0);   // mirror for render
-  const [done, setDone] = useState(false);
+  const offsetRef   = useRef(0);
+  const [x, setX]        = useState(0);
+  const [committed, setCommitted] = useState(false); // fired; awaiting resolution
 
-  const THUMB = 50;
-  const PAD   = 4;
+  // Spring back the thumb when the parent reports a failure
+  useEffect(() => {
+    if (failed) {
+      setCommitted(false);
+      offsetRef.current = 0;
+      setX(0);
+    }
+  }, [failed]);
 
   const measure = useCallback(() => {
     if (!trackRef.current) return 0;
-    maxRef.current = Math.max(0, trackRef.current.clientWidth - THUMB - PAD * 2);
+    maxRef.current = Math.max(0, trackRef.current.clientWidth - 50 - 4 * 2);
     return maxRef.current;
   }, []);
 
   useEffect(() => { measure(); }, [measure]);
 
   const clientX = (e) => (e.touches?.[0]?.clientX ?? e.clientX ?? 0);
-
   const setOffset = (px) => { offsetRef.current = px; setX(px); };
 
   const onDown = (e) => {
-    if (pending || done) return;
+    if (pending || committed) return;
     draggingRef.current = true;
     measure();
-    const startX = clientX(e);
-    const startOffset = offsetRef.current;
+    const startX     = clientX(e);
+    const startOff   = offsetRef.current;
 
     const move = (ev) => {
       if (!draggingRef.current) return;
-      let nx = startOffset + (clientX(ev) - startX);
+      let nx = startOff + (clientX(ev) - startX);
       if (nx < 0) nx = 0;
       else if (nx > maxRef.current) nx = maxRef.current;
       setOffset(nx);
@@ -667,13 +680,12 @@ function SlideAction({ label, color, onConfirm, pending }) {
       window.removeEventListener('touchmove', move);
       window.removeEventListener('touchend', up);
 
-      // confirm when the thumb is slid ≥ 88% of the track (reads live offset)
       if (offsetRef.current >= maxRef.current * 0.88) {
         setOffset(maxRef.current);
-        setDone(true);
+        setCommitted(true);   // hold the thumb at the end while the call is in-flight
         onConfirm?.();
       } else {
-        setOffset(0); // spring back
+        setOffset(0);         // didn't make it — spring back
       }
     };
 
@@ -683,7 +695,10 @@ function SlideAction({ label, color, onConfirm, pending }) {
     window.addEventListener('touchend', up);
   };
 
+  const THUMB   = 50;
+  const PAD     = 4;
   const progress = maxRef.current ? x / maxRef.current : 0;
+  const showDone = committed && !failed && !pending;
 
   return (
     <div
@@ -710,8 +725,8 @@ function SlideAction({ label, color, onConfirm, pending }) {
         alignItems: 'center', justifyContent: 'center',
         fontFamily: COND, fontSize: 15, fontWeight: 900, letterSpacing: '.12em',
         textTransform: 'uppercase',
-        color: done || pending ? '#000' : color,
-        opacity: pending ? 0 : 1 - progress * 0.9,
+        color: color,
+        opacity: pending || showDone ? 0 : 1 - progress * 0.9,
         transition: 'opacity .15s ease',
         paddingLeft: 30,
         pointerEvents: 'none',
@@ -720,7 +735,7 @@ function SlideAction({ label, color, onConfirm, pending }) {
       </div>
 
       {/* chevrons hint */}
-      {!pending && !done && (
+      {!pending && !showDone && (
         <div style={{
           position: 'absolute', right: 18, top: 0, bottom: 0,
           display: 'flex', alignItems: 'center', gap: 1,
@@ -736,7 +751,7 @@ function SlideAction({ label, color, onConfirm, pending }) {
         </div>
       )}
 
-      {/* draggable thumb */}
+      {/* thumb */}
       <div
         onPointerDown={onDown}
         onTouchStart={onDown}
@@ -746,7 +761,7 @@ function SlideAction({ label, color, onConfirm, pending }) {
           background: pending ? 'rgba(255,255,255,.1)' : `linear-gradient(135deg, ${color}, ${color}cc)`,
           boxShadow: pending ? 'none' : `0 4px 16px ${color}66, inset 0 1px 0 rgba(255,255,255,.3)`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          cursor: pending || done ? 'default' : 'grab',
+          cursor: pending || showDone ? 'default' : 'grab',
           transition: draggingRef.current ? 'none' : 'left .28s cubic-bezier(.34,1.1,.64,1)',
           touchAction: 'none',
         }}
@@ -757,7 +772,7 @@ function SlideAction({ label, color, onConfirm, pending }) {
             border: '2px solid rgba(0,0,0,.25)', borderTop: '2px solid #000',
             animation: 'ats-spin .7s linear infinite',
           }}/>
-        ) : done ? (
+        ) : showDone ? (
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
             stroke="#000" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="20 6 9 17 4 12"/>
@@ -775,8 +790,11 @@ function SlideAction({ label, color, onConfirm, pending }) {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // BOTTOM ACTION SHEET
+// ─────────────────────────────────────────────────────────────────────────────
+// FIX: error block removed from here entirely — ErrorToast is now a fixed
+// overlay rendered at the root. `failed={!!error}` is passed to SlideAction.
 // ═══════════════════════════════════════════════════════════════════════════════
-function ActionSheet({ trip, stage, distToTarget, onAction, pending, error, onDismissError }) {
+function ActionSheet({ trip, stage, distToTarget, onAction, pending, error }) {
   const cfg = STAGES[stage] || STAGES.driver_assigned;
   if (stage === 'completed') return <CompletedSheet trip={trip}/>;
 
@@ -789,29 +807,6 @@ function ActionSheet({ trip, stage, distToTarget, onAction, pending, error, onDi
       position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 32,
       animation: 'ats-slideup .45s cubic-bezier(.34,1.1,.64,1) both',
     }}>
-      {/* error toast */}
-      {error && (
-        <div
-          onClick={onDismissError}
-          style={{
-            margin: '0 12px 8px', padding: '10px 14px',
-            background: 'rgba(239,68,68,.18)', border: '1px solid rgba(239,68,68,.45)',
-            borderRadius: 14, backdropFilter: 'blur(12px)', cursor: 'pointer',
-            animation: 'ats-slidedown .3s ease both',
-          }}
-        >
-          <span style={{
-            fontFamily: MONO, fontSize: 11, fontWeight: 700, color: C.red,
-            lineHeight: 1.5, display: 'block',
-          }}>
-            ⚠ {error}
-          </span>
-          <span style={{ fontFamily: COND, fontSize: 9, letterSpacing: '.1em', color: 'rgba(248,113,113,.55)' }}>
-            TAP TO DISMISS
-          </span>
-        </div>
-      )}
-
       <div style={{
         background: C.panelDeep,
         borderTop: `1px solid ${cfg.statusColor}28`,
@@ -877,12 +872,13 @@ function ActionSheet({ trip, stage, distToTarget, onAction, pending, error, onDi
           )}
         </div>
 
-        {/* slide-to-confirm */}
+        {/* slide-to-confirm — failed prop springs thumb back on error */}
         <SlideAction
-          key={stage}                 /* reset thumb when the stage advances */
+          key={stage}
           label={pending ? 'WORKING…' : cfg.btnLabel}
           color={cfg.btnColor}
           pending={pending}
+          failed={!!error}
           onConfirm={() => onAction(cfg.action, trip.id)}
         />
       </div>
@@ -945,7 +941,6 @@ function CompletedSheet({ trip }) {
           PAYOUT CREDITED
         </div>
 
-        {/* trip stat chips */}
         <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
           {typeof miles === 'number' && miles > 0 && (
             <StatChip label="DISTANCE" value={`${miles.toFixed(1)} mi`}/>
@@ -974,13 +969,9 @@ function StatChip({ label, value }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// MAP MARKER FACTORIES (imperative DOM, attached to mapbox Markers)
+// MAP MARKER FACTORIES
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/**
- * Driver puck. Returns { el, rotate(deg) } so the master loop can spin only the
- * inner body (keeping the glow/ring steady). The car nose points "up" at 0°.
- */
 function makeDriverPuck() {
   const outer = document.createElement('div');
   outer.style.cssText = 'position:relative;width:50px;height:50px;display:flex;align-items:center;justify-content:center;pointer-events:none;';
@@ -998,7 +989,6 @@ function makeDriverPuck() {
     'animation:ats-blink 1.8s ease-in-out infinite',
   ].join(';');
 
-  // sweeping accuracy cone behind the heading
   const cone = document.createElement('div');
   cone.style.cssText = [
     'position:absolute', 'inset:0', 'border-radius:50%',
@@ -1006,7 +996,6 @@ function makeDriverPuck() {
     'transform:rotate(0deg)', 'transition:transform .12s linear',
   ].join(';');
 
-  // rotating body holds the car glyph
   const rot = document.createElement('div');
   rot.style.cssText = [
     'position:absolute', 'inset:0', 'display:flex', 'align-items:center', 'justify-content:center',
@@ -1024,7 +1013,7 @@ function makeDriverPuck() {
   body.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none"
     stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
     <path d="M12 2 5 21l7-4 7 4z"/>
-  </svg>`; // navigation arrow glyph (points up)
+  </svg>`;
 
   rot.appendChild(body);
   outer.appendChild(glow);
@@ -1041,7 +1030,6 @@ function makeDriverPuck() {
   };
 }
 
-/** pin marker for pickup / dropoff */
 function makePinEl(color, symbol) {
   const wrap = document.createElement('div');
   wrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;pointer-events:none;';
@@ -1069,14 +1057,13 @@ function makePinEl(color, symbol) {
 }
 
 // ─── map source / layer ids ────────────────────────────────────────────────────
-const SRC_REMAIN = 'ats-route-remain';
-const SRC_TRAVEL = 'ats-route-travel';
+const SRC_REMAIN      = 'ats-route-remain';
+const SRC_TRAVEL      = 'ats-route-travel';
 const LYR_REMAIN_GLOW = 'ats-remain-glow';
 const LYR_REMAIN_MAIN = 'ats-remain-main';
 const LYR_REMAIN_DASH = 'ats-remain-dash';
 const LYR_TRAVEL_MAIN = 'ats-travel-main';
 
-// animated marching-dash frames for the remaining route
 const DASH_FRAMES = [
   [0, 4, 3], [0.5, 4, 2.5], [1, 4, 2], [1.5, 4, 1.5],
   [2, 4, 1], [2.5, 4, 0.5], [3, 4, 0], [0, 0.5, 3, 3.5],
@@ -1085,7 +1072,7 @@ const DASH_FRAMES = [
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// CHAT FAB — opens rider chat, shows unread badge
+// CHAT FAB
 // ═══════════════════════════════════════════════════════════════════════════════
 function ChatFab({ unread, onClick }) {
   return (
@@ -1130,7 +1117,7 @@ function ChatFab({ unread, onClick }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// DRIVER CHAT PANEL — full-screen overlay for rider ↔ driver messages
+// DRIVER CHAT PANEL
 // ═══════════════════════════════════════════════════════════════════════════════
 const DRIVER_QUICK_REPLIES = ['On my way', "I've arrived", 'Be there in 2 min', 'Look for my car'];
 
@@ -1152,13 +1139,11 @@ function DriverChatPanel({ messages, input, setInput, onSend, onClose, sending }
       position: 'absolute', inset: 0, zIndex: 40,
       display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
     }}>
-      {/* backdrop */}
       <div onClick={onClose} style={{
         position: 'absolute', inset: 0,
         background: 'rgba(0,0,0,.55)', backdropFilter: 'blur(2px)',
       }}/>
 
-      {/* panel */}
       <div style={{
         position: 'relative', zIndex: 1,
         background: C.panelDeep,
@@ -1171,10 +1156,8 @@ function DriverChatPanel({ messages, input, setInput, onSend, onClose, sending }
         paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
         animation: 'ats-slideup .35s cubic-bezier(.34,1.1,.64,1) both',
       }}>
-        {/* drag handle */}
         <div style={{ width: 36, height: 3.5, borderRadius: 2, background: 'rgba(255,255,255,.12)', margin: '12px auto 0' }}/>
 
-        {/* header */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '12px 16px 10px',
@@ -1199,7 +1182,6 @@ function DriverChatPanel({ messages, input, setInput, onSend, onClose, sending }
           </button>
         </div>
 
-        {/* message list */}
         <div
           ref={listRef}
           style={{
@@ -1255,7 +1237,6 @@ function DriverChatPanel({ messages, input, setInput, onSend, onClose, sending }
           <div ref={bottomRef} style={{ height: 1 }}/>
         </div>
 
-        {/* quick replies */}
         <div style={{
           display: 'flex', gap: 6, padding: '8px 16px', flexWrap: 'wrap',
           borderTop: `1px solid ${C.inkFaint}`,
@@ -1275,7 +1256,6 @@ function DriverChatPanel({ messages, input, setInput, onSend, onClose, sending }
           ))}
         </div>
 
-        {/* input */}
         <div style={{ display: 'flex', gap: 8, padding: '8px 16px', alignItems: 'flex-end' }}>
           <textarea
             value={input}
@@ -1329,78 +1309,73 @@ export default function ActiveTripScreen({
   useDeviceLocation = true,
 }) {
   // ── refs: map + markers ──────────────────────────────────────────────────
-  const containerRef = useRef(null);
-  const mapRef       = useRef(null);
-  const puckRef      = useRef(null);       // { el, rotate }
-  const driverMkrRef = useRef(null);
-  const pickupMkrRef = useRef(null);
-  const dropoffMkrRef = useRef(null);
+  const containerRef   = useRef(null);
+  const mapRef         = useRef(null);
+  const puckRef        = useRef(null);
+  const driverMkrRef   = useRef(null);
+  const pickupMkrRef   = useRef(null);
+  const dropoffMkrRef  = useRef(null);
 
-  // ── refs: animation state ────────────────────────────────────────────────
-  const renderedRef  = useRef(null);       // [lng,lat] currently drawn
-  const targetRef    = useRef(null);       // [lng,lat] latest fix
-  const bearingRef   = useRef(0);          // currently drawn heading
-  const targetBearingRef = useRef(0);      // desired heading
-  const rafRef       = useRef(0);
-  const frameNoRef   = useRef(0);
-  const dashStepRef  = useRef(0);
-  const lastFollowRef = useRef(0);
-  const lastFixForBearingRef = useRef(null);
+  // ── refs: animation ──────────────────────────────────────────────────────
+  const renderedRef            = useRef(null);
+  const targetRef              = useRef(null);
+  const bearingRef             = useRef(0);
+  const targetBearingRef       = useRef(0);
+  const rafRef                 = useRef(0);
+  const frameNoRef             = useRef(0);
+  const dashStepRef            = useRef(0);
+  const lastFollowRef          = useRef(0);
+  const lastFixForBearingRef   = useRef(null);
 
   // ── refs: route ──────────────────────────────────────────────────────────
-  const routeCoordsRef = useRef([]);       // full [lng,lat] route for current phase
-  const routeLenMiRef  = useRef(0);        // total length
-  const routeDurSecRef = useRef(0);        // duration estimate from the route fetch
-  const projIdxRef     = useRef(0);        // last matched segment index (monotonic)
-  const routeReadyRef  = useRef(false);
-  const fetchedPhaseRef = useRef(null);    // 'toPickup' | 'toDropoff'
-  const lastInstalledPolyRef = useRef(null); // last Firestore polyline string installed
+  const routeCoordsRef      = useRef([]);
+  const routeLenMiRef       = useRef(0);
+  const routeDurSecRef      = useRef(0);
+  const projIdxRef          = useRef(0);
+  const routeReadyRef       = useRef(false);
+  const fetchedPhaseRef     = useRef(null);
+  const lastInstalledPolyRef = useRef(null);
 
-  // ── refs: misc ─────────────────────────────────────────────────────────────
-  const watchIdRef     = useRef(null);
+  // ── refs: misc ───────────────────────────────────────────────────────────
+  const watchIdRef       = useRef(null);
   const completeTimerRef = useRef(null);
-  const mountedRef     = useRef(true);
+  const mountedRef       = useRef(true);
 
-  // ── react state ────────────────────────────────────────────────────────────
-  const [mapReady, setMapReady]       = useState(false);
-  const [pending, setPending]         = useState(false);
-  const [error, setError]             = useState(null);
-  const [localStatus, setLocalStatus] = useState(null);
-  const [rider, setRider]             = useState(null);
-  const [liveTrip, setLiveTrip]       = useState(null);
-  const [selfPos, setSelfPos]         = useState(null);   // {lat,lng,heading,ts}
-  const [gpsLive, setGpsLive]         = useState(false);
-  const [followMode, setFollowMode]   = useState(true);
+  // ── state ────────────────────────────────────────────────────────────────
+  const [mapReady, setMapReady]         = useState(false);
+  const [pending, setPending]           = useState(false);
+  const [error, setError]               = useState(null);
+  const [localStatus, setLocalStatus]   = useState(null);
+  const [rider, setRider]               = useState(null);
+  const [liveTrip, setLiveTrip]         = useState(null);
+  const [selfPos, setSelfPos]           = useState(null);
+  const [gpsLive, setGpsLive]           = useState(false);
+  const [followMode, setFollowMode]     = useState(true);
   const [showRecenter, setShowRecenter] = useState(false);
-  const [liveMetrics, setLiveMetrics] = useState({ etaMin: null, distMi: null, progress: 0 });
-  const [showChat, setShowChat]       = useState(false);
+  const [liveMetrics, setLiveMetrics]   = useState({ etaMin: null, distMi: null, progress: 0 });
+  const [showChat, setShowChat]         = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [chatInput, setChatInput]     = useState('');
-  const [chatSending, setChatSending] = useState(false);
+  const [unreadCount, setUnreadCount]   = useState(0);
+  const [chatInput, setChatInput]       = useState('');
+  const [chatSending, setChatSending]   = useState(false);
 
-  // ── merge live Firestore doc over the prop ──────────────────────────────────
-  const trip = useMemo(() => ({ ...(activeTrip || {}), ...(liveTrip || {}) }), [activeTrip, liveTrip]);
-
-  // effective status: optimistic local > live doc > prop
+  // ── merge live doc over prop ─────────────────────────────────────────────
+  const trip   = useMemo(() => ({ ...(activeTrip || {}), ...(liveTrip || {}) }), [activeTrip, liveTrip]);
   const status = localStatus || trip?.status || 'driver_assigned';
   const stage  = STAGES[status] || STAGES.driver_assigned;
   const phase  = stage.phase;
 
-  // effective driver position: device GPS (fresh) > selfPos > prop
-  const fresh = selfPos && (Date.now() - selfPos.ts) < STALE_FIX_MS;
-  const dLat = fresh ? selfPos.lat : driver?.lat;
-  const dLng = fresh ? selfPos.lng : driver?.lng;
+  const fresh  = selfPos && (Date.now() - selfPos.ts) < STALE_FIX_MS;
+  const dLat   = fresh ? selfPos.lat : driver?.lat;
+  const dLng   = fresh ? selfPos.lng : driver?.lng;
 
-  // target for the current phase
   const targetLat = phase === 'toDropoff' ? trip?.dropoffLat : trip?.pickupLat;
   const targetLng = phase === 'toDropoff' ? trip?.dropoffLng : trip?.pickupLng;
 
-  // straight-line distance fallback (used before route metrics exist)
   const crowDistMi = (dLat && dLng && targetLat && targetLng)
     ? haversineMi(dLat, dLng, targetLat, targetLng) : null;
 
-  // ── self-healing live ride listener ─────────────────────────────────────────
+  // ── live ride listener ───────────────────────────────────────────────────
   useEffect(() => {
     const id = activeTrip?.id;
     if (!id) return;
@@ -1410,7 +1385,7 @@ export default function ActiveTripScreen({
     return () => unsub();
   }, [activeTrip?.id]);
 
-  // ── rider account lookup ─────────────────────────────────────────────────────
+  // ── rider lookup ─────────────────────────────────────────────────────────
   useEffect(() => {
     const uid = trip?.uid;
     if (!uid) return;
@@ -1419,7 +1394,7 @@ export default function ActiveTripScreen({
       .catch(() => {});
   }, [trip?.uid]);
 
-  // ── ride messages subscription ──────────────────────────────────────────────
+  // ── messages subscription ────────────────────────────────────────────────
   useEffect(() => {
     const id = trip?.id;
     if (!id) return;
@@ -1434,7 +1409,7 @@ export default function ActiveTripScreen({
     return () => unsub();
   }, [trip?.id]);
 
-  // mark rider messages as read whenever the chat panel is open
+  // mark as read when chat opens
   useEffect(() => {
     if (!showChat || !trip?.id) return;
     chatMessages
@@ -1445,7 +1420,7 @@ export default function ActiveTripScreen({
   // eslint-disable-next-line
   }, [showChat, chatMessages]);
 
-  // ── device geolocation watch (the realtime heartbeat) ───────────────────────
+  // ── GPS watch ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!useDeviceLocation || typeof navigator === 'undefined' || !navigator.geolocation) return;
     let firstFix = false;
@@ -1454,8 +1429,7 @@ export default function ActiveTripScreen({
         if (!mountedRef.current) return;
         const { latitude, longitude, heading } = pos.coords;
         setSelfPos({
-          lat: latitude,
-          lng: longitude,
+          lat: latitude, lng: longitude,
           heading: (typeof heading === 'number' && !isNaN(heading)) ? heading : null,
           ts: Date.now(),
         });
@@ -1470,13 +1444,13 @@ export default function ActiveTripScreen({
     };
   }, [useDeviceLocation]);
 
-  // ── lifecycle flag ───────────────────────────────────────────────────────────
+  // ── lifecycle flag ───────────────────────────────────────────────────────
   useEffect(() => {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
 
-  // ── load mapbox + init map ───────────────────────────────────────────────────
+  // ── init mapbox ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (mapRef.current) return;
 
@@ -1507,21 +1481,20 @@ export default function ActiveTripScreen({
       const cLng = (fresh ? selfPos.lng : driver?.lng) ?? trip?.pickupLng ?? -81.3792;
 
       const map = new mbgl.Map({
-        container: containerRef.current,
-        style:     MAP_STYLE,
-        center:    [cLng, cLat],
-        zoom:      15.5,
-        pitch:     58,
-        bearing:   0,
-        interactive: true,
+        container:          containerRef.current,
+        style:              MAP_STYLE,
+        center:             [cLng, cLat],
+        zoom:               15.5,
+        pitch:              58,
+        bearing:            0,
+        interactive:        true,
         attributionControl: false,
-        dragRotate: false,
-        pitchWithRotate: false,
+        dragRotate:         false,
+        pitchWithRotate:    false,
       });
 
-      // user pans → drop follow mode, surface recenter
       const onUserMove = (e) => {
-        if (e && e.originalEvent) { // human-initiated
+        if (e && e.originalEvent) {
           setFollowMode(false);
           setShowRecenter(true);
         }
@@ -1532,14 +1505,12 @@ export default function ActiveTripScreen({
       map.on('load', () => {
         mapRef.current = map;
 
-        // seed rendered/target with whatever we know
         const seed = (fresh && selfPos) ? [selfPos.lng, selfPos.lat]
                    : (typeof driver?.lng === 'number') ? [driver.lng, driver.lat]
                    : [cLng, cLat];
         renderedRef.current = seed.slice();
         targetRef.current   = seed.slice();
 
-        // puck
         puckRef.current = makeDriverPuck();
         driverMkrRef.current = new mbgl.Marker({ element: puckRef.current.el, anchor: 'center' })
           .setLngLat(seed)
@@ -1564,18 +1535,17 @@ export default function ActiveTripScreen({
   // eslint-disable-next-line
   }, []);
 
-  // ── feed latest fix into the animation target + derive heading ──────────────
+  // ── feed fix into animation target + derive heading ──────────────────────
   useEffect(() => {
     if (typeof dLat !== 'number' || typeof dLng !== 'number') return;
     targetRef.current = [dLng, dLat];
 
-    // prefer GPS heading; else derive from movement
     if (fresh && selfPos?.heading != null) {
       targetBearingRef.current = selfPos.heading;
     } else {
       const prev = lastFixForBearingRef.current;
       if (prev) {
-        const moved = haversineMi(prev[1], prev[0], dLat, dLng) * 1609.34; // meters
+        const moved = haversineMi(prev[1], prev[0], dLat, dLng) * 1609.34;
         if (moved >= MIN_MOVE_FOR_BEARING_M) {
           targetBearingRef.current = bearingDeg(prev[1], prev[0], dLat, dLng);
         }
@@ -1584,20 +1554,14 @@ export default function ActiveTripScreen({
     lastFixForBearingRef.current = [dLng, dLat];
   }, [dLat, dLng, fresh, selfPos]);
 
-  // ── route fetch + draw (per phase) ──────────────────────────────────────────
+  // ── route fetch + draw ───────────────────────────────────────────────────
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
     if (typeof dLat !== 'number' || typeof dLng !== 'number') return;
     if (!targetLat || !targetLng) return;
 
-    // Use the Firestore-stored polyline (refreshed by the server scheduler).
-    // toPickup → driverEtaPolyline; toDropoff → polyline.
-    const storedPoly = phase === 'toPickup'
-      ? (trip?.driverEtaPolyline ?? null)
-      : (trip?.polyline ?? null);
-    const storedDurSec = phase === 'toPickup'
-      ? (trip?.driverEtaMin || 0) * 60
-      : (trip?.tripDurationMin || 0) * 60;
+    const storedPoly   = phase === 'toPickup' ? (trip?.driverEtaPolyline ?? null) : (trip?.polyline ?? null);
+    const storedDurSec = phase === 'toPickup' ? (trip?.driverEtaMin || 0) * 60 : (trip?.tripDurationMin || 0) * 60;
 
     if (storedPoly && storedPoly !== lastInstalledPolyRef.current) {
       const decoded = decodePolyline(storedPoly);
@@ -1609,10 +1573,8 @@ export default function ActiveTripScreen({
       }
     }
 
-    // Already up-to-date — skip
     if (storedPoly || (fetchedPhaseRef.current === phase && routeReadyRef.current)) return;
 
-    // No stored polyline yet — fall back to a live API call
     const phaseAtCall = phase;
     fetchedPhaseRef.current = phase;
 
@@ -1634,7 +1596,6 @@ export default function ActiveTripScreen({
   // eslint-disable-next-line
   }, [mapReady, phase, dLat, dLng, targetLat, targetLng, trip?.driverEtaPolyline, trip?.polyline]);
 
-  /** install a fresh route for the current phase and draw it */
   function installRoute(coords, durSec) {
     routeCoordsRef.current = coords;
     routeLenMiRef.current  = pathLengthMi(coords);
@@ -1646,7 +1607,6 @@ export default function ActiveTripScreen({
     else fitWholeRoute(coords);
   }
 
-  /** (re)draw both route layers */
   function drawRoute(coords) {
     const map = mapRef.current;
     if (!map) return;
@@ -1663,14 +1623,11 @@ export default function ActiveTripScreen({
     map.addSource(SRC_TRAVEL, { type: 'geojson', data: travelGeo });
     map.addSource(SRC_REMAIN, { type: 'geojson', data: remainGeo });
 
-    // traveled (behind the car): dim grey, sits underneath
     map.addLayer({
       id: LYR_TRAVEL_MAIN, type: 'line', source: SRC_TRAVEL,
       layout: { 'line-cap': 'round', 'line-join': 'round' },
       paint: { 'line-color': 'rgba(255,255,255,.85)', 'line-width': 5, 'line-opacity': .14 },
     });
-
-    // remaining (road ahead): glow + bright core + flowing dash
     map.addLayer({
       id: LYR_REMAIN_GLOW, type: 'line', source: SRC_REMAIN,
       layout: { 'line-cap': 'round', 'line-join': 'round' },
@@ -1690,7 +1647,6 @@ export default function ActiveTripScreen({
     routeReadyRef.current = true;
   }
 
-  /** place pickup / dropoff pins */
   function placeMarkers() {
     const map = mapRef.current;
     if (!map || !window.mapboxgl) return;
@@ -1709,7 +1665,6 @@ export default function ActiveTripScreen({
     }
   }
 
-  /** fit the whole route (overview) */
   function fitWholeRoute(coords) {
     const map = mapRef.current;
     if (!map || !coords?.length) return;
@@ -1722,7 +1677,6 @@ export default function ActiveTripScreen({
     );
   }
 
-  /** chase-cam: center on the puck, rotate to heading */
   function snapCamera(immediate = false) {
     const map = mapRef.current;
     if (!map || !renderedRef.current) return;
@@ -1730,16 +1684,16 @@ export default function ActiveTripScreen({
     if (!immediate && now - lastFollowRef.current < FOLLOW_THROTTLE_MS) return;
     lastFollowRef.current = now;
     map.easeTo({
-      center: renderedRef.current,
-      bearing: bearingRef.current,
-      pitch: 58,
-      zoom: Math.max(map.getZoom(), 15.5),
+      center:   renderedRef.current,
+      bearing:  bearingRef.current,
+      pitch:    58,
+      zoom:     Math.max(map.getZoom(), 15.5),
       duration: immediate ? 600 : FOLLOW_THROTTLE_MS + 60,
-      easing: t => t,
+      easing:   t => t,
     });
   }
 
-  // ── master animation loop ────────────────────────────────────────────────────
+  // ── master rAF loop ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapReady) return;
     let alive = true;
@@ -1751,23 +1705,18 @@ export default function ActiveTripScreen({
       if (!map || !renderedRef.current || !targetRef.current) return;
       frameNoRef.current++;
 
-      // 1) smooth position toward latest fix (exponential follow)
       const r = renderedRef.current, t = targetRef.current;
       r[0] = lerp(r[0], t[0], SMOOTH_POS);
       r[1] = lerp(r[1], t[1], SMOOTH_POS);
 
-      // 2) smooth heading (shortest arc)
       bearingRef.current = lerpAngle(bearingRef.current, targetBearingRef.current, SMOOTH_BEARING);
 
-      // 3) move + rotate the puck
       if (driverMkrRef.current) driverMkrRef.current.setLngLat(r);
       if (puckRef.current) {
-        // car glyph should face heading relative to current map bearing
         const screenHeading = followMode ? 0 : bearingRef.current - map.getBearing();
         puckRef.current.rotate(followMode ? 0 : screenHeading);
       }
 
-      // 4) trim route behind the car (throttled)
       if (routeReadyRef.current && routeCoordsRef.current.length >= 2 &&
           frameNoRef.current % TRIM_EVERY_FRAMES === 0) {
         const coords = routeCoordsRef.current;
@@ -1780,9 +1729,8 @@ export default function ActiveTripScreen({
         map.getSource(SRC_REMAIN)?.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: remain } });
         map.getSource(SRC_TRAVEL)?.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: travel } });
 
-        // 5) live metrics from remaining geometry
         const remainMi = pathLengthMi(remain);
-        const total = routeLenMiRef.current || remainMi || 1;
+        const total    = routeLenMiRef.current || remainMi || 1;
         const progress = Math.max(0, Math.min(1, 1 - remainMi / total));
         let etaMin;
         if (routeDurSecRef.current > 0) {
@@ -1790,20 +1738,17 @@ export default function ActiveTripScreen({
         } else {
           etaMin = (remainMi / FALLBACK_SPEED_MPH) * 60;
         }
-        // cheap state throttle: update ~3x/sec
         if (frameNoRef.current % 18 === 0) {
           setLiveMetrics({ etaMin, distMi: remainMi, progress });
         }
       }
 
-      // 6) flowing dash
       if (routeReadyRef.current && frameNoRef.current % 3 === 0) {
         const step = (dashStepRef.current + 1) % DASH_FRAMES.length;
         dashStepRef.current = step;
         try { map.setPaintProperty(LYR_REMAIN_DASH, 'line-dasharray', DASH_FRAMES[step]); } catch (e) {}
       }
 
-      // 7) chase camera
       if (followMode) snapCamera(false);
     };
 
@@ -1812,7 +1757,7 @@ export default function ActiveTripScreen({
   // eslint-disable-next-line
   }, [mapReady, followMode]);
 
-  // ── recenter handler ─────────────────────────────────────────────────────────
+  // ── recenter ─────────────────────────────────────────────────────────────
   const handleRecenter = useCallback(() => {
     setFollowMode(true);
     setShowRecenter(false);
@@ -1820,7 +1765,7 @@ export default function ActiveTripScreen({
   // eslint-disable-next-line
   }, []);
 
-  // ── chat send handler ────────────────────────────────────────────────────────
+  // ── chat send ────────────────────────────────────────────────────────────
   const handleSendChat = useCallback(async (text) => {
     const trimmed = (text ?? chatInput).trim();
     const id = trip?.id;
@@ -1829,11 +1774,11 @@ export default function ActiveTripScreen({
     try {
       await addDoc(collection(db, 'Rides', id, 'Messages'), {
         text: trimmed,
-        senderUid: driver?.uid,
-        senderRole: 'driver',
-        createdAt: serverTimestamp(),
+        senderUid:   driver?.uid,
+        senderRole:  'driver',
+        createdAt:   serverTimestamp(),
         readByDriver: true,
-        readByRider: false,
+        readByRider:  false,
       });
       setChatInput('');
     } catch (err) {
@@ -1843,9 +1788,31 @@ export default function ActiveTripScreen({
     }
   }, [trip?.id, chatInput, driver?.uid]);
 
-  // ── action handler ───────────────────────────────────────────────────────────
+  // ── action handler ───────────────────────────────────────────────────────
+  // FIX: proximity gate — if "arrive" is triggered and the driver is more than
+  // ARRIVE_MAX_MILES from the pickup, reject immediately and surface an error
+  // toast. Because we bail before setPending(true), the SlideAction `failed`
+  // prop fires and the thumb springs back without a network call.
   const handleAction = useCallback(async (action, rideId) => {
     if (!action || !rideId) return;
+
+    if (action === 'arrive') {
+      const pLat = trip?.pickupLat;
+      const pLng = trip?.pickupLng;
+      if (
+        typeof dLat === 'number' && typeof dLng === 'number' &&
+        typeof pLat === 'number' && typeof pLng === 'number'
+      ) {
+        const dist = haversineMi(dLat, dLng, pLat, pLng);
+        if (dist > ARRIVE_MAX_MILES) {
+          setError(
+            `You're ${fmtMi(dist)} away — get within 1 mile of the pickup to mark arrived.`
+          );
+          return; // bail: no setPending, so failed=true springs the thumb back immediately
+        }
+      }
+    }
+
     setPending(true);
     setError(null);
     try {
@@ -1862,9 +1829,9 @@ export default function ActiveTripScreen({
     } finally {
       if (mountedRef.current) setPending(false);
     }
-  }, [onTripComplete]);
+  }, [onTripComplete, trip?.pickupLat, trip?.pickupLng, dLat, dLng]);
 
-  // ── cleanup timers/markers on unmount ────────────────────────────────────────
+  // ── cleanup ──────────────────────────────────────────────────────────────
   useEffect(() => () => {
     if (completeTimerRef.current) clearTimeout(completeTimerRef.current);
     [pickupMkrRef, dropoffMkrRef, driverMkrRef].forEach(r => {
@@ -1872,33 +1839,33 @@ export default function ActiveTripScreen({
     });
   }, []);
 
-  // ── derived display metrics (route-aware, with crow-flies fallback) ──────────
-  const displayDist = liveMetrics.distMi != null ? liveMetrics.distMi : crowDistMi;
-  const displayEta  = liveMetrics.etaMin != null
+  // ── derived metrics ──────────────────────────────────────────────────────
+  const displayDist    = liveMetrics.distMi != null ? liveMetrics.distMi : crowDistMi;
+  const displayEta     = liveMetrics.etaMin != null
     ? liveMetrics.etaMin
     : (crowDistMi != null ? (crowDistMi / FALLBACK_SPEED_MPH) * 60 : null);
   const displayProgress = liveMetrics.progress || 0;
-  const arrivalClock = displayEta != null ? fmtArrivalClock(displayEta) : '—';
+  const arrivalClock   = displayEta != null ? fmtArrivalClock(displayEta) : '—';
 
-  // ─── render ──────────────────────────────────────────────────────────────────
+  // ─── render ──────────────────────────────────────────────────────────────
   return (
     <>
       <style>{`
-        @keyframes ats-spin       { to { transform:rotate(360deg); } }
-        @keyframes ats-blink      { 0%,100%{opacity:1} 50%{opacity:.25} }
-        @keyframes ats-slidedown  { from{opacity:0;transform:translate(-50%,-10px)} to{opacity:1;transform:translate(-50%,0)} }
-        @keyframes ats-slidein-right { from{opacity:0;transform:translateX(16px)} to{opacity:1;transform:translateX(0)} }
-        @keyframes ats-slideup    { from{opacity:0;transform:translateY(22px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes ats-popin      { from{opacity:0;transform:scale(.55)} to{opacity:1;transform:scale(1)} }
-        @keyframes ats-chev       { 0%,100%{opacity:.3;transform:translateX(0)} 50%{opacity:1;transform:translateX(2px)} }
+        @keyframes ats-spin           { to { transform:rotate(360deg); } }
+        @keyframes ats-blink          { 0%,100%{opacity:1} 50%{opacity:.25} }
+        @keyframes ats-slidedown      { from{opacity:0;transform:translate(-50%,-12px)} to{opacity:1;transform:translate(-50%,0)} }
+        @keyframes ats-slidein-right  { from{opacity:0;transform:translateX(16px)} to{opacity:1;transform:translateX(0)} }
+        @keyframes ats-slideup        { from{opacity:0;transform:translateY(22px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes ats-popin          { from{opacity:0;transform:scale(.55)} to{opacity:1;transform:scale(1)} }
+        @keyframes ats-chev           { 0%,100%{opacity:.3;transform:translateX(0)} 50%{opacity:1;transform:translateX(2px)} }
         .mapboxgl-ctrl-logo { display:none !important; }
       `}</style>
 
       <div style={{ position: 'fixed', inset: 0, background: C.bg, overflow: 'hidden' }}>
-        {/* full-screen mapbox canvas */}
+        {/* mapbox canvas */}
         <div ref={containerRef} style={{ position: 'absolute', inset: 0 }}/>
 
-        {/* loading state */}
+        {/* loading */}
         {!mapReady && (
           <div style={{
             position: 'absolute', inset: 0, zIndex: 10,
@@ -1916,11 +1883,14 @@ export default function ActiveTripScreen({
           </div>
         )}
 
-        {/* vignette for depth */}
+        {/* vignette */}
         <div style={{
           position: 'absolute', inset: 0, zIndex: 5, pointerEvents: 'none',
           background: 'radial-gradient(ellipse at 50% 44%, transparent 38%, rgba(3,6,4,.28) 78%, rgba(3,6,4,.62) 100%)',
         }}/>
+
+        {/* ── fixed centered error toast (replaces in-sheet version) ── */}
+        <ErrorToast message={error} onDismiss={() => setError(null)} />
 
         {/* top HUD */}
         <TopBar
@@ -1932,7 +1902,7 @@ export default function ActiveTripScreen({
           gpsLive={gpsLive}
         />
 
-        {/* live ETA card */}
+        {/* ETA card */}
         {mapReady && status !== 'completed' && (
           <EtaCard
             etaMin={status === 'arrived' ? 0 : displayEta}
@@ -1945,7 +1915,7 @@ export default function ActiveTripScreen({
         {/* rider card */}
         {mapReady && status !== 'completed' && <RiderCard rider={rider}/>}
 
-        {/* recenter */}
+        {/* recenter FAB */}
         {mapReady && status !== 'completed' && (
           <RecenterFab visible={showRecenter} onClick={handleRecenter}/>
         )}
@@ -1967,7 +1937,7 @@ export default function ActiveTripScreen({
           />
         )}
 
-        {/* bottom action sheet */}
+        {/* bottom action sheet — error prop wires failed into SlideAction */}
         <ActionSheet
           trip={trip}
           stage={status}
@@ -1975,7 +1945,6 @@ export default function ActiveTripScreen({
           onAction={handleAction}
           pending={pending}
           error={error}
-          onDismissError={() => setError(null)}
         />
       </div>
     </>
