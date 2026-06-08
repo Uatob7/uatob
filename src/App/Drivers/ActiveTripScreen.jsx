@@ -637,13 +637,13 @@ function SlideAction({ label, color, onConfirm, pending, failed }) {
   const [committed, setCommitted] = useState(false); // fired; awaiting resolution
 
   // Spring back the thumb when the parent reports a failure
-  useEffect(() => {
-    if (failed) {
-      setCommitted(false);
-      offsetRef.current = 0;
-      setX(0);
-    }
-  }, [failed]);
+  // NEW — resets on every failed change (true OR false)
+// This covers: initial failure AND the moment the user dismisses the toast
+useEffect(() => {
+  setCommitted(false);
+  offsetRef.current = 0;
+  setX(0);
+}, [failed]);
 
   const measure = useCallback(() => {
     if (!trackRef.current) return 0;
