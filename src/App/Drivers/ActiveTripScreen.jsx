@@ -314,25 +314,26 @@ function ActionSheet({
         borderRadius: '24px 24px 0 0',
         backdropFilter: 'blur(18px)',
         boxShadow: `0 -12px 48px rgba(0,0,0,.65), 0 0 40px ${cfg.statusColor}12`,
-        padding: '14px 20px 36px',
+        paddingTop: 12, paddingLeft: 16, paddingRight: 16,
+        paddingBottom: 'max(24px, calc(env(safe-area-inset-bottom) + 12px))',
       }}>
         {/* drag handle */}
         <div style={{
           width: 36, height: 3.5, borderRadius: 2,
           background: 'rgba(255,255,255,.12)',
-          margin: '0 auto 16px',
+          margin: '0 auto 10px',
         }}/>
 
         {/* route summary */}
         <div style={{
-          display: 'flex', gap: 14, alignItems: 'stretch',
-          marginBottom: 16,
-          background: 'rgba(255,255,255,.03)', borderRadius: 14,
+          display: 'flex', gap: 12, alignItems: 'stretch',
+          marginBottom: 10,
+          background: 'rgba(255,255,255,.03)', borderRadius: 12,
           border: '1px solid rgba(255,255,255,.06)',
-          padding: '12px 14px',
+          padding: '9px 12px',
         }}>
           <RouteRail status={stage}/>
-          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 9 }}>
             <AddrRow label="Pickup"   text={pickup}  dimmed={false}/>
             <AddrRow label="Drop-off" text={dropoff} dimmed={stage !== 'in_progress'}/>
           </div>
@@ -341,7 +342,7 @@ function ActionSheet({
         {/* hint */}
         <div style={{
           fontFamily: COND, fontSize: 11, fontWeight: 600, letterSpacing: '.06em',
-          color: C.ink, marginBottom: 14, lineHeight: 1.5,
+          color: C.ink, marginBottom: 8, lineHeight: 1.5,
           display: 'flex', alignItems: 'flex-start', gap: 7,
         }}>
           <span style={{ color: cfg.statusColor, fontSize: 12, marginTop: 1 }}>›</span>
@@ -588,13 +589,13 @@ export default function ActiveTripScreen({ driver, activeTrip, onTripComplete })
     } catch (e) { /* map gone */ }
   }, [dLat, dLng, mapReady]);
 
-  // ── fetch + draw route when trip arrives or trip changes ────────────────
+  // ── fetch + draw route when trip arrives or driver coords become known ──
   useEffect(() => {
     if (!mapReady || !mapRef.current || !activeTrip?.id) return;
+    // Wait until driver position is available before locking in the trip id
+    if (!dLat || !dLng || !activeTrip.pickupLat || !activeTrip.pickupLng) return;
     if (activeTrip.id === prevTripIdRef.current) return;
     prevTripIdRef.current = activeTrip.id;
-
-    if (!dLat || !dLng || !activeTrip.pickupLat || !activeTrip.pickupLng) return;
 
     callGetRoute({
       driverLat: dLat, driverLng: dLng,
@@ -607,11 +608,12 @@ export default function ActiveTripScreen({ driver, activeTrip, onTripComplete })
       fitMap(coords);
     }).catch(err => {
       console.warn('[ActiveTripScreen] route fetch failed:', err);
-      // still place markers even without a route
+      // straight-line fallback so a line is always visible
+      drawRoute([[dLng, dLat], [activeTrip.pickupLng, activeTrip.pickupLat]]);
       placeMarkers();
       fitMapFallback();
     });
-  }, [activeTrip?.id, mapReady]); // eslint-disable-line
+  }, [activeTrip?.id, mapReady, dLat, dLng]); // eslint-disable-line
 
   function driverGeoJSON(lat, lng) {
     return {

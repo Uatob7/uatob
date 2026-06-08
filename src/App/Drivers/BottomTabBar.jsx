@@ -18,6 +18,7 @@ const TABS = [
  *   activeTrip   — used to show the pulsing green dot on Home
  */
 export default function BottomTabBar({ activeTab, setActiveTab, online, activeTrip }) {
+  if (activeTrip) return null;
   return (
     <div style={{
       position: "fixed", bottom: 0, left: 0, right: 0,

@@ -10,6 +10,7 @@ import UaTobIcon        from '@/App/Drivers/Icon.jsx';
 import TripRequestModal from '@/App/Drivers/TripRequestModal.jsx';
 import BottomTabBar     from '@/App/Drivers/BottomTabBar.jsx';
 import HomeTab          from '@/App/Drivers/HomeTab.jsx';
+import ActiveTripScreen from '@/App/Drivers/ActiveTripScreen.jsx';
 import EarningsTab      from '@/App/Drivers/EarningsTab.jsx';
 import TripsTab         from '@/App/Drivers/TripsTab.jsx';
 import ProfileTab       from '@/App/Drivers/ProfileTab.jsx';
@@ -663,6 +664,7 @@ function DriverAppInner({ uid }) {
   const [seenReviewIds,     setSeenReviewIds]     = useState(() => loadSeenReviews());
   const [pendingReview,     setPendingReview]     = useState(null);
   const [showSupport,       setShowSupport]       = useState(false);
+  const [tripScreenTrip,    setTripScreenTrip]    = useState(null);
 
   const timerRef          = useRef(null);
   const prevRequestId     = useRef(null);
@@ -727,6 +729,18 @@ function DriverAppInner({ uid }) {
   }, [activeRides, uid]);
 
   useEffect(() => { if (activeTrip?.id) setAcceptedRequestId(null); }, [activeTrip?.id]);
+
+  // Keep tripScreenTrip in sync with fresh Firestore data; only cleared by handleTripComplete.
+  // This lets ActiveTripScreen stay mounted and show the CompletedSheet animation even after
+  // Firestore removes the ride from activeRides.
+  useEffect(() => {
+    if (activeTrip) setTripScreenTrip(activeTrip);
+  }, [activeTrip]);
+
+  const handleTripComplete = useCallback(() => {
+    setTripScreenTrip(null);
+    refetch();
+  }, [refetch]);
 
   useEffect(() => {
     if (!reviews.length || pendingReview || activeTrip || tripRequest) return;
@@ -991,6 +1005,14 @@ function DriverAppInner({ uid }) {
         {activeTab === "trips"    && !isRejected && <TripsTab    completedRides={completedRides} online={online} />}
         {activeTab === "profile"  &&                <ProfileTab  driver={driver} online={online} />}
       </div>
+
+      {tripScreenTrip && !isRejected && (
+        <ActiveTripScreen
+          driver={driver}
+          activeTrip={tripScreenTrip}
+          onTripComplete={handleTripComplete}
+        />
+      )}
 
       <BottomTabBar activeTab={activeTab} setActiveTab={isRejected ? ()=>{} : setActiveTab} online={online} activeTrip={activeTrip} isRejected={isRejected} />
     </div>
