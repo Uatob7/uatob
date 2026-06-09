@@ -6,17 +6,29 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { C, FACES, FACE_BOOK, FACE_SEARCHES, FACE_SCHEDULED, FACE_NOTIFS, FACE_COUNT } from '@/App/UaTob/Statuscardtokens';
+
+import {
+  C,
+  FACES,
+  FACE_BOOK,
+  FACE_SEARCHES,
+  FACE_SCHEDULED,
+  FACE_NOTIFS,
+  FACE_ACCOUNT,
+  FACE_TRIPS,
+  FACE_COUNT,
+} from '@/App/UaTob/Statuscardtokens';
+
 import BookRideCard      from '@/App/UaTob/BookRideCard';
 import SearchesCard      from '@/App/UaTob/SearchesCard';
 import ScheduledCard     from '@/App/UaTob/ScheduledCar';
 import NotificationsCard from '@/App/UaTob/NotificationsCard';
+import AccountCard       from '@/App/UaTob/AccountCard';
+import TripsCard         from '@/App/UaTob/TripsCard';
 
-export { FACE_BOOK, FACE_SEARCHES, FACE_SCHEDULED, FACE_NOTIFS, FACE_COUNT };
-
-const AUTO_CYCLE_MS      = 3800;
-const POST_BOOKING_MS    = 6_000;
-const POST_INTERACT_MS   = 12_000;
+const AUTO_CYCLE_MS    = 3800;
+const POST_BOOKING_MS  = 6000;
+const POST_INTERACT_MS = 12000;
 
 export default function StatusCard({
   face,
@@ -31,10 +43,7 @@ export default function StatusCard({
   const [autoCycle, setAutoCycle] = useState(true);
   const timerRef = useRef(null);
 
-  // ── Auto-cycle ──────────────────────────────────────────────────────────
-  // Fully paused whenever:
-  //   • autoCycle is false, OR
-  //   • the booking face is showing (guard against stale state)
+  // ── Auto-cycle ─────────────────────────────────────────────
   useEffect(() => {
     clearTimeout(timerRef.current);
 
@@ -42,6 +51,7 @@ export default function StatusCard({
 
     timerRef.current = setTimeout(() => {
       const next = (face + 1) % FACE_COUNT;
+
       // skip booking face during auto-cycle
       onFaceChange(next === FACE_BOOK ? (next + 1) % FACE_COUNT : next);
     }, AUTO_CYCLE_MS);
@@ -49,45 +59,50 @@ export default function StatusCard({
     return () => clearTimeout(timerRef.current);
   }, [face, autoCycle, onFaceChange]);
 
-  // ── Tab / face selection ────────────────────────────────────────────────
-  const handleTabClick = useCallback((i) => {
-    clearTimeout(timerRef.current);
+  // ── Tab / face selection ───────────────────────────────────
+  const handleTabClick = useCallback(
+    (i) => {
+      clearTimeout(timerRef.current);
 
-    if (i === FACE_BOOK) {
-      // Hard-freeze: no timer at all — only onBookingComplete re-enables
-      setAutoCycle(false);
-    } else {
-      // Pause while user browses, then resume
-      setAutoCycle(false);
-      timerRef.current = setTimeout(() => setAutoCycle(true), POST_INTERACT_MS);
-    }
+      if (i === FACE_BOOK) {
+        // hard freeze until booking completes
+        setAutoCycle(false);
+      } else {
+        setAutoCycle(false);
+        timerRef.current = setTimeout(() => setAutoCycle(true), POST_INTERACT_MS);
+      }
 
-    onFaceChange(i);
-  }, [onFaceChange]);
+      onFaceChange(i);
+    },
+    [onFaceChange]
+  );
 
-  // ── Booking complete callback ───────────────────────────────────────────
+  // ── Booking complete ───────────────────────────────────────
   const handleBookingComplete = useCallback(() => {
     clearTimeout(timerRef.current);
-    // Give the rider a moment on the success screen before cycling resumes
-    timerRef.current = setTimeout(() => setAutoCycle(true), POST_BOOKING_MS);
+
+    timerRef.current = setTimeout(() => {
+      setAutoCycle(true);
+    }, POST_BOOKING_MS);
   }, []);
 
-  // ── Cleanup on unmount ──────────────────────────────────────────────────
+  // ── Cleanup ────────────────────────────────────────────────
   useEffect(() => () => clearTimeout(timerRef.current), []);
 
   return (
-    <div style={{
-      width: '100%',
-      maxWidth: 340,
-      background: 'linear-gradient(180deg, rgba(6,14,8,.94), rgba(3,8,5,.97))',
-      border: '1px solid rgba(34,197,94,.18)',
-      borderRadius: 16,
-      overflow: 'hidden',
-      boxShadow: '0 10px 36px rgba(0,0,0,.6), 0 0 24px rgba(34,197,94,.1)',
-      backdropFilter: 'blur(16px)',
-    }}>
+    <div
+      style={{
+        width: '100%',
+        maxWidth: 340,
+        background: 'linear-gradient(180deg, rgba(6,14,8,.94), rgba(3,8,5,.97))',
+        border: '1px solid rgba(34,197,94,.18)',
+        borderRadius: 16,
+        overflow: 'hidden',
+        boxShadow: '0 10px 36px rgba(0,0,0,.6), 0 0 24px rgba(34,197,94,.1)',
+        backdropFilter: 'blur(16px)',
+      }}
+    >
       <div key={face} style={{ animation: 'uaCardFlip .28s ease both' }}>
-
         {face === FACE_BOOK && (
           <BookRideCard
             bare
@@ -117,6 +132,9 @@ export default function StatusCard({
           />
         )}
 
+        {face === FACE_ACCOUNT && <AccountCard />}
+
+        {face === FACE_TRIPS && <TripsCard />}
       </div>
     </div>
   );

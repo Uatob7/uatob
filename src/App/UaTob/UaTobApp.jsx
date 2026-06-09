@@ -10,7 +10,17 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import StatusCard, { FACE_BOOK, FACE_COUNT } from '@/App/UaTob/StatusCard';
+import {
+  FACE_BOOK,
+  FACE_SEARCHES,
+  FACE_SCHEDULED,
+  FACE_NOTIFS,
+  FACE_ACCOUNT,
+  FACE_TRIPS,
+  FACE_COUNT,
+} from '@/App/UaTob/Statuscardtokens';
+
+import StatusCard from '@/App/UaTob/StatusCard';
 // ─── Design tokens ──────────────────────────────────────────────────────────
 const C = {
   bg:          '#050A06',

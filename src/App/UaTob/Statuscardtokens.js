@@ -28,6 +28,8 @@ export const FACE_SEARCHES  = 1;
 export const FACE_SCHEDULED = 2;
 export const FACE_NOTIFS    = 3;
 export const FACE_COUNT     = 4;
+export const FACE_ACCOUNT   = 4;
+export const FACE_TRIPS     = 5;
 
 export const FACES = [
   { label: 'Book',      color: C.greenBright },
