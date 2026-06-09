@@ -511,6 +511,7 @@ function DriverAppInner({ uid }) {
   const [pendingReview,     setPendingReview]     = useState(null);
   const [showSupport,       setShowSupport]       = useState(false);
   const [tripScreenTrip,    setTripScreenTrip]    = useState(null);
+  const [hideTabBar,        setHideTabBar]        = useState(false);
 
   const timerRef          = useRef(null);
   const prevRequestId     = useRef(null);
@@ -856,7 +857,7 @@ function DriverAppInner({ uid }) {
 
         {isRejected && <RejectedBanner/>}
 
-        {activeTab === "home"     && !isRejected && <HomeTab driver={driver} accounts={accounts} searches={searches} online={online} rides={rides} activeTrip={activeTrip} tripStage={tripStage} tripStageColor={tripStageColor} tripBtnLabel={tripBtnLabel} earnings={earnings} onToggleOnline={handleToggleOnline} onAdvanceTrip={handleAdvanceTrip} advancePending={advancePending} scheduledRides={scheduledRides} onOpenSupport={() => setShowSupport(true)} supportUnread={supportUnread}/>}
+        {activeTab === "home"     && !isRejected && <HomeTab driver={driver} accounts={accounts} searches={searches} online={online} rides={rides} activeTrip={activeTrip} tripStage={tripStage} tripStageColor={tripStageColor} tripBtnLabel={tripBtnLabel} earnings={earnings} onToggleOnline={handleToggleOnline} onAdvanceTrip={handleAdvanceTrip} advancePending={advancePending} scheduledRides={scheduledRides} onOpenSupport={() => setShowSupport(true)} supportUnread={supportUnread} onCompletedPopupChange={setHideTabBar}/>}
         {activeTab === "earnings" && !isRejected && <EarningsTab earnings={earnings} driver={driver} online={online}/>}
         {activeTab === "trips"    && !isRejected && <TripsTab    completedRides={completedRides} online={online}/>}
         {activeTab === "profile"  &&                <ProfileTab  driver={driver} online={online}/>}
@@ -866,8 +867,10 @@ function DriverAppInner({ uid }) {
         <ActiveTripScreen driver={driver} activeTrip={tripScreenTrip} onTripComplete={handleTripComplete}/>
       )}
 
-      <BottomTabBar activeTab={activeTab} setActiveTab={isRejected ? ()=>{} : setActiveTab}
-        online={online} activeTrip={activeTrip} isRejected={isRejected}/>
+      {!hideTabBar && (
+        <BottomTabBar activeTab={activeTab} setActiveTab={isRejected ? ()=>{} : setActiveTab}
+          online={online} activeTrip={activeTrip} isRejected={isRejected}/>
+      )}
     </div>
   );
 }

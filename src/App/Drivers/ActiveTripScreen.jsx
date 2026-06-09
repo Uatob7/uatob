@@ -1279,6 +1279,7 @@ export default function ActiveTripScreen({
   const watchIdRef       = useRef(null);
   const completeTimerRef = useRef(null);
   const mountedRef       = useRef(true);
+  const lastRideWriteRef = useRef(0);
 
   // ── state ────────────────────────────────────────────────────────────────
   const [mapReady,      setMapReady]      = useState(false);
@@ -1500,6 +1501,48 @@ export default function ActiveTripScreen({
     offRouteFramesRef.current = 0;
     setOffRoute(false);
   }, [phase]);
+
+  // ── write live ETA + distance to Rides/{id} (throttled to every 30 s) ───
+  useEffect(() => {
+    const { etaMin, distMi } = liveMetrics;
+    if (etaMin == null || distMi == null || !trip?.id) return;
+    if (Date.now() - lastRideWriteRef.current < 30_000) return;
+    lastRideWriteRef.current = Date.now();
+
+    const fields = phase === 'toDropoff'
+      ? { remainingEtaMin: Math.round(etaMin), remainingDistanceMi: +distMi.toFixed(2) }
+      : { driverEtaMin: Math.round(etaMin),    driverDistanceMi:    +distMi.toFixed(2) };
+
+    updateDoc(doc(db, 'Rides', trip.id), fields).catch(() => {});
+  }, [liveMetrics]); // eslint-disable-line
+
+  // ── push live rider-facing metrics on every change ───────────────────────
+  useEffect(() => {
+    if (!trip?.id) return;
+
+    const { etaMin, distMi } = liveMetrics;
+
+    const dispDist = distMi != null
+      ? distMi
+      : (dLat && dLng && targetLat && targetLng
+          ? haversineMi(dLat, dLng, targetLat, targetLng)
+          : null);
+
+    const dispEta = etaMin != null
+      ? etaMin
+      : (dispDist != null
+          ? (dispDist / (renderedSpeedRef.current > SPEED_FLOOR_FOR_ETA ? renderedSpeedRef.current : FALLBACK_SPEED_MPH)) * 60
+          : null);
+
+    if (dispEta == null && dispDist == null) return;
+
+    updateDoc(doc(db, 'Rides', trip.id), {
+      livePickup:   dispEta  != null ? +dispEta.toFixed(1)  : null,
+      liveDistance: dispDist != null ? +dispDist.toFixed(2) : null,
+      liveMph:      liveSpeedMph != null ? +liveSpeedMph.toFixed(1) : null,
+      liveArrival:  dispEta  != null ? fmtArrivalClock(dispEta) : null,
+    }).catch(() => {});
+  }, [liveMetrics, dLat, dLng]); // eslint-disable-line
 
   // ── route fetch + draw ───────────────────────────────────────────────────
   useEffect(() => {

@@ -3,6 +3,8 @@ import {
   collection,
   onSnapshot,
   getFirestore,
+  doc,
+  updateDoc,
 } from "firebase/firestore";
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { firebase_app } from "@/firebase/config";
@@ -1514,6 +1516,169 @@ function ScheduledDrawer({ open, onToggle, scheduledRides, driver, now }) {
   );
 }
 
+// ═════════════════════════════════════════════════════════════════════════════
+// COMPLETED TRIP POPUP
+// Full-screen overlay — covers footer automatically via z-index 9999.
+// Dismiss with the X button.
+// ═════════════════════════════════════════════════════════════════════════════
+function CompletedTripPopup({ trip, onDismiss }) {
+  const payout = typeof trip?.driverPayout === 'number' ? trip.driverPayout : null;
+  const miles  = typeof trip?.tripDistanceMiles === 'number' ? trip.tripDistanceMiles : null;
+  const mins   = typeof trip?.tripDurationMin   === 'number' ? trip.tripDurationMin   : null;
+  const pickup  = trip?.pickup  || trip?.pickupLabel  || null;
+  const dropoff = trip?.dropoff || trip?.dropoffLabel || null;
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9999,
+      background: 'radial-gradient(ellipse at 50% 44%, #071509 0%, #030604 100%)',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      animation: 'htFadeIn .3s ease both',
+    }}>
+      {/* subtle pulse rings */}
+      {[80, 140, 200].map((r, i) => (
+        <div key={i} style={{
+          position: 'absolute', width: r * 2, height: r * 2, borderRadius: '50%',
+          border: '1px solid rgba(74,222,128,.07)',
+          animation: `htRingPulse ${2.8 + i * 0.6}s ease-in-out ${i * 0.4}s infinite`,
+          pointerEvents: 'none',
+        }}/>
+      ))}
+
+      {/* X dismiss button */}
+      <button
+        onClick={onDismiss}
+        style={{
+          position: 'absolute', top: 'calc(14px + env(safe-area-inset-top))', right: 16,
+          width: 38, height: 38, borderRadius: 12, border: '1px solid rgba(255,255,255,.12)',
+          background: 'rgba(255,255,255,.06)', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', zIndex: 2,
+        }}
+        aria-label="Dismiss"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+          stroke="rgba(255,255,255,.6)" strokeWidth="2.2" strokeLinecap="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+
+      {/* check badge */}
+      <div style={{ position: 'relative', width: 100, height: 100, marginBottom: 24 }}>
+        {[0, 1].map(i => (
+          <div key={i} style={{
+            position: 'absolute', inset: 0, borderRadius: '50%',
+            border: `1.5px solid ${C.greenBright}`,
+            animation: `htRingPulse 2s ${i * 0.35}s cubic-bezier(0,.4,.6,1) infinite`,
+          }}/>
+        ))}
+        <div style={{
+          position: 'absolute', inset: 16, borderRadius: '50%',
+          background: 'rgba(34,197,94,.15)', border: `1.5px solid ${C.greenBright}55`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: `0 0 36px ${C.greenBright}44`,
+        }}>
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none"
+            stroke={C.greenBright} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+      </div>
+
+      <div style={{
+        fontFamily: COND, fontSize: 13, fontWeight: 800, letterSpacing: '.22em',
+        color: C.greenBright, textTransform: 'uppercase', marginBottom: 6,
+      }}>
+        Trip Complete
+      </div>
+
+      {/* payout */}
+      {payout !== null && (
+        <div style={{
+          fontFamily: MONO, fontSize: 52, fontWeight: 800,
+          color: C.amberBright, lineHeight: 1,
+          textShadow: `0 0 40px ${C.amberBright}66`,
+          marginBottom: 6,
+        }}>
+          ${payout.toFixed(2)}
+        </div>
+      )}
+      <div style={{
+        fontFamily: COND, fontSize: 10, fontWeight: 800, letterSpacing: '.18em',
+        color: C.inkTextDim, marginBottom: 28,
+      }}>
+        DRIVER PAYOUT
+      </div>
+
+      {/* stats row */}
+      {(miles !== null || mins !== null) && (
+        <div style={{
+          display: 'flex', gap: 1, marginBottom: 28,
+          background: 'rgba(255,255,255,.03)', border: '1px solid rgba(34,197,94,.14)',
+          borderRadius: 14, overflow: 'hidden',
+        }}>
+          {miles !== null && (
+            <div style={{ padding: '10px 22px', textAlign: 'center' }}>
+              <div style={{ fontFamily: MONO, fontSize: 18, fontWeight: 800, color: '#fff' }}>
+                {miles.toFixed(1)}
+              </div>
+              <div style={{ fontFamily: COND, fontSize: 8.5, fontWeight: 800, letterSpacing: '.14em', color: C.inkTextDim, marginTop: 2 }}>
+                MILES
+              </div>
+            </div>
+          )}
+          {miles !== null && mins !== null && (
+            <div style={{ width: 1, background: 'rgba(34,197,94,.12)', alignSelf: 'stretch' }}/>
+          )}
+          {mins !== null && (
+            <div style={{ padding: '10px 22px', textAlign: 'center' }}>
+              <div style={{ fontFamily: MONO, fontSize: 18, fontWeight: 800, color: '#fff' }}>
+                {mins}
+              </div>
+              <div style={{ fontFamily: COND, fontSize: 8.5, fontWeight: 800, letterSpacing: '.14em', color: C.inkTextDim, marginTop: 2 }}>
+                MINS
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* route */}
+      {(pickup || dropoff) && (
+        <div style={{
+          width: 'min(88vw, 340px)',
+          background: 'rgba(255,255,255,.03)', border: '1px solid rgba(34,197,94,.12)',
+          borderRadius: 14, padding: '12px 16px',
+        }}>
+          {pickup && (
+            <div style={{ marginBottom: dropoff ? 10 : 0 }}>
+              <div style={{ fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.14em', color: C.inkTextDim, marginBottom: 3 }}>
+                PICKUP
+              </div>
+              <div style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,.8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {pickup}
+              </div>
+            </div>
+          )}
+          {pickup && dropoff && (
+            <div style={{ height: 1, background: 'rgba(34,197,94,.1)', margin: '2px 0 10px' }}/>
+          )}
+          {dropoff && (
+            <div>
+              <div style={{ fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.14em', color: C.inkTextDim, marginBottom: 3 }}>
+                DROP-OFF
+              </div>
+              <div style={{ fontFamily: MONO, fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,.5)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {dropoff}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function RadarOverlay({ svgRef }) {
   return (
     <svg ref={svgRef}
@@ -1590,6 +1755,7 @@ export default function HomeTab({
   onOpenSupport,
   supportUnread = 0,
   onDriverMove,          // optional: (fix) => void — persist live location if desired
+  onCompletedPopupChange, // optional: (visible: bool) => void — lets parent hide tab bar
 }) {
 
   const mapContainerRef  = useRef(null);
@@ -1620,8 +1786,10 @@ export default function HomeTab({
   const [mapZoom, setMapZoom]           = useState(12);
   const [bootStep, setBootStep]         = useState(0);
   const [bootDone, setBootDone]         = useState(false);
-  const [drawerOpen, setDrawerOpen]     = useState(false);
-  const [alert, setAlert]               = useState(null);
+  const [drawerOpen, setDrawerOpen]           = useState(false);
+  const [alert, setAlert]                     = useState(null);
+  const [showCompleted, setShowCompleted]     = useState(false);
+  const lastCompletedIdRef                    = useRef(null);
   const prevDotRef    = useRef(0);
   const alertTimerRef = useRef(null);
 
@@ -1649,6 +1817,22 @@ export default function HomeTab({
     if (online && !onlineSinceRef.current) onlineSinceRef.current = Date.now();
     if (!online) onlineSinceRef.current = null;
   }, [online]);
+
+  // ── Persist onlineTime to Drivers/{uid} every 30 s ─────────────────────
+  useEffect(() => {
+    const uid = driver?.uid;
+    if (!online || !uid) return;
+
+    const tick = () => {
+      if (!onlineSinceRef.current) return;
+      const seconds = Math.floor((Date.now() - onlineSinceRef.current) / 1000);
+      updateDoc(doc(db, 'Drivers', uid), { onlineTime: seconds }).catch(() => {});
+    };
+
+    tick(); // write immediately on going online
+    const id = setInterval(tick, 30_000);
+    return () => clearInterval(id);
+  }, [online, driver?.uid]);
 
   // ── Boot sequence ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -2228,6 +2412,21 @@ export default function HomeTab({
 
   useEffect(() => () => clearTimeout(alertTimerRef.current), []);
 
+  // ── Show completed popup when trip transitions to "completed" ──────────
+  useEffect(() => {
+    let next = false;
+    if (activeTrip?.status === 'completed' && activeTrip.id !== lastCompletedIdRef.current) {
+      lastCompletedIdRef.current = activeTrip.id;
+      next = true;
+    } else if (!activeTrip || activeTrip.status !== 'completed') {
+      next = false;
+    } else {
+      return;
+    }
+    setShowCompleted(next);
+    onCompletedPopupChange?.(next);
+  }, [activeTrip?.status, activeTrip?.id]); // eslint-disable-line
+
   const moneyStr     = fmtMoney(earnings);
   const toggleDrawer = useCallback(() => setDrawerOpen(o => !o), []);
 
@@ -2380,6 +2579,14 @@ export default function HomeTab({
         {/* Support FAB */}
         {onOpenSupport && (
           <SupportFab onOpen={onOpenSupport} unread={supportUnread}/>
+        )}
+
+        {/* Completed trip popup — covers footer via z-index 9999 */}
+        {showCompleted && (
+          <CompletedTripPopup
+            trip={activeTrip}
+            onDismiss={() => { setShowCompleted(false); onCompletedPopupChange?.(false); }}
+          />
         )}
 
         {/* StatusCard HUD */}
