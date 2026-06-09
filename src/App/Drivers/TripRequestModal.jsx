@@ -1,30 +1,29 @@
 /**
- * TripRequestModal.jsx  — Full-screen incoming-ride request (driver-facing)
+ * TripRequestModal.jsx — Full-screen incoming-ride request (driver-facing)
  * ════════════════════════════════════════════════════════════════════════════
  * The decision screen: a ride comes in, the driver has ~60s to take it.
  * Slide RIGHT → Accept · Slide LEFT → Decline.
  *
- * Built to match ActiveTripScreen quality, tuned for the accept/decline beat:
+ * This build matches ActiveTripScreen: the map is the screen. A full-bleed
+ * Mapbox view fills everything, and the decision panel is deliberately small.
+ *
+ * Behaviour the way ActiveTripScreen handles it:
  * ─────────────────────────────────────────────────────────────────────────
- *   • Animated route. The driver→pickup line draws itself in on arrival, then
- *     carries a flowing marching-dash overlay so it always reads as "live."
- *   • Radar scene. A slow conic sweep rotates over the map and concentric ping
- *     rings pulse from the pickup pin — the HomeTab radar language, here meaning
- *     "a rider is waiting right here."
- *   • Compass-to-pickup. A small bearing arrow + cardinal direction so the
- *     driver instantly knows which way the job is.
- *   • Cinematic intro. The camera starts pulled back and eases in as the panel
- *     rises; a soft haptic announces the request.
- *   • Urgency system. A draining top bar + countdown ring shift green→amber→red,
- *     and at ≤10s the whole sheet picks up a red heartbeat (plus a single haptic
- *     pulse on the threshold) so a late accept is never an accident.
- *   • Driver-decision intelligence. The fare counts up on mount and is paired
- *     with $/mi and $/min, an earnings-quality gauge, a deadhead ratio, and an
- *     expandable fare breakdown — the numbers a driver actually judges a ride on.
- *   • Rider context. A mini rider card (avatar, first name, rating, trips) is
- *     fetched from the rider's account; the full address stays redacted until
- *     accept, then reveals with a smooth transition.
- *   • Real states. Distinct ACCEPTED and EXPIRED overlays close the loop.
+ *   • FULL MAP, COMPACT PANEL. While the driver→pickup route is still being
+ *     fetched, the panel sits a little taller (it has nothing better to show, so
+ *     it shows skeletons). The instant the polyline returns, the panel COLLAPSES
+ *     to a compact card — fare, distance-to-pickup, the two addresses, and the
+ *     slider — handing the rest of the screen to the map. A grab handle expands
+ *     it again for the full breakdown (gauge, metrics, fare items).
+ *   • DISTANCE TO PICKUP, FRONT AND CENTER. The moment the route resolves, a
+ *     hero read shows exactly how far the driver is from the pickup (miles + ETA),
+ *     and it keeps updating live from the device GPS as the driver moves.
+ *   • LIVE PUCK. The driver puck tracks the live device location (falling back to
+ *     the `driver` prop), exactly like ActiveTripScreen, and the deadhead distance
+ *     recomputes from the live fix.
+ *   • Animated route draw-in + flowing marching-dash, radar sweep, pickup pings,
+ *     compass-to-pickup, count-up fare, urgency system, rider card, earnings
+ *     gauge, fare breakdown, ACCEPTED / EXPIRED overlays — all retained.
  *
  * Props (unchanged — drop-in replacement)
  * ───────────────────────────────────────
@@ -34,6 +33,7 @@
  *   onAccept        () => void
  *   onDecline       () => void
  *   actionPending   boolean
+ *   useDeviceLocation boolean (default true) — live GPS puck + live deadhead
  */
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
@@ -75,13 +75,17 @@ const MONO = "'JetBrains Mono','SFMono-Regular',monospace";
 const COND = "'Barlow Condensed','Barlow',sans-serif";
 
 // ─── tunables ───────────────────────────────────────────────────────────────
-const DRAW_MS          = 850;   // route draw-in duration
-const FARE_COUNT_MS    = 650;   // fare count-up duration
-const DASH_THROTTLE_MS = 55;    // flowing-dash frame interval
-const LONG_TRIP_MI     = 15;    // threshold to flag a long haul
-const DANGER_AT        = 10;    // seconds remaining → urgency escalation
-const WARN_AT          = 20;    // seconds remaining → amber
-const GAUGE_MAX_PER_MI = 4.0;   // top of the earnings-quality gauge ($/mi)
+const DRAW_MS            = 850;   // route draw-in duration
+const FARE_COUNT_MS      = 650;   // fare count-up duration
+const DASH_THROTTLE_MS   = 55;    // flowing-dash frame interval
+const LONG_TRIP_MI       = 15;    // threshold to flag a long haul
+const DANGER_AT          = 10;    // seconds remaining → urgency escalation
+const WARN_AT            = 20;    // seconds remaining → amber
+const GAUGE_MAX_PER_MI   = 4.0;   // top of the earnings-quality gauge ($/mi)
+const STALE_FIX_MS       = 30000; // a GPS fix older than this is ignored
+const FIT_BOTTOM_COMPACT = 300;   // map fit bottom padding when panel is compact
+const FIT_BOTTOM_EXPAND  = 380;   // map fit bottom padding when panel is expanded
+const MPS_TO_MPH         = 2.2369362921;
 
 // ─── payment config ─────────────────────────────────────────────────────────
 const PAY_CFG = {
@@ -114,6 +118,7 @@ const COMPASS_PTS = ['N','NE','E','SE','S','SW','W','NW'];
 const DEG = Math.PI / 180;
 const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
 const clamp01 = (n) => Math.max(0, Math.min(1, n));
+const lerp = (a, b, t) => a + (b - a) * t;
 
 /** great-circle distance in miles */
 function haversineMi(lat1, lng1, lat2, lng2) {
@@ -197,6 +202,21 @@ function fmtClock(ts) {
 /** money → "$12.34" */
 const money = (n) => `$${(Number(n) || 0).toFixed(2)}`;
 
+/** miles → short label ("0.4 mi" / "12 mi" / "320 ft") */
+function fmtMi(mi) {
+  if (mi == null || !isFinite(mi)) return '—';
+  if (mi < 0.1) return `${Math.round(mi * 5280)} ft`;
+  if (mi < 10)  return `${mi.toFixed(1)} mi`;
+  return `${Math.round(mi)} mi`;
+}
+
+/** minutes → "7 min" / "<1 min" */
+function fmtMin(min) {
+  if (min == null || !isFinite(min)) return '—';
+  if (min < 1) return '<1 min';
+  return `${Math.round(min)} min`;
+}
+
 /** initials from a name */
 function getInitials(name) {
   if (!name) return '?';
@@ -220,6 +240,42 @@ function tierForRate(perMile) {
 /** fire a haptic pulse if the platform supports it */
 function haptic(pattern) {
   try { if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(pattern); } catch (e) {}
+}
+
+/** total length (mi) of a [lng,lat][] path */
+function pathLengthMi(coords) {
+  let s = 0;
+  for (let i = 1; i < coords.length; i++) {
+    s += haversineMi(coords[i - 1][1], coords[i - 1][0], coords[i][1], coords[i][0]);
+  }
+  return s;
+}
+
+/** parse a server "3.2 mi" / "1,240 ft" distance string → miles (number|null) */
+function parseDistanceMi(text) {
+  if (!text) return null;
+  const m = String(text).replace(/,/g, '').match(/([\d.]+)\s*(mi|ft|km|m)?/i);
+  if (!m) return null;
+  const v = parseFloat(m[1]);
+  if (!isFinite(v)) return null;
+  const unit = (m[2] || 'mi').toLowerCase();
+  if (unit === 'mi') return v;
+  if (unit === 'ft') return v / 5280;
+  if (unit === 'km') return v * 0.621371;
+  if (unit === 'm')  return v * 0.000621371;
+  return v;
+}
+
+/** parse a server "7 min" ETA string → minutes (number|null) */
+function parseEtaMin(text) {
+  if (!text) return null;
+  const m = String(text).match(/([\d.]+)\s*(min|hr|h)?/i);
+  if (!m) return null;
+  const v = parseFloat(m[1]);
+  if (!isFinite(v)) return null;
+  const unit = (m[2] || 'min').toLowerCase();
+  if (unit === 'hr' || unit === 'h') return v * 60;
+  return v;
 }
 
 // ─── mapbox loader (deduped) ─────────────────────────────────────────────────
@@ -262,6 +318,12 @@ function makeDriverPuckEl() {
     'animation:trm2-pulse 1.9s ease-in-out infinite',
   ].join(';');
 
+  const rot = document.createElement('div');
+  rot.style.cssText = [
+    'position:absolute', 'inset:0', 'display:flex', 'align-items:center', 'justify-content:center',
+    'transform:rotate(0deg)', 'transition:transform .25s linear', 'will-change:transform',
+  ].join(';');
+
   const body = document.createElement('div');
   body.style.cssText = [
     'position:relative', 'width:40px', 'height:40px', 'border-radius:50%',
@@ -276,9 +338,13 @@ function makeDriverPuckEl() {
       <path d="M12 2 5 21l7-4 7 4z"/>
     </svg>`;
 
+  rot.appendChild(body);
   outer.appendChild(glow);
   outer.appendChild(ring);
-  outer.appendChild(body);
+  outer.appendChild(rot);
+
+  // expose a rotate hook (used when we have a live heading)
+  outer._rotate = (deg) => { rot.style.transform = `rotate(${deg}deg)`; };
   return outer;
 }
 
@@ -319,20 +385,28 @@ function makePickupPingEl() {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // FULL-SCREEN MAPBOX BACKGROUND
-// Mounts once, stays alive; route draws in + flows; pickup pings.
+// Mounts once, stays alive. The route (driver→pickup) draws in + flows; the
+// pickup pings; the driver puck tracks the live position; refits when the panel
+// switches between compact and expanded so the route stays well-framed.
 // ═══════════════════════════════════════════════════════════════════════════════
-function FullscreenMap({ driverLat, driverLng, pickupLat, pickupLng, polyline, onReady }) {
-  const containerRef  = useRef(null);
-  const mapRef        = useRef(null);
-  const markersRef    = useRef([]);
-  const initRef       = useRef(false);
-  const styleReadyRef = useRef(false);
-  const pendingRef    = useRef([]);
-  const drawRafRef    = useRef(0);
-  const dashRafRef    = useRef(0);
-  const dashStepRef   = useRef(0);
-  const lastDashRef   = useRef(0);
-  const drawnRef      = useRef(false);
+function FullscreenMap({
+  driverLat, driverLng, driverHeading,
+  pickupLat, pickupLng, polyline, compact, onReady,
+}) {
+  const containerRef   = useRef(null);
+  const mapRef         = useRef(null);
+  const pickupMkrsRef  = useRef([]);
+  const driverMkrRef   = useRef(null);
+  const driverElRef    = useRef(null);
+  const initRef        = useRef(false);
+  const styleReadyRef  = useRef(false);
+  const pendingRef     = useRef([]);
+  const drawRafRef     = useRef(0);
+  const dashRafRef     = useRef(0);
+  const dashStepRef    = useRef(0);
+  const lastDashRef    = useRef(0);
+  const drawnRef       = useRef(false);
+  const fitRef         = useRef(null);   // {coords, endpoints} for refit
 
   const routeCoords = useMemo(() => {
     if (!polyline) return [];
@@ -376,8 +450,9 @@ function FullscreenMap({ driverLat, driverLng, pickupLat, pickupLng, polyline, o
     return () => {
       cancelAnimationFrame(drawRafRef.current);
       cancelAnimationFrame(dashRafRef.current);
-      markersRef.current.forEach(m => { try { m.remove(); } catch (e) {} });
-      markersRef.current = [];
+      pickupMkrsRef.current.forEach(m => { try { m.remove(); } catch (e) {} });
+      pickupMkrsRef.current = [];
+      if (driverMkrRef.current) { try { driverMkrRef.current.remove(); } catch (e) {} driverMkrRef.current = null; }
       if (mapRef.current) {
         try { mapRef.current.remove(); } catch (e) {}
         mapRef.current = null;
@@ -410,6 +485,27 @@ function FullscreenMap({ driverLat, driverLng, pickupLat, pickupLng, polyline, o
     dashRafRef.current = requestAnimationFrame(loop);
   }, []);
 
+  // ── compute + apply a fitBounds for the current geometry + panel mode ───────
+  const applyFit = useCallback((immediate) => {
+    const map = mapRef.current;
+    const fit = fitRef.current;
+    if (!map || !fit || !fit.pts || fit.pts.length < 2) return;
+    const lngs = fit.pts.map(p => p[0]);
+    const lats = fit.pts.map(p => p[1]);
+    map.fitBounds(
+      [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+      {
+        padding: {
+          top: 180,
+          bottom: compact ? FIT_BOTTOM_COMPACT : FIT_BOTTOM_EXPAND,
+          left: 60, right: 60,
+        },
+        maxZoom: 15.5, pitch: 52, duration: immediate ? 0 : 850,
+      },
+    );
+  // eslint-disable-next-line
+  }, [compact]);
+
   // ── draw / update route with an animated draw-in ────────────────────────────
   useEffect(() => {
     if (!routeCoords.length) return;
@@ -441,18 +537,12 @@ function FullscreenMap({ driverLat, driverLng, pickupLat, pickupLng, polyline, o
         startDashFlow();
       }
 
-      // fit the full route + endpoints into view
+      // remember geometry for refit (route + endpoints)
       const pts = [...routeCoords];
       if (driverLat && driverLng) pts.push([driverLng, driverLat]);
       if (pickupLat && pickupLng) pts.push([pickupLng, pickupLat]);
-      if (pts.length >= 2) {
-        const lngs = pts.map(p => p[0]);
-        const lats = pts.map(p => p[1]);
-        map.fitBounds(
-          [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
-          { padding: { top: 180, bottom: 360, left: 60, right: 60 }, maxZoom: 15.5, pitch: 52, duration: 1100 },
-        );
-      }
+      fitRef.current = { pts };
+      applyFit(false);
 
       // animate the line drawing itself in (index-sliced)
       cancelAnimationFrame(drawRafRef.current);
@@ -476,37 +566,55 @@ function FullscreenMap({ driverLat, driverLng, pickupLat, pickupLng, polyline, o
   // eslint-disable-next-line
   }, [routeCoords]);
 
-  // ── place / update markers ──────────────────────────────────────────────────
+  // ── refit when the panel mode (compact/expanded) changes ─────────────────────
+  useEffect(() => {
+    whenReady(() => applyFit(false));
+  // eslint-disable-next-line
+  }, [compact]);
+
+  // ── place pickup markers once geometry known ─────────────────────────────────
   useEffect(() => {
     whenReady(() => {
       const map = mapRef.current;
       if (!map) return;
 
-      markersRef.current.forEach(m => { try { m.remove(); } catch (e) {} });
-      markersRef.current = [];
+      pickupMkrsRef.current.forEach(m => { try { m.remove(); } catch (e) {} });
+      pickupMkrsRef.current = [];
 
-      // driver puck
-      if (driverLat && driverLng) {
-        markersRef.current.push(
-          new window.mapboxgl.Marker({ element: makeDriverPuckEl(), anchor: 'center' })
-            .setLngLat([driverLng, driverLat]).addTo(map),
-        );
-      }
-
-      // pickup: radar ping (beneath) + label pin (above)
       if (pickupLat && pickupLng) {
-        markersRef.current.push(
+        pickupMkrsRef.current.push(
           new window.mapboxgl.Marker({ element: makePickupPingEl(), anchor: 'center' })
             .setLngLat([pickupLng, pickupLat]).addTo(map),
         );
-        markersRef.current.push(
+        pickupMkrsRef.current.push(
           new window.mapboxgl.Marker({ element: makePickupLabelEl(), anchor: 'bottom' })
             .setLngLat([pickupLng, pickupLat]).addTo(map),
         );
       }
     });
   // eslint-disable-next-line
-  }, [driverLat, driverLng, pickupLat, pickupLng]);
+  }, [pickupLat, pickupLng]);
+
+  // ── driver puck: create once, then track live position/heading ───────────────
+  useEffect(() => {
+    whenReady(() => {
+      const map = mapRef.current;
+      if (!map || typeof driverLng !== 'number' || typeof driverLat !== 'number') return;
+
+      if (!driverMkrRef.current) {
+        const el = makeDriverPuckEl();
+        driverElRef.current = el;
+        driverMkrRef.current = new window.mapboxgl.Marker({ element: el, anchor: 'center' })
+          .setLngLat([driverLng, driverLat]).addTo(map);
+      } else {
+        driverMkrRef.current.setLngLat([driverLng, driverLat]);
+      }
+      if (driverElRef.current && typeof driverHeading === 'number' && driverElRef.current._rotate) {
+        driverElRef.current._rotate(driverHeading);
+      }
+    });
+  // eslint-disable-next-line
+  }, [driverLat, driverLng, driverHeading]);
 
   return <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />;
 }
@@ -724,10 +832,10 @@ const avatar = {
   boxShadow: '0 3px 14px rgba(0,0,0,.4)',
 };
 
-function RiderCard({ rider, loading }) {
+function RiderCard({ rider, loading, compact }) {
   if (loading) {
     return (
-      <div style={cardWrap}>
+      <div style={{ ...cardWrap, marginBottom: compact ? 10 : 12 }}>
         <div style={{ ...avatar, background: 'rgba(255,255,255,.06)', animation: 'trm2-shimmer 1.4s ease-in-out infinite', backgroundSize: '200% 100%' }}/>
         <div style={{ flex: 1 }}>
           <div style={{ height: 12, width: '52%', borderRadius: 4, background: 'rgba(255,255,255,.08)', marginBottom: 6 }}/>
@@ -742,12 +850,12 @@ function RiderCard({ rider, loading }) {
                : typeof rider.tripsCount === 'number' ? rider.tripsCount : null;
 
   return (
-    <div style={cardWrap}>
-      <div style={{ ...avatar, background: 'linear-gradient(135deg,#8B5CF6 0%,#4C1D95 100%)', border: '2px solid rgba(255,255,255,.6)' }}>
-        <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 800, color: '#fff' }}>{getInitials(rider.name)}</span>
+    <div style={{ ...cardWrap, marginBottom: compact ? 10 : 12, padding: compact ? '7px 11px' : '9px 13px' }}>
+      <div style={{ ...avatar, width: compact ? 32 : 38, height: compact ? 32 : 38, background: 'linear-gradient(135deg,#8B5CF6 0%,#4C1D95 100%)', border: '2px solid rgba(255,255,255,.6)' }}>
+        <span style={{ fontFamily: MONO, fontSize: compact ? 12 : 14, fontWeight: 800, color: '#fff' }}>{getInitials(rider.name)}</span>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: COND, fontSize: 15, fontWeight: 800, letterSpacing: '.03em', color: C.white, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div style={{ fontFamily: COND, fontSize: compact ? 14 : 15, fontWeight: 800, letterSpacing: '.03em', color: C.white, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {firstName(rider.name)}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 5 }}>
@@ -895,6 +1003,73 @@ function FareBreakdown({ trip, payout }) {
             </div>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PICKUP DISTANCE HERO — the headline answer to "how far am I from the pickup?"
+// Appears the moment the route resolves. Shows live deadhead miles (recomputed
+// from the device GPS as the driver moves) + ETA, with a stylized driver→pickup
+// shape on the left. This is the primary read in the compact panel.
+// ═══════════════════════════════════════════════════════════════════════════════
+function PickupDistanceHero({ miles, etaMin, arrival, live, loading }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12,
+      background: `linear-gradient(135deg, rgba(34,197,94,.10), rgba(34,197,94,.03))`,
+      border: `1px solid ${C.greenBright}33`,
+      borderRadius: 16, padding: '11px 14px', marginBottom: 12,
+      boxShadow: `inset 0 0 0 1px rgba(255,255,255,.02)`,
+    }}>
+      {/* driver → pickup mini shape */}
+      <div style={{ position: 'relative', width: 46, height: 46, flexShrink: 0 }}>
+        <svg width="46" height="46" viewBox="0 0 46 46" fill="none">
+          <path d="M9 33 Q23 33 23 21 Q23 12 37 12" stroke={C.greenBright} strokeWidth="2"
+            strokeLinecap="round" strokeDasharray="3 3" opacity="0.55"/>
+          <circle cx="9" cy="33" r="4.5" fill={C.greenBright}/>
+          <circle cx="9" cy="33" r="4.5" fill="none" stroke="#fff" strokeOpacity="0.5" strokeWidth="1.5"/>
+          <path d="M37 7 l3.4 8.5 L37 13.4 L33.6 15.5 Z" fill={C.amberBright}/>
+        </svg>
+      </div>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: COND, fontSize: 8.5, fontWeight: 800, letterSpacing: '.16em', color: C.inkDim, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
+          DISTANCE TO PICKUP
+          {live && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: C.greenBright }}>
+              <span style={{ width: 4, height: 4, borderRadius: '50%', background: C.greenBright, boxShadow: `0 0 5px ${C.greenBright}`, animation: 'trm2-blink 1.4s ease-in-out infinite' }}/>
+              LIVE
+            </span>
+          )}
+        </div>
+        {loading ? (
+          <div style={{
+            height: 22, width: 120, borderRadius: 6,
+            background: 'linear-gradient(90deg,rgba(255,255,255,.05) 25%,rgba(255,255,255,.12) 50%,rgba(255,255,255,.05) 75%)',
+            backgroundSize: '200% 100%', animation: 'trm2-shimmer 1.4s ease-in-out infinite',
+          }}/>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            <span style={{ fontFamily: MONO, fontSize: 24, fontWeight: 800, color: C.greenBright, lineHeight: 1, textShadow: `0 0 16px ${C.greenBright}44` }}>
+              {fmtMi(miles)}
+            </span>
+            {etaMin != null && (
+              <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 700, color: C.greenSoft }}>
+                · {fmtMin(etaMin)}
+              </span>
+            )}
+            <span style={{ fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.1em', color: C.inkDim }}>
+              AWAY
+            </span>
+          </div>
+        )}
+        {!loading && arrival && (
+          <div style={{ fontFamily: COND, fontSize: 8.5, fontWeight: 700, letterSpacing: '.08em', color: C.inkFaint, marginTop: 3 }}>
+            REACH PICKUP BY ~{arrival}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1208,6 +1383,543 @@ function NoteCallout({ note }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// RATE PILLS — compact $/mi · $/min read (shown in the compact panel)
+// ═══════════════════════════════════════════════════════════════════════════════
+function RatePills({ perMile, perMin }) {
+  if (!perMile && !perMin) return null;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      {perMile != null && (
+        <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: C.greenSoft }}>
+          {money(perMile)}<span style={{ color: C.ink, fontWeight: 600 }}>/mi</span>
+        </span>
+      )}
+      {perMile != null && perMin != null && (
+        <span style={{ width: 1, height: 10, background: 'rgba(255,255,255,.14)' }}/>
+      )}
+      {perMin != null && (
+        <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: C.greenSoft }}>
+          {money(perMin)}<span style={{ color: C.ink, fontWeight: 600 }}>/min</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PANEL GRABBER — drag handle + DETAILS toggle that expands/collapses the panel
+// ═══════════════════════════════════════════════════════════════════════════════
+function PanelGrabber({ expanded, onToggle }) {
+  return (
+    <button
+      onClick={onToggle}
+      aria-label={expanded ? 'Collapse details' : 'Expand details'}
+      style={{
+        width: '100%', background: 'none', border: 'none', cursor: 'pointer',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+        padding: '2px 0 8px', WebkitTapHighlightColor: 'transparent',
+      }}
+    >
+      <div style={{ width: 36, height: 3.5, borderRadius: 2, background: 'rgba(255,255,255,.16)' }}/>
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+        fontFamily: COND, fontSize: 8.5, fontWeight: 800, letterSpacing: '.16em',
+        color: C.inkDim, textTransform: 'uppercase',
+      }}>
+        {expanded ? 'Hide details' : 'Trip details'}
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"
+          style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform .25s ease' }}>
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </span>
+    </button>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// useLiveDriverLocation — device GPS watch, merged over the driver prop
+// Mirrors ActiveTripScreen: derives a heading from movement, tracks freshness,
+// and lets the puck + deadhead distance update live while the driver decides.
+// ═══════════════════════════════════════════════════════════════════════════════
+function useLiveDriverLocation(driver, enabled) {
+  const [fix, setFix] = useState(null);     // { lat, lng, heading, ts }
+  const [live, setLive] = useState(false);
+  const watchIdRef = useRef(null);
+  const lastRef    = useRef(null);
+
+  useEffect(() => {
+    if (!enabled || typeof navigator === 'undefined' || !navigator.geolocation) return;
+    let first = false;
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude, longitude, heading } = pos.coords;
+        let hd = (typeof heading === 'number' && !isNaN(heading)) ? heading : null;
+        const prev = lastRef.current;
+        if (hd == null && prev) {
+          const moved = haversineMi(prev.lat, prev.lng, latitude, longitude) * 1609.34;
+          if (moved >= 4) hd = bearingDeg(prev.lat, prev.lng, latitude, longitude);
+        }
+        lastRef.current = { lat: latitude, lng: longitude };
+        setFix({ lat: latitude, lng: longitude, heading: hd, ts: Date.now() });
+        if (!first) { first = true; setLive(true); }
+      },
+      () => setLive(false),
+      { enableHighAccuracy: true, maximumAge: 1500, timeout: 12000 },
+    );
+    return () => {
+      if (watchIdRef.current != null) navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    };
+  }, [enabled]);
+
+  const fresh = fix && (Date.now() - fix.ts) < STALE_FIX_MS;
+  const lat = fresh ? fix.lat : driver?.lat;
+  const lng = fresh ? fix.lng : driver?.lng;
+  const heading = fresh ? fix.heading : null;
+
+  return {
+    lat: typeof lat === 'number' ? lat : null,
+    lng: typeof lng === 'number' ? lng : null,
+    heading,
+    live: !!(enabled && fresh),
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PROXIMITY METER — thin bar reinforcing how close the pickup is (0 → 10mi scale)
+// Always visible (compact + expanded); pairs with the distance hero.
+// ═══════════════════════════════════════════════════════════════════════════════
+function ProximityMeter({ miles, maxMi = 10 }) {
+  if (miles == null || !isFinite(miles)) return null;
+  const fill = clamp01(miles / maxMi);
+  const color = miles <= 2 ? C.greenBright : miles <= 5 ? C.greenSoft : miles <= 8 ? C.amberBright : C.amber;
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+        <span style={{ fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.14em', color: C.inkDim }}>
+          PICKUP PROXIMITY
+        </span>
+        <span style={{ fontFamily: MONO, fontSize: 9, fontWeight: 700, color }}>
+          {fmtMi(miles)}
+        </span>
+      </div>
+      <div style={{ position: 'relative', height: 5, borderRadius: 4, background: 'rgba(255,255,255,.06)', overflow: 'hidden' }}>
+        <div style={{
+          position: 'absolute', top: 0, bottom: 0, left: 0, width: `${fill * 100}%`,
+          background: `linear-gradient(90deg, ${color}, ${color}aa)`,
+          boxShadow: `0 0 8px ${color}aa`,
+          transition: 'width .6s cubic-bezier(.34,1.1,.64,1), background .3s ease',
+        }}/>
+        {/* close-range marker at 2mi */}
+        <div style={{
+          position: 'absolute', top: -1, bottom: -1, left: `${(2 / maxMi) * 100}%`,
+          width: 1, background: 'rgba(255,255,255,.2)',
+        }}/>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
+        <span style={{ fontFamily: COND, fontSize: 7, fontWeight: 700, letterSpacing: '.1em', color: C.inkFaint }}>HERE</span>
+        <span style={{ fontFamily: COND, fontSize: 7, fontWeight: 700, letterSpacing: '.1em', color: C.inkFaint }}>{maxMi}+ MI</span>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MINI ROUTE PROFILE — a tiny sparkline of the actual driver→pickup route shape,
+// drawn straight from the decoded polyline. Reads as "here's the path I'd drive."
+// ═══════════════════════════════════════════════════════════════════════════════
+function MiniRouteProfile({ polyline, distanceText, routeMi }) {
+  const path = useMemo(() => {
+    const pts = decodePolyline(polyline);          // [[lat,lng],...]
+    if (pts.length < 2) return null;
+    const lats = pts.map(p => p[0]);
+    const lngs = pts.map(p => p[1]);
+    const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+    const W = 100, H = 34, pad = 4;
+    const spanLat = (maxLat - minLat) || 1e-6;
+    const spanLng = (maxLng - minLng) || 1e-6;
+    const sx = (lng) => pad + ((lng - minLng) / spanLng) * (W - pad * 2);
+    const sy = (lat) => H - pad - ((lat - minLat) / spanLat) * (H - pad * 2); // invert: north=up
+    const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${sx(p[1]).toFixed(1)} ${sy(p[0]).toFixed(1)}`).join(' ');
+    const start = { x: sx(pts[0][1]), y: sy(pts[0][0]) };
+    const end   = { x: sx(pts[pts.length - 1][1]), y: sy(pts[pts.length - 1][0]) };
+    return { d, start, end };
+  }, [polyline]);
+
+  if (!path) return null;
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12,
+      background: 'rgba(255,255,255,.025)', border: '1px solid rgba(255,255,255,.05)',
+      borderRadius: 12, padding: '10px 13px',
+    }}>
+      <svg width="100" height="34" viewBox="0 0 100 34" style={{ flexShrink: 0, overflow: 'visible' }}>
+        {/* faint gridlines */}
+        <line x1="0" y1="17" x2="100" y2="17" stroke="rgba(255,255,255,.05)" strokeWidth="0.6"/>
+        <line x1="50" y1="0" x2="50" y2="34" stroke="rgba(255,255,255,.05)" strokeWidth="0.6"/>
+        <path d={path.d} fill="none" stroke={C.green} strokeWidth="3.5" strokeOpacity="0.18"
+          strokeLinecap="round" strokeLinejoin="round"/>
+        <path d={path.d} fill="none" stroke={C.greenBright} strokeWidth="1.8"
+          strokeLinecap="round" strokeLinejoin="round"/>
+        <circle cx={path.start.x} cy={path.start.y} r="3" fill={C.greenBright} stroke="#fff" strokeWidth="1" strokeOpacity="0.6"/>
+        <circle cx={path.end.x} cy={path.end.y} r="3" fill={C.amberBright} stroke="#fff" strokeWidth="1" strokeOpacity="0.6"/>
+      </svg>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.14em', color: C.inkDim, marginBottom: 2 }}>
+          ROUTE TO PICKUP
+        </div>
+        <div style={{ fontFamily: MONO, fontSize: 12, fontWeight: 800, color: C.white }}>
+          {distanceText || (routeMi != null ? fmtMi(routeMi) : '—')}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EARNINGS PROJECTION — gross $/hr across the engaged time (pickup + trip).
+// A driver's real decision metric: not just total fare, but fare per hour worked.
+// ═══════════════════════════════════════════════════════════════════════════════
+function EarningsProjection({ payout, pickupMin, tripMin }) {
+  const engagedMin = (Number(pickupMin) || 0) + (Number(tripMin) || 0);
+  if (!payout || engagedMin <= 0) return null;
+  const perHr = payout / (engagedMin / 60);
+  const SCALE_MAX = 45;                            // top of the $/hr bar
+  const fill = clamp01(perHr / SCALE_MAX);
+  const color = perHr >= 30 ? C.greenBright : perHr >= 20 ? C.greenSoft : perHr >= 14 ? C.amberBright : C.redDeep;
+  const tier  = perHr >= 30 ? 'STRONG' : perHr >= 20 ? 'SOLID' : perHr >= 14 ? 'OK' : 'LOW';
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+        <span style={{ fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.14em', color: C.inkDim }}>
+          PROJECTED $/HR
+        </span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 800, color }}>
+            {money(perHr)}<span style={{ color: C.ink, fontWeight: 600 }}>/hr</span>
+          </span>
+          <span style={{
+            fontFamily: COND, fontSize: 9, fontWeight: 900, letterSpacing: '.12em',
+            color, background: `${color}1f`, border: `1px solid ${color}44`,
+            borderRadius: 5, padding: '1.5px 6px',
+          }}>
+            {tier}
+          </span>
+        </span>
+      </div>
+      <div style={{ position: 'relative', height: 6, borderRadius: 5, background: 'rgba(255,255,255,.05)', overflow: 'hidden' }}>
+        <div style={{
+          position: 'absolute', top: 0, bottom: 0, left: 0, width: `${fill * 100}%`,
+          background: `linear-gradient(90deg, ${color}aa, ${color})`, boxShadow: `0 0 9px ${color}aa`,
+          transition: 'width .7s cubic-bezier(.34,1.1,.64,1)',
+        }}/>
+        {/* reference ticks at $15 / $25 / $35 */}
+        {[15, 25, 35].map(v => (
+          <div key={v} style={{
+            position: 'absolute', top: -1, bottom: -1, left: `${(v / SCALE_MAX) * 100}%`,
+            width: 1, background: 'rgba(255,255,255,.16)',
+          }}/>
+        ))}
+      </div>
+      <div style={{ fontFamily: COND, fontSize: 8, fontWeight: 700, letterSpacing: '.08em', color: C.inkFaint, marginTop: 4 }}>
+        ~{Math.round(engagedMin)} MIN ENGAGED · PICKUP + TRIP
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RIDE SIGNALS — at-a-glance decision chips computed from the trip data
+// ═══════════════════════════════════════════════════════════════════════════════
+function SignalChip({ tone, children }) {
+  const map = {
+    good:    { color: C.greenBright, bg: 'rgba(74,222,128,.10)',  border: 'rgba(74,222,128,.3)' },
+    warn:    { color: C.amberBright, bg: 'rgba(251,191,36,.10)',  border: 'rgba(251,191,36,.3)' },
+    neutral: { color: C.cyan,        bg: 'rgba(103,232,249,.08)', border: 'rgba(103,232,249,.25)' },
+  };
+  const s = map[tone] || map.neutral;
+  return (
+    <span style={{
+      fontFamily: COND, fontSize: 9.5, fontWeight: 800, letterSpacing: '.08em',
+      color: s.color, background: s.bg, border: `1px solid ${s.border}`,
+      borderRadius: 7, padding: '3px 8px', whiteSpace: 'nowrap',
+    }}>
+      {children}
+    </span>
+  );
+}
+
+function RideSignals({ perMile, deadheadMi, payMethod, surge, isScheduled, isLongTrip, dropoff }) {
+  const signals = [];
+  if (deadheadMi != null) {
+    if (deadheadMi <= 2)      signals.push({ tone: 'good', text: 'CLOSE PICKUP' });
+    else if (deadheadMi >= 6) signals.push({ tone: 'warn', text: 'FAR PICKUP' });
+  }
+  if (perMile != null) {
+    const t = tierForRate(perMile);
+    signals.push({ tone: perMile >= 1.85 ? 'good' : perMile >= 1.10 ? 'neutral' : 'warn', text: `${t.label} $/MI` });
+  }
+  if (surge > 1)        signals.push({ tone: 'good', text: `${surge}× SURGE` });
+  if (payMethod === 'cash') signals.push({ tone: 'neutral', text: 'CASH' });
+  if (isScheduled)      signals.push({ tone: 'neutral', text: 'SCHEDULED' });
+  if (isLongTrip)       signals.push({ tone: 'neutral', text: 'LONG HAUL' });
+  // airport keyword sniff on the drop-off
+  if (dropoff && /airport|\bMCO\b|terminal/i.test(String(dropoff))) {
+    signals.push({ tone: 'good', text: 'AIRPORT' });
+  }
+  if (!signals.length) return null;
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.16em', color: C.inkDim, marginBottom: 6 }}>
+        SIGNALS
+      </div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {signals.map((s, i) => <SignalChip key={i} tone={s.tone}>{s.text}</SignalChip>)}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// fmtArrivalClock — "now + N minutes" → "9:42 PM"
+// ═══════════════════════════════════════════════════════════════════════════════
+function fmtArrivalClock(min) {
+  if (min == null || !isFinite(min)) return null;
+  const d = new Date(Date.now() + min * 60000);
+  let h = d.getHours();
+  const m = String(d.getMinutes()).padStart(2, '0');
+  const ap = h >= 12 ? 'PM' : 'AM';
+  h = h % 12; if (h === 0) h = 12;
+  return `${h}:${m} ${ap}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAP LEGEND — tiny key for the two pins (driver vs pickup), top-right of the map
+// ═══════════════════════════════════════════════════════════════════════════════
+function MapLegend() {
+  const Row = ({ color, label, diamond }) => (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+      <span style={{
+        width: 7, height: 7, borderRadius: diamond ? 0 : '50%',
+        transform: diamond ? 'rotate(45deg)' : 'none',
+        background: color, boxShadow: `0 0 6px ${color}`,
+      }}/>
+      <span style={{ fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.1em', color: C.ink }}>
+        {label}
+      </span>
+    </span>
+  );
+  return (
+    <div style={{
+      position: 'absolute', top: 'calc(58px + env(safe-area-inset-top))', right: 14, zIndex: 21,
+      display: 'flex', flexDirection: 'column', gap: 6,
+      background: C.panelDeep, backdropFilter: 'blur(12px)',
+      border: '1px solid rgba(255,255,255,.08)', borderRadius: 12, padding: '8px 11px',
+      boxShadow: '0 6px 20px rgba(0,0,0,.5)',
+      animation: 'trm2-fadein .5s .2s ease both', pointerEvents: 'none',
+    }}>
+      <Row color={C.greenBright} label="YOU"/>
+      <Row color={C.greenBright} label="PICKUP"/>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SCHEDULED COUNTDOWN — for scheduled rides, time until the scheduled pickup
+// ═══════════════════════════════════════════════════════════════════════════════
+function ScheduledCountdown({ scheduledAt }) {
+  if (!scheduledAt) return null;
+  let when;
+  if (typeof scheduledAt.toDate === 'function') when = scheduledAt.toDate();
+  else if (typeof scheduledAt.seconds === 'number') when = new Date(scheduledAt.seconds * 1000);
+  else when = new Date(scheduledAt);
+  if (isNaN(when.getTime())) return null;
+
+  const diffMs = when.getTime() - Date.now();
+  const past = diffMs <= 0;
+  const mins = Math.abs(Math.round(diffMs / 60000));
+  const h = Math.floor(mins / 60), m = mins % 60;
+  const rel = h > 0 ? `${h}h ${m}m` : `${m}m`;
+  const clock = fmtClock(scheduledAt);
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12,
+      background: 'rgba(192,132,252,.08)', border: '1px solid rgba(192,132,252,.26)',
+      borderRadius: 12, padding: '9px 13px',
+    }}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.violet}
+        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+        <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
+      </svg>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.14em', color: 'rgba(192,132,252,.7)', marginBottom: 1 }}>
+          SCHEDULED PICKUP
+        </div>
+        <div style={{ fontFamily: MONO, fontSize: 12, fontWeight: 800, color: C.white }}>
+          {clock || '—'} <span style={{ color: C.violet }}>· {past ? `${rel} ago` : `in ${rel}`}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EXTENDED METRICS — engaged-time read: route mi, $/hr, engaged min, arrival clock
+// ═══════════════════════════════════════════════════════════════════════════════
+function ExtendedMetrics({ routeMi, perHr, engagedMin, arrivalClock }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'stretch', gap: 0, marginBottom: 12,
+      background: 'rgba(255,255,255,.025)', border: '1px solid rgba(255,255,255,.05)',
+      borderRadius: 12, padding: '9px 4px',
+    }}>
+      <MetricTile label="ROUTE MI"  value={routeMi != null ? fmtMi(routeMi) : '—'}/>
+      <div style={{ width: 1, background: 'rgba(255,255,255,.07)', margin: '2px 0' }}/>
+      <MetricTile label="$/HR"      value={perHr != null ? money(perHr) : '—'} accent={C.greenSoft}/>
+      <div style={{ width: 1, background: 'rgba(255,255,255,.07)', margin: '2px 0' }}/>
+      <MetricTile label="ENGAGED"   value={engagedMin != null ? `${Math.round(engagedMin)} min` : '—'}/>
+      <div style={{ width: 1, background: 'rgba(255,255,255,.07)', margin: '2px 0' }}/>
+      <MetricTile label="PICKUP BY" value={arrivalClock || '—'} accent={C.greenBright}/>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DECISION HINT — a single plain-language read of the ride (always visible)
+// ═══════════════════════════════════════════════════════════════════════════════
+function DecisionHint({ perMile, deadheadMi, surge }) {
+  if (perMile == null && deadheadMi == null) return null;
+  let tone = 'neutral', text = 'Review the numbers and decide.';
+  const closeP = deadheadMi != null && deadheadMi <= 2;
+  const farP   = deadheadMi != null && deadheadMi >= 6;
+  const goodR  = perMile != null && perMile >= 1.85;
+  const lowR   = perMile != null && perMile < 1.10;
+
+  if (goodR && closeP)      { tone = 'good';    text = 'Close pickup, strong rate — a good grab.'; }
+  else if (goodR && !farP)  { tone = 'good';    text = 'Solid rate for the distance.'; }
+  else if (lowR && farP)    { tone = 'warn';    text = 'Long pickup for a low rate — weigh it.'; }
+  else if (farP)            { tone = 'warn';    text = 'Pickup is a fair way out.'; }
+  else if (surge > 1)       { tone = 'good';    text = 'Surge is active on this one.'; }
+
+  const color = tone === 'good' ? C.greenBright : tone === 'warn' ? C.amberBright : C.ink;
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+      fontFamily: COND, fontSize: 11, fontWeight: 600, letterSpacing: '.04em', color: C.ink,
+    }}>
+      <span style={{ color, fontSize: 13, lineHeight: 1 }}>›</span>
+      <span><span style={{ color, fontWeight: 800 }}>{text}</span></span>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EARNINGS DONUT — your payout as a share of what the rider pays (your cut)
+// Complements the line-item breakdown with a single at-a-glance ratio.
+// ═══════════════════════════════════════════════════════════════════════════════
+function EarningsDonut({ payout, fareTotal }) {
+  const total = Number(fareTotal) || 0;
+  const pay   = Number(payout) || 0;
+  if (total <= 0 || pay <= 0 || pay > total * 1.5) return null;   // need a sane ratio
+  const frac  = clamp01(pay / total);
+  const R = 26, CIRC = 2 * Math.PI * R;
+  const dash = `${frac * CIRC} ${CIRC}`;
+  const pct  = Math.round(frac * 100);
+  const platformCut = Math.max(0, total - pay);
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12,
+      background: 'rgba(255,255,255,.025)', border: '1px solid rgba(255,255,255,.05)',
+      borderRadius: 12, padding: '11px 13px',
+    }}>
+      <div style={{ position: 'relative', width: 64, height: 64, flexShrink: 0 }}>
+        <svg width="64" height="64" viewBox="0 0 64 64" style={{ transform: 'rotate(-90deg)' }}>
+          <circle cx="32" cy="32" r={R} fill="none" stroke="rgba(255,255,255,.08)" strokeWidth="7"/>
+          <circle cx="32" cy="32" r={R} fill="none"
+            stroke={C.greenBright} strokeWidth="7" strokeLinecap="round"
+            strokeDasharray={dash}
+            style={{ transition: 'stroke-dasharray .7s cubic-bezier(.34,1.1,.64,1)', filter: `drop-shadow(0 0 4px ${C.greenBright}88)` }}/>
+        </svg>
+        <div style={{
+          position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+        }}>
+          <span style={{ fontFamily: MONO, fontSize: 15, fontWeight: 800, color: C.white, lineHeight: 1 }}>{pct}%</span>
+          <span style={{ fontFamily: COND, fontSize: 7, fontWeight: 800, letterSpacing: '.1em', color: C.inkDim, marginTop: 1 }}>YOUR CUT</span>
+        </div>
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: C.greenBright }}/>
+            <span style={{ fontFamily: COND, fontSize: 10, fontWeight: 700, letterSpacing: '.06em', color: C.ink }}>You keep</span>
+          </span>
+          <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 800, color: C.greenBright }}>{money(pay)}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: 'rgba(255,255,255,.18)' }}/>
+            <span style={{ fontFamily: COND, fontSize: 10, fontWeight: 700, letterSpacing: '.06em', color: C.inkDim }}>Platform + fees</span>
+          </span>
+          <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: C.ink }}>{money(platformCut)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TRIP TYPE ROW — ride class, payment, and seats at a glance (expanded)
+// ═══════════════════════════════════════════════════════════════════════════════
+function TripTypeRow({ label, payCfg, seats, rideColor }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+      background: 'rgba(255,255,255,.025)', border: '1px solid rgba(255,255,255,.05)',
+      borderRadius: 12, padding: '9px 13px',
+    }}>
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6,
+        fontFamily: COND, fontSize: 10, fontWeight: 800, letterSpacing: '.1em',
+        color: rideColor, background: `${rideColor}14`, border: `1px solid ${rideColor}33`,
+        borderRadius: 7, padding: '3px 9px',
+      }}>
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: rideColor, boxShadow: `0 0 6px ${rideColor}` }}/>
+        {(label || 'RIDE').toUpperCase()}
+      </span>
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+        fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '.06em',
+        color: payCfg.color, background: payCfg.bg, border: `1px solid ${payCfg.border}`,
+        borderRadius: 7, padding: '3px 9px',
+      }}>
+        <span>{payCfg.icon}</span>{payCfg.label}
+      </span>
+      {seats != null && Number(seats) > 0 && (
+        <span style={{
+          marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4,
+          fontFamily: MONO, fontSize: 11, fontWeight: 700, color: C.ink,
+        }}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.ink}
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          {seats} <span style={{ fontFamily: COND, fontWeight: 700, letterSpacing: '.08em', color: C.inkDim }}>PAX</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function TripRequestModal({
@@ -1217,22 +1929,30 @@ export default function TripRequestModal({
   onAccept,
   onDecline,
   actionPending = false,
+  useDeviceLocation = true,
 }) {
-  const [polyline,    setPolyline]    = useState(null);
-  const [driverDist,  setDriverDist]  = useState(null);
-  const [driverEta,   setDriverEta]   = useState(null);
-  const [loadingGeo,  setLoadingGeo]  = useState(false);
-  const [accepted,    setAccepted]    = useState(false);
-  const [mapReady,    setMapReady]    = useState(false);
-  const [displayFare, setDisplayFare] = useState(0);   // count-up value
-  const [rider,       setRider]       = useState(null);
+  const [polyline,     setPolyline]     = useState(null);
+  const [driverDist,   setDriverDist]   = useState(null);
+  const [driverEta,    setDriverEta]    = useState(null);
+  const [loadingGeo,   setLoadingGeo]   = useState(false);
+  const [accepted,     setAccepted]     = useState(false);
+  const [mapReady,     setMapReady]     = useState(false);
+  const [displayFare,  setDisplayFare]  = useState(0);   // count-up value
+  const [rider,        setRider]        = useState(null);
   const [riderLoading, setRiderLoading] = useState(false);
+  const [panelExpanded, setPanelExpanded] = useState(true);  // collapses on polyline
 
   const prevTripId     = useRef(null);
   const fareRafRef     = useRef(0);
   const dangerFiredRef = useRef(false);
+  const autoCollapsedRef = useRef(false);
 
   const payout = Number(tripRequest?.driverPayout) || 0;
+
+  // ── live driver location (device GPS over prop) ──────────────────────────────
+  const liveDriver = useLiveDriverLocation(driver, useDeviceLocation && !accepted);
+  const dLat = liveDriver.lat ?? driver?.lat ?? null;
+  const dLng = liveDriver.lng ?? driver?.lng ?? null;
 
   // ── inject keyframes + fonts once ────────────────────────────────────────────
   useEffect(() => {
@@ -1284,6 +2004,8 @@ export default function TripRequestModal({
     setDriverDist(null);
     setDriverEta(null);
     setLoadingGeo(true);
+    setPanelExpanded(true);          // start expanded while we fetch
+    autoCollapsedRef.current = false;
     callGetDriverToPickup({
       driverLat: Number(driver.lat), driverLng: Number(driver.lng),
       pickupLat: Number(tripRequest.pickupLat), pickupLng: Number(tripRequest.pickupLng),
@@ -1297,6 +2019,16 @@ export default function TripRequestModal({
       .finally(() => setLoadingGeo(false));
   // eslint-disable-next-line
   }, [tripRequest?.id]);
+
+  // ── collapse to compact the moment the polyline returns ──────────────────────
+  useEffect(() => {
+    if (polyline && !autoCollapsedRef.current) {
+      autoCollapsedRef.current = true;
+      // small beat so the draw-in reads, then hand the screen to the map
+      const t = setTimeout(() => setPanelExpanded(false), 650);
+      return () => clearTimeout(t);
+    }
+  }, [polyline]);
 
   // ── fetch rider account for the rider card ───────────────────────────────────
   useEffect(() => {
@@ -1342,33 +2074,50 @@ export default function TripRequestModal({
   const perMile = miles > 0 ? payout / miles : null;
   const perMin  = mins  > 0 ? payout / mins  : null;
 
-  // deadhead: unpaid distance to pickup vs paid trip distance
-  const deadheadMi = (driver?.lat && driver?.lng && tripRequest.pickupLat && tripRequest.pickupLng)
-    ? haversineMi(driver.lat, driver.lng, tripRequest.pickupLat, tripRequest.pickupLng)
+  // ── how far is the driver from the pickup? (live) ────────────────────────────
+  // Primary read is the live deadhead distance (recomputed from the device GPS
+  // as the driver moves); the server's distance/eta text is the fallback.
+  const liveDeadheadMi = (dLat != null && dLng != null && tripRequest.pickupLat && tripRequest.pickupLng)
+    ? haversineMi(dLat, dLng, tripRequest.pickupLat, tripRequest.pickupLng)
     : null;
+  const serverDistMi = parseDistanceMi(driverDist);
+  const heroMiles    = liveDeadheadMi != null ? liveDeadheadMi : serverDistMi;
+  const serverEtaMin = parseEtaMin(driverEta);
+  const heroEtaMin   = serverEtaMin != null ? serverEtaMin
+                     : (heroMiles != null ? (heroMiles / 24) * 60 : null);
+  const deadheadMi   = liveDeadheadMi != null ? liveDeadheadMi : serverDistMi;
   const deadheadRatio = (deadheadMi != null && miles > 0) ? deadheadMi / miles : null;
 
   // bearing to pickup for the compass
-  const pickupBearing = (driver?.lat && driver?.lng && tripRequest.pickupLat && tripRequest.pickupLng)
-    ? bearingDeg(driver.lat, driver.lng, tripRequest.pickupLat, tripRequest.pickupLng)
+  const pickupBearing = (dLat != null && dLng != null && tripRequest.pickupLat && tripRequest.pickupLng)
+    ? bearingDeg(dLat, dLng, tripRequest.pickupLat, tripRequest.pickupLng)
     : null;
 
-  const danger  = requestTimer <= DANGER_AT;
-  const expired = requestTimer <= 0 && !accepted;
+  const danger   = requestTimer <= DANGER_AT;
+  const expired  = requestTimer <= 0 && !accepted;
+  const compact  = !panelExpanded;
+  const routeReady = !!polyline && !loadingGeo;
+
+  // engaged-time economics for the projection + extended metrics
+  const engagedMin = (heroEtaMin != null ? heroEtaMin : 0) + (mins || 0);
+  const projPerHr  = (payout && engagedMin > 0) ? payout / (engagedMin / 60) : null;
+  const arrivalClock = fmtArrivalClock(heroEtaMin);
 
   const handleAccept = () => { setAccepted(true); onAccept?.(); };
 
   return (
     <div style={{ position:'fixed', inset:0, zIndex:800, background:C.bg, fontFamily:MONO }}>
 
-      {/* ── full-screen map — mounts once, polyline feeds in reactively ── */}
+      {/* ── full-screen map — mounts once, polyline + live driver feed in ── */}
       <div className="trm2-map" style={{ position:'absolute', inset:0 }}>
         <FullscreenMap
-          driverLat={driver?.lat}
-          driverLng={driver?.lng}
+          driverLat={dLat}
+          driverLng={dLng}
+          driverHeading={liveDriver.heading}
           pickupLat={tripRequest.pickupLat}
           pickupLng={tripRequest.pickupLng}
           polyline={polyline}
+          compact={compact}
           onReady={() => setMapReady(true)}
         />
       </div>
@@ -1409,6 +2158,9 @@ export default function TripRequestModal({
         <CompassToPickup bearing={pickupBearing} distanceMi={deadheadMi}/>
       )}
 
+      {/* ── map legend ── */}
+      {mapReady && !accepted && !expired && <MapLegend/>}
+
       {/* ── top ribbon ── */}
       <div style={{
         position:'absolute', top:0, left:0, right:0, zIndex:20,
@@ -1444,150 +2196,7 @@ export default function TripRequestModal({
         </div>
       </div>
 
-      {/* ── floating pickup-proximity pill ── */}
-      {!loadingGeo && (driverDist || driverEta) && !accepted && !expired && (
+      {/* ── floating pickup-proximity pill (server text, while expanded/among map) ── */}
+      {routeReady && (driverDist || driverEta) && !accepted && !expired && (
         <div style={{
-          position:'absolute', top:'calc(60px + env(safe-area-inset-top))',
-          left:'50%', transform:'translateX(-50%)', zIndex:22, pointerEvents:'none',
-          display:'flex', alignItems:'center', gap:9,
-          background:C.panelDeep, backdropFilter:'blur(14px)',
-          border:`1px solid ${C.greenBright}33`, borderRadius:99, padding:'6px 15px',
-          boxShadow:`0 8px 26px rgba(0,0,0,.6), 0 0 22px ${C.greenBright}14`,
-          animation:'trm2-fadein .5s .25s ease both', whiteSpace:'nowrap',
-        }}>
-          <span style={{ width:6, height:6, borderRadius:'50%', background:C.greenBright, boxShadow:`0 0 6px ${C.greenBright}`, animation:'trm2-blink 1.6s ease-in-out infinite', display:'inline-block' }}/>
-          {driverDist && <span style={{ fontFamily:MONO, fontSize:12, fontWeight:800, color:C.white }}>{driverDist}</span>}
-          {driverDist && driverEta && <span style={{ width:1, height:11, background:'rgba(255,255,255,.16)' }}/>}
-          {driverEta && (
-            <span style={{ fontFamily:MONO, fontSize:12, fontWeight:800, color:C.greenBright }}>
-              {driverEta} <span style={{ fontFamily:COND, fontWeight:700, letterSpacing:'.08em', color:C.greenSoft }}>TO PICKUP</span>
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* ── bottom panel ── */}
-      <div style={{ position:'absolute', bottom:0, left:0, right:0, zIndex:30, animation:'trm2-slideup .45s cubic-bezier(.34,1.1,.64,1) both' }}>
-        <div style={{
-          background:C.panelDeep,
-          borderTop:`1px solid ${danger ? 'rgba(239,68,68,.4)' : `${rideColor}28`}`,
-          borderRadius:'26px 26px 0 0',
-          backdropFilter:'blur(20px)',
-          boxShadow:`0 -16px 56px rgba(0,0,0,.7), 0 0 44px ${rideColor}0e`,
-          padding:'12px 18px max(20px, calc(env(safe-area-inset-bottom) + 14px))',
-          animation: danger ? 'trm2-heartbeat 1s ease-in-out infinite' : 'none',
-          maxHeight:'82vh', overflowY:'auto',
-        }}>
-          {/* drag handle */}
-          <div style={{ width:36, height:3.5, borderRadius:2, background:'rgba(255,255,255,.12)', margin:'0 auto 12px' }}/>
-
-          {/* ── rider card ── */}
-          <RiderCard rider={rider} loading={riderLoading}/>
-
-          {/* ── fare hero + payment ── */}
-          <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', marginBottom:8 }}>
-            <div>
-              <div style={{ display:'flex', alignItems:'baseline', gap:6 }}>
-                <span style={{ fontFamily:COND, fontSize:48, fontWeight:900, lineHeight:.9, letterSpacing:'.01em', color:C.white }}>
-                  {money(displayFare)}
-                </span>
-                {surge > 1 && (
-                  <span style={{ display:'inline-flex', alignItems:'center', gap:3, background:'rgba(234,179,8,.12)', border:'1px solid rgba(234,179,8,.3)', borderRadius:6, padding:'3px 7px', fontFamily:COND, fontSize:10, fontWeight:800, letterSpacing:'.06em', color:'#EAB308' }}>
-                    <Zap size={9} color="#EAB308" fill="#EAB308"/>
-                    {surge}× SURGE
-                  </span>
-                )}
-              </div>
-              {(perMile || perMin) && (
-                <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:5 }}>
-                  {perMile && (
-                    <span style={{ fontFamily:MONO, fontSize:11, fontWeight:700, color:C.greenSoft }}>
-                      {money(perMile)}<span style={{ color:C.ink, fontWeight:600 }}>/mi</span>
-                    </span>
-                  )}
-                  {perMile && perMin && <span style={{ width:1, height:10, background:'rgba(255,255,255,.14)' }}/>}
-                  {perMin && (
-                    <span style={{ fontFamily:MONO, fontSize:11, fontWeight:700, color:C.greenSoft }}>
-                      {money(perMin)}<span style={{ color:C.ink, fontWeight:600 }}>/min</span>
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-            <div style={{ display:'inline-flex', alignItems:'center', gap:6, background:payCfg.bg, border:`1px solid ${payCfg.border}`, borderRadius:10, padding:'6px 12px' }}>
-              <span style={{ fontSize:12, color:payCfg.color }}>{payCfg.icon}</span>
-              <span style={{ fontFamily:MONO, fontSize:10, fontWeight:800, letterSpacing:'.1em', color:payCfg.color }}>{payCfg.label}</span>
-            </div>
-          </div>
-
-          {/* ── context chips ── */}
-          {(isScheduled || isLongTrip) && (
-            <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:12 }}>
-              {isScheduled && (
-                <Chip color={C.violet} bg="rgba(192,132,252,.12)" border="rgba(192,132,252,.3)"
-                  icon={<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={C.violet} strokeWidth="2.4" strokeLinecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>}>
-                  SCHEDULED{schedClock ? ` · ${schedClock}` : ''}
-                </Chip>
-              )}
-              {isLongTrip && (
-                <Chip color={C.cyan} bg="rgba(103,232,249,.1)" border="rgba(103,232,249,.28)"
-                  icon={<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>}>
-                  LONG TRIP
-                </Chip>
-              )}
-            </div>
-          )}
-
-          {/* ── rider note / special instructions ── */}
-          <NoteCallout note={tripRequest.riderNote ?? tripRequest.note ?? tripRequest.notes} />
-
-          {/* ── earnings-quality gauge ── */}
-          <EarningsGauge perMile={perMile}/>
-
-          {/* ── route strip ── */}
-          <div style={{ display:'flex', gap:12, alignItems:'stretch', background:'rgba(255,255,255,.03)', border:'1px solid rgba(255,255,255,.06)', borderRadius:14, padding:'10px 13px', marginBottom:12 }}>
-            <RouteRail/>
-            <div style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', gap:9 }}>
-              <AddressRow label="Pickup"   raw={tripRequest.pickup}  accepted={accepted} dimmed={false}/>
-              <AddressRow label="Drop-off" raw={tripRequest.dropoff} accepted={accepted} dimmed={true}/>
-            </div>
-          </div>
-
-          {/* ── trip metrics row ── */}
-          <div style={{
-            display:'flex', alignItems:'stretch', gap:0, marginBottom:12,
-            background:'rgba(255,255,255,.025)', border:'1px solid rgba(255,255,255,.05)',
-            borderRadius:12, padding:'9px 4px',
-          }}>
-            <MetricTile label="TRIP DIST" value={miles > 0 ? `${miles.toFixed(1)} mi` : '—'}/>
-            <div style={{ width:1, background:'rgba(255,255,255,.07)', margin:'2px 0' }}/>
-            <MetricTile label="TRIP TIME" value={mins > 0 ? `${mins} min` : '—'}/>
-            <div style={{ width:1, background:'rgba(255,255,255,.07)', margin:'2px 0' }}/>
-            <MetricTile label="TO PICKUP" value={driverDist || '—'} accent={C.greenBright} loading={loadingGeo}/>
-            <div style={{ width:1, background:'rgba(255,255,255,.07)', margin:'2px 0' }}/>
-            <MetricTile
-              label="DEADHEAD"
-              value={deadheadRatio != null ? `${Math.round(deadheadRatio * 100)}%` : '—'}
-              accent={deadheadRatio != null && deadheadRatio > 0.5 ? C.amberBright : C.greenSoft}
-            />
-          </div>
-
-          {/* ── fare breakdown ── */}
-          <FareBreakdown trip={tripRequest} payout={payout}/>
-
-          {/* ── bidirectional slide ── */}
-          <BidirectionalSlide
-            onAccept={handleAccept}
-            onDecline={onDecline}
-            pending={actionPending}
-            disabled={expired}
-          />
-        </div>
-      </div>
-
-      {/* ── terminal states ── */}
-      {accepted && <AcceptedOverlay rider={rider}/>}
-      {expired && <ExpiredOverlay/>}
-    </div>
-  );
-}
+          position:'absolute', top:'calc(60px + env(safe-area-inset-top))
