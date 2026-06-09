@@ -1520,6 +1520,17 @@ export default function ActiveTripScreen({
   useEffect(() => {
     if (!trip?.id) return;
 
+    // When arrived, EtaCard shows 0 / 0 / 'NOW' — mirror that exactly.
+    if (status === 'arrived') {
+      updateDoc(doc(db, 'Rides', trip.id), {
+        livePickup:   0,
+        liveDistance: 0,
+        liveMph:      liveSpeedMph != null ? +liveSpeedMph.toFixed(1) : null,
+        liveArrival:  'NOW',
+      }).catch(() => {});
+      return;
+    }
+
     const { etaMin, distMi } = liveMetrics;
 
     const dispDist = distMi != null
@@ -1542,7 +1553,7 @@ export default function ActiveTripScreen({
       liveMph:      liveSpeedMph != null ? +liveSpeedMph.toFixed(1) : null,
       liveArrival:  dispEta  != null ? fmtArrivalClock(dispEta) : null,
     }).catch(() => {});
-  }, [liveMetrics, dLat, dLng]); // eslint-disable-line
+  }, [liveMetrics, dLat, dLng, status]); // eslint-disable-line
 
   // ── route fetch + draw ───────────────────────────────────────────────────
   useEffect(() => {
