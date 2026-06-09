@@ -42,8 +42,6 @@ const { refreshRidePolylines } = require("./ride/refreshRidePolylines");
 const { onRideStatusChangedRefreshPolylines } = require("./ride/onRideStatusChangedRefreshPolylines");
 
 // Payment functions
-const { cashPayment } = require("./payments/cashPayment");
-const { cardPayment } = require("./payments/cardPayment");
 const { cashAppPayment } = require("./payments/cashAppPayment");
 const { cardChecker } = require("./payments/cardChecker");
 const { setupDeposit } = require("./payments/setupDeposit");
@@ -140,9 +138,7 @@ exports.validatePromoCode = validatePromoCode;
 
 
 exports.onRidePaymentSucceeded = onRidePaymentSucceeded;
-exports.cardPayment = cardPayment;
 exports.scheduledRideChecker = scheduledRideChecker;
-exports.cashPayment = cashPayment;
 exports.checkDriverDeposit = checkDriverDeposit;
 exports.cashAppPayment = cashAppPayment;
 exports.confirmCashCollection = confirmCashCollection;

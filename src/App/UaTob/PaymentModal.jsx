@@ -1,23 +1,21 @@
 // src/App/PaymentModal.jsx
-import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
   X, CreditCard, Check, Loader2, ShieldCheck,
   Banknote, Lock, ArrowRight, Clock, MapPin,
   Tag, Calendar, AlertCircle, Sparkles, ChevronLeft, ChevronRight,
-  Navigation, Receipt, ChevronDown, Zap, TrendingDown, Info,
+  Navigation, Receipt, ChevronDown, Zap, TrendingDown,
 } from 'lucide-react';
 import { loadStripe } from '@stripe/stripe-js';
-import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { firebase_app } from '@/firebase/config';
+import { Elements, CardElement } from '@stripe/react-stripe-js';
 
-// ── Callables ──────────────────────────────────────────
-const functions          = getFunctions(firebase_app, 'us-east1');
-const callCardPayment    = httpsCallable(functions, 'cardPayment');
-const callCashAppPayment = httpsCallable(functions, 'cashAppPayment');
-const callCashPayment    = httpsCallable(functions, 'cashPayment');
-const callValidatePromo  = httpsCallable(functions, 'validatePromoCode');
-const stripePromise      = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
+import { useSchedule }       from '@/App/UaTob/useSchedule';
+import { usePromo }          from '@/App/UaTob/usePromo';
+import { useCardPayment }    from '@/App/UaTob/useCardPayment';
+import { useCashAppPayment } from '@/App/UaTob/useCashAppPayment';
+import { useCashPayment }    from '@/App/UaTob/useCashPayment';
+
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
 
 // ── Design tokens ──────────────────────────────────────
 const T = {
@@ -47,7 +45,7 @@ const T = {
   redDim:      'rgba(248,113,113,0.08)',
 };
 
-// ── Payment methods ────────────────────────────────────
+// ── Payment methods config ────────────────────────────
 const METHODS = [
   { id: 'card',    label: 'Card',     sub: 'Credit / Debit', color: T.green,   gFrom: '#22C55E', gTo: '#15803D' },
   { id: 'cashapp', label: 'Cash App', sub: '$cashtag',       color: T.cashApp, gFrom: '#00E03A', gTo: '#00B82B' },
@@ -69,27 +67,12 @@ const CARD_OPTIONS = {
   hidePostalCode: true,
 };
 
-// ── Tiny helpers ───────────────────────────────────────
+// ── Constants ─────────────────────────────────────────
 const pad    = n => String(n).padStart(2, '0');
 const money  = n => Number(n || 0).toFixed(2);
 const DAYS   = ['Su','Mo','Tu','We','Th','Fr','Sa'];
 const MONTHS = ['January','February','March','April','May','June',
                 'July','August','September','October','November','December'];
-
-function CashAppLogo({ size = 22 }) {
-  return (
-    <div style={{
-      width: size, height: size, background: T.cashApp,
-      borderRadius: size * 0.26, display: 'flex',
-      alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-    }}>
-      <span style={{
-        fontSize: size * 0.68, fontWeight: 900, color: '#000',
-        fontFamily: 'system-ui', lineHeight: 1, marginTop: -size * 0.04,
-      }}>$</span>
-    </div>
-  );
-}
 
 // ── CSS ────────────────────────────────────────────────
 const CSS = `
@@ -106,7 +89,6 @@ const CSS = `
     0%,100% { box-shadow: 0 0 0 0 rgba(255,255,255,.45); }
     50%      { box-shadow: 0 0 0 5px rgba(255,255,255,0); }
   }
-  @keyframes _shimmer { 0% { background-position:-200% 0 } 100% { background-position:200% 0 } }
 
   .pm-sheet  { animation: _up   .36s cubic-bezier(.32,.72,0,1) forwards; }
   .pm-fade   { animation: _fade .22s ease forwards; }
@@ -121,12 +103,10 @@ const CSS = `
   .pm-btn    { transition: all .16s ease; }
   .pm-btn:hover:not(:disabled) { filter: brightness(1.08); }
   .pm-btn:active:not(:disabled) { transform: scale(.98); }
-
   .pm-seg-btn { transition: color .25s ease; }
 
   .pm-cal-day { transition: all .14s ease; border-radius: 8px; cursor: pointer; }
   .pm-cal-day:hover:not(.disabled):not(.selected) { background: rgba(129,140,248,0.12); }
-
   .pm-hour { transition: all .14s ease; border-radius: 8px; cursor: pointer; }
   .pm-hour:hover:not(.selected-h) { background: rgba(255,255,255,0.06); }
 
@@ -137,162 +117,165 @@ const CSS = `
     width: 100%; padding: 10px 12px;
   }
   .pm-input::placeholder { color: ${T.textMuted}; }
-
   .pm-row { transition: background .15s ease; }
 `;
 
-// ── Inline Schedule Picker — premium segmented design ───
-// Steps: 'now' | 'cal' | 'time' | 'done'
+// ── Micro components ───────────────────────────────────
+function Label({ children }) {
+  return (
+    <div style={{
+      fontSize: 9.5, fontWeight: 700, color: T.textMuted,
+      letterSpacing: '.12em', textTransform: 'uppercase',
+      fontFamily: 'DM Sans', marginBottom: 9,
+    }}>
+      {children}
+    </div>
+  );
+}
+
+function Chip({ children, color, colorBg, border, icon }) {
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4,
+      padding: '3px 8px', borderRadius: 99,
+      background: colorBg || 'transparent',
+      border: `1px solid ${border || 'rgba(255,255,255,0.1)'}`,
+      fontSize: 10.5, fontWeight: 600,
+      color: color || T.textMid,
+      fontFamily: 'DM Sans',
+    }}>
+      {icon}{children}
+    </span>
+  );
+}
+
+function CashAppLogo({ size = 22 }) {
+  return (
+    <div style={{
+      width: size, height: size, background: T.cashApp,
+      borderRadius: size * 0.26, display: 'flex',
+      alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    }}>
+      <span style={{
+        fontSize: size * 0.68, fontWeight: 900, color: '#000',
+        fontFamily: 'system-ui', lineHeight: 1, marginTop: -size * 0.04,
+      }}>$</span>
+    </div>
+  );
+}
+
+function SecureNote() {
+  return (
+    <div style={{
+      marginTop: 9, display: 'flex', alignItems: 'center',
+      justifyContent: 'center', gap: 5,
+      fontSize: 10.5, color: T.textMuted, fontWeight: 500, fontFamily: 'DM Sans',
+    }}>
+      <ShieldCheck size={10} strokeWidth={2.4}/> Secured by Stripe · 256-bit TLS
+    </div>
+  );
+}
+
+function CTA({ loading, disabled, loadingText, color, gFrom, gTo, onClick, children }) {
+  return (
+    <button
+      type={onClick ? 'button' : 'submit'}
+      onClick={onClick}
+      disabled={disabled}
+      className="pm-btn"
+      style={{
+        width: '100%', padding: '15px 20px', borderRadius: 14, border: 'none',
+        background: disabled ? T.bgHighlight : `linear-gradient(135deg,${gFrom},${gTo})`,
+        color: disabled ? T.textMuted : '#04130A',
+        fontFamily: 'Syne', fontWeight: 800, fontSize: 14,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+        boxShadow: disabled ? 'none' : `0 8px 24px ${color}30`,
+        letterSpacing: '-0.2px',
+      }}
+    >
+      {loading
+        ? (<><Loader2 size={15} className="spin"/>{loadingText}</>)
+        : children}
+    </button>
+  );
+}
+
+// ── SchedulePicker ────────────────────────────────────
 function SchedulePicker({ scheduledAt, onChange }) {
-  const now = new Date();
+  const sched = useSchedule(onChange);
 
-  const [step,      setStep]      = useState('now');
-  const [calYear,   setCalYear]   = useState(now.getFullYear());
-  const [calMonth,  setCalMonth]  = useState(now.getMonth());
-  const [selDay,    setSelDay]    = useState(null);
-  const [selHour,   setSelHour]   = useState(null);
-  const [selMinute, setSelMinute] = useState(null);
-
-  const minDate = new Date(now.getTime() + 15 * 60 * 1000);
-  const maxDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-
-  const commitIfReady = useCallback((day, hour, minute) => {
-    if (day === null || hour === null || minute === null) return;
-    const d = new Date(day);
-    d.setHours(hour, minute, 0, 0);
-    onChange(d.toISOString());
-    setStep('done');
-  }, [onChange]);
-
-  const handleSelectNow = () => {
-    setStep('now');
-    setSelDay(null); setSelHour(null); setSelMinute(null);
-    onChange(null);
-  };
-
-  const handleScheduleBtn = () => {
-    if (step === 'now')       setStep('cal');
-    else if (step === 'done') setStep('cal'); // edit, keep selection
-    // mid-flow: tapping the active Schedule segment is a no-op (use Cancel row)
-  };
-
-  const firstDow = new Date(calYear, calMonth, 1).getDay();
-  const daysInMo = new Date(calYear, calMonth + 1, 0).getDate();
-
-  const isDayDisabled = (y, m, d) => {
-    const date = new Date(y, m, d, 23, 59);
-    return date < minDate || date > maxDate;
-  };
-  const isDaySelected = (y, m, d) =>
-    selDay && selDay.getFullYear()===y && selDay.getMonth()===m && selDay.getDate()===d;
-  const isToday = (y, m, d) =>
-    y===now.getFullYear() && m===now.getMonth() && d===now.getDate();
-
-  const prevMonth = () => { if (calMonth === 0) { setCalMonth(11); setCalYear(y=>y-1); } else setCalMonth(m=>m-1); };
-  const nextMonth = () => { if (calMonth === 11) { setCalMonth(0); setCalYear(y=>y+1); } else setCalMonth(m=>m+1); };
-
-  const handleDayClick = (d) => {
-    setSelDay(new Date(calYear, calMonth, d));
-    setSelHour(null); setSelMinute(null);
-    setStep('time');
-  };
-
-  const hours = Array.from({length: 24}, (_,i) => i);
-  const isHourDisabled = (h, min=0) => {
-    if (!selDay) return true;
-    const dt = new Date(selDay);
-    dt.setHours(h, min, 0, 0);
-    return dt < minDate;
-  };
-
-  const handleHourClick = (h) => {
-    if (isHourDisabled(h)) return;
-    setSelHour(h); setSelMinute(null);
-  };
-  const handleMinuteClick = (m) => {
-    if (selHour === null || isHourDisabled(selHour, m)) return;
-    setSelMinute(m);
-    commitIfReady(selDay, selHour, m);
-  };
-
-  const summary = useMemo(() => {
-    if (!scheduledAt) return null;
-    return new Date(scheduledAt).toLocaleString('en-US', {
-      weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit', hour12:true,
-    });
-  }, [scheduledAt]);
-
-  const isScheduleActive = step !== 'now';
-  const pickerOpen       = step === 'cal' || step === 'time';
+  const isScheduleActive = sched.step !== 'now';
+  const pickerOpen       = sched.step === 'cal' || sched.step === 'time';
 
   return (
     <div style={{ marginBottom: 14 }}>
 
-      {/* ── Premium segmented control ── */}
+      {/* ── Segmented control ── */}
       <div style={{
-        position:'relative',
-        display:'grid', gridTemplateColumns:'1fr 1fr',
-        padding:4, borderRadius:15,
-        background:T.bgCard,
-        border:`1px solid ${isScheduleActive ? T.indigoBorder : T.borderGreen}`,
-        transition:'border-color .35s ease',
+        position: 'relative',
+        display: 'grid', gridTemplateColumns: '1fr 1fr',
+        padding: 4, borderRadius: 15,
+        background: T.bgCard,
+        border: `1px solid ${isScheduleActive ? T.indigoBorder : T.borderGreen}`,
+        transition: 'border-color .35s ease',
         marginBottom: pickerOpen ? 12 : 0,
       }}>
         {/* Sliding indicator */}
         <div style={{
-          position:'absolute', top:4, bottom:4,
+          position: 'absolute', top: 4, bottom: 4,
           left: isScheduleActive ? 'calc(50%)' : 4,
-          width:'calc(50% - 4px)',
-          borderRadius:12,
+          width: 'calc(50% - 4px)',
+          borderRadius: 12,
           background: isScheduleActive
             ? `linear-gradient(135deg, ${T.indigo}, ${T.indigoBright})`
             : `linear-gradient(135deg, ${T.green}, ${T.greenDark})`,
           boxShadow: isScheduleActive
             ? `0 6px 20px ${T.indigo}50`
             : `0 6px 20px ${T.green}45`,
-          transition:'left .38s cubic-bezier(.34,1.3,.64,1), background .3s ease, box-shadow .3s ease',
-          zIndex:0,
+          transition: 'left .38s cubic-bezier(.34,1.3,.64,1), background .3s ease, box-shadow .3s ease',
+          zIndex: 0,
         }}/>
 
         {/* Ride Now */}
-        <button type="button" onClick={handleSelectNow} className="pm-seg-btn" style={{
-          position:'relative', zIndex:1,
-          background:'transparent', border:'none', cursor:'pointer',
-          padding:'13px 10px', borderRadius:12,
-          display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+        <button type="button" onClick={sched.handleSelectNow} className="pm-seg-btn" style={{
+          position: 'relative', zIndex: 1,
+          background: 'transparent', border: 'none', cursor: 'pointer',
+          padding: '13px 10px', borderRadius: 12,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
         }}>
           {!isScheduleActive
-            ? <div style={{ width:7, height:7, borderRadius:'50%', background:'#fff', animation:'_pulse 1.8s infinite' }}/>
+            ? <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#fff', animation: '_pulse 1.8s infinite' }}/>
             : <Zap size={14} color={T.textMid} strokeWidth={2.2}/>
           }
-          <div style={{ textAlign:'left' }}>
-            <div style={{ fontSize:13, fontWeight:800, fontFamily:'Syne', lineHeight:1, color: !isScheduleActive ? '#04130A' : T.text }}>
+          <div style={{ textAlign: 'left' }}>
+            <div style={{ fontSize: 13, fontWeight: 800, fontFamily: 'Syne', lineHeight: 1, color: !isScheduleActive ? '#04130A' : T.text }}>
               Ride Now
             </div>
-            <div style={{ fontSize:9, fontWeight:600, fontFamily:'DM Sans', marginTop:2.5, color: !isScheduleActive ? 'rgba(4,19,10,.55)' : T.textMuted }}>
+            <div style={{ fontSize: 9, fontWeight: 600, fontFamily: 'DM Sans', marginTop: 2.5, color: !isScheduleActive ? 'rgba(4,19,10,.55)' : T.textMuted }}>
               Depart ASAP
             </div>
           </div>
         </button>
 
         {/* Schedule */}
-        <button type="button" onClick={handleScheduleBtn} className="pm-seg-btn" style={{
-          position:'relative', zIndex:1,
-          background:'transparent', border:'none', cursor:'pointer',
-          padding:'13px 10px', borderRadius:12,
-          display:'flex', alignItems:'center', justifyContent:'center', gap:8, minWidth:0,
+        <button type="button" onClick={sched.handleScheduleBtn} className="pm-seg-btn" style={{
+          position: 'relative', zIndex: 1,
+          background: 'transparent', border: 'none', cursor: 'pointer',
+          padding: '13px 10px', borderRadius: 12,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minWidth: 0,
         }}>
           <Calendar size={14} color={isScheduleActive ? '#0A0820' : T.textMid} strokeWidth={2.2}/>
-          <div style={{ textAlign:'left', minWidth:0 }}>
-            <div style={{ fontSize:13, fontWeight:800, fontFamily:'Syne', lineHeight:1, color: isScheduleActive ? '#0A0820' : T.text }}>
+          <div style={{ textAlign: 'left', minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, fontFamily: 'Syne', lineHeight: 1, color: isScheduleActive ? '#0A0820' : T.text }}>
               Schedule
             </div>
             <div style={{
-              fontSize:9, fontWeight:600, fontFamily:'DM Sans', marginTop:2.5,
+              fontSize: 9, fontWeight: 600, fontFamily: 'DM Sans', marginTop: 2.5,
               color: isScheduleActive ? 'rgba(10,8,32,.6)' : T.textMuted,
-              whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:110,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 110,
             }}>
-              {step === 'done' && summary ? summary : 'Pick a time'}
+              {sched.step === 'done' && sched.summary ? sched.summary : 'Pick a time'}
             </div>
           </div>
         </button>
@@ -301,124 +284,145 @@ function SchedulePicker({ scheduledAt, onChange }) {
       {/* ── Editing context row ── */}
       {pickerOpen && (
         <div className="pm-fade" style={{
-          display:'flex', alignItems:'center', justifyContent:'space-between',
-          marginBottom:10, padding:'0 2px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          marginBottom: 10, padding: '0 2px',
         }}>
-          <span style={{ fontSize:10.5, fontWeight:600, color:T.textMid, fontFamily:'DM Sans', display:'flex', alignItems:'center', gap:5 }}>
+          <span style={{ fontSize: 10.5, fontWeight: 600, color: T.textMid, fontFamily: 'DM Sans', display: 'flex', alignItems: 'center', gap: 5 }}>
             <Calendar size={10} color={T.indigo} strokeWidth={2.4}/>
-            {selDay
-              ? selDay.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})
+            {sched.selDay
+              ? sched.selDay.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
               : 'Choose a date'}
           </span>
-          <button type="button" onClick={handleSelectNow} className="pm-btn" style={{
-            background:'none', border:'none', cursor:'pointer',
-            fontSize:10.5, fontWeight:700, color:T.textMuted, fontFamily:'DM Sans',
-            display:'flex', alignItems:'center', gap:3, padding:0,
+          <button type="button" onClick={sched.handleSelectNow} className="pm-btn" style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            fontSize: 10.5, fontWeight: 700, color: T.textMuted, fontFamily: 'DM Sans',
+            display: 'flex', alignItems: 'center', gap: 3, padding: 0,
           }}>
             <X size={11} strokeWidth={2.6}/> Cancel
           </button>
         </div>
       )}
 
-      {/* ── Step: Calendar ── */}
-      {step === 'cal' && (
-        <div className="pm-in" style={{ border:`1.5px solid ${T.indigoBorder}`, borderRadius:14, background:T.bgCard, overflow:'hidden' }}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px 8px', borderBottom:`1px solid ${T.border}` }}>
-            <button type="button" onClick={prevMonth} className="pm-btn" style={{ background:'none', border:'none', cursor:'pointer', color:T.textMid, padding:4, borderRadius:7, display:'flex', alignItems:'center' }}>
+      {/* ── Calendar ── */}
+      {sched.step === 'cal' && (
+        <div className="pm-in" style={{ border: `1.5px solid ${T.indigoBorder}`, borderRadius: 14, background: T.bgCard, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px 8px', borderBottom: `1px solid ${T.border}` }}>
+            <button type="button" onClick={sched.prevMonth} className="pm-btn" style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textMid, padding: 4, borderRadius: 7, display: 'flex', alignItems: 'center' }}>
               <ChevronLeft size={14} strokeWidth={2.4}/>
             </button>
-            <span style={{ fontFamily:'Syne', fontWeight:700, fontSize:12.5, color:T.text }}>{MONTHS[calMonth]} {calYear}</span>
-            <button type="button" onClick={nextMonth} className="pm-btn" style={{ background:'none', border:'none', cursor:'pointer', color:T.textMid, padding:4, borderRadius:7, display:'flex', alignItems:'center' }}>
+            <span style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 12.5, color: T.text }}>
+              {MONTHS[sched.calMonth]} {sched.calYear}
+            </span>
+            <button type="button" onClick={sched.nextMonth} className="pm-btn" style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textMid, padding: 4, borderRadius: 7, display: 'flex', alignItems: 'center' }}>
               <ChevronRight size={14} strokeWidth={2.4}/>
             </button>
           </div>
 
-          <div style={{ padding:'10px 12px 12px' }}>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', marginBottom:4 }}>
-              {DAYS.map(d=>(<div key={d} style={{ textAlign:'center', fontSize:9.5, fontWeight:700, color:T.textMuted, fontFamily:'DM Sans', padding:'3px 0' }}>{d}</div>))}
+          <div style={{ padding: '10px 12px 12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', marginBottom: 4 }}>
+              {DAYS.map(d => (
+                <div key={d} style={{ textAlign: 'center', fontSize: 9.5, fontWeight: 700, color: T.textMuted, fontFamily: 'DM Sans', padding: '3px 0' }}>{d}</div>
+              ))}
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:2 }}>
-              {Array.from({length: firstDow}).map((_,i)=>(<div key={`e${i}`}/>))}
-              {Array.from({length: daysInMo}, (_,i)=>i+1).map(d=>{
-                const disabled = isDayDisabled(calYear, calMonth, d);
-                const selected = isDaySelected(calYear, calMonth, d);
-                const today    = isToday(calYear, calMonth, d);
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2 }}>
+              {Array.from({ length: sched.firstDow }).map((_, i) => (<div key={`e${i}`}/>))}
+              {Array.from({ length: sched.daysInMonth }, (_, i) => i + 1).map(d => {
+                const disabled = sched.isDayDisabled(sched.calYear, sched.calMonth, d);
+                const selected = sched.isDaySelected(sched.calYear, sched.calMonth, d);
+                const today    = sched.isToday(sched.calYear, sched.calMonth, d);
                 return (
-                  <div key={d} className={`pm-cal-day${disabled?' disabled':''}${selected?' selected':''}`} onClick={()=>!disabled && handleDayClick(d)} style={{
-                    textAlign:'center', padding:'6px 2px',
-                    fontSize:11.5, fontWeight: today||selected ? 700 : 500, fontFamily:'DM Mono',
-                    color: disabled ? T.textMuted : selected ? '#0A0820' : today ? T.indigo : T.text,
-                    background: selected ? T.indigo : today && !selected ? T.indigoDim : 'transparent',
-                    cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.35 : 1, position:'relative',
-                  }}>
+                  <div
+                    key={d}
+                    className={`pm-cal-day${disabled ? ' disabled' : ''}${selected ? ' selected' : ''}`}
+                    onClick={() => !disabled && sched.handleDayClick(d)}
+                    style={{
+                      textAlign: 'center', padding: '6px 2px',
+                      fontSize: 11.5, fontWeight: today || selected ? 700 : 500, fontFamily: 'DM Mono',
+                      color: disabled ? T.textMuted : selected ? '#0A0820' : today ? T.indigo : T.text,
+                      background: selected ? T.indigo : today && !selected ? T.indigoDim : 'transparent',
+                      cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.35 : 1,
+                      position: 'relative',
+                    }}
+                  >
                     {d}
-                    {today && !selected && (<div style={{ position:'absolute', bottom:2, left:'50%', transform:'translateX(-50%)', width:3, height:3, borderRadius:'50%', background:T.indigo }}/>)}
+                    {today && !selected && (
+                      <div style={{ position: 'absolute', bottom: 2, left: '50%', transform: 'translateX(-50%)', width: 3, height: 3, borderRadius: '50%', background: T.indigo }}/>
+                    )}
                   </div>
                 );
               })}
             </div>
           </div>
 
-          <div style={{ padding:'8px 14px', borderTop:`1px solid ${T.border}`, fontSize:10, color:T.textMuted, fontFamily:'DM Sans', fontWeight:500, display:'flex', alignItems:'center', gap:4 }}>
+          <div style={{ padding: '8px 14px', borderTop: `1px solid ${T.border}`, fontSize: 10, color: T.textMuted, fontFamily: 'DM Sans', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4 }}>
             <AlertCircle size={9} strokeWidth={2.4}/> Available 15 min – 7 days ahead
           </div>
         </div>
       )}
 
-      {/* ── Step: Time ── */}
-      {step === 'time' && selDay && (
-        <div className="pm-in" style={{ border:`1.5px solid ${T.indigoBorder}`, borderRadius:14, background:T.bgCard, overflow:'hidden' }}>
-          <div style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 14px', borderBottom:`1px solid ${T.border}` }}>
-            <button type="button" onClick={()=>setStep('cal')} className="pm-btn" style={{ background:'none', border:'none', cursor:'pointer', color:T.indigo, padding:0, display:'flex', alignItems:'center', gap:4 }}>
+      {/* ── Time picker ── */}
+      {sched.step === 'time' && sched.selDay && (
+        <div className="pm-in" style={{ border: `1.5px solid ${T.indigoBorder}`, borderRadius: 14, background: T.bgCard, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderBottom: `1px solid ${T.border}` }}>
+            <button type="button" onClick={sched.handleBackToCal} className="pm-btn" style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.indigo, padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
               <ChevronLeft size={13} strokeWidth={2.4}/>
-              <span style={{ fontFamily:'DM Sans', fontSize:11, fontWeight:600, color:T.indigo }}>Back</span>
+              <span style={{ fontFamily: 'DM Sans', fontSize: 11, fontWeight: 600, color: T.indigo }}>Back</span>
             </button>
-            <span style={{ fontFamily:'Syne', fontSize:12, fontWeight:700, color:T.text }}>
-              {selDay.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}
+            <span style={{ fontFamily: 'Syne', fontSize: 12, fontWeight: 700, color: T.text }}>
+              {sched.selDay.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
             </span>
           </div>
 
-          <div style={{ padding:'10px 12px 12px' }}>
-            <div style={{ fontSize:9.5, fontWeight:700, color:T.textMuted, fontFamily:'DM Sans', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:8 }}>Select Hour</div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:4 }}>
-              {hours.map(h => {
-                const disabled = isHourDisabled(h);
-                const selected = selHour === h;
-                const label    = h === 0 ? '12a' : h < 12 ? `${h}a` : h === 12 ? '12p' : `${h-12}p`;
+          <div style={{ padding: '10px 12px 12px' }}>
+            <div style={{ fontSize: 9.5, fontWeight: 700, color: T.textMuted, fontFamily: 'DM Sans', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 8 }}>
+              Select Hour
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 4 }}>
+              {sched.hours.map(h => {
+                const disabled = sched.isHourDisabled(h);
+                const selected = sched.selHour === h;
+                const label    = h === 0 ? '12a' : h < 12 ? `${h}a` : h === 12 ? '12p' : `${h - 12}p`;
                 return (
-                  <div key={h} className={`pm-hour${selected?' selected-h':''}`} onClick={()=>handleHourClick(h)} style={{
-                    textAlign:'center', padding:'7px 4px', fontSize:11, fontFamily:'DM Mono', fontWeight:500,
-                    color: disabled ? T.textMuted : selected ? '#0A0820' : T.text,
-                    background: selected ? T.indigo : 'transparent',
-                    opacity: disabled ? 0.3 : 1, cursor: disabled ? 'not-allowed' : 'pointer', borderRadius:8,
-                  }}>
+                  <div
+                    key={h}
+                    className={`pm-hour${selected ? ' selected-h' : ''}`}
+                    onClick={() => sched.handleHourClick(h)}
+                    style={{
+                      textAlign: 'center', padding: '7px 4px', fontSize: 11, fontFamily: 'DM Mono', fontWeight: 500,
+                      color: disabled ? T.textMuted : selected ? '#0A0820' : T.text,
+                      background: selected ? T.indigo : 'transparent',
+                      opacity: disabled ? 0.3 : 1, cursor: disabled ? 'not-allowed' : 'pointer', borderRadius: 8,
+                    }}
+                  >
                     {label}
                   </div>
                 );
               })}
             </div>
 
-            {selHour !== null && (
-              <div className="pm-in" style={{ marginTop:10 }}>
-                <div style={{ fontSize:9.5, fontWeight:700, color:T.textMuted, fontFamily:'DM Sans', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:8 }}>Select Minute</div>
-                <div style={{ display:'flex', gap:6 }}>
+            {sched.selHour !== null && (
+              <div className="pm-in" style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 9.5, fontWeight: 700, color: T.textMuted, fontFamily: 'DM Sans', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 8 }}>
+                  Select Minute
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
                   {[0, 15, 30, 45].map(m => {
-                    const disabled = isHourDisabled(selHour, m);
-                    const selected = selMinute === m;
+                    const disabled = sched.isHourDisabled(sched.selHour, m);
+                    const selected = sched.selMinute === m;
                     return (
-                      <button key={m} type="button" onClick={()=>handleMinuteClick(m)} disabled={disabled} className="pm-method" style={{
-                        flex:1, padding:'9px 0', borderRadius:10,
-                        border:`1.5px solid ${selected ? T.indigo : T.border}`,
+                      <button key={m} type="button" onClick={() => sched.handleMinuteClick(m)} disabled={disabled} className="pm-method" style={{
+                        flex: 1, padding: '9px 0', borderRadius: 10,
+                        border: `1.5px solid ${selected ? T.indigo : T.border}`,
                         background: selected ? T.indigo : 'transparent',
                         cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.3 : 1,
-                        fontFamily:'DM Mono', fontSize:12, fontWeight:600, color: selected ? '#0A0820' : T.text,
+                        fontFamily: 'DM Mono', fontSize: 12, fontWeight: 600, color: selected ? '#0A0820' : T.text,
                       }}>
                         :{pad(m)}
                       </button>
                     );
                   })}
                 </div>
-                <div style={{ marginTop:8, fontSize:10, color:T.textMuted, fontFamily:'DM Sans', display:'flex', alignItems:'center', gap:4 }}>
+                <div style={{ marginTop: 8, fontSize: 10, color: T.textMuted, fontFamily: 'DM Sans', display: 'flex', alignItems: 'center', gap: 4 }}>
                   <AlertCircle size={9} strokeWidth={2.4}/> Tap a minute to confirm your schedule
                 </div>
               </div>
@@ -430,70 +434,68 @@ function SchedulePicker({ scheduledAt, onChange }) {
   );
 }
 
-// ── Fare Breakdown (collapsible) ───────────────────────
+// ── FareBreakdown ─────────────────────────────────────
 function FareBreakdown({ baseTotal, discount, miles, durationMin }) {
   const [open, setOpen] = useState(false);
 
-  // Derive a plausible line-item breakdown from the base fare.
-  // (Display-only — server remains source of truth for the charge.)
   const lines = useMemo(() => {
-    const total   = Number(baseTotal || 0);
-    const booking = 1.95;
-    const perMile = 1.25;
+    const total       = Number(baseTotal || 0);
+    const booking     = 1.95;
+    const perMile     = 1.25;
     const distanceFee = Math.min(total * 0.55, Number(miles || 0) * perMile);
     const timeFee     = Math.min(total * 0.2, Number(durationMin || 0) * 0.2);
     const base        = Math.max(0, total - booking - distanceFee - timeFee);
     return [
-      { label: 'Base fare',    value: base },
-      { label: 'Distance',     value: distanceFee, sub: `${miles} mi` },
-      { label: 'Time',         value: timeFee, sub: `~${durationMin} min` },
-      { label: 'Booking fee',  value: booking },
+      { label: 'Base fare',   value: base },
+      { label: 'Distance',    value: distanceFee, sub: `${miles} mi` },
+      { label: 'Time',        value: timeFee,     sub: `~${durationMin} min` },
+      { label: 'Booking fee', value: booking },
     ];
   }, [baseTotal, miles, durationMin]);
 
-  const savings   = discount ? Number(discount.savings) : 0;
-  const grandTotal= Math.max(0, Number(baseTotal || 0) - savings);
+  const savings    = discount ? Number(discount.savings) : 0;
+  const grandTotal = Math.max(0, Number(baseTotal || 0) - savings);
 
   return (
-    <div style={{ marginBottom:14, border:`1px solid ${T.border}`, borderRadius:13, background:T.bgCard, overflow:'hidden' }}>
-      <button type="button" onClick={()=>setOpen(o=>!o)} className="pm-row" style={{
-        width:'100%', background:'none', border:'none', cursor:'pointer',
-        padding:'12px 14px', display:'flex', alignItems:'center', justifyContent:'space-between',
+    <div style={{ marginBottom: 14, border: `1px solid ${T.border}`, borderRadius: 13, background: T.bgCard, overflow: 'hidden' }}>
+      <button type="button" onClick={() => setOpen(o => !o)} className="pm-row" style={{
+        width: '100%', background: 'none', border: 'none', cursor: 'pointer',
+        padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
-        <span style={{ display:'flex', alignItems:'center', gap:8, fontFamily:'Syne', fontSize:12.5, fontWeight:700, color:T.text }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'Syne', fontSize: 12.5, fontWeight: 700, color: T.text }}>
           <Receipt size={14} color={T.green} strokeWidth={2.2}/> Fare breakdown
         </span>
-        <span style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <span style={{ fontFamily:'DM Mono', fontSize:14, fontWeight:500, color:T.green }}>${money(grandTotal)}</span>
-          <ChevronDown size={15} color={T.textMid} strokeWidth={2.4} style={{ transform: open ? 'rotate(180deg)' : 'none', transition:'transform .25s ease' }}/>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontFamily: 'DM Mono', fontSize: 14, fontWeight: 500, color: T.green }}>${money(grandTotal)}</span>
+          <ChevronDown size={15} color={T.textMid} strokeWidth={2.4} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .25s ease' }}/>
         </span>
       </button>
 
       {open && (
-        <div className="pm-expand" style={{ borderTop:`1px solid ${T.border}`, padding:'10px 14px 12px' }}>
+        <div className="pm-expand" style={{ borderTop: `1px solid ${T.border}`, padding: '10px 14px 12px' }}>
           {lines.map((ln, i) => (
-            <div key={i} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'5px 0' }}>
-              <span style={{ fontFamily:'DM Sans', fontSize:12, color:T.textMid, fontWeight:500, display:'flex', alignItems:'baseline', gap:6 }}>
+            <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 0' }}>
+              <span style={{ fontFamily: 'DM Sans', fontSize: 12, color: T.textMid, fontWeight: 500, display: 'flex', alignItems: 'baseline', gap: 6 }}>
                 {ln.label}
-                {ln.sub && <span style={{ fontSize:9.5, color:T.textMuted }}>{ln.sub}</span>}
+                {ln.sub && <span style={{ fontSize: 9.5, color: T.textMuted }}>{ln.sub}</span>}
               </span>
-              <span style={{ fontFamily:'DM Mono', fontSize:12, color:T.text, fontWeight:500 }}>${money(ln.value)}</span>
+              <span style={{ fontFamily: 'DM Mono', fontSize: 12, color: T.text, fontWeight: 500 }}>${money(ln.value)}</span>
             </div>
           ))}
 
           {discount && (
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'5px 0' }}>
-              <span style={{ fontFamily:'DM Sans', fontSize:12, color:T.green, fontWeight:600, display:'flex', alignItems:'center', gap:5 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 0' }}>
+              <span style={{ fontFamily: 'DM Sans', fontSize: 12, color: T.green, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
                 <TrendingDown size={11} strokeWidth={2.4}/> Promo · {discount.code}
               </span>
-              <span style={{ fontFamily:'DM Mono', fontSize:12, color:T.green, fontWeight:500 }}>−${money(savings)}</span>
+              <span style={{ fontFamily: 'DM Mono', fontSize: 12, color: T.green, fontWeight: 500 }}>−${money(savings)}</span>
             </div>
           )}
 
-          <div style={{ height:1, background:T.border, margin:'8px 0' }}/>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-            <span style={{ fontFamily:'Syne', fontSize:13, fontWeight:800, color:T.text }}>Total</span>
-            <span style={{ fontFamily:'DM Mono', fontSize:15, fontWeight:500, color:T.green }}>${money(grandTotal)}</span>
+          <div style={{ height: 1, background: T.border, margin: '8px 0' }}/>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontFamily: 'Syne', fontSize: 13, fontWeight: 800, color: T.text }}>Total</span>
+            <span style={{ fontFamily: 'DM Mono', fontSize: 15, fontWeight: 500, color: T.green }}>${money(grandTotal)}</span>
           </div>
         </div>
       )}
@@ -501,62 +503,49 @@ function FareBreakdown({ baseTotal, discount, miles, durationMin }) {
   );
 }
 
-// ── Promo Box ──────────────────────────────────────────
+// ── PromoBox ───────────────────────────────────────────
 function PromoBox({ originalTotal, discount, setDiscount }) {
-  const [code,    setCode]    = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState('');
-  const [open,    setOpen]    = useState(false);
+  const promo = usePromo(originalTotal);
 
-  const handleApply = async () => {
-    if (!code.trim()) return;
-    setError(''); setLoading(true);
-    try {
-      const { data } = await callValidatePromo({ code: code.trim().toUpperCase() });
-      if (!data.valid) throw new Error(data.message || 'Invalid promo code.');
-      const savings = data.discountType === 'percent'
-        ? (originalTotal * data.discountValue) / 100
-        : Math.min(data.discountValue, originalTotal);
-      const newTotal = Math.max(0, originalTotal - savings).toFixed(2);
-      setDiscount({ code: code.trim().toUpperCase(), savings: savings.toFixed(2), newTotal, discountType: data.discountType, discountValue: data.discountValue });
-    } catch (err) {
-      setError(err.message || 'Could not apply code.'); setDiscount(null);
-    } finally { setLoading(false); }
-  };
+  // Sync promo discount up to parent
+  useEffect(() => {
+    setDiscount(promo.discount);
+  }, [promo.discount, setDiscount]);
 
-  const handleRemove = () => {
-    setCode(''); setDiscount(null); setError(''); setOpen(false);
-  };
+  // If parent clears discount externally, keep in sync
+  useEffect(() => {
+    if (!discount && promo.discount) promo.handleRemove();
+  }, [discount]);
 
-  if (discount) {
+  if (promo.discount) {
     return (
       <div className="pm-in" style={{
-        marginBottom:14, padding:'10px 13px',
-        border:`1.5px solid ${T.borderGreen}`,
-        borderRadius:12, background:T.greenDim,
-        display:'flex', alignItems:'center', justifyContent:'space-between',
+        marginBottom: 14, padding: '10px 13px',
+        border: `1.5px solid ${T.borderGreen}`,
+        borderRadius: 12, background: T.greenDim,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Sparkles size={13} color={T.green} strokeWidth={2}/>
           <div>
-            <div style={{ fontFamily:'DM Mono', fontSize:12, fontWeight:600, color:T.green }}>{discount.code}</div>
-            <div style={{ fontFamily:'DM Sans', fontSize:10, color:T.textMid }}>−${discount.savings} off</div>
+            <div style={{ fontFamily: 'DM Mono', fontSize: 12, fontWeight: 600, color: T.green }}>{promo.discount.code}</div>
+            <div style={{ fontFamily: 'DM Sans', fontSize: 10, color: T.textMid }}>−${promo.discount.savings} off</div>
           </div>
         </div>
-        <button type="button" onClick={handleRemove} style={{
-          background:'none', border:'none', cursor:'pointer', color:T.textMuted, padding:4,
-        }}><X size={13}/></button>
+        <button type="button" onClick={promo.handleRemove} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textMuted, padding: 4 }}>
+          <X size={13}/>
+        </button>
       </div>
     );
   }
 
-  if (!open) {
+  if (!promo.open) {
     return (
-      <button type="button" onClick={()=>setOpen(true)} className="pm-btn" style={{
-        marginBottom:14, background:'none', border:`1px dashed ${T.border}`,
-        borderRadius:10, padding:'9px 12px', cursor:'pointer', width:'100%',
-        display:'flex', alignItems:'center', gap:7,
-        color:T.textMuted, fontFamily:'DM Sans', fontSize:11.5, fontWeight:500,
+      <button type="button" onClick={() => promo.setOpen(true)} className="pm-btn" style={{
+        marginBottom: 14, background: 'none', border: `1px dashed ${T.border}`,
+        borderRadius: 10, padding: '9px 12px', cursor: 'pointer', width: '100%',
+        display: 'flex', alignItems: 'center', gap: 7,
+        color: T.textMuted, fontFamily: 'DM Sans', fontSize: 11.5, fontWeight: 500,
       }}>
         <Tag size={12} strokeWidth={2}/> Have a promo code?
       </button>
@@ -564,187 +553,198 @@ function PromoBox({ originalTotal, discount, setDiscount }) {
   }
 
   return (
-    <div className="pm-in" style={{ marginBottom:14 }}>
+    <div className="pm-in" style={{ marginBottom: 14 }}>
       <div style={{
-        display:'flex', gap:7,
-        border:`1.5px solid ${error ? T.red : T.border}`,
-        borderRadius:11, overflow:'hidden', background:T.bgCard,
+        display: 'flex', gap: 7,
+        border: `1.5px solid ${promo.error ? T.red : T.border}`,
+        borderRadius: 11, overflow: 'hidden', background: T.bgCard,
       }}>
-        <Tag size={13} color={T.textMuted} strokeWidth={2} style={{ margin:'auto 0 auto 12px', flexShrink:0 }}/>
+        <Tag size={13} color={T.textMuted} strokeWidth={2} style={{ margin: 'auto 0 auto 12px', flexShrink: 0 }}/>
         <input
           className="pm-input"
           placeholder="PROMO CODE"
-          value={code}
-          onChange={e=>{ setCode(e.target.value.toUpperCase()); setError(''); }}
-          onKeyDown={e=>{ if(e.key==='Enter') handleApply(); }}
+          value={promo.code}
+          onChange={e => { promo.setCode(e.target.value.toUpperCase()); }}
+          onKeyDown={e => { if (e.key === 'Enter') promo.handleApply(); }}
           maxLength={20}
           autoFocus
-          style={{ letterSpacing:'.08em' }}
+          style={{ letterSpacing: '.08em' }}
         />
-        <button type="button" onClick={handleApply} disabled={!code.trim()||loading} className="pm-btn" style={{
-          padding:'0 14px', background: code.trim()&&!loading ? T.green : T.bgHighlight,
-          border:'none', cursor: !code.trim()||loading ? 'not-allowed' : 'pointer',
-          fontFamily:'DM Sans', fontWeight:700, fontSize:12,
-          color: code.trim()&&!loading ? '#04130A' : T.textMuted,
-          flexShrink:0, minWidth:56, display:'flex', alignItems:'center', justifyContent:'center',
+        <button type="button" onClick={promo.handleApply} disabled={!promo.code.trim() || promo.loading} className="pm-btn" style={{
+          padding: '0 14px',
+          background: promo.code.trim() && !promo.loading ? T.green : T.bgHighlight,
+          border: 'none',
+          cursor: !promo.code.trim() || promo.loading ? 'not-allowed' : 'pointer',
+          fontFamily: 'DM Sans', fontWeight: 700, fontSize: 12,
+          color: promo.code.trim() && !promo.loading ? '#04130A' : T.textMuted,
+          flexShrink: 0, minWidth: 56, display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          {loading ? <Loader2 size={13} className="spin"/> : 'Apply'}
+          {promo.loading ? <Loader2 size={13} className="spin"/> : 'Apply'}
         </button>
       </div>
-      {error && (
-        <div style={{ marginTop:6, display:'flex', alignItems:'center', gap:5, fontSize:11, color:T.red, fontFamily:'DM Sans' }}>
-          <AlertCircle size={10} strokeWidth={2.4}/>{error}
+      {promo.error && (
+        <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: T.red, fontFamily: 'DM Sans' }}>
+          <AlertCircle size={10} strokeWidth={2.4}/>{promo.error}
         </div>
       )}
     </div>
   );
 }
 
-// ── Card Form ──────────────────────────────────────────
+// ── CardForm ──────────────────────────────────────────
 function CardForm({ uid, bookingPayload, total, scheduled, onSuccess, onError }) {
-  const stripe   = useStripe();
-  const elements = useElements();
-  const [loading,  setLoading]  = useState(false);
-  const [complete, setComplete] = useState(false);
-  const [error,    setError]    = useState('');
-  const [focused,  setFocused]  = useState(false);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault(); setError('');
-    if (!stripe || !elements) return;
-    setLoading(true);
-    try {
-      const card = elements.getElement(CardElement);
-      const { error: ce, paymentMethod } = await stripe.createPaymentMethod({ type:'card', card });
-      if (ce) throw new Error(ce.message);
-      const { data } = await callCardPayment({ uid, paymentMethodId: paymentMethod.id, bookingPayload });
-      if (data.requiresAction && data.clientSecret) {
-        const { error: ae, paymentIntent } = await stripe.handleCardAction(data.clientSecret);
-        if (ae) throw new Error(ae.message);
-        if (paymentIntent?.status !== 'succeeded') throw new Error('Payment not completed.');
-        return onSuccess?.({ method:'card', rideId:data.rideId, paymentIntent: paymentIntent.id });
-      }
-      if (!data.success) throw new Error(data.message || 'Payment failed.');
-      onSuccess?.({ method:'card', rideId:data.rideId, paymentIntent: data.paymentIntent||null });
-    } catch (err) {
-      const m = err.message||'Payment failed'; setError(m); onError?.(m);
-    } finally { setLoading(false); }
-  };
+  const { loading, error, complete, focused, setComplete, setError, setFocused, handleSubmit } =
+    useCardPayment({ uid, bookingPayload, onSuccess, onError });
 
   return (
     <form onSubmit={handleSubmit}>
       <div style={{
-        border:`1.5px solid ${error ? T.red : focused ? T.green : T.borderMid}`,
-        borderRadius:12, padding:'12px 14px',
-        background:T.bgCard, marginBottom:10,
-        transition:'border-color .2s',
+        border: `1.5px solid ${error ? T.red : focused ? T.green : T.borderMid}`,
+        borderRadius: 12, padding: '12px 14px',
+        background: T.bgCard, marginBottom: 10,
+        transition: 'border-color .2s',
         boxShadow: focused ? `0 0 0 3px ${T.greenDim}` : 'none',
       }}>
         <div style={{
-          display:'flex', alignItems:'center', gap:5,
-          fontSize:9.5, fontWeight:700, color:T.textMuted,
-          letterSpacing:'.1em', textTransform:'uppercase',
-          fontFamily:'DM Sans', marginBottom:10,
+          display: 'flex', alignItems: 'center', gap: 5,
+          fontSize: 9.5, fontWeight: 700, color: T.textMuted,
+          letterSpacing: '.1em', textTransform: 'uppercase',
+          fontFamily: 'DM Sans', marginBottom: 10,
         }}>
           <Lock size={10} strokeWidth={2.4}/> Card Details
         </div>
         <CardElement
           options={CARD_OPTIONS}
-          onFocus={()=>setFocused(true)}
-          onBlur={()=>setFocused(false)}
-          onChange={e=>{ setComplete(e.complete); setError(e.error?.message||''); }}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          onChange={e => { setComplete(e.complete); setError(e.error?.message || ''); }}
         />
       </div>
+
       {error && (
         <div style={{
-          padding:'9px 11px', borderRadius:9,
-          background:T.redDim, border:`1px solid rgba(248,113,113,.25)`,
-          color:T.red, fontSize:11.5, fontWeight:500, marginBottom:10,
-          display:'flex', alignItems:'center', gap:6, fontFamily:'DM Sans',
+          padding: '9px 11px', borderRadius: 9,
+          background: T.redDim, border: `1px solid rgba(248,113,113,.25)`,
+          color: T.red, fontSize: 11.5, fontWeight: 500, marginBottom: 10,
+          display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'DM Sans',
         }}>
           <AlertCircle size={12} strokeWidth={2.4}/>{error}
         </div>
       )}
+
       <CTA
-        loading={loading} disabled={!stripe||!complete||loading}
-        loadingText="Processing…" color={T.green} gFrom="#22C55E" gTo="#15803D"
+        loading={loading}
+        disabled={!complete || loading}
+        loadingText="Processing…"
+        color={T.green} gFrom="#22C55E" gTo="#15803D"
       >
-        <Lock size={14} strokeWidth={2.6}/> {scheduled ? `Schedule · $${total}` : `Pay $${total}`}
+        <Lock size={14} strokeWidth={2.6}/>
+        {scheduled ? `Schedule · $${total}` : `Pay $${total}`}
       </CTA>
       <SecureNote/>
     </form>
   );
 }
 
-// ── CTA button ─────────────────────────────────────────
-function CTA({ loading, disabled, loadingText, color, gFrom, gTo, onClick, children }) {
+// ── CashAppPanel ──────────────────────────────────────
+function CashAppPanel({ uid, bookingPayload, total, scheduled, onSuccess, onError }) {
+  const { loading, handleCashApp } = useCashAppPayment({ uid, bookingPayload, onSuccess, onError });
   return (
-    <button
-      type={onClick ? 'button' : 'submit'}
-      onClick={onClick} disabled={disabled}
-      className="pm-btn"
-      style={{
-        width:'100%', padding:'15px 20px', borderRadius:14, border:'none',
-        background: disabled ? T.bgHighlight : `linear-gradient(135deg,${gFrom},${gTo})`,
-        color: disabled ? T.textMuted : '#04130A',
-        fontFamily:'Syne', fontWeight:800, fontSize:14,
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        display:'flex', alignItems:'center', justifyContent:'center', gap:8,
-        boxShadow: disabled ? 'none' : `0 8px 24px ${color}30`,
-        letterSpacing:'-0.2px',
-      }}
-    >
-      {loading ? (<><Loader2 size={15} className="spin"/>{loadingText}</>) : children}
-    </button>
+    <>
+      <div style={{
+        background: T.bgCard, border: `1px solid ${T.border}`,
+        borderRadius: 12, padding: '12px 14px', marginBottom: 10,
+        display: 'flex', alignItems: 'center', gap: 10,
+      }}>
+        <CashAppLogo size={30}/>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontFamily: 'Syne', fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 2 }}>
+            Pay with Cash App
+          </div>
+          <div style={{ fontFamily: 'DM Sans', fontSize: 11, color: T.textMid }}>
+            You'll confirm in the Cash App
+          </div>
+        </div>
+        <ChevronRight size={14} color={T.textMuted}/>
+      </div>
+      <CTA
+        loading={loading} disabled={loading}
+        loadingText="Opening Cash App…" onClick={handleCashApp}
+        color={T.cashApp} gFrom="#00E03A" gTo="#00B82B"
+      >
+        <CashAppLogo size={16}/>
+        {scheduled ? `Schedule · $${total}` : 'Continue to Cash App'}
+        <ArrowRight size={13} strokeWidth={2.6}/>
+      </CTA>
+      <SecureNote/>
+    </>
   );
 }
 
-function SecureNote() {
+// ── CashPanel ─────────────────────────────────────────
+function CashPanel({ uid, bookingPayload, total, scheduled, scheduledAt, onSuccess, onError, onClose }) {
+  const { loading, handleCash } = useCashPayment({ uid, bookingPayload, onSuccess, onError, onClose });
   return (
-    <div style={{
-      marginTop:9, display:'flex', alignItems:'center', justifyContent:'center', gap:5,
-      fontSize:10.5, color:T.textMuted, fontWeight:500, fontFamily:'DM Sans',
-    }}>
-      <ShieldCheck size={10} strokeWidth={2.4}/> Secured by Stripe · 256-bit TLS
-    </div>
+    <>
+      <div style={{
+        background: T.amberDim, border: `1px solid ${T.amberBorder}`,
+        borderRadius: 12, padding: '12px 14px', marginBottom: 10,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9, marginBottom: 10 }}>
+          <Banknote size={16} color={T.amber} strokeWidth={2.2} style={{ flexShrink: 0, marginTop: 1 }}/>
+          <div>
+            <div style={{ fontFamily: 'Syne', fontSize: 13, fontWeight: 700, color: T.amber, marginBottom: 2 }}>
+              Pay your driver in cash
+            </div>
+            <div style={{ fontFamily: 'DM Sans', fontSize: 11.5, color: 'rgba(245,158,11,.8)', lineHeight: 1.5 }}>
+              Have <strong style={{ fontFamily: 'DM Mono', color: T.amber }}>${total}</strong> ready on arrival. Exact change appreciated.
+            </div>
+          </div>
+        </div>
+        <div style={{
+          display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8,
+          paddingTop: 10, borderTop: `1px solid rgba(245,158,11,.15)`,
+        }}>
+          <div>
+            <div style={{ fontSize: 9.5, fontWeight: 700, color: T.amber, letterSpacing: '.08em', textTransform: 'uppercase', fontFamily: 'DM Sans', marginBottom: 3 }}>
+              Amount Due
+            </div>
+            <div style={{ fontFamily: 'DM Mono', fontSize: 18, fontWeight: 500, color: T.amber }}>${total}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 9.5, fontWeight: 700, color: T.amber, letterSpacing: '.08em', textTransform: 'uppercase', fontFamily: 'DM Sans', marginBottom: 3 }}>
+              When
+            </div>
+            <div style={{ fontFamily: 'DM Sans', fontSize: 12, fontWeight: 600, color: T.amber }}>
+              {scheduledAt ? 'On driver arrival' : 'Driver arrival'}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <CTA
+        loading={loading} disabled={loading}
+        loadingText="Booking ride…" onClick={handleCash}
+        color={T.amber} gFrom="#F59E0B" gTo="#B45309"
+      >
+        <Banknote size={15} strokeWidth={2.4}/>
+        {scheduledAt ? `Schedule · $${total}` : `Confirm Cash · $${total}`}
+      </CTA>
+      <div style={{
+        marginTop: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+        fontSize: 10.5, color: T.textMuted, fontFamily: 'DM Sans',
+      }}>
+        <ShieldCheck size={10} strokeWidth={2.4}/> Driver matched after confirming
+      </div>
+    </>
   );
 }
 
 // ── Inner Modal ────────────────────────────────────────
 function PaymentModalInner({ uid, bookingPayload, selectedPayment, setSelectedPayment, onClose, onSuccess }) {
-  const stripe = useStripe();
-  const [cashLoading,    setCashLoading]    = useState(false);
-  const [cashAppLoading, setCashAppLoading] = useState(false);
-  const [topError,       setTopError]       = useState('');
-  const [scheduledAt,    setScheduledAt]    = useState(null);
-  const [discount,       setDiscount]       = useState(null);
-
-  const baseTotal = useMemo(()=> Number(bookingPayload?.fareEstimate||0), [bookingPayload]);
-  const total     = useMemo(()=>{
-    if (discount?.newTotal !== undefined) return Number(discount.newTotal).toFixed(2);
-    return baseTotal.toFixed(2);
-  }, [baseTotal, discount]);
-
-  const rideType    = bookingPayload?.rideType          ?? 'standard';
-  const miles       = bookingPayload?.tripDistanceMiles ?? 0;
-  const durationMin = bookingPayload?.tripDurationMin   ?? 0;
-  const rideLabel   = rideType.charAt(0).toUpperCase() + rideType.slice(1);
-  const pickup      = bookingPayload?.pickup  ?? null;
-  const dropoff     = bookingPayload?.dropoff ?? null;
-
-  const finalPayload = useMemo(()=>({
-    ...bookingPayload,
-    fareEstimate: total,
-    ...(scheduledAt ? { scheduledAt, isScheduled:true } : { isScheduled:false }),
-    ...(discount    ? { promoCode:discount.code, discountAmount:discount.savings } : {}),
-  }), [bookingPayload, total, scheduledAt, discount]);
-
-  const scheduleLabel = useMemo(()=>{
-    if (!scheduledAt) return null;
-    return new Date(scheduledAt).toLocaleString('en-US',{
-      month:'short', day:'numeric', hour:'numeric', minute:'2-digit', hour12:true,
-    });
-  }, [scheduledAt]);
+  const [topError,  setTopError]  = useState('');
+  const [discount,  setDiscount]  = useState(null);
+  const [scheduledAt, setScheduledAt] = useState(null);
 
   // Esc to close
   useEffect(() => {
@@ -753,33 +753,47 @@ function PaymentModalInner({ uid, bookingPayload, selectedPayment, setSelectedPa
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const handleCashApp = async () => {
-    setTopError(''); setCashAppLoading(true);
-    try {
-      const { data } = await callCashAppPayment({ uid, bookingPayload: finalPayload });
-      if (!data.clientSecret) throw new Error(data.message||'Failed to initiate Cash App payment.');
-      const { error: se } = await stripe.confirmCashappPayment(data.clientSecret, {
-        payment_method:{ cashapp:{} },
-        return_url: `${window.location.origin}`,
-      });
-      if (se) throw new Error(se.message||'Cash App payment failed.');
-      onSuccess?.({ method:'cashapp', rideId: data.rideId });
-    } catch(err) { setTopError(err.message||'Cash App payment failed.'); }
-    finally { setCashAppLoading(false); }
-  };
+  // ── Derived totals ─────────────────────────────────
+  const baseTotal = useMemo(() => Number(bookingPayload?.fareEstimate || 0), [bookingPayload]);
+  const total     = useMemo(() => {
+    if (discount?.newTotal !== undefined) return Number(discount.newTotal).toFixed(2);
+    return baseTotal.toFixed(2);
+  }, [baseTotal, discount]);
 
-  const handleCash = async () => {
-    setTopError(''); setCashLoading(true);
-    try {
-      const { data } = await callCashPayment({ uid, bookingPayload: finalPayload });
-      if (!data.success) throw new Error(data.message||'Failed to book cash ride.');
-      onSuccess?.({ method:'cash', rideId: data.rideId });
-      onClose?.();
-    } catch(err) { setTopError(err.message||'Cash booking failed.'); }
-    finally { setCashLoading(false); }
-  };
+  // ── Trip metadata ──────────────────────────────────
+  const rideType    = bookingPayload?.rideType          ?? 'standard';
+  const miles       = bookingPayload?.tripDistanceMiles ?? 0;
+  const durationMin = bookingPayload?.tripDurationMin   ?? 0;
+  const rideLabel   = rideType.charAt(0).toUpperCase() + rideType.slice(1);
+  const pickup      = bookingPayload?.pickup  ?? null;
+  const dropoff     = bookingPayload?.dropoff ?? null;
+
+  // ── Final payload passed to all payment hooks ──────
+  const finalPayload = useMemo(() => ({
+    ...bookingPayload,
+    fareEstimate: total,
+    ...(scheduledAt ? { scheduledAt, isScheduled: true } : { isScheduled: false }),
+    ...(discount    ? { promoCode: discount.code, discountAmount: discount.savings } : {}),
+  }), [bookingPayload, total, scheduledAt, discount]);
+
+  const scheduleLabel = useMemo(() => {
+    if (!scheduledAt) return null;
+    return new Date(scheduledAt).toLocaleString('en-US', {
+      month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true,
+    });
+  }, [scheduledAt]);
 
   const isScheduled = Boolean(scheduledAt);
+
+  // ── Success / error handlers shared across methods ─
+  const handleSuccess = useCallback((result) => {
+    onSuccess?.(result);
+    onClose?.();
+  }, [onSuccess, onClose]);
+
+  const handleError = useCallback((msg) => {
+    setTopError(msg);
+  }, []);
 
   return (
     <>
@@ -787,86 +801,85 @@ function PaymentModalInner({ uid, bookingPayload, selectedPayment, setSelectedPa
 
       {/* Backdrop */}
       <div onClick={onClose} className="pm-fade" style={{
-        position:'fixed', inset:0, minHeight:'100dvh',
-        background:'rgba(0,0,0,.72)',
-        backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)',
-        display:'flex', flexDirection:'column',
-        justifyContent:'flex-end', alignItems:'center', zIndex:999,
+        position: 'fixed', inset: 0, minHeight: '100dvh',
+        background: 'rgba(0,0,0,.72)',
+        backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+        display: 'flex', flexDirection: 'column',
+        justifyContent: 'flex-end', alignItems: 'center', zIndex: 999,
       }}>
         {/* Sheet */}
-        <div className="pm-sheet" onClick={e=>e.stopPropagation()} style={{
-          width:'100%', maxWidth:520, maxHeight:'92dvh',
-          background:T.bg,
-          borderRadius:'26px 26px 0 0',
-          paddingTop:12,
-          paddingBottom:'max(env(safe-area-inset-bottom,0px),20px)',
-          boxShadow:'0 -24px 80px rgba(0,0,0,.6)',
-          display:'flex', flexDirection:'column',
-          overflow:'hidden',
-          border:`1px solid ${T.border}`,
-          borderBottom:'none',
-          position:'relative',
+        <div className="pm-sheet" onClick={e => e.stopPropagation()} style={{
+          width: '100%', maxWidth: 520, maxHeight: '92dvh',
+          background: T.bg,
+          borderRadius: '26px 26px 0 0',
+          paddingTop: 12,
+          paddingBottom: 'max(env(safe-area-inset-bottom,0px),20px)',
+          boxShadow: '0 -24px 80px rgba(0,0,0,.6)',
+          display: 'flex', flexDirection: 'column',
+          overflow: 'hidden',
+          border: `1px solid ${T.border}`,
+          borderBottom: 'none',
+          position: 'relative',
         }}>
           {/* Ambient glow */}
           <div style={{
-            position:'absolute', top:-80, left:'50%', transform:'translateX(-50%)',
-            width:300, height:160, borderRadius:'50%',
-            background: isScheduled ? `radial-gradient(circle, ${T.indigo}22, transparent 70%)` : `radial-gradient(circle, ${T.green}1F, transparent 70%)`,
-            pointerEvents:'none', transition:'background .5s ease',
+            position: 'absolute', top: -80, left: '50%', transform: 'translateX(-50%)',
+            width: 300, height: 160, borderRadius: '50%',
+            background: isScheduled
+              ? `radial-gradient(circle, ${T.indigo}22, transparent 70%)`
+              : `radial-gradient(circle, ${T.green}1F, transparent 70%)`,
+            pointerEvents: 'none', transition: 'background .5s ease',
           }}/>
 
           {/* Handle */}
-          <div style={{ padding:'0 0 14px', position:'relative' }}>
-            <div style={{ width:36, height:3.5, background:T.textMuted, borderRadius:99, margin:'0 auto', opacity:.4 }}/>
+          <div style={{ padding: '0 0 14px', position: 'relative' }}>
+            <div style={{ width: 36, height: 3.5, background: T.textMuted, borderRadius: 99, margin: '0 auto', opacity: .4 }}/>
           </div>
 
           {/* Header */}
           <div style={{
-            padding:'0 20px 16px',
-            borderBottom:`1px solid ${T.border}`,
-            background:T.bg, position:'relative',
+            padding: '0 20px 16px',
+            borderBottom: `1px solid ${T.border}`,
+            background: T.bg, position: 'relative',
           }}>
             {/* Close */}
             <button onClick={onClose} aria-label="Close" className="pm-btn" style={{
-              position:'absolute', top:18, right:18,
-              width:32, height:32, borderRadius:9,
-              border:`1px solid ${T.border}`, background:T.bgCard, color:T.textMid,
-              display:'flex', alignItems:'center', justifyContent:'center',
-              cursor:'pointer', zIndex:2,
+              position: 'absolute', top: 18, right: 18,
+              width: 32, height: 32, borderRadius: 9,
+              border: `1px solid ${T.border}`, background: T.bgCard, color: T.textMid,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', zIndex: 2,
             }}>
               <X size={14}/>
             </button>
 
             {/* Eyebrow */}
             <div style={{
-              fontSize:9.5, fontWeight:700, color:T.textMuted, letterSpacing:'.16em',
-              textTransform:'uppercase', fontFamily:'DM Sans', marginBottom:8,
-              display:'flex', alignItems:'center', gap:5,
+              fontSize: 9.5, fontWeight: 700, color: T.textMuted, letterSpacing: '.16em',
+              textTransform: 'uppercase', fontFamily: 'DM Sans', marginBottom: 8,
+              display: 'flex', alignItems: 'center', gap: 5,
             }}>
               <Navigation size={9} color={T.green} strokeWidth={2.6}/> Confirm & pay
             </div>
 
             {/* Amount */}
-            <div style={{ display:'flex', alignItems:'baseline', gap:8, marginBottom:8 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
               <span style={{
-                fontFamily:'DM Mono', fontSize:42, fontWeight:500,
-                color:T.text, letterSpacing:'-1.5px', lineHeight:1,
+                fontFamily: 'DM Mono', fontSize: 42, fontWeight: 500,
+                color: T.text, letterSpacing: '-1.5px', lineHeight: 1,
               }}>
                 ${total}
               </span>
               {discount && (
-                <span style={{
-                  fontFamily:'DM Mono', fontSize:18, fontWeight:400,
-                  color:T.textMuted, textDecoration:'line-through',
-                }}>
+                <span style={{ fontFamily: 'DM Mono', fontSize: 18, fontWeight: 400, color: T.textMuted, textDecoration: 'line-through' }}>
                   ${baseTotal.toFixed(2)}
                 </span>
               )}
-              <span style={{ fontSize:11, color:T.textMuted, fontFamily:'DM Sans', fontWeight:500 }}>USD</span>
+              <span style={{ fontSize: 11, color: T.textMuted, fontFamily: 'DM Sans', fontWeight: 500 }}>USD</span>
             </div>
 
-            {/* Chips row */}
-            <div style={{ display:'flex', flexWrap:'wrap', gap:5 }}>
+            {/* Chips */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
               <Chip color={T.green} colorBg={T.greenDim} border={T.borderGreen}>{rideLabel}</Chip>
               <Chip color={T.textMid} icon={<MapPin size={9} strokeWidth={2.5}/>}>{miles} mi</Chip>
               <Chip color={T.textMid} icon={<Clock size={9} strokeWidth={2.5}/>}>~{durationMin} min</Chip>
@@ -884,86 +897,80 @@ function PaymentModalInner({ uid, bookingPayload, selectedPayment, setSelectedPa
           </div>
 
           {/* Scrollable body */}
-          <div className="pm-scroll" style={{ flex:1, padding:'16px 20px 24px' }}>
+          <div className="pm-scroll" style={{ flex: 1, padding: '16px 20px 24px' }}>
 
             {topError && (
               <div className="pm-slide" style={{
-                marginBottom:14, padding:'10px 12px', borderRadius:10,
-                background:T.redDim, border:`1px solid rgba(248,113,113,.2)`,
-                color:T.red, fontSize:12, fontWeight:500,
-                display:'flex', alignItems:'flex-start', gap:7, fontFamily:'DM Sans',
+                marginBottom: 14, padding: '10px 12px', borderRadius: 10,
+                background: T.redDim, border: `1px solid rgba(248,113,113,.2)`,
+                color: T.red, fontSize: 12, fontWeight: 500,
+                display: 'flex', alignItems: 'flex-start', gap: 7, fontFamily: 'DM Sans',
               }}>
-                <AlertCircle size={13} strokeWidth={2.2} style={{flexShrink:0, marginTop:1}}/>{topError}
+                <AlertCircle size={13} strokeWidth={2.2} style={{ flexShrink: 0, marginTop: 1 }}/>{topError}
               </div>
             )}
 
-            {/* ── Route summary ── */}
+            {/* Route summary */}
             {(pickup || dropoff) && (
               <div style={{
-                marginBottom:14, padding:'12px 14px', borderRadius:13,
-                background:T.bgCard, border:`1px solid ${T.border}`,
-                display:'flex', gap:11, alignItems:'stretch',
+                marginBottom: 14, padding: '12px 14px', borderRadius: 13,
+                background: T.bgCard, border: `1px solid ${T.border}`,
+                display: 'flex', gap: 11, alignItems: 'stretch',
               }}>
-                <div style={{ display:'flex', flexDirection:'column', alignItems:'center', paddingTop:3, flexShrink:0 }}>
-                  <div style={{ width:7, height:7, borderRadius:'50%', background:T.green }}/>
-                  <div style={{ width:1, flex:1, minHeight:14, background:`linear-gradient(to bottom, ${T.green}66, ${T.indigo}66)`, margin:'3px 0' }}/>
-                  <div style={{ width:7, height:7, borderRadius:2, background:T.indigo, transform:'rotate(45deg)' }}/>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 3, flexShrink: 0 }}>
+                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: T.green }}/>
+                  <div style={{ width: 1, flex: 1, minHeight: 14, background: `linear-gradient(to bottom, ${T.green}66, ${T.indigo}66)`, margin: '3px 0' }}/>
+                  <div style={{ width: 7, height: 7, borderRadius: 2, background: T.indigo, transform: 'rotate(45deg)' }}/>
                 </div>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontFamily:'DM Sans', fontSize:12, fontWeight:600, color:T.text, marginBottom:7, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{pickup ?? 'Pickup'}</div>
-                  <div style={{ fontFamily:'DM Sans', fontSize:12, fontWeight:600, color:T.textMid, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{dropoff ?? 'Dropoff'}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: 'DM Sans', fontSize: 12, fontWeight: 600, color: T.text, marginBottom: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pickup ?? 'Pickup'}</div>
+                  <div style={{ fontFamily: 'DM Sans', fontSize: 12, fontWeight: 600, color: T.textMid, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dropoff ?? 'Dropoff'}</div>
                 </div>
               </div>
             )}
 
-            {/* ── Schedule ── */}
             <SchedulePicker scheduledAt={scheduledAt} onChange={setScheduledAt}/>
-
-            {/* ── Fare breakdown ── */}
             <FareBreakdown baseTotal={baseTotal} discount={discount} miles={miles} durationMin={durationMin}/>
-
-            {/* ── Promo ── */}
             <PromoBox originalTotal={baseTotal} discount={discount} setDiscount={setDiscount}/>
 
-            {/* ── Divider ── */}
-            <div style={{ height:1, background:T.border, marginBottom:16 }}/>
+            <div style={{ height: 1, background: T.border, marginBottom: 16 }}/>
 
-            {/* ── Method selector ── */}
+            {/* Method selector */}
             <Label>Pay With</Label>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:7, marginBottom:18 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 7, marginBottom: 18 }}>
               {METHODS.map(opt => {
                 const active = selectedPayment === opt.id;
                 return (
                   <button
                     key={opt.id} type="button"
                     className="pm-method"
-                    onClick={()=>{ setTopError(''); setSelectedPayment(opt.id); }}
+                    onClick={() => { setTopError(''); setSelectedPayment(opt.id); }}
                     style={{
-                      padding:'13px 8px', borderRadius:13, cursor:'pointer',
+                      padding: '13px 8px', borderRadius: 13, cursor: 'pointer',
                       background: active ? `${opt.color}12` : T.bgCard,
-                      border:`1.5px solid ${active ? opt.color : T.border}`,
+                      border: `1.5px solid ${active ? opt.color : T.border}`,
                       boxShadow: active ? `0 4px 18px ${opt.color}28` : 'none',
-                      display:'flex', flexDirection:'column', alignItems:'center', gap:6,
-                      position:'relative',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                      position: 'relative',
                     }}
                   >
                     {active && (
                       <div style={{
-                        position:'absolute', top:-6, right:-6,
-                        width:18, height:18, borderRadius:'50%',
-                        background:opt.color, border:'2px solid '+T.bg,
-                        display:'flex', alignItems:'center', justifyContent:'center',
+                        position: 'absolute', top: -6, right: -6,
+                        width: 18, height: 18, borderRadius: '50%',
+                        background: opt.color, border: '2px solid ' + T.bg,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
                       }}>
                         <Check size={9} color="#04130A" strokeWidth={3.5}/>
                       </div>
                     )}
-                    {opt.id === 'card' && <CreditCard size={18} color={active ? opt.color : T.textMuted} strokeWidth={active?2.4:2}/>}
+                    {opt.id === 'card'    && <CreditCard size={18} color={active ? opt.color : T.textMuted} strokeWidth={active ? 2.4 : 2}/>}
                     {opt.id === 'cashapp' && <CashAppLogo size={20}/>}
-                    {opt.id === 'cash' && <Banknote size={18} color={active ? opt.color : T.textMuted} strokeWidth={active?2.4:2}/>}
-                    <span style={{ fontSize:11.5, fontWeight:700, color:active ? opt.color : T.text, fontFamily:'Syne' }}>
+                    {opt.id === 'cash'    && <Banknote size={18} color={active ? opt.color : T.textMuted} strokeWidth={active ? 2.4 : 2}/>}
+                    <span style={{ fontSize: 11.5, fontWeight: 700, color: active ? opt.color : T.text, fontFamily: 'Syne' }}>
                       {opt.label}
                     </span>
-                    <span style={{ fontSize:9.5, color:T.textMuted, fontFamily:'DM Sans', fontWeight:500, marginTop:-3 }}>
+                    <span style={{ fontSize: 9.5, color: T.textMuted, fontFamily: 'DM Sans', fontWeight: 500, marginTop: -3 }}>
                       {opt.sub}
                     </span>
                   </button>
@@ -971,132 +978,45 @@ function PaymentModalInner({ uid, bookingPayload, selectedPayment, setSelectedPa
               })}
             </div>
 
-            {/* ── Method panels ── */}
+            {/* Method panels — keyed so they remount on switch */}
             <div className="pm-in" key={selectedPayment}>
-
               {selectedPayment === 'card' && (
-                <CardForm uid={uid} bookingPayload={finalPayload} total={total} scheduled={isScheduled}
-                  onSuccess={r=>{ onSuccess?.(r); onClose?.(); }}
-                  onError={m=>setTopError(m)}
+                <CardForm
+                  uid={uid}
+                  bookingPayload={finalPayload}
+                  total={total}
+                  scheduled={isScheduled}
+                  onSuccess={handleSuccess}
+                  onError={handleError}
                 />
               )}
-
               {selectedPayment === 'cashapp' && (
-                <>
-                  <div style={{
-                    background:T.bgCard, border:`1px solid ${T.border}`,
-                    borderRadius:12, padding:'12px 14px', marginBottom:10,
-                    display:'flex', alignItems:'center', gap:10,
-                  }}>
-                    <CashAppLogo size={30}/>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontFamily:'Syne', fontSize:13, fontWeight:700, color:T.text, marginBottom:2 }}>
-                        Pay with Cash App
-                      </div>
-                      <div style={{ fontFamily:'DM Sans', fontSize:11, color:T.textMid }}>
-                        You'll confirm in the Cash App
-                      </div>
-                    </div>
-                    <ChevronRight size={14} color={T.textMuted}/>
-                  </div>
-                  <CTA loading={cashAppLoading} disabled={cashAppLoading}
-                    loadingText="Opening Cash App…" onClick={handleCashApp}
-                    color={T.cashApp} gFrom="#00E03A" gTo="#00B82B"
-                  >
-                    <CashAppLogo size={16}/>
-                    {isScheduled ? `Schedule · $${total}` : 'Continue to Cash App'}
-                    <ArrowRight size={13} strokeWidth={2.6}/>
-                  </CTA>
-                  <SecureNote/>
-                </>
+                <CashAppPanel
+                  uid={uid}
+                  bookingPayload={finalPayload}
+                  total={total}
+                  scheduled={isScheduled}
+                  onSuccess={handleSuccess}
+                  onError={handleError}
+                />
               )}
-
               {selectedPayment === 'cash' && (
-                <>
-                  <div style={{
-                    background:T.amberDim, border:`1px solid ${T.amberBorder}`,
-                    borderRadius:12, padding:'12px 14px', marginBottom:10,
-                  }}>
-                    <div style={{ display:'flex', alignItems:'flex-start', gap:9, marginBottom:10 }}>
-                      <Banknote size={16} color={T.amber} strokeWidth={2.2} style={{flexShrink:0, marginTop:1}}/>
-                      <div>
-                        <div style={{ fontFamily:'Syne', fontSize:13, fontWeight:700, color:T.amber, marginBottom:2 }}>
-                          Pay your driver in cash
-                        </div>
-                        <div style={{ fontFamily:'DM Sans', fontSize:11.5, color:'rgba(245,158,11,.8)', lineHeight:1.5 }}>
-                          Have <strong style={{ fontFamily:'DM Mono', color:T.amber }}>${total}</strong> ready on arrival. Exact change appreciated.
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{
-                      display:'grid', gridTemplateColumns:'1fr 1fr', gap:8,
-                      paddingTop:10, borderTop:`1px solid rgba(245,158,11,.15)`,
-                    }}>
-                      <div>
-                        <div style={{ fontSize:9.5, fontWeight:700, color:T.amber, letterSpacing:'.08em', textTransform:'uppercase', fontFamily:'DM Sans', marginBottom:3 }}>
-                          Amount Due
-                        </div>
-                        <div style={{ fontFamily:'DM Mono', fontSize:18, fontWeight:500, color:T.amber }}>${total}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize:9.5, fontWeight:700, color:T.amber, letterSpacing:'.08em', textTransform:'uppercase', fontFamily:'DM Sans', marginBottom:3 }}>
-                          When
-                        </div>
-                        <div style={{ fontFamily:'DM Sans', fontSize:12, fontWeight:600, color:T.amber }}>
-                          {scheduledAt ? 'On driver arrival' : 'Driver arrival'}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <CTA loading={cashLoading} disabled={cashLoading}
-                    loadingText="Booking ride…" onClick={handleCash}
-                    color={T.amber} gFrom="#F59E0B" gTo="#B45309"
-                  >
-                    <Banknote size={15} strokeWidth={2.4}/>
-                    {scheduledAt ? `Schedule · $${total}` : `Confirm Cash · $${total}`}
-                  </CTA>
-                  <div style={{
-                    marginTop:9, display:'flex', alignItems:'center', justifyContent:'center', gap:5,
-                    fontSize:10.5, color:T.textMuted, fontFamily:'DM Sans',
-                  }}>
-                    <ShieldCheck size={10} strokeWidth={2.4}/>
-                    Driver matched after confirming
-                  </div>
-                </>
+                <CashPanel
+                  uid={uid}
+                  bookingPayload={finalPayload}
+                  total={total}
+                  scheduled={isScheduled}
+                  scheduledAt={scheduledAt}
+                  onSuccess={handleSuccess}
+                  onError={handleError}
+                  onClose={onClose}
+                />
               )}
-
             </div>
           </div>
         </div>
       </div>
     </>
-  );
-}
-
-// ── Micro components ───────────────────────────────────
-function Label({ children }) {
-  return (
-    <div style={{
-      fontSize:9.5, fontWeight:700, color:T.textMuted,
-      letterSpacing:'.12em', textTransform:'uppercase',
-      fontFamily:'DM Sans', marginBottom:9,
-    }}>{children}</div>
-  );
-}
-
-function Chip({ children, color, colorBg, border, icon }) {
-  return (
-    <span style={{
-      display:'inline-flex', alignItems:'center', gap:4,
-      padding:'3px 8px', borderRadius:99,
-      background: colorBg || 'transparent',
-      border: `1px solid ${border || 'rgba(255,255,255,0.1)'}`,
-      fontSize:10.5, fontWeight:600,
-      color: color || T.textMid,
-      fontFamily:'DM Sans',
-    }}>
-      {icon}{children}
-    </span>
   );
 }
 
