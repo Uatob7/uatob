@@ -1,28 +1,5 @@
 /**
  * ActiveTripScreen.jsx
- * ════════════════════════════════════════════════════════════════════════════
- * Full-screen, navigation-grade trip view rendered whenever the driver has an
- * assigned ride. Replaces the radar HomeTab UI for the duration of the trip.
- *
- * What this build adds (on top of the realtime follow engine):
- * ──────────────────────────────────────────────────────────────────────────
- *   • LIVE SPEED. The device GPS speed (or a movement-derived fallback) is
- *     smoothed and surfaced two ways: a radial SPEEDOMETER gauge on the left
- *     rail and a compact MPH readout in the top bar. ETA is now speed-aware —
- *     when you're actually moving it uses your real pace, falling back to the
- *     route's duration when you're stopped.
- *   • TAP-TO-NAVIGATE. Tapping either address (or the big Navigate button)
- *     launches Google Maps turn-by-turn to the CORRECT destination — pickup
- *     coords for the pickup row, drop-off coords for the drop-off row, and the
- *     current leg's target for the Navigate button.
- *   • CORRECT DROP-OFF METRICS. The instant the leg changes (pickup → drop-off
- *     when the trip starts) the live metrics are cleared, so the card never
- *     shows the leftover ~18 ft from reaching the pickup. During the ride it
- *     shows ETA, distance, and minutes to the DROP-OFF, recomputed live.
- *
- * Carried over from the previous build:
- *   • Centered error toast, slide-to-confirm with spring-back on failure, and
- *     the 1-mile proximity gate on the "arrive" action.
  */
 
 import {
@@ -32,15 +9,12 @@ import {
   useCallback,
   useMemo,
 } from 'react';
-import { getFunctions, httpsCallable }       from 'firebase/functions';
 import { getFirestore, doc, getDoc, onSnapshot, collection, addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { firebase_app }                       from '@/firebase/config';
+import { firebase_app } from '@/firebase/config';
+import { useUpdateTrip } from './useUpdateTrip';
+import { useGetRoute }   from './useGetRoute';
 
 const db = getFirestore(firebase_app);
-
-const _functions     = getFunctions(firebase_app, 'us-east1');
-const callUpdateTrip = httpsCallable(_functions, 'updateTripStatus');
-const callGetRoute   = httpsCallable(_functions, 'getDriverToPickup');
 
 // ─── tokens ──────────────────────────────────────────────────────────────────
 const MAPBOX_TOKEN = 'pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA';
@@ -74,16 +48,16 @@ const COND = "'Barlow Condensed','Barlow',sans-serif";
 // ─── tunables ─────────────────────────────────────────────────────────────────
 const SMOOTH_POS             = 0.16;
 const SMOOTH_BEARING         = 0.18;
-const SMOOTH_SPEED           = 0.22;  // ease factor for the displayed speed
+const SMOOTH_SPEED           = 0.22;
 const TRIM_EVERY_FRAMES      = 2;
 const FOLLOW_THROTTLE_MS     = 220;
 const FALLBACK_SPEED_MPH     = 24;
 const MIN_MOVE_FOR_BEARING_M = 4;
 const STALE_FIX_MS           = 30000;
-const ARRIVE_MAX_MILES       = 1.0;   // proximity gate for "arrive" action
-const SPEED_GAUGE_MAX_MPH    = 80;    // top of the speedometer arc
-const SPEED_FLOOR_FOR_ETA    = 6;     // mph; below this we trust the route duration
-const SPEED_DERIVE_MIN_DT_S  = 0.4;   // ignore sub-this dt when deriving speed
+const ARRIVE_MAX_MILES       = 1.0;
+const SPEED_GAUGE_MAX_MPH    = 80;
+const SPEED_FLOOR_FOR_ETA    = 6;
+const SPEED_DERIVE_MIN_DT_S  = 0.4;
 const MPS_TO_MPH             = 2.2369362921;
 
 // ─── trip state machine ───────────────────────────────────────────────────────
@@ -226,7 +200,7 @@ function pathLengthMi(coords) {
   return s;
 }
 
-// ─── formatting ────────────────────────────────────────────────────────────────
+// ─── formatting ───────────────────────────────────────────────────────────────
 function fmtMi(mi) {
   if (mi === null || mi === undefined || !isFinite(mi)) return '—';
   if (mi < 0.1) return `${Math.round(mi * 5280)} ft`;
@@ -250,12 +224,6 @@ function fmtArrivalClock(min) {
   return `${h}:${m} ${ap}`;
 }
 
-// speed (m/s) → integer mph string; null-safe
-function fmtSpeedMph(mph) {
-  if (mph === null || mph === undefined || !isFinite(mph) || mph < 0) return '—';
-  return `${Math.round(mph)}`;
-}
-
 function getInitials(name) {
   if (!name) return '?';
   return name.trim().split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();
@@ -266,9 +234,6 @@ function firstName(name) {
   return name.trim().split(/\s+/)[0];
 }
 
-// ─── Google Maps deep-link ───────────────────────────────────────────────────
-// Prefers exact coordinates; falls back to the text address. `dir_action=navigate`
-// launches turn-by-turn in the Google Maps app on a phone (universal link).
 function navUrl(lat, lng, fallbackText) {
   const base = 'https://www.google.com/maps/dir/?api=1&travelmode=driving&dir_action=navigate&destination=';
   if (typeof lat === 'number' && typeof lng === 'number' && isFinite(lat) && isFinite(lng)) {
@@ -280,19 +245,18 @@ function navUrl(lat, lng, fallbackText) {
   return null;
 }
 
-// open a maps URL in a new tab/app without losing the PWA context
 function openNav(url) {
   if (!url) return;
   try {
     const w = window.open(url, '_blank', 'noopener,noreferrer');
-    if (!w) window.location.href = url;   // popup blocked → navigate
+    if (!w) window.location.href = url;
   } catch (e) {
     window.location.href = url;
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ERROR TOAST — fixed, horizontally centered overlay
+// ERROR TOAST
 // ═══════════════════════════════════════════════════════════════════════════════
 function ErrorToast({ message, onDismiss }) {
   if (!message) return null;
@@ -319,16 +283,10 @@ function ErrorToast({ message, onDismiss }) {
         pointerEvents: 'auto',
       }}
     >
-      <div style={{
-        fontFamily: MONO, fontSize: 11, fontWeight: 700, color: C.red,
-        lineHeight: 1.55, marginBottom: 4,
-      }}>
+      <div style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: C.red, lineHeight: 1.55, marginBottom: 4 }}>
         ⚠ {message}
       </div>
-      <div style={{
-        fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.14em',
-        color: 'rgba(248,113,113,.5)', textTransform: 'uppercase',
-      }}>
+      <div style={{ fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.14em', color: 'rgba(248,113,113,.5)', textTransform: 'uppercase' }}>
         Tap to dismiss
       </div>
     </div>
@@ -336,7 +294,7 @@ function ErrorToast({ message, onDismiss }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// SMALL PRESENTATIONAL PRIMITIVES
+// SMALL PRIMITIVES
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function Dot({ color, size = 8, pulse = true }) {
@@ -353,10 +311,7 @@ function Dot({ color, size = 8, pulse = true }) {
 function RouteRail({ status }) {
   const bottomColor = status === 'in_progress' ? C.amberBright : C.white;
   return (
-    <div style={{
-      display: 'flex', flexDirection: 'column',
-      alignItems: 'center', flexShrink: 0, paddingTop: 3, gap: 0,
-    }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, paddingTop: 3, gap: 0 }}>
       <div style={{
         width: 10, height: 10, borderRadius: '50%',
         background: C.greenBright, border: '2px solid rgba(255,255,255,.7)',
@@ -377,10 +332,6 @@ function RouteRail({ status }) {
   );
 }
 
-// ─── AddrRow ──────────────────────────────────────────────────────────────────
-// The whole row is tappable when a nav URL is available — tapping launches
-// Google Maps turn-by-turn to this row's destination. `active` highlights the
-// leg the driver is currently navigating.
 function AddrRow({ label, text, dimmed, mapUrl, active }) {
   const tappable = !!mapUrl;
   const handle = (e) => { e.preventDefault(); e.stopPropagation(); openNav(mapUrl); };
@@ -407,8 +358,7 @@ function AddrRow({ label, text, dimmed, mapUrl, active }) {
           {active && (
             <span style={{
               fontFamily: COND, fontSize: 7.5, fontWeight: 900, letterSpacing: '.12em',
-              color: C.cyan, background: 'rgba(103,232,249,.14)', borderRadius: 4,
-              padding: '0 4px',
+              color: C.cyan, background: 'rgba(103,232,249,.14)', borderRadius: 4, padding: '0 4px',
             }}>
               NAVIGATING
             </span>
@@ -423,17 +373,13 @@ function AddrRow({ label, text, dimmed, mapUrl, active }) {
         </div>
       </div>
       {tappable && (
-        <div
-          style={{
-            flexShrink: 0, width: 32, height: 32, borderRadius: 9,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: active ? 'rgba(103,232,249,.16)' : 'rgba(103,232,249,.10)',
-            border: `1px solid ${active ? 'rgba(103,232,249,.5)' : 'rgba(103,232,249,.28)'}`,
-            color: C.cyan,
-          }}
-          aria-label={`Navigate to ${label} in Google Maps`}
-        >
-          {/* navigation arrow */}
+        <div style={{
+          flexShrink: 0, width: 32, height: 32, borderRadius: 9,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: active ? 'rgba(103,232,249,.16)' : 'rgba(103,232,249,.10)',
+          border: `1px solid ${active ? 'rgba(103,232,249,.5)' : 'rgba(103,232,249,.28)'}`,
+          color: C.cyan,
+        }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <polygon points="3 11 22 2 13 21 11 13 3 11"/>
@@ -445,7 +391,7 @@ function AddrRow({ label, text, dimmed, mapUrl, active }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// TOP HUD — now carries a compact live MPH readout
+// TOP BAR
 // ═══════════════════════════════════════════════════════════════════════════════
 function TopBar({ statusLabel, statusColor, rideId, paymentMethod, progress, gpsLive, mph }) {
   const pm = (paymentMethod || '').toLowerCase();
@@ -463,15 +409,9 @@ function TopBar({ statusLabel, statusColor, rideId, paymentMethod, progress, gps
       paddingTop: 'max(8px, env(safe-area-inset-top))',
       pointerEvents: 'none',
     }}>
-      <div style={{
-        height: 44, display: 'flex', alignItems: 'center',
-        justifyContent: 'space-between', padding: '0 16px',
-      }}>
+      <div style={{ height: 44, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-          <span style={{
-            fontFamily: COND, fontSize: 11, fontWeight: 800, letterSpacing: '.22em',
-            color: 'rgba(255,255,255,.45)',
-          }}>
+          <span style={{ fontFamily: COND, fontSize: 11, fontWeight: 800, letterSpacing: '.22em', color: 'rgba(255,255,255,.45)' }}>
             UATOB
           </span>
           <span style={{ color: C.inkFaint, fontFamily: MONO, fontSize: 9 }}>·</span>
@@ -483,16 +423,11 @@ function TopBar({ statusLabel, statusColor, rideId, paymentMethod, progress, gps
             {statusLabel}
           </span>
         </div>
-
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           {showMph && (
             <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 3 }}>
-              <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 800, color: C.greenBright }}>
-                {Math.round(mph)}
-              </span>
-              <span style={{ fontFamily: COND, fontSize: 7.5, fontWeight: 800, letterSpacing: '.1em', color: C.inkDim }}>
-                MPH
-              </span>
+              <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 800, color: C.greenBright }}>{Math.round(mph)}</span>
+              <span style={{ fontFamily: COND, fontSize: 7.5, fontWeight: 800, letterSpacing: '.1em', color: C.inkDim }}>MPH</span>
             </span>
           )}
           <span style={{
@@ -517,15 +452,11 @@ function TopBar({ statusLabel, statusColor, rideId, paymentMethod, progress, gps
               {pmLabel}
             </span>
           )}
-          <span style={{
-            fontFamily: MONO, fontSize: 9, fontWeight: 700,
-            color: C.inkDim, letterSpacing: '.06em',
-          }}>
+          <span style={{ fontFamily: MONO, fontSize: 9, fontWeight: 700, color: C.inkDim, letterSpacing: '.06em' }}>
             #{(rideId || '').slice(-6).toUpperCase()}
           </span>
         </div>
       </div>
-
       <div style={{ height: 2.5, margin: '0 16px 0', background: 'rgba(255,255,255,.07)', borderRadius: 2 }}>
         <div style={{
           height: '100%', width: `${pct * 100}%`,
@@ -540,8 +471,7 @@ function TopBar({ statusLabel, statusColor, rideId, paymentMethod, progress, gps
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// LIVE ETA CARD — ETA (min), distance, and arrival clock to the active target
-// During in_progress the target is the DROP-OFF, so all three read to drop-off.
+// ETA CARD
 // ═══════════════════════════════════════════════════════════════════════════════
 function EtaCard({ etaMin, distMi, status, arrivalClock }) {
   const accent = status === 'driver_assigned' ? C.cyan
@@ -566,73 +496,47 @@ function EtaCard({ etaMin, distMi, status, arrivalClock }) {
     }}>
       <div style={{ flex: 1, textAlign: 'center', padding: '0 12px' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 3 }}>
-          <span style={{
-            fontFamily: MONO, fontSize: 26, fontWeight: 800, lineHeight: 1, color: accent,
-            textShadow: `0 0 18px ${accent}55`,
-          }}>
+          <span style={{ fontFamily: MONO, fontSize: 26, fontWeight: 800, lineHeight: 1, color: accent, textShadow: `0 0 18px ${accent}55` }}>
             {fmtEtaMin(etaMin)}
           </span>
-          <span style={{ fontFamily: COND, fontSize: 11, fontWeight: 800, color: accent, letterSpacing: '.08em' }}>
-            MIN
-          </span>
+          <span style={{ fontFamily: COND, fontSize: 11, fontWeight: 800, color: accent, letterSpacing: '.08em' }}>MIN</span>
         </div>
         <div style={{ fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.16em', color: C.inkDim, marginTop: 2 }}>
           TO {targetWord}
         </div>
       </div>
-
       <div style={{ width: 1, background: 'rgba(255,255,255,.08)', margin: '2px 0' }}/>
-
       <div style={{ flex: 1, textAlign: 'center', padding: '0 10px' }}>
-        <div style={{ fontFamily: MONO, fontSize: 17, fontWeight: 800, color: C.white, lineHeight: 1.2 }}>
-          {fmtMi(distMi)}
-        </div>
-        <div style={{ fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.16em', color: C.inkDim, marginTop: 3 }}>
-          DISTANCE
-        </div>
+        <div style={{ fontFamily: MONO, fontSize: 17, fontWeight: 800, color: C.white, lineHeight: 1.2 }}>{fmtMi(distMi)}</div>
+        <div style={{ fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.16em', color: C.inkDim, marginTop: 3 }}>DISTANCE</div>
       </div>
-
       <div style={{ width: 1, background: 'rgba(255,255,255,.08)', margin: '2px 0' }}/>
-
       <div style={{ flex: 1, textAlign: 'center', padding: '0 10px' }}>
-        <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 800, color: C.greenSoft, lineHeight: 1.3 }}>
-          {arrivalClock}
-        </div>
-        <div style={{ fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.16em', color: C.inkDim, marginTop: 3 }}>
-          ARRIVAL
-        </div>
+        <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 800, color: C.greenSoft, lineHeight: 1.3 }}>{arrivalClock}</div>
+        <div style={{ fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.16em', color: C.inkDim, marginTop: 3 }}>ARRIVAL</div>
       </div>
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// SPEEDOMETER — radial live-speed gauge (left rail)
-// 270° arc, 0 → SPEED_GAUGE_MAX_MPH, colour escalates with speed. Reads the
-// smoothed device speed; shows "—" until we have a live GPS fix.
+// SPEEDOMETER
 // ═══════════════════════════════════════════════════════════════════════════════
 function Speedometer({ mph, gpsLive }) {
   const has   = gpsLive && mph != null && isFinite(mph) && mph >= 0;
   const val   = has ? Math.max(0, Math.min(SPEED_GAUGE_MAX_MPH, mph)) : 0;
   const frac  = val / SPEED_GAUGE_MAX_MPH;
-
   const R     = 30;
   const CIRC  = 2 * Math.PI * R;
-  const ARC   = 0.75;                 // 270° of the circle is the gauge
+  const ARC   = 0.75;
   const track = `${ARC * CIRC} ${CIRC}`;
   const value = `${frac * ARC * CIRC} ${CIRC}`;
-
-  const accent = !has        ? C.inkDim
-               : mph >= 72    ? C.redDeep
-               : mph >= 55    ? C.amberBright
-               :                C.greenBright;
+  const accent = !has ? C.inkDim : mph >= 72 ? C.redDeep : mph >= 55 ? C.amberBright : C.greenBright;
 
   return (
     <div style={{
-      position: 'absolute',
-      left: 12, top: '46%', transform: 'translateY(-50%)',
-      zIndex: 27, pointerEvents: 'none',
-      width: 84, height: 84,
+      position: 'absolute', left: 12, top: '46%', transform: 'translateY(-50%)',
+      zIndex: 27, pointerEvents: 'none', width: 84, height: 84,
       animation: 'ats-slidein-left .45s cubic-bezier(.34,1.2,.64,1) both',
     }}>
       <div style={{
@@ -642,27 +546,14 @@ function Speedometer({ mph, gpsLive }) {
         boxShadow: `0 8px 26px rgba(0,0,0,.6), 0 0 22px ${accent}14`,
         backdropFilter: 'blur(10px)',
       }}>
-        <svg width="84" height="84" viewBox="0 0 80 80"
-          style={{ position: 'absolute', inset: 0 }}>
-          {/* track (270° arc, gap at the bottom) */}
-          <circle
-            cx="40" cy="40" r={R} fill="none"
+        <svg width="84" height="84" viewBox="0 0 80 80" style={{ position: 'absolute', inset: 0 }}>
+          <circle cx="40" cy="40" r={R} fill="none"
             stroke="rgba(255,255,255,.08)" strokeWidth="5" strokeLinecap="round"
-            strokeDasharray={track}
-            transform="rotate(135 40 40)"
-          />
-          {/* value */}
-          <circle
-            cx="40" cy="40" r={R} fill="none"
+            strokeDasharray={track} transform="rotate(135 40 40)"/>
+          <circle cx="40" cy="40" r={R} fill="none"
             stroke={accent} strokeWidth="5" strokeLinecap="round"
-            strokeDasharray={value}
-            transform="rotate(135 40 40)"
-            style={{
-              transition: 'stroke-dasharray .25s linear, stroke .3s ease',
-              filter: `drop-shadow(0 0 5px ${accent}aa)`,
-            }}
-          />
-          {/* tick marks around the arc — lit up to the current speed */}
+            strokeDasharray={value} transform="rotate(135 40 40)"
+            style={{ transition: 'stroke-dasharray .25s linear, stroke .3s ease', filter: `drop-shadow(0 0 5px ${accent}aa)` }}/>
           {Array.from({ length: 9 }).map((_, i) => {
             const ang = (135 + 270 * (i / 8)) * Math.PI / 180;
             const x1 = 40 + 23.5 * Math.cos(ang), y1 = 40 + 23.5 * Math.sin(ang);
@@ -676,23 +567,11 @@ function Speedometer({ mph, gpsLive }) {
             );
           })}
         </svg>
-        <div style={{
-          position: 'absolute', inset: 0,
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <span style={{
-            fontFamily: MONO, fontSize: 22, fontWeight: 800, lineHeight: .95,
-            color: has ? C.white : C.inkDim,
-            textShadow: has ? `0 0 14px ${accent}66` : 'none',
-          }}>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ fontFamily: MONO, fontSize: 22, fontWeight: 800, lineHeight: .95, color: has ? C.white : C.inkDim, textShadow: has ? `0 0 14px ${accent}66` : 'none' }}>
             {has ? Math.round(val) : '—'}
           </span>
-          <span style={{
-            fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.18em',
-            color: accent, marginTop: 1,
-          }}>
-            MPH
-          </span>
+          <span style={{ fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.18em', color: accent, marginTop: 1 }}>MPH</span>
         </div>
       </div>
     </div>
@@ -707,13 +586,10 @@ function RiderCard({ rider }) {
   const rating = typeof rider.rating === 'number' ? rider.rating.toFixed(1) : null;
   return (
     <div style={{
-      position: 'absolute',
-      top: 'calc(108px + env(safe-area-inset-top))',
-      right: 12, zIndex: 29,
+      position: 'absolute', top: 'calc(108px + env(safe-area-inset-top))', right: 12, zIndex: 29,
       display: 'flex', alignItems: 'center', gap: 8,
       background: 'rgba(2,4,3,.8)', backdropFilter: 'blur(10px)',
-      border: '1px solid rgba(139,92,246,.28)',
-      borderRadius: 14, padding: '6px 10px 6px 6px',
+      border: '1px solid rgba(139,92,246,.28)', borderRadius: 14, padding: '6px 10px 6px 6px',
       boxShadow: '0 6px 22px rgba(0,0,0,.5)',
       animation: 'ats-slidein-right .45s cubic-bezier(.34,1.2,.64,1) both',
       pointerEvents: 'none', maxWidth: 168,
@@ -731,8 +607,7 @@ function RiderCard({ rider }) {
       <div style={{ minWidth: 0 }}>
         <div style={{
           fontFamily: COND, fontSize: 13, fontWeight: 800, letterSpacing: '.04em',
-          color: C.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          lineHeight: 1.1,
+          color: C.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.1,
         }}>
           {firstName(rider.name)}
         </div>
@@ -745,9 +620,7 @@ function RiderCard({ rider }) {
               <span style={{ fontFamily: MONO, fontSize: 9, fontWeight: 700, color: C.amberBright }}>{rating}</span>
             </span>
           )}
-          <span style={{ fontFamily: COND, fontSize: 8, fontWeight: 700, letterSpacing: '.1em', color: C.inkDim }}>
-            RIDER
-          </span>
+          <span style={{ fontFamily: COND, fontSize: 8, fontWeight: 700, letterSpacing: '.1em', color: C.inkDim }}>RIDER</span>
         </div>
       </div>
     </div>
@@ -759,24 +632,16 @@ function RiderCard({ rider }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 function RecenterFab({ visible, onClick }) {
   return (
-    <button
-      onClick={onClick}
-      aria-label="Recenter on my location"
-      style={{
-        position: 'absolute',
-        right: 14, bottom: 'calc(258px + env(safe-area-inset-bottom))',
-        zIndex: 33,
-        width: 46, height: 46, borderRadius: 14, border: 'none', cursor: 'pointer',
-        background: C.panelDeep, backdropFilter: 'blur(12px)',
-        boxShadow: '0 6px 22px rgba(0,0,0,.6), inset 0 0 0 1px rgba(34,197,94,.3)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: C.greenBright,
-        opacity: visible ? 1 : 0,
-        transform: visible ? 'scale(1)' : 'scale(.7)',
-        pointerEvents: visible ? 'auto' : 'none',
-        transition: 'opacity .25s ease, transform .25s cubic-bezier(.34,1.5,.64,1)',
-      }}
-    >
+    <button onClick={onClick} aria-label="Recenter on my location" style={{
+      position: 'absolute', right: 14, bottom: 'calc(258px + env(safe-area-inset-bottom))', zIndex: 33,
+      width: 46, height: 46, borderRadius: 14, border: 'none', cursor: 'pointer',
+      background: C.panelDeep, backdropFilter: 'blur(12px)',
+      boxShadow: '0 6px 22px rgba(0,0,0,.6), inset 0 0 0 1px rgba(34,197,94,.3)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.greenBright,
+      opacity: visible ? 1 : 0, transform: visible ? 'scale(1)' : 'scale(.7)',
+      pointerEvents: visible ? 'auto' : 'none',
+      transition: 'opacity .25s ease, transform .25s cubic-bezier(.34,1.5,.64,1)',
+    }}>
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
         stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="3.2"/>
@@ -787,20 +652,16 @@ function RecenterFab({ visible, onClick }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// SLIDE-TO-CONFIRM CONTROL
-// `committed` fires onConfirm and holds the thumb at the end while the call is
-// in flight. If the parent reports `failed` (via !!error) the thumb springs back.
+// SLIDE ACTION
 // ═══════════════════════════════════════════════════════════════════════════════
 function SlideAction({ label, color, onConfirm, pending, failed }) {
   const trackRef    = useRef(null);
   const maxRef      = useRef(0);
   const draggingRef = useRef(false);
   const offsetRef   = useRef(0);
-  const [x, setX]        = useState(0);
+  const [x, setX]               = useState(0);
   const [committed, setCommitted] = useState(false);
 
-  // Reset on every `failed` change (true OR false): covers the failure itself
-  // and the moment the user dismisses the toast, returning the thumb to start.
   useEffect(() => {
     setCommitted(false);
     offsetRef.current = 0;
@@ -822,8 +683,8 @@ function SlideAction({ label, color, onConfirm, pending, failed }) {
     if (pending || committed) return;
     draggingRef.current = true;
     measure();
-    const startX     = clientX(e);
-    const startOff   = offsetRef.current;
+    const startX   = clientX(e);
+    const startOff = offsetRef.current;
 
     const move = (ev) => {
       if (!draggingRef.current) return;
@@ -841,7 +702,6 @@ function SlideAction({ label, color, onConfirm, pending, failed }) {
       window.removeEventListener('pointerup', up);
       window.removeEventListener('touchmove', move);
       window.removeEventListener('touchend', up);
-
       if (offsetRef.current >= maxRef.current * 0.88) {
         setOffset(maxRef.current);
         setCommitted(true);
@@ -857,43 +717,31 @@ function SlideAction({ label, color, onConfirm, pending, failed }) {
     window.addEventListener('touchend', up);
   };
 
-  const THUMB   = 50;
-  const PAD     = 4;
+  const THUMB    = 50;
+  const PAD      = 4;
   const progress = maxRef.current ? x / maxRef.current : 0;
   const showDone = committed && !failed && !pending;
 
   return (
-    <div
-      ref={trackRef}
-      style={{
-        position: 'relative', width: '100%', height: 58, borderRadius: 18,
-        background: 'rgba(255,255,255,.05)',
-        border: `1px solid ${color}33`,
-        overflow: 'hidden', userSelect: 'none', touchAction: 'none',
-        boxShadow: `inset 0 0 0 1px rgba(255,255,255,.02)`,
-      }}
-    >
+    <div ref={trackRef} style={{
+      position: 'relative', width: '100%', height: 58, borderRadius: 18,
+      background: 'rgba(255,255,255,.05)', border: `1px solid ${color}33`,
+      overflow: 'hidden', userSelect: 'none', touchAction: 'none',
+      boxShadow: `inset 0 0 0 1px rgba(255,255,255,.02)`,
+    }}>
       <div style={{
-        position: 'absolute', inset: 0,
-        width: `${PAD + THUMB + x}px`,
+        position: 'absolute', inset: 0, width: `${PAD + THUMB + x}px`,
         background: `linear-gradient(135deg, ${color}33, ${color}11)`,
         transition: draggingRef.current ? 'none' : 'width .28s cubic-bezier(.34,1.1,.64,1)',
       }}/>
-
       <div style={{
-        position: 'absolute', inset: 0, display: 'flex',
-        alignItems: 'center', justifyContent: 'center',
-        fontFamily: COND, fontSize: 15, fontWeight: 900, letterSpacing: '.12em',
-        textTransform: 'uppercase',
-        color: color,
-        opacity: pending || showDone ? 0 : 1 - progress * 0.9,
-        transition: 'opacity .15s ease',
-        paddingLeft: 30,
-        pointerEvents: 'none',
+        position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontFamily: COND, fontSize: 15, fontWeight: 900, letterSpacing: '.12em', textTransform: 'uppercase',
+        color: color, opacity: pending || showDone ? 0 : 1 - progress * 0.9,
+        transition: 'opacity .15s ease', paddingLeft: 30, pointerEvents: 'none',
       }}>
         {label}
       </div>
-
       {!pending && !showDone && (
         <div style={{
           position: 'absolute', right: 18, top: 0, bottom: 0,
@@ -909,35 +757,24 @@ function SlideAction({ label, color, onConfirm, pending, failed }) {
           ))}
         </div>
       )}
-
-      <div
-        onPointerDown={onDown}
-        onTouchStart={onDown}
-        style={{
-          position: 'absolute', top: PAD, left: PAD + x,
-          width: THUMB, height: 58 - PAD * 2, borderRadius: 14,
-          background: pending ? 'rgba(255,255,255,.1)' : `linear-gradient(135deg, ${color}, ${color}cc)`,
-          boxShadow: pending ? 'none' : `0 4px 16px ${color}66, inset 0 1px 0 rgba(255,255,255,.3)`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          cursor: pending || showDone ? 'default' : 'grab',
-          transition: draggingRef.current ? 'none' : 'left .28s cubic-bezier(.34,1.1,.64,1)',
-          touchAction: 'none',
-        }}
-      >
+      <div onPointerDown={onDown} onTouchStart={onDown} style={{
+        position: 'absolute', top: PAD, left: PAD + x,
+        width: THUMB, height: 58 - PAD * 2, borderRadius: 14,
+        background: pending ? 'rgba(255,255,255,.1)' : `linear-gradient(135deg, ${color}, ${color}cc)`,
+        boxShadow: pending ? 'none' : `0 4px 16px ${color}66, inset 0 1px 0 rgba(255,255,255,.3)`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        cursor: pending || showDone ? 'default' : 'grab',
+        transition: draggingRef.current ? 'none' : 'left .28s cubic-bezier(.34,1.1,.64,1)',
+        touchAction: 'none',
+      }}>
         {pending ? (
-          <div style={{
-            width: 20, height: 20, borderRadius: '50%',
-            border: '2px solid rgba(0,0,0,.25)', borderTop: '2px solid #000',
-            animation: 'ats-spin .7s linear infinite',
-          }}/>
+          <div style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid rgba(0,0,0,.25)', borderTop: '2px solid #000', animation: 'ats-spin .7s linear infinite' }}/>
         ) : showDone ? (
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-            stroke="#000" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="20 6 9 17 4 12"/>
           </svg>
         ) : (
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-            stroke="#000" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="9 6 15 12 9 18"/>
           </svg>
         )}
@@ -947,24 +784,19 @@ function SlideAction({ label, color, onConfirm, pending, failed }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// NAVIGATE BUTTON — launches Google Maps to the current leg's destination
+// NAVIGATE BUTTON
 // ═══════════════════════════════════════════════════════════════════════════════
 function NavigateButton({ targetWord, url, accent }) {
   if (!url) return null;
   return (
-    <button
-      onClick={() => openNav(url)}
-      style={{
-        width: '100%', marginBottom: 10, cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
-        background: `linear-gradient(135deg, ${accent}1f, ${accent}0d)`,
-        border: `1px solid ${accent}44`, borderRadius: 14,
-        padding: '11px 14px',
-        fontFamily: COND, fontSize: 13, fontWeight: 900, letterSpacing: '.12em',
-        textTransform: 'uppercase', color: accent,
-        WebkitTapHighlightColor: 'transparent',
-      }}
-    >
+    <button onClick={() => openNav(url)} style={{
+      width: '100%', marginBottom: 10, cursor: 'pointer',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
+      background: `linear-gradient(135deg, ${accent}1f, ${accent}0d)`,
+      border: `1px solid ${accent}44`, borderRadius: 14, padding: '11px 14px',
+      fontFamily: COND, fontSize: 13, fontWeight: 900, letterSpacing: '.12em',
+      textTransform: 'uppercase', color: accent, WebkitTapHighlightColor: 'transparent',
+    }}>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
         stroke={accent} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
         <polygon points="3 11 22 2 13 21 11 13 3 11"/>
@@ -975,10 +807,7 @@ function NavigateButton({ targetWord, url, accent }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// BOTTOM ACTION SHEET
-// ErrorToast is a fixed overlay at the root; `failed={!!error}` springs the
-// slider back. The Navigate button + tappable address rows open Google Maps to
-// the right destination for the current leg.
+// ACTION SHEET
 // ═══════════════════════════════════════════════════════════════════════════════
 function ActionSheet({ trip, stage, distToTarget, onAction, pending, error }) {
   const cfg = STAGES[stage] || STAGES.driver_assigned;
@@ -991,29 +820,20 @@ function ActionSheet({ trip, stage, distToTarget, onAction, pending, error }) {
 
   const pickupUrl  = navUrl(trip?.pickupLat,  trip?.pickupLng,  pickup);
   const dropoffUrl = navUrl(trip?.dropoffLat, trip?.dropoffLng, dropoff);
-
-  // current leg's destination → drives the Navigate button
   const targetWord = phase === 'toDropoff' ? 'DROP-OFF' : 'PICKUP';
   const targetUrl  = phase === 'toDropoff' ? dropoffUrl : pickupUrl;
 
   return (
-    <div style={{
-      position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 32,
-      animation: 'ats-slideup .45s cubic-bezier(.34,1.1,.64,1) both',
-    }}>
+    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 32, animation: 'ats-slideup .45s cubic-bezier(.34,1.1,.64,1) both' }}>
       <div style={{
-        background: C.panelDeep,
-        borderTop: `1px solid ${cfg.statusColor}28`,
-        borderRadius: '24px 24px 0 0',
-        backdropFilter: 'blur(18px)',
+        background: C.panelDeep, borderTop: `1px solid ${cfg.statusColor}28`,
+        borderRadius: '24px 24px 0 0', backdropFilter: 'blur(18px)',
         boxShadow: `0 -12px 48px rgba(0,0,0,.65), 0 0 40px ${cfg.statusColor}12`,
         paddingTop: 12, paddingLeft: 16, paddingRight: 16,
         paddingBottom: 'max(20px, calc(env(safe-area-inset-bottom) + 12px))',
       }}>
-        {/* drag handle */}
         <div style={{ width: 36, height: 3.5, borderRadius: 2, background: 'rgba(255,255,255,.12)', margin: '0 auto 10px' }}/>
 
-        {/* route summary — rows are tappable → Google Maps nav */}
         <div style={{
           display: 'flex', gap: 12, alignItems: 'stretch', marginBottom: 10,
           background: 'rgba(255,255,255,.03)', borderRadius: 12,
@@ -1021,27 +841,13 @@ function ActionSheet({ trip, stage, distToTarget, onAction, pending, error }) {
         }}>
           <RouteRail status={stage}/>
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 9 }}>
-            <AddrRow
-              label="Pickup"
-              text={pickup}
-              dimmed={phase === 'toDropoff'}
-              active={phase === 'toPickup'}
-              mapUrl={pickupUrl}
-            />
-            <AddrRow
-              label="Drop-off"
-              text={dropoff}
-              dimmed={phase !== 'toDropoff'}
-              active={phase === 'toDropoff'}
-              mapUrl={dropoffUrl}
-            />
+            <AddrRow label="Pickup"   text={pickup}  dimmed={phase === 'toDropoff'} active={phase === 'toPickup'}  mapUrl={pickupUrl}/>
+            <AddrRow label="Drop-off" text={dropoff} dimmed={phase !== 'toDropoff'} active={phase === 'toDropoff'} mapUrl={dropoffUrl}/>
           </div>
         </div>
 
-        {/* Navigate CTA → current leg destination */}
         <NavigateButton targetWord={targetWord} url={targetUrl} accent={cfg.statusColor}/>
 
-        {/* rider note, if the rider left one */}
         {(() => {
           const note = trip?.riderNote || trip?.note || trip?.notes;
           if (!note) return null;
@@ -1058,21 +864,15 @@ function ActionSheet({ trip, stage, distToTarget, onAction, pending, error }) {
                 <line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/>
               </svg>
               <div style={{ minWidth: 0 }}>
-                <div style={{
-                  fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.14em',
-                  color: 'rgba(192,132,252,.7)', textTransform: 'uppercase', marginBottom: 2,
-                }}>
+                <div style={{ fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.14em', color: 'rgba(192,132,252,.7)', textTransform: 'uppercase', marginBottom: 2 }}>
                   Rider note
                 </div>
-                <div style={{ fontFamily: MONO, fontSize: 11.5, fontWeight: 600, color: C.white, lineHeight: 1.45 }}>
-                  {note}
-                </div>
+                <div style={{ fontFamily: MONO, fontSize: 11.5, fontWeight: 600, color: C.white, lineHeight: 1.45 }}>{note}</div>
               </div>
             </div>
           );
         })()}
 
-        {/* hint */}
         <div style={{
           fontFamily: COND, fontSize: 11, fontWeight: 600, letterSpacing: '.06em',
           color: C.ink, marginBottom: 10, lineHeight: 1.5,
@@ -1081,16 +881,12 @@ function ActionSheet({ trip, stage, distToTarget, onAction, pending, error }) {
           <span style={{ color: cfg.statusColor, fontSize: 12, marginTop: 1 }}>›</span>
           {cfg.hint}
           {distStr && (
-            <span style={{
-              marginLeft: 'auto', flexShrink: 0,
-              fontFamily: MONO, fontSize: 11, fontWeight: 800, color: cfg.statusColor,
-            }}>
+            <span style={{ marginLeft: 'auto', flexShrink: 0, fontFamily: MONO, fontSize: 11, fontWeight: 800, color: cfg.statusColor }}>
               {distStr}
             </span>
           )}
         </div>
 
-        {/* slide-to-confirm — failed prop springs thumb back on error */}
         <SlideAction
           key={stage}
           label={pending ? 'WORKING…' : cfg.btnLabel}
@@ -1111,27 +907,19 @@ function CompletedSheet({ trip }) {
   const payout = trip?.driverPayout;
   const miles  = trip?.tripDistanceMiles;
   const mins   = trip?.tripDurationMin;
-  const avgMph = (typeof miles === 'number' && miles > 0 && typeof mins === 'number' && mins > 0)
-    ? miles / (mins / 60) : null;
-  const recap = (typeof miles === 'number' && miles > 0 && typeof mins === 'number' && mins > 0)
-    ? `${miles.toFixed(1)} mi in ${mins} min${avgMph ? ` · avg ${Math.round(avgMph)} mph` : ''}`
-    : null;
+  const avgMph = (typeof miles === 'number' && miles > 0 && typeof mins === 'number' && mins > 0) ? miles / (mins / 60) : null;
+  const recap  = (typeof miles === 'number' && miles > 0 && typeof mins === 'number' && mins > 0)
+    ? `${miles.toFixed(1)} mi in ${mins} min${avgMph ? ` · avg ${Math.round(avgMph)} mph` : ''}` : null;
+
   return (
-    <div style={{
-      position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 32,
-      animation: 'ats-slideup .5s cubic-bezier(.34,1.2,.64,1) both',
-    }}>
+    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 32, animation: 'ats-slideup .5s cubic-bezier(.34,1.2,.64,1) both' }}>
       <div style={{
-        background: C.panelDeep,
-        borderTop: `1px solid ${C.greenBright}33`,
-        borderRadius: '24px 24px 0 0',
-        backdropFilter: 'blur(18px)',
+        background: C.panelDeep, borderTop: `1px solid ${C.greenBright}33`,
+        borderRadius: '24px 24px 0 0', backdropFilter: 'blur(18px)',
         boxShadow: `0 -12px 48px rgba(0,0,0,.7), 0 0 50px ${C.greenBright}18`,
-        padding: '14px 20px max(40px, calc(env(safe-area-inset-bottom) + 24px))',
-        textAlign: 'center',
+        padding: '14px 20px max(40px, calc(env(safe-area-inset-bottom) + 24px))', textAlign: 'center',
       }}>
         <div style={{ width: 36, height: 3.5, borderRadius: 2, background: 'rgba(255,255,255,.12)', margin: '0 auto 18px' }}/>
-
         <div style={{
           width: 56, height: 56, borderRadius: '50%', margin: '0 auto 14px',
           background: 'rgba(34,197,94,.18)', border: `2px solid ${C.greenBright}66`,
@@ -1144,46 +932,21 @@ function CompletedSheet({ trip }) {
             <polyline points="20 6 9 17 4 12"/>
           </svg>
         </div>
-
-        <div style={{
-          fontFamily: COND, fontSize: 22, fontWeight: 900, letterSpacing: '.16em',
-          color: C.greenBright, textTransform: 'uppercase', marginBottom: 4,
-        }}>
+        <div style={{ fontFamily: COND, fontSize: 22, fontWeight: 900, letterSpacing: '.16em', color: C.greenBright, textTransform: 'uppercase', marginBottom: 4 }}>
           Trip Complete
         </div>
-
         {typeof payout === 'number' && (
-          <div style={{
-            fontFamily: MONO, fontSize: 30, fontWeight: 800, color: C.amberBright,
-            textShadow: `0 0 24px ${C.amberBright}66`, marginBottom: 2,
-          }}>
+          <div style={{ fontFamily: MONO, fontSize: 30, fontWeight: 800, color: C.amberBright, textShadow: `0 0 24px ${C.amberBright}66`, marginBottom: 2 }}>
             +${payout.toFixed(2)}
           </div>
         )}
-        <div style={{ fontFamily: COND, fontSize: 11, color: C.inkDim, letterSpacing: '.1em', marginBottom: 14 }}>
-          PAYOUT CREDITED
-        </div>
-
+        <div style={{ fontFamily: COND, fontSize: 11, color: C.inkDim, letterSpacing: '.1em', marginBottom: 14 }}>PAYOUT CREDITED</div>
         <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
-          {typeof miles === 'number' && miles > 0 && (
-            <StatChip label="DISTANCE" value={`${miles.toFixed(1)} mi`}/>
-          )}
-          {typeof mins === 'number' && mins > 0 && (
-            <StatChip label="DURATION" value={`${mins} min`}/>
-          )}
-          {avgMph != null && (
-            <StatChip label="AVG SPEED" value={`${Math.round(avgMph)} mph`}/>
-          )}
+          {typeof miles === 'number' && miles > 0 && <StatChip label="DISTANCE" value={`${miles.toFixed(1)} mi`}/>}
+          {typeof mins  === 'number' && mins  > 0 && <StatChip label="DURATION" value={`${mins} min`}/>}
+          {avgMph != null && <StatChip label="AVG SPEED" value={`${Math.round(avgMph)} mph`}/>}
         </div>
-
-        {recap && (
-          <div style={{
-            fontFamily: MONO, fontSize: 10, fontWeight: 600, letterSpacing: '.04em',
-            color: C.inkDim, marginTop: 12,
-          }}>
-            {recap}
-          </div>
-        )}
+        {recap && <div style={{ fontFamily: MONO, fontSize: 10, fontWeight: 600, letterSpacing: '.04em', color: C.inkDim, marginTop: 12 }}>{recap}</div>}
       </div>
     </div>
   );
@@ -1191,14 +954,9 @@ function CompletedSheet({ trip }) {
 
 function StatChip({ label, value }) {
   return (
-    <div style={{
-      background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)',
-      borderRadius: 12, padding: '8px 16px', minWidth: 88,
-    }}>
+    <div style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)', borderRadius: 12, padding: '8px 16px', minWidth: 88 }}>
       <div style={{ fontFamily: MONO, fontSize: 14, fontWeight: 800, color: C.white }}>{value}</div>
-      <div style={{ fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.14em', color: C.inkDim, marginTop: 2 }}>
-        {label}
-      </div>
+      <div style={{ fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.14em', color: C.inkDim, marginTop: 2 }}>{label}</div>
     </div>
   );
 }
@@ -1206,92 +964,45 @@ function StatChip({ label, value }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAP MARKER FACTORIES
 // ═══════════════════════════════════════════════════════════════════════════════
-
 function makeDriverPuck() {
   const outer = document.createElement('div');
   outer.style.cssText = 'position:relative;width:50px;height:50px;display:flex;align-items:center;justify-content:center;pointer-events:none;';
-
   const glow = document.createElement('div');
-  glow.style.cssText = [
-    'position:absolute', 'inset:-8px', 'border-radius:50%',
-    'background:radial-gradient(circle,rgba(34,197,94,.4) 0%,transparent 70%)',
-  ].join(';');
-
+  glow.style.cssText = ['position:absolute','inset:-8px','border-radius:50%','background:radial-gradient(circle,rgba(34,197,94,.4) 0%,transparent 70%)'].join(';');
   const ring = document.createElement('div');
-  ring.style.cssText = [
-    'position:absolute', 'inset:1px', 'border-radius:50%',
-    'border:2px solid rgba(74,222,128,.5)',
-    'animation:ats-blink 1.8s ease-in-out infinite',
-  ].join(';');
-
+  ring.style.cssText = ['position:absolute','inset:1px','border-radius:50%','border:2px solid rgba(74,222,128,.5)','animation:ats-blink 1.8s ease-in-out infinite'].join(';');
   const cone = document.createElement('div');
-  cone.style.cssText = [
-    'position:absolute', 'inset:0', 'border-radius:50%',
-    'background:conic-gradient(from -20deg,transparent 0deg,rgba(74,222,128,.28) 20deg,transparent 40deg)',
-    'transform:rotate(0deg)', 'transition:transform .12s linear',
-  ].join(';');
-
+  cone.style.cssText = ['position:absolute','inset:0','border-radius:50%','background:conic-gradient(from -20deg,transparent 0deg,rgba(74,222,128,.28) 20deg,transparent 40deg)','transform:rotate(0deg)','transition:transform .12s linear'].join(';');
   const rot = document.createElement('div');
-  rot.style.cssText = [
-    'position:absolute', 'inset:0', 'display:flex', 'align-items:center', 'justify-content:center',
-    'transform:rotate(0deg)', 'transition:transform .12s linear', 'will-change:transform',
-  ].join(';');
-
+  rot.style.cssText = ['position:absolute','inset:0','display:flex','align-items:center','justify-content:center','transform:rotate(0deg)','transition:transform .12s linear','will-change:transform'].join(';');
   const body = document.createElement('div');
-  body.style.cssText = [
-    'width:40px', 'height:40px', 'border-radius:50%',
-    'background:linear-gradient(145deg,#4ADE80 0%,#16A34A 100%)',
-    'border:3px solid #fff',
-    'box-shadow:0 4px 18px rgba(34,197,94,.75),0 2px 6px rgba(0,0,0,.5)',
-    'display:flex', 'align-items:center', 'justify-content:center',
-  ].join(';');
-  body.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-    stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M12 2 5 21l7-4 7 4z"/>
-  </svg>`;
-
+  body.style.cssText = ['width:40px','height:40px','border-radius:50%','background:linear-gradient(145deg,#4ADE80 0%,#16A34A 100%)','border:3px solid #fff','box-shadow:0 4px 18px rgba(34,197,94,.75),0 2px 6px rgba(0,0,0,.5)','display:flex','align-items:center','justify-content:center'].join(';');
+  body.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 5 21l7-4 7 4z"/></svg>`;
   rot.appendChild(body);
   outer.appendChild(glow);
   outer.appendChild(cone);
   outer.appendChild(ring);
   outer.appendChild(rot);
-
   return {
     el: outer,
-    rotate(deg) {
-      rot.style.transform = `rotate(${deg}deg)`;
-      cone.style.transform = `rotate(${deg}deg)`;
-    },
+    rotate(deg) { rot.style.transform = `rotate(${deg}deg)`; cone.style.transform = `rotate(${deg}deg)`; },
   };
 }
 
 function makePinEl(color, symbol) {
   const wrap = document.createElement('div');
   wrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;pointer-events:none;';
-
   const bubble = document.createElement('div');
-  bubble.style.cssText = [
-    'padding:4px 8px', 'border-radius:8px', 'white-space:nowrap',
-    'background:rgba(3,6,4,.9)', `border:1.5px solid ${color}88`,
-    `box-shadow:0 4px 14px rgba(0,0,0,.5),0 0 12px ${color}33`,
-    `color:${color}`, "font-family:'JetBrains Mono','SFMono-Regular',monospace",
-    'font-size:10px', 'font-weight:800',
-  ].join(';');
+  bubble.style.cssText = ['padding:4px 8px','border-radius:8px','white-space:nowrap','background:rgba(3,6,4,.9)',`border:1.5px solid ${color}88`,`box-shadow:0 4px 14px rgba(0,0,0,.5),0 0 12px ${color}33`,`color:${color}`,"font-family:'JetBrains Mono','SFMono-Regular',monospace",'font-size:10px','font-weight:800'].join(';');
   bubble.textContent = symbol;
-
   const stem = document.createElement('div');
   stem.style.cssText = `width:2px;height:10px;background:${color}88;margin-top:-1px;`;
-
   const dot = document.createElement('div');
   dot.style.cssText = `width:6px;height:6px;border-radius:50%;background:${color};box-shadow:0 0 8px ${color};`;
-
-  wrap.appendChild(bubble);
-  wrap.appendChild(stem);
-  wrap.appendChild(dot);
+  wrap.appendChild(bubble); wrap.appendChild(stem); wrap.appendChild(dot);
   return wrap;
 }
 
-// ─── map source / layer ids ────────────────────────────────────────────────────
 const SRC_REMAIN      = 'ats-route-remain';
 const SRC_TRAVEL      = 'ats-route-travel';
 const LYR_REMAIN_GLOW = 'ats-remain-glow';
@@ -1300,10 +1011,8 @@ const LYR_REMAIN_DASH = 'ats-remain-dash';
 const LYR_TRAVEL_MAIN = 'ats-travel-main';
 
 const DASH_FRAMES = [
-  [0, 4, 3], [0.5, 4, 2.5], [1, 4, 2], [1.5, 4, 1.5],
-  [2, 4, 1], [2.5, 4, 0.5], [3, 4, 0], [0, 0.5, 3, 3.5],
-  [0, 1, 3, 3], [0, 1.5, 3, 2.5], [0, 2, 3, 2], [0, 2.5, 3, 1.5],
-  [0, 3, 3, 1], [0, 3.5, 3, 0.5],
+  [0,4,3],[0.5,4,2.5],[1,4,2],[1.5,4,1.5],[2,4,1],[2.5,4,0.5],[3,4,0],[0,0.5,3,3.5],
+  [0,1,3,3],[0,1.5,3,2.5],[0,2,3,2],[0,2.5,3,1.5],[0,3,3,1],[0,3.5,3,0.5],
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1311,37 +1020,22 @@ const DASH_FRAMES = [
 // ═══════════════════════════════════════════════════════════════════════════════
 function ChatFab({ unread, onClick }) {
   return (
-    <div style={{
-      position: 'absolute',
-      left: 14, bottom: 'calc(258px + env(safe-area-inset-bottom))',
-      zIndex: 33,
-    }}>
-      <button
-        onClick={onClick}
-        aria-label="Open rider chat"
-        style={{
-          position: 'relative',
-          width: 46, height: 46, borderRadius: 14, border: 'none', cursor: 'pointer',
-          background: C.panelDeep, backdropFilter: 'blur(12px)',
-          boxShadow: `0 6px 22px rgba(0,0,0,.6), inset 0 0 0 1px rgba(103,232,249,.3)`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: C.cyan, overflow: 'visible',
-        }}
-      >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <div style={{ position: 'absolute', left: 14, bottom: 'calc(258px + env(safe-area-inset-bottom))', zIndex: 33 }}>
+      <button onClick={onClick} aria-label="Open rider chat" style={{
+        position: 'relative', width: 46, height: 46, borderRadius: 14, border: 'none', cursor: 'pointer',
+        background: C.panelDeep, backdropFilter: 'blur(12px)',
+        boxShadow: `0 6px 22px rgba(0,0,0,.6), inset 0 0 0 1px rgba(103,232,249,.3)`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.cyan, overflow: 'visible',
+      }}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
         </svg>
         {unread > 0 && (
           <div style={{
-            position: 'absolute', top: -5, right: -5,
-            minWidth: 18, height: 18, borderRadius: 9,
-            background: C.red, color: '#fff',
-            fontFamily: MONO, fontSize: 9, fontWeight: 800,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: '0 3px',
-            boxShadow: `0 2px 8px ${C.red}88`,
-            animation: 'ats-blink 1.4s ease-in-out infinite',
+            position: 'absolute', top: -5, right: -5, minWidth: 18, height: 18, borderRadius: 9,
+            background: C.red, color: '#fff', fontFamily: MONO, fontSize: 9, fontWeight: 800,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px',
+            boxShadow: `0 2px 8px ${C.red}88`, animation: 'ats-blink 1.4s ease-in-out infinite',
           }}>
             {unread > 9 ? '9+' : unread}
           </div>
@@ -1360,9 +1054,7 @@ function DriverChatPanel({ messages, input, setInput, onSend, onClose, sending }
   const listRef   = useRef(null);
   const bottomRef = useRef(null);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
   function formatTime(ts) {
     if (!ts?.seconds) return '';
@@ -1370,67 +1062,31 @@ function DriverChatPanel({ messages, input, setInput, onSend, onClose, sending }
   }
 
   return (
-    <div style={{
-      position: 'absolute', inset: 0, zIndex: 40,
-      display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
-    }}>
-      <div onClick={onClose} style={{
-        position: 'absolute', inset: 0,
-        background: 'rgba(0,0,0,.55)', backdropFilter: 'blur(2px)',
-      }}/>
-
+    <div style={{ position: 'absolute', inset: 0, zIndex: 40, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.55)', backdropFilter: 'blur(2px)' }}/>
       <div style={{
-        position: 'relative', zIndex: 1,
-        background: C.panelDeep,
-        borderTop: `1px solid ${C.cyan}28`,
-        borderRadius: '24px 24px 0 0',
-        backdropFilter: 'blur(20px)',
-        boxShadow: '0 -12px 48px rgba(0,0,0,.7)',
-        display: 'flex', flexDirection: 'column',
-        maxHeight: '75vh',
+        position: 'relative', zIndex: 1, background: C.panelDeep,
+        borderTop: `1px solid ${C.cyan}28`, borderRadius: '24px 24px 0 0',
+        backdropFilter: 'blur(20px)', boxShadow: '0 -12px 48px rgba(0,0,0,.7)',
+        display: 'flex', flexDirection: 'column', maxHeight: '75vh',
         paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
         animation: 'ats-slideup .35s cubic-bezier(.34,1.1,.64,1) both',
       }}>
         <div style={{ width: 36, height: 3.5, borderRadius: 2, background: 'rgba(255,255,255,.12)', margin: '12px auto 0' }}/>
-
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '12px 16px 10px',
-          borderBottom: `1px solid ${C.inkFaint}`,
-        }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px 10px', borderBottom: `1px solid ${C.inkFaint}` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-              stroke={C.cyan} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
             </svg>
-            <span style={{ fontFamily: COND, fontSize: 13, fontWeight: 800, letterSpacing: '.08em', color: C.white }}>
-              RIDER CHAT
-            </span>
+            <span style={{ fontFamily: COND, fontSize: 13, fontWeight: 800, letterSpacing: '.08em', color: C.white }}>RIDER CHAT</span>
           </div>
-          <button onClick={onClose} style={{
-            background: 'rgba(255,255,255,.07)', border: 'none', cursor: 'pointer',
-            borderRadius: 8, padding: '5px 10px',
-            fontFamily: COND, fontSize: 10, fontWeight: 800, letterSpacing: '.1em',
-            color: C.ink, display: 'flex', alignItems: 'center', gap: 4,
-          }}>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,.07)', border: 'none', cursor: 'pointer', borderRadius: 8, padding: '5px 10px', fontFamily: COND, fontSize: 10, fontWeight: 800, letterSpacing: '.1em', color: C.ink, display: 'flex', alignItems: 'center', gap: 4 }}>
             ✕ CLOSE
           </button>
         </div>
-
-        <div
-          ref={listRef}
-          style={{
-            flex: 1, overflowY: 'auto', padding: '14px 16px',
-            display: 'flex', flexDirection: 'column', gap: 8,
-            overscrollBehavior: 'contain',
-          }}
-        >
+        <div ref={listRef} style={{ flex: 1, overflowY: 'auto', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8, overscrollBehavior: 'contain' }}>
           {messages.length === 0 && (
-            <div style={{
-              textAlign: 'center', color: C.ink,
-              fontFamily: COND, fontSize: 12, fontWeight: 600,
-              letterSpacing: '.06em', marginTop: 20,
-            }}>
+            <div style={{ textAlign: 'center', color: C.ink, fontFamily: COND, fontSize: 12, fontWeight: 600, letterSpacing: '.06em', marginTop: 20 }}>
               No messages yet.
             </div>
           )}
@@ -1444,42 +1100,19 @@ function DriverChatPanel({ messages, input, setInput, onSend, onClose, sending }
                   background: isDriver ? C.cyan : 'rgba(255,255,255,.08)',
                   border: isDriver ? 'none' : `1px solid ${C.inkFaint}`,
                 }}>
-                  {!isDriver && (
-                    <div style={{
-                      fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.1em',
-                      color: C.inkDim, textTransform: 'uppercase', marginBottom: 3,
-                    }}>
-                      RIDER
-                    </div>
-                  )}
-                  <div style={{
-                    fontFamily: MONO, fontSize: 12, fontWeight: 500,
-                    color: isDriver ? '#000' : C.white, lineHeight: 1.4,
-                  }}>
-                    {msg.text}
-                  </div>
-                  <div style={{
-                    fontFamily: MONO, fontSize: 9,
-                    color: isDriver ? 'rgba(0,0,0,.5)' : C.inkDim,
-                    marginTop: 4, textAlign: isDriver ? 'right' : 'left',
-                  }}>
-                    {formatTime(msg.createdAt)}
-                  </div>
+                  {!isDriver && <div style={{ fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.1em', color: C.inkDim, textTransform: 'uppercase', marginBottom: 3 }}>RIDER</div>}
+                  <div style={{ fontFamily: MONO, fontSize: 12, fontWeight: 500, color: isDriver ? '#000' : C.white, lineHeight: 1.4 }}>{msg.text}</div>
+                  <div style={{ fontFamily: MONO, fontSize: 9, color: isDriver ? 'rgba(0,0,0,.5)' : C.inkDim, marginTop: 4, textAlign: isDriver ? 'right' : 'left' }}>{formatTime(msg.createdAt)}</div>
                 </div>
               </div>
             );
           })}
           <div ref={bottomRef} style={{ height: 1 }}/>
         </div>
-
-        <div style={{
-          display: 'flex', gap: 6, padding: '8px 16px', flexWrap: 'wrap',
-          borderTop: `1px solid ${C.inkFaint}`,
-        }}>
+        <div style={{ display: 'flex', gap: 6, padding: '8px 16px', flexWrap: 'wrap', borderTop: `1px solid ${C.inkFaint}` }}>
           {DRIVER_QUICK_REPLIES.map(qr => (
             <button key={qr} onClick={() => onSend(qr)} style={{
-              background: 'none', border: `1px solid ${C.inkFaint}`,
-              borderRadius: 99, padding: '4px 10px',
+              background: 'none', border: `1px solid ${C.inkFaint}`, borderRadius: 99, padding: '4px 10px',
               fontFamily: COND, fontSize: 10, fontWeight: 700, letterSpacing: '.06em',
               color: C.ink, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all .15s',
             }}
@@ -1490,40 +1123,26 @@ function DriverChatPanel({ messages, input, setInput, onSend, onClose, sending }
             </button>
           ))}
         </div>
-
         <div style={{ display: 'flex', gap: 8, padding: '8px 16px', alignItems: 'flex-end' }}>
-          <textarea
-            value={input}
-            onChange={e => setInput(e.target.value)}
+          <textarea value={input} onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend(); } }}
-            placeholder="Message rider…"
-            rows={1}
+            placeholder="Message rider…" rows={1}
             style={{
-              flex: 1, resize: 'none',
-              background: 'rgba(255,255,255,.07)',
-              border: `1.5px solid ${C.inkFaint}`,
-              borderRadius: 12, padding: '10px 13px',
-              fontFamily: MONO, fontSize: 12, color: C.white,
-              outline: 'none', lineHeight: 1.4,
-              transition: 'border-color .2s', maxHeight: 80, overflowY: 'auto',
+              flex: 1, resize: 'none', background: 'rgba(255,255,255,.07)', border: `1.5px solid ${C.inkFaint}`,
+              borderRadius: 12, padding: '10px 13px', fontFamily: MONO, fontSize: 12, color: C.white,
+              outline: 'none', lineHeight: 1.4, transition: 'border-color .2s', maxHeight: 80, overflowY: 'auto',
             }}
             onFocus={e => (e.target.style.borderColor = C.cyan)}
             onBlur={e  => (e.target.style.borderColor = C.inkFaint)}
           />
-          <button
-            onClick={() => onSend()}
-            disabled={!input.trim() || sending}
-            style={{
-              width: 40, height: 40, borderRadius: 12, border: 'none',
-              background: !input.trim() || sending ? 'rgba(255,255,255,.08)' : C.cyan,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: !input.trim() || sending ? 'not-allowed' : 'pointer',
-              flexShrink: 0, transition: 'all .2s',
-            }}
-          >
+          <button onClick={() => onSend()} disabled={!input.trim() || sending} style={{
+            width: 40, height: 40, borderRadius: 12, border: 'none',
+            background: !input.trim() || sending ? 'rgba(255,255,255,.08)' : C.cyan,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: !input.trim() || sending ? 'not-allowed' : 'pointer', flexShrink: 0, transition: 'all .2s',
+          }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-              stroke={!input.trim() || sending ? C.inkDim : '#000'}
-              strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              stroke={!input.trim() || sending ? C.inkDim : '#000'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="22" y1="2" x2="11" y2="13"/>
               <polygon points="22 2 15 22 11 13 2 9 22 2"/>
             </svg>
@@ -1535,82 +1154,52 @@ function DriverChatPanel({ messages, input, setInput, onSend, onClose, sending }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ARRIVAL BANNER — pulses in when the driver is within a few hundred feet of the
-// active target (pickup or drop-off). Gives a clear "you're basically there" cue
-// so the driver knows when to start looking for the rider / the address.
+// ARRIVAL BANNER
 // ═══════════════════════════════════════════════════════════════════════════════
 function ArrivalBanner({ visible, targetWord, distMi, accent }) {
   if (!visible) return null;
   return (
     <div style={{
-      position: 'absolute',
-      top: 'calc(120px + env(safe-area-inset-top))',
-      left: '50%', transform: 'translateX(-50%)',
-      zIndex: 27, pointerEvents: 'none',
+      position: 'absolute', top: 'calc(120px + env(safe-area-inset-top))',
+      left: '50%', transform: 'translateX(-50%)', zIndex: 27, pointerEvents: 'none',
       display: 'flex', alignItems: 'center', gap: 9,
       background: 'rgba(2,5,3,.92)', backdropFilter: 'blur(14px)',
-      border: `1px solid ${accent}55`,
-      borderRadius: 999, padding: '7px 15px 7px 12px',
+      border: `1px solid ${accent}55`, borderRadius: 999, padding: '7px 15px 7px 12px',
       boxShadow: `0 8px 26px rgba(0,0,0,.55), 0 0 24px ${accent}26`,
-      animation: 'ats-banner-pop .4s cubic-bezier(.34,1.4,.64,1) both',
-      whiteSpace: 'nowrap',
+      animation: 'ats-banner-pop .4s cubic-bezier(.34,1.4,.64,1) both', whiteSpace: 'nowrap',
     }}>
-      <span style={{
-        width: 9, height: 9, borderRadius: '50%', background: accent,
-        boxShadow: `0 0 10px ${accent}`,
-        animation: 'ats-pulse-ring 1.1s ease-in-out infinite',
-      }}/>
-      <span style={{
-        fontFamily: COND, fontSize: 12, fontWeight: 900, letterSpacing: '.12em',
-        color: accent, textTransform: 'uppercase',
-      }}>
+      <span style={{ width: 9, height: 9, borderRadius: '50%', background: accent, boxShadow: `0 0 10px ${accent}`, animation: 'ats-pulse-ring 1.1s ease-in-out infinite' }}/>
+      <span style={{ fontFamily: COND, fontSize: 12, fontWeight: 900, letterSpacing: '.12em', color: accent, textTransform: 'uppercase' }}>
         Arriving — {targetWord} ahead
       </span>
-      <span style={{
-        fontFamily: MONO, fontSize: 11, fontWeight: 800, color: C.white,
-      }}>
-        {fmtMi(distMi)}
-      </span>
+      <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 800, color: C.white }}>{fmtMi(distMi)}</span>
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// REROUTE CHIP — surfaces when the driver has wandered off the drawn route.
-// It's only a hint (we don't auto-refetch mid-leg to avoid thrashing the Routes
-// API); it tells the driver to follow Google Maps, which they can open in a tap.
+// REROUTE CHIP
 // ═══════════════════════════════════════════════════════════════════════════════
 function RerouteChip({ visible, onOpenNav }) {
   if (!visible) return null;
   return (
-    <button
-      onClick={onOpenNav}
-      style={{
-        position: 'absolute',
-        bottom: 'calc(316px + env(safe-area-inset-bottom))',
-        left: '50%', transform: 'translateX(-50%)',
-        zIndex: 31, cursor: 'pointer',
-        display: 'flex', alignItems: 'center', gap: 8,
-        background: 'rgba(2,5,3,.92)', backdropFilter: 'blur(14px)',
-        border: `1px solid ${C.amber}55`,
-        borderRadius: 999, padding: '7px 14px',
-        boxShadow: `0 8px 26px rgba(0,0,0,.55), 0 0 22px ${C.amber}22`,
-        animation: 'ats-banner-pop .35s cubic-bezier(.34,1.3,.64,1) both',
-        WebkitTapHighlightColor: 'transparent',
-      }}
-    >
+    <button onClick={onOpenNav} style={{
+      position: 'absolute', bottom: 'calc(316px + env(safe-area-inset-bottom))',
+      left: '50%', transform: 'translateX(-50%)', zIndex: 31, cursor: 'pointer',
+      display: 'flex', alignItems: 'center', gap: 8,
+      background: 'rgba(2,5,3,.92)', backdropFilter: 'blur(14px)',
+      border: `1px solid ${C.amber}55`, borderRadius: 999, padding: '7px 14px',
+      boxShadow: `0 8px 26px rgba(0,0,0,.55), 0 0 22px ${C.amber}22`,
+      animation: 'ats-banner-pop .35s cubic-bezier(.34,1.3,.64,1) both',
+      WebkitTapHighlightColor: 'transparent',
+    }}>
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
         stroke={C.amber} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
         style={{ animation: 'ats-spin 2.4s linear infinite' }}>
-        <path d="M21 2v6h-6"/>
-        <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
-        <path d="M3 22v-6h6"/>
-        <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
+        <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
+        <path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
       </svg>
-      <span style={{
-        fontFamily: COND, fontSize: 11, fontWeight: 900, letterSpacing: '.12em',
-        color: C.amber, textTransform: 'uppercase',
-      }}>
+      <span style={{ fontFamily: COND, fontSize: 11, fontWeight: 900, letterSpacing: '.12em', color: C.amber, textTransform: 'uppercase' }}>
         Off route · tap to re-open maps
       </span>
     </button>
@@ -1618,33 +1207,26 @@ function RerouteChip({ visible, onOpenNav }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// TRIP STATS STRIP — the in-progress "rider is in the car" focus bar.
-// Pinned just above the action sheet, it keeps the three things the driver cares
-// about while driving to the drop-off front and center: MINUTES, MILES, and the
-// live MPH. This is the direct answer to "show me eta + distance + minutes to
-// the drop-off" — all three update live, all referenced to the DROP-OFF.
+// TRIP STATS STRIP
 // ═══════════════════════════════════════════════════════════════════════════════
 function TripStatsStrip({ visible, etaMin, distMi, mph, gpsLive }) {
   if (!visible) return null;
   const mphStr = (gpsLive && mph != null && isFinite(mph)) ? `${Math.round(mph)}` : '—';
   return (
     <div style={{
-      position: 'absolute',
-      bottom: 'calc(258px + env(safe-area-inset-bottom))',
-      left: '50%', transform: 'translateX(-50%)',
-      zIndex: 31, pointerEvents: 'none',
+      position: 'absolute', bottom: 'calc(258px + env(safe-area-inset-bottom))',
+      left: '50%', transform: 'translateX(-50%)', zIndex: 31, pointerEvents: 'none',
       display: 'flex', alignItems: 'stretch',
       background: 'rgba(2,5,3,.9)', backdropFilter: 'blur(14px)',
-      border: `1px solid ${C.amberBright}2e`,
-      borderRadius: 14, padding: '7px 4px',
+      border: `1px solid ${C.amberBright}2e`, borderRadius: 14, padding: '7px 4px',
       boxShadow: `0 8px 26px rgba(0,0,0,.55), 0 0 22px ${C.amberBright}14`,
       animation: 'ats-slideup .4s cubic-bezier(.34,1.2,.64,1) both',
     }}>
-      <StripCell value={fmtEtaMin(etaMin)} unit="MIN"  label="TO DROP-OFF" accent={C.amberBright}/>
+      <StripCell value={fmtEtaMin(etaMin)} unit="MIN" label="TO DROP-OFF" accent={C.amberBright}/>
       <div style={{ width: 1, background: 'rgba(255,255,255,.08)', margin: '2px 0' }}/>
-      <StripCell value={fmtMi(distMi)}     unit=""     label="REMAINING"   accent={C.white}/>
+      <StripCell value={fmtMi(distMi)} unit="" label="REMAINING" accent={C.white}/>
       <div style={{ width: 1, background: 'rgba(255,255,255,.08)', margin: '2px 0' }}/>
-      <StripCell value={mphStr}            unit="MPH"  label="CURRENT"      accent={C.greenBright}/>
+      <StripCell value={mphStr} unit="MPH" label="CURRENT" accent={C.greenBright}/>
     </div>
   );
 }
@@ -1653,18 +1235,10 @@ function StripCell({ value, unit, label, accent }) {
   return (
     <div style={{ textAlign: 'center', padding: '0 13px', minWidth: 58 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 2 }}>
-        <span style={{ fontFamily: MONO, fontSize: 16, fontWeight: 800, color: accent, lineHeight: 1 }}>
-          {value}
-        </span>
-        {unit && (
-          <span style={{ fontFamily: COND, fontSize: 8.5, fontWeight: 800, color: accent, letterSpacing: '.06em' }}>
-            {unit}
-          </span>
-        )}
+        <span style={{ fontFamily: MONO, fontSize: 16, fontWeight: 800, color: accent, lineHeight: 1 }}>{value}</span>
+        {unit && <span style={{ fontFamily: COND, fontSize: 8.5, fontWeight: 800, color: accent, letterSpacing: '.06em' }}>{unit}</span>}
       </div>
-      <div style={{ fontFamily: COND, fontSize: 7.5, fontWeight: 800, letterSpacing: '.14em', color: C.inkDim, marginTop: 3 }}>
-        {label}
-      </div>
+      <div style={{ fontFamily: COND, fontSize: 7.5, fontWeight: 800, letterSpacing: '.14em', color: C.inkDim, marginTop: 3 }}>{label}</div>
     </div>
   );
 }
@@ -1678,6 +1252,10 @@ export default function ActiveTripScreen({
   onTripComplete,
   useDeviceLocation = true,
 }) {
+  // ── hooks ────────────────────────────────────────────────────────────────
+  const callUpdateTrip = useUpdateTrip();
+  const callGetRoute   = useGetRoute();
+
   // ── refs: map + markers ──────────────────────────────────────────────────
   const containerRef   = useRef(null);
   const mapRef         = useRef(null);
@@ -1687,30 +1265,30 @@ export default function ActiveTripScreen({
   const dropoffMkrRef  = useRef(null);
 
   // ── refs: animation ──────────────────────────────────────────────────────
-  const renderedRef            = useRef(null);
-  const targetRef              = useRef(null);
-  const bearingRef             = useRef(0);
-  const targetBearingRef       = useRef(0);
-  const rafRef                 = useRef(0);
-  const frameNoRef             = useRef(0);
-  const dashStepRef            = useRef(0);
-  const lastFollowRef          = useRef(0);
-  const lastFixForBearingRef   = useRef(null);
+  const renderedRef          = useRef(null);
+  const targetRef            = useRef(null);
+  const bearingRef           = useRef(0);
+  const targetBearingRef     = useRef(0);
+  const rafRef               = useRef(0);
+  const frameNoRef           = useRef(0);
+  const dashStepRef          = useRef(0);
+  const lastFollowRef        = useRef(0);
+  const lastFixForBearingRef = useRef(null);
 
   // ── refs: live speed ─────────────────────────────────────────────────────
-  const targetSpeedRef    = useRef(0);    // mph, from latest fix
-  const renderedSpeedRef  = useRef(0);    // mph, smoothed for display
-  const lastSpeedFixRef   = useRef(null); // {lat,lng,ts} for derived speed
+  const targetSpeedRef   = useRef(0);
+  const renderedSpeedRef = useRef(0);
+  const lastSpeedFixRef  = useRef(null);
 
   // ── refs: route ──────────────────────────────────────────────────────────
-  const routeCoordsRef      = useRef([]);
-  const routeLenMiRef       = useRef(0);
-  const routeDurSecRef      = useRef(0);
-  const projIdxRef          = useRef(0);
-  const routeReadyRef       = useRef(false);
-  const fetchedPhaseRef     = useRef(null);
+  const routeCoordsRef       = useRef([]);
+  const routeLenMiRef        = useRef(0);
+  const routeDurSecRef       = useRef(0);
+  const projIdxRef           = useRef(0);
+  const routeReadyRef        = useRef(false);
+  const fetchedPhaseRef      = useRef(null);
   const lastInstalledPolyRef = useRef(null);
-  const offRouteFramesRef   = useRef(0);
+  const offRouteFramesRef    = useRef(0);
 
   // ── refs: misc ───────────────────────────────────────────────────────────
   const watchIdRef       = useRef(null);
@@ -1718,26 +1296,26 @@ export default function ActiveTripScreen({
   const mountedRef       = useRef(true);
 
   // ── state ────────────────────────────────────────────────────────────────
-  const [mapReady, setMapReady]         = useState(false);
-  const [pending, setPending]           = useState(false);
-  const [error, setError]               = useState(null);
-  const [localStatus, setLocalStatus]   = useState(null);
-  const [rider, setRider]               = useState(null);
-  const [liveTrip, setLiveTrip]         = useState(null);
-  const [selfPos, setSelfPos]           = useState(null);
-  const [gpsLive, setGpsLive]           = useState(false);
-  const [followMode, setFollowMode]     = useState(true);
-  const [showRecenter, setShowRecenter] = useState(false);
-  const [liveMetrics, setLiveMetrics]   = useState({ etaMin: null, distMi: null, progress: 0 });
-  const [liveSpeedMph, setLiveSpeedMph] = useState(null);
-  const [offRoute, setOffRoute]         = useState(false);
-  const [showChat, setShowChat]         = useState(false);
-  const [chatMessages, setChatMessages] = useState([]);
-  const [unreadCount, setUnreadCount]   = useState(0);
-  const [chatInput, setChatInput]       = useState('');
-  const [chatSending, setChatSending]   = useState(false);
+  const [mapReady,      setMapReady]      = useState(false);
+  const [pending,       setPending]       = useState(false);
+  const [error,         setError]         = useState(null);
+  const [localStatus,   setLocalStatus]   = useState(null);
+  const [rider,         setRider]         = useState(null);
+  const [liveTrip,      setLiveTrip]      = useState(null);
+  const [selfPos,       setSelfPos]       = useState(null);
+  const [gpsLive,       setGpsLive]       = useState(false);
+  const [followMode,    setFollowMode]    = useState(true);
+  const [showRecenter,  setShowRecenter]  = useState(false);
+  const [liveMetrics,   setLiveMetrics]   = useState({ etaMin: null, distMi: null, progress: 0 });
+  const [liveSpeedMph,  setLiveSpeedMph]  = useState(null);
+  const [offRoute,      setOffRoute]      = useState(false);
+  const [showChat,      setShowChat]      = useState(false);
+  const [chatMessages,  setChatMessages]  = useState([]);
+  const [unreadCount,   setUnreadCount]   = useState(0);
+  const [chatInput,     setChatInput]     = useState('');
+  const [chatSending,   setChatSending]   = useState(false);
 
-  // ── merge live doc over prop ─────────────────────────────────────────────
+  // ── derived ──────────────────────────────────────────────────────────────
   const trip   = useMemo(() => ({ ...(activeTrip || {}), ...(liveTrip || {}) }), [activeTrip, liveTrip]);
   const status = localStatus || trip?.status || 'driver_assigned';
   const stage  = STAGES[status] || STAGES.driver_assigned;
@@ -1792,13 +1370,11 @@ export default function ActiveTripScreen({
     if (!showChat || !trip?.id) return;
     chatMessages
       .filter(m => m.senderRole === 'rider' && !m.readByDriver)
-      .forEach(m =>
-        updateDoc(doc(db, 'Rides', trip.id, 'Messages', m.id), { readByDriver: true }).catch(() => {})
-      );
+      .forEach(m => updateDoc(doc(db, 'Rides', trip.id, 'Messages', m.id), { readByDriver: true }).catch(() => {}));
   // eslint-disable-next-line
   }, [showChat, chatMessages]);
 
-  // ── GPS watch — now also captures speed (device or movement-derived) ──────
+  // ── GPS watch ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!useDeviceLocation || typeof navigator === 'undefined' || !navigator.geolocation) return;
     let firstFix = false;
@@ -1807,8 +1383,6 @@ export default function ActiveTripScreen({
         if (!mountedRef.current) return;
         const { latitude, longitude, heading, speed } = pos.coords;
         const tnow = Date.now();
-
-        // speed: prefer the device's reported m/s, else derive from movement
         let mps = (typeof speed === 'number' && speed >= 0 && isFinite(speed)) ? speed : null;
         const prev = lastSpeedFixRef.current;
         if (mps == null && prev) {
@@ -1817,12 +1391,10 @@ export default function ActiveTripScreen({
           if (dt >= SPEED_DERIVE_MIN_DT_S) mps = meters / dt;
         }
         lastSpeedFixRef.current = { lat: latitude, lng: longitude, ts: tnow };
-
         setSelfPos({
           lat: latitude, lng: longitude,
           heading: (typeof heading === 'number' && !isNaN(heading)) ? heading : null,
-          speed: mps,
-          ts: tnow,
+          speed: mps, ts: tnow,
         });
         if (!firstFix) { firstFix = true; setGpsLive(true); }
       },
@@ -1850,7 +1422,6 @@ export default function ActiveTripScreen({
       link.rel  = 'stylesheet';
       link.href = `https://api.mapbox.com/mapbox-gl-js/${MB_VERSION}/mapbox-gl.css`;
       document.head.appendChild(link);
-
       const script = document.createElement('script');
       script.id     = 'mb-script';
       script.src    = `https://api.mapbox.com/mapbox-gl-js/${MB_VERSION}/mapbox-gl.js`;
@@ -1867,98 +1438,61 @@ export default function ActiveTripScreen({
       if (!containerRef.current || mapRef.current) return;
       const mbgl = window.mapboxgl;
       mbgl.accessToken = MAPBOX_TOKEN;
-
       const cLat = (fresh ? selfPos.lat : driver?.lat) ?? trip?.pickupLat ?? 28.5383;
       const cLng = (fresh ? selfPos.lng : driver?.lng) ?? trip?.pickupLng ?? -81.3792;
-
       const map = new mbgl.Map({
-        container:          containerRef.current,
-        style:              MAP_STYLE,
-        center:             [cLng, cLat],
-        zoom:               15.5,
-        pitch:              58,
-        bearing:            0,
-        interactive:        true,
-        attributionControl: false,
-        dragRotate:         false,
-        pitchWithRotate:    false,
+        container: containerRef.current, style: MAP_STYLE,
+        center: [cLng, cLat], zoom: 15.5, pitch: 58, bearing: 0,
+        interactive: true, attributionControl: false, dragRotate: false, pitchWithRotate: false,
       });
-
-      const onUserMove = (e) => {
-        if (e && e.originalEvent) {
-          setFollowMode(false);
-          setShowRecenter(true);
-        }
-      };
+      const onUserMove = (e) => { if (e && e.originalEvent) { setFollowMode(false); setShowRecenter(true); } };
       map.on('dragstart', onUserMove);
       map.on('zoomstart', onUserMove);
-
       map.on('load', () => {
         mapRef.current = map;
-
         const seed = (fresh && selfPos) ? [selfPos.lng, selfPos.lat]
                    : (typeof driver?.lng === 'number') ? [driver.lng, driver.lat]
                    : [cLng, cLat];
         renderedRef.current = seed.slice();
         targetRef.current   = seed.slice();
-
         puckRef.current = makeDriverPuck();
         driverMkrRef.current = new mbgl.Marker({ element: puckRef.current.el, anchor: 'center' })
-          .setLngLat(seed)
-          .addTo(map);
-
+          .setLngLat(seed).addTo(map);
         setMapReady(true);
       });
     }
 
     return () => {
-      if (mapRef.current) {
-        try { mapRef.current.remove(); } catch (e) {}
-        mapRef.current = null;
-      }
-      driverMkrRef.current = null;
-      pickupMkrRef.current = null;
-      dropoffMkrRef.current = null;
-      puckRef.current = null;
-      routeReadyRef.current = false;
-      setMapReady(false);
+      if (mapRef.current) { try { mapRef.current.remove(); } catch (e) {} mapRef.current = null; }
+      driverMkrRef.current = null; pickupMkrRef.current = null;
+      dropoffMkrRef.current = null; puckRef.current = null;
+      routeReadyRef.current = false; setMapReady(false);
     };
   // eslint-disable-next-line
   }, []);
 
-  // ── feed fix into animation target + derive heading + speed target ────────
+  // ── feed fix into animation target ───────────────────────────────────────
   useEffect(() => {
     if (typeof dLat !== 'number' || typeof dLng !== 'number') return;
     targetRef.current = [dLng, dLat];
-
-    // heading
     if (fresh && selfPos?.heading != null) {
       targetBearingRef.current = selfPos.heading;
     } else {
       const prev = lastFixForBearingRef.current;
       if (prev) {
         const moved = haversineMi(prev[1], prev[0], dLat, dLng) * 1609.34;
-        if (moved >= MIN_MOVE_FOR_BEARING_M) {
-          targetBearingRef.current = bearingDeg(prev[1], prev[0], dLat, dLng);
-        }
+        if (moved >= MIN_MOVE_FOR_BEARING_M) targetBearingRef.current = bearingDeg(prev[1], prev[0], dLat, dLng);
       }
     }
     lastFixForBearingRef.current = [dLng, dLat];
-
-    // speed target (mph), clamped to a sane band against GPS spikes
     if (fresh && selfPos?.speed != null && isFinite(selfPos.speed)) {
-      const mph = selfPos.speed * MPS_TO_MPH;
-      targetSpeedRef.current = Math.max(0, Math.min(120, mph));
+      targetSpeedRef.current = Math.max(0, Math.min(120, selfPos.speed * MPS_TO_MPH));
     } else if (!fresh) {
       targetSpeedRef.current = 0;
     }
   }, [dLat, dLng, fresh, selfPos]);
 
-  // ── clear stale metrics the instant the leg changes ──────────────────────
-  // Prevents the card from briefly showing the previous leg's distance — e.g.
-  // the ~18 ft left over from reaching the pickup — when the trip starts and the
-  // target flips to the drop-off. Falls back to the straight-line distance to
-  // the new target until the new route installs.
+  // ── clear stale metrics on leg change ───────────────────────────────────
   useEffect(() => {
     setLiveMetrics({ etaMin: null, distMi: null, progress: 0 });
     projIdxRef.current = 0;
@@ -1990,21 +1524,20 @@ export default function ActiveTripScreen({
     const phaseAtCall = phase;
     fetchedPhaseRef.current = phase;
 
-    callGetRoute({
-      driverLat: dLat, driverLng: dLng,
-      pickupLat: targetLat, pickupLng: targetLng,
-    }).then(({ data }) => {
-      if (!mapRef.current || phaseAtCall !== fetchedPhaseRef.current) return;
-      const decoded = decodePolyline(data?.polyline);
-      const coords = decoded.length >= 2
-        ? decoded.map(p => [p[1], p[0]])
-        : [[dLng, dLat], [targetLng, targetLat]];
-      installRoute(coords, data?.duration || 0);
-    }).catch(err => {
-      console.warn('[ActiveTripScreen] route fetch failed:', err);
-      if (!mapRef.current || phaseAtCall !== fetchedPhaseRef.current) return;
-      installRoute([[dLng, dLat], [targetLng, targetLat]], 0);
-    });
+    callGetRoute({ driverLat: dLat, driverLng: dLng, pickupLat: targetLat, pickupLng: targetLng })
+      .then(({ data }) => {
+        if (!mapRef.current || phaseAtCall !== fetchedPhaseRef.current) return;
+        const decoded = decodePolyline(data?.polyline);
+        const coords = decoded.length >= 2
+          ? decoded.map(p => [p[1], p[0]])
+          : [[dLng, dLat], [targetLng, targetLat]];
+        installRoute(coords, data?.duration || 0);
+      })
+      .catch(err => {
+        console.warn('[ActiveTripScreen] route fetch failed:', err);
+        if (!mapRef.current || phaseAtCall !== fetchedPhaseRef.current) return;
+        installRoute([[dLng, dLat], [targetLng, targetLat]], 0);
+      });
   // eslint-disable-next-line
   }, [mapReady, phase, dLat, dLng, targetLat, targetLng, trip?.driverEtaPolyline, trip?.polyline]);
 
@@ -2022,51 +1555,26 @@ export default function ActiveTripScreen({
   function drawRoute(coords) {
     const map = mapRef.current;
     if (!map) return;
-
     const remainGeo = { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } };
     const travelGeo = { type: 'Feature', geometry: { type: 'LineString', coordinates: [coords[0], coords[0]] } };
-
     if (routeReadyRef.current) {
       map.getSource(SRC_REMAIN)?.setData(remainGeo);
       map.getSource(SRC_TRAVEL)?.setData(travelGeo);
       return;
     }
-
     map.addSource(SRC_TRAVEL, { type: 'geojson', data: travelGeo });
     map.addSource(SRC_REMAIN, { type: 'geojson', data: remainGeo });
-
-    map.addLayer({
-      id: LYR_TRAVEL_MAIN, type: 'line', source: SRC_TRAVEL,
-      layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: { 'line-color': 'rgba(255,255,255,.85)', 'line-width': 5, 'line-opacity': .14 },
-    });
-    map.addLayer({
-      id: LYR_REMAIN_GLOW, type: 'line', source: SRC_REMAIN,
-      layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: { 'line-color': C.greenBright, 'line-width': 13, 'line-opacity': .12, 'line-blur': 8 },
-    });
-    map.addLayer({
-      id: LYR_REMAIN_MAIN, type: 'line', source: SRC_REMAIN,
-      layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: { 'line-color': C.green, 'line-width': 5, 'line-opacity': 1 },
-    });
-    map.addLayer({
-      id: LYR_REMAIN_DASH, type: 'line', source: SRC_REMAIN,
-      layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: { 'line-color': '#EAFFF2', 'line-width': 2, 'line-opacity': .55, 'line-dasharray': [0, 4, 3] },
-    });
-
+    map.addLayer({ id: LYR_TRAVEL_MAIN, type: 'line', source: SRC_TRAVEL, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': 'rgba(255,255,255,.85)', 'line-width': 5, 'line-opacity': .14 } });
+    map.addLayer({ id: LYR_REMAIN_GLOW, type: 'line', source: SRC_REMAIN, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': C.greenBright, 'line-width': 13, 'line-opacity': .12, 'line-blur': 8 } });
+    map.addLayer({ id: LYR_REMAIN_MAIN, type: 'line', source: SRC_REMAIN, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': C.green, 'line-width': 5, 'line-opacity': 1 } });
+    map.addLayer({ id: LYR_REMAIN_DASH, type: 'line', source: SRC_REMAIN, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#EAFFF2', 'line-width': 2, 'line-opacity': .55, 'line-dasharray': [0, 4, 3] } });
     routeReadyRef.current = true;
   }
 
   function placeMarkers() {
     const map = mapRef.current;
     if (!map || !window.mapboxgl) return;
-
-    [pickupMkrRef, dropoffMkrRef].forEach(r => {
-      if (r.current) { try { r.current.remove(); } catch (e) {} r.current = null; }
-    });
-
+    [pickupMkrRef, dropoffMkrRef].forEach(r => { if (r.current) { try { r.current.remove(); } catch (e) {} r.current = null; } });
     if (trip?.pickupLat && trip?.pickupLng) {
       pickupMkrRef.current = new window.mapboxgl.Marker({ element: makePinEl(C.greenBright, '● PICKUP'), anchor: 'bottom' })
         .setLngLat([trip.pickupLng, trip.pickupLat]).addTo(map);
@@ -2096,12 +1604,10 @@ export default function ActiveTripScreen({
     if (!immediate && now - lastFollowRef.current < FOLLOW_THROTTLE_MS) return;
     lastFollowRef.current = now;
     map.easeTo({
-      center:   renderedRef.current,
-      bearing:  bearingRef.current,
-      pitch:    58,
-      zoom:     Math.max(map.getZoom(), 15.5),
+      center: renderedRef.current, bearing: bearingRef.current, pitch: 58,
+      zoom: Math.max(map.getZoom(), 15.5),
       duration: immediate ? 600 : FOLLOW_THROTTLE_MS + 60,
-      easing:   t => t,
+      easing: t => t,
     });
   }
 
@@ -2122,12 +1628,8 @@ export default function ActiveTripScreen({
       r[1] = lerp(r[1], t[1], SMOOTH_POS);
 
       bearingRef.current = lerpAngle(bearingRef.current, targetBearingRef.current, SMOOTH_BEARING);
-
-      // smooth the displayed speed toward the latest target
       renderedSpeedRef.current = lerp(renderedSpeedRef.current, targetSpeedRef.current, SMOOTH_SPEED);
-      if (frameNoRef.current % 10 === 0) {
-        setLiveSpeedMph(renderedSpeedRef.current);
-      }
+      if (frameNoRef.current % 10 === 0) setLiveSpeedMph(renderedSpeedRef.current);
 
       if (driverMkrRef.current) driverMkrRef.current.setLngLat(r);
       if (puckRef.current) {
@@ -2135,15 +1637,11 @@ export default function ActiveTripScreen({
         puckRef.current.rotate(followMode ? 0 : screenHeading);
       }
 
-      if (routeReadyRef.current && routeCoordsRef.current.length >= 2 &&
-          frameNoRef.current % TRIM_EVERY_FRAMES === 0) {
+      if (routeReadyRef.current && routeCoordsRef.current.length >= 2 && frameNoRef.current % TRIM_EVERY_FRAMES === 0) {
         const coords = routeCoordsRef.current;
         const proj = projectOntoRoute(coords, r, projIdxRef.current);
         if (proj.idx >= projIdxRef.current) projIdxRef.current = proj.idx;
 
-        // off-route detection (debounced). proj.dist2 is in scaled-degree²
-        // space; sqrt → ~degrees latitude, ×69 → miles. >~0.04 mi (≈210 ft)
-        // off the drawn line for ~20 sampled frames flags a reroute hint.
         const offMi = Math.sqrt(proj.dist2) * 69;
         if (offMi > 0.04) {
           offRouteFramesRef.current++;
@@ -2154,7 +1652,7 @@ export default function ActiveTripScreen({
         }
 
         const remain = remainingFrom(coords, { ...proj, idx: projIdxRef.current });
-        const travel = traveledTo(coords, { ...proj, idx: projIdxRef.current });
+        const travel = traveledTo(coords,   { ...proj, idx: projIdxRef.current });
 
         map.getSource(SRC_REMAIN)?.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: remain } });
         map.getSource(SRC_TRAVEL)?.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: travel } });
@@ -2163,8 +1661,6 @@ export default function ActiveTripScreen({
         const total    = routeLenMiRef.current || remainMi || 1;
         const progress = Math.max(0, Math.min(1, 1 - remainMi / total));
 
-        // speed-aware ETA: when actually moving use the live pace, otherwise
-        // fall back to the route's duration, then to a constant city speed.
         const liveMph = renderedSpeedRef.current;
         let etaMin;
         if (liveMph > SPEED_FLOOR_FOR_ETA) {
@@ -2175,9 +1671,7 @@ export default function ActiveTripScreen({
           etaMin = (remainMi / FALLBACK_SPEED_MPH) * 60;
         }
 
-        if (frameNoRef.current % 18 === 0) {
-          setLiveMetrics({ etaMin, distMi: remainMi, progress });
-        }
+        if (frameNoRef.current % 18 === 0) setLiveMetrics({ etaMin, distMi: remainMi, progress });
       }
 
       if (routeReadyRef.current && frameNoRef.current % 3 === 0) {
@@ -2210,12 +1704,8 @@ export default function ActiveTripScreen({
     setChatSending(true);
     try {
       await addDoc(collection(db, 'Rides', id, 'Messages'), {
-        text: trimmed,
-        senderUid:   driver?.uid,
-        senderRole:  'driver',
-        createdAt:   serverTimestamp(),
-        readByDriver: true,
-        readByRider:  false,
+        text: trimmed, senderUid: driver?.uid, senderRole: 'driver',
+        createdAt: serverTimestamp(), readByDriver: true, readByRider: false,
       });
       setChatInput('');
     } catch (err) {
@@ -2225,23 +1715,18 @@ export default function ActiveTripScreen({
     }
   }, [trip?.id, chatInput, driver?.uid]);
 
-  // ── action handler — 1-mile proximity gate on "arrive" ───────────────────
+  // ── action handler ───────────────────────────────────────────────────────
   const handleAction = useCallback(async (action, rideId) => {
     if (!action || !rideId) return;
 
     if (action === 'arrive') {
       const pLat = trip?.pickupLat;
       const pLng = trip?.pickupLng;
-      if (
-        typeof dLat === 'number' && typeof dLng === 'number' &&
-        typeof pLat === 'number' && typeof pLng === 'number'
-      ) {
+      if (typeof dLat === 'number' && typeof dLng === 'number' && typeof pLat === 'number' && typeof pLng === 'number') {
         const dist = haversineMi(dLat, dLng, pLat, pLng);
         if (dist > ARRIVE_MAX_MILES) {
-          setError(
-            `You're ${fmtMi(dist)} away — get within 1 mile of the pickup to mark arrived.`
-          );
-          return; // bail before setPending → failed=true springs the thumb back
+          setError(`You're ${fmtMi(dist)} away — get within 1 mile of the pickup to mark arrived.`);
+          return;
         }
       }
     }
@@ -2262,18 +1747,16 @@ export default function ActiveTripScreen({
     } finally {
       if (mountedRef.current) setPending(false);
     }
-  }, [onTripComplete, trip?.pickupLat, trip?.pickupLng, dLat, dLng]);
+  }, [callUpdateTrip, onTripComplete, trip?.pickupLat, trip?.pickupLng, dLat, dLng]);
 
   // ── cleanup ──────────────────────────────────────────────────────────────
   useEffect(() => () => {
     if (completeTimerRef.current) clearTimeout(completeTimerRef.current);
-    [pickupMkrRef, dropoffMkrRef, driverMkrRef].forEach(r => {
-      if (r.current) { try { r.current.remove(); } catch (e) {} }
-    });
+    [pickupMkrRef, dropoffMkrRef, driverMkrRef].forEach(r => { if (r.current) { try { r.current.remove(); } catch (e) {} } });
     cancelAnimationFrame(rafRef.current);
   }, []);
 
-  // ── derived metrics ──────────────────────────────────────────────────────
+  // ── display values ───────────────────────────────────────────────────────
   const displayDist    = liveMetrics.distMi != null ? liveMetrics.distMi : crowDistMi;
   const displayEta     = liveMetrics.etaMin != null
     ? liveMetrics.etaMin
@@ -2283,18 +1766,15 @@ export default function ActiveTripScreen({
   const displayProgress = liveMetrics.progress || 0;
   const arrivalClock   = displayEta != null ? fmtArrivalClock(displayEta) : '—';
 
-  // which leg are we navigating, and the Google Maps link for it
   const targetWord   = phase === 'toDropoff' ? 'DROP-OFF' : 'PICKUP';
   const activeNavUrl = phase === 'toDropoff'
     ? navUrl(trip?.dropoffLat, trip?.dropoffLng, trip?.dropoff || trip?.dropoffLabel || trip?.dropoffAddress)
     : navUrl(trip?.pickupLat,  trip?.pickupLng,  trip?.pickup  || trip?.pickupLabel  || trip?.pickupAddress);
 
-  // "basically there" cue — within ~315 ft of the active target
-  const nearTarget = displayDist != null && displayDist < 0.06
-                     && status !== 'arrived' && status !== 'completed';
+  const nearTarget     = displayDist != null && displayDist < 0.06 && status !== 'arrived' && status !== 'completed';
   const showStatsStrip = status === 'in_progress' && !showChat;
 
-  // ─── render ──────────────────────────────────────────────────────────────
+  // ── render ───────────────────────────────────────────────────────────────
   return (
     <>
       <style>{`
@@ -2312,48 +1792,25 @@ export default function ActiveTripScreen({
       `}</style>
 
       <div style={{ position: 'fixed', inset: 0, background: C.bg, overflow: 'hidden' }}>
-        {/* mapbox canvas */}
         <div ref={containerRef} style={{ position: 'absolute', inset: 0 }}/>
 
-        {/* loading */}
         {!mapReady && (
-          <div style={{
-            position: 'absolute', inset: 0, zIndex: 10,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexDirection: 'column', gap: 12, background: C.bg,
-          }}>
-            <div style={{
-              width: 40, height: 40, borderRadius: '50%',
-              border: '2px solid rgba(34,197,94,.15)', borderTop: `2px solid ${C.green}`,
-              animation: 'ats-spin .85s linear infinite',
-            }}/>
-            <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: '.1em', color: C.inkDim }}>
-              ACQUIRING MAP…
-            </span>
+          <div style={{ position: 'absolute', inset: 0, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, background: C.bg }}>
+            <div style={{ width: 40, height: 40, borderRadius: '50%', border: '2px solid rgba(34,197,94,.15)', borderTop: `2px solid ${C.green}`, animation: 'ats-spin .85s linear infinite' }}/>
+            <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: '.1em', color: C.inkDim }}>ACQUIRING MAP…</span>
           </div>
         )}
 
-        {/* vignette */}
-        <div style={{
-          position: 'absolute', inset: 0, zIndex: 5, pointerEvents: 'none',
-          background: 'radial-gradient(ellipse at 50% 44%, transparent 38%, rgba(3,6,4,.28) 78%, rgba(3,6,4,.62) 100%)',
-        }}/>
+        <div style={{ position: 'absolute', inset: 0, zIndex: 5, pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 44%, transparent 38%, rgba(3,6,4,.28) 78%, rgba(3,6,4,.62) 100%)' }}/>
 
-        {/* fixed centered error toast */}
         <ErrorToast message={error} onDismiss={() => setError(null)} />
 
-        {/* top HUD */}
         <TopBar
-          statusLabel={stage.statusLabel}
-          statusColor={stage.statusColor}
-          rideId={trip?.id}
-          paymentMethod={trip?.paymentMethod}
-          progress={displayProgress}
-          gpsLive={gpsLive}
-          mph={liveSpeedMph}
+          statusLabel={stage.statusLabel} statusColor={stage.statusColor}
+          rideId={trip?.id} paymentMethod={trip?.paymentMethod}
+          progress={displayProgress} gpsLive={gpsLive} mph={liveSpeedMph}
         />
 
-        {/* ETA card */}
         {mapReady && status !== 'completed' && (
           <EtaCard
             etaMin={status === 'arrived' ? 0 : displayEta}
@@ -2363,70 +1820,39 @@ export default function ActiveTripScreen({
           />
         )}
 
-        {/* live speedometer */}
-        {mapReady && status !== 'completed' && (
-          <Speedometer mph={liveSpeedMph} gpsLive={gpsLive}/>
-        )}
-
-        {/* rider card */}
+        {mapReady && status !== 'completed' && <Speedometer mph={liveSpeedMph} gpsLive={gpsLive}/>}
         {mapReady && status !== 'completed' && <RiderCard rider={rider}/>}
 
-        {/* arrival proximity banner */}
         {mapReady && (
-          <ArrivalBanner
-            visible={nearTarget}
-            targetWord={targetWord}
-            distMi={displayDist}
-            accent={stage.statusColor}
-          />
+          <ArrivalBanner visible={nearTarget} targetWord={targetWord} distMi={displayDist} accent={stage.statusColor}/>
         )}
 
-        {/* in-progress drop-off focus strip: MIN · MILES · MPH to drop-off */}
         {mapReady && (
-          <TripStatsStrip
-            visible={showStatsStrip}
-            etaMin={displayEta}
-            distMi={displayDist}
-            mph={liveSpeedMph}
-            gpsLive={gpsLive}
-          />
+          <TripStatsStrip visible={showStatsStrip} etaMin={displayEta} distMi={displayDist} mph={liveSpeedMph} gpsLive={gpsLive}/>
         )}
 
-        {/* off-route hint → re-open Google Maps for the active leg */}
         {mapReady && status !== 'completed' && (
           <RerouteChip visible={offRoute} onOpenNav={() => openNav(activeNavUrl)}/>
         )}
 
-        {/* recenter FAB */}
         {mapReady && status !== 'completed' && (
           <RecenterFab visible={showRecenter} onClick={handleRecenter}/>
         )}
 
-        {/* chat FAB */}
         {mapReady && status !== 'completed' && (
           <ChatFab unread={unreadCount} onClick={() => setShowChat(true)}/>
         )}
 
-        {/* chat overlay */}
         {showChat && (
           <DriverChatPanel
-            messages={chatMessages}
-            input={chatInput}
-            setInput={setChatInput}
-            onSend={handleSendChat}
-            onClose={() => setShowChat(false)}
-            sending={chatSending}
+            messages={chatMessages} input={chatInput} setInput={setChatInput}
+            onSend={handleSendChat} onClose={() => setShowChat(false)} sending={chatSending}
           />
         )}
 
-        {/* bottom action sheet */}
         <ActionSheet
-          trip={trip}
-          stage={status}
-          distToTarget={displayDist}
-          onAction={handleAction}
-          pending={pending}
-          error={error}
+          trip={trip} stage={status} distToTarget={displayDist}
+          onAction={handleAction} pending={pending} error={error}
         />
       </div>
     </>
