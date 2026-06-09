@@ -1,7 +1,7 @@
 // src/App/UaTob/useGeo.js
 import { useState, useCallback } from 'react';
 
-const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_SECRET_KEY;
+const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 export function useGeo() {
   const [loading, setLoading] = useState(false);

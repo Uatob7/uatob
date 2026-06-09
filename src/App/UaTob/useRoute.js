@@ -1,7 +1,7 @@
 // src/App/UaTob/useRoute.js
 import { useState, useEffect, useRef } from 'react';
 
-const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_SECRET_KEY;
+const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 const DEBOUNCE_MS = 600;
 

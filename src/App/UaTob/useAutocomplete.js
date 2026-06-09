@@ -1,7 +1,7 @@
 // src/App/UaTob/useAutocomplete.js
 import { useState, useRef, useCallback } from 'react';
 
-const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_SECRET_KEY;
+const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 export function useAutocomplete(debounceMs = 250) {
   const [predictions, setPredictions] = useState([]);
