@@ -11,8 +11,8 @@ import {
 } from 'react';
 import { getFirestore, doc, getDoc, onSnapshot, collection, addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { firebase_app } from '@/firebase/config';
-import { useUpdateTrip } from './useUpdateTrip';
-import { useGetRoute }   from './useGetRoute';
+import { useUpdateTrip } from "@/App/Drivers/useUpdateTrip";
+import { useGetRoute }   from "@/App/Drivers/useGetRoute";
 
 const db = getFirestore(firebase_app);
 
