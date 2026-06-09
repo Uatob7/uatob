@@ -1,5 +1,5 @@
 import Head from 'next/head';
-import UaTobApp from '@/App/UaTob/App';
+import UaTobApp from '@/App/UaTob';
 
 const META = {
   title:       "UaTob — Rideshare | Cash, Card & Cash App",
