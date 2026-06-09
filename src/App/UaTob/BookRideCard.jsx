@@ -1,6 +1,6 @@
 // BookRideCard.jsx — Multi-step Book a Ride flow
 // Steps: 0=landing, 1=pickup, 2=dropoff, 3=ride type, 4=when,
-//        5=date(sched), 6=time(sched), 7=discount, 8=payment, 9=card input, 10=cash confirm
+//        5=date(sched), 6=time(sched), 7=discount, 8=payment, 9=card input, 10=cash confirm, 11=success
 
 import { useState, useRef, useEffect } from 'react';
 
@@ -29,6 +29,9 @@ const KF = `
   @keyframes brBlink     { 0%,100%{opacity:1} 50%{opacity:.22} }
   @keyframes brGlowPulse { 0%,100%{box-shadow:0 0 18px rgba(74,222,128,.22)} 50%{box-shadow:0 0 32px rgba(74,222,128,.48)} }
   @keyframes brSpin      { to{transform:rotate(360deg)} }
+  @keyframes brCheckPop  { 0%{opacity:0;transform:scale(.4)} 60%{transform:scale(1.18)} 80%{transform:scale(.93)} 100%{opacity:1;transform:scale(1)} }
+  @keyframes brRingOut   { 0%{transform:scale(.6);opacity:.8} 100%{transform:scale(2.2);opacity:0} }
+  @keyframes brSuccessIn { from{opacity:0;transform:translateY(16px) scale(.96)} to{opacity:1;transform:translateY(0) scale(1)} }
 `;
 
 // ── tiny icon set ────────────────────────────────────────────────────────────
@@ -179,7 +182,8 @@ function CardHeader({ step, onBack, onReset, pickup, dropoff, rideType }) {
              step === 7 ? 'Discount Code' :
              step === 8 ? 'Payment' :
              step === 9 ? 'Card Details' :
-             step === 10 ? 'Cash Ride' : 'Book a Ride'}
+             step === 10 ? 'Cash Ride' :
+             step === 11 ? 'Ride Requested' : 'Book a Ride'}
           </div>
           <div style={{ fontFamily: MONO, fontSize: 8, color: C.dim, marginTop: 1 }}>Orlando, FL</div>
         </div>
@@ -251,13 +255,58 @@ export default function BookRideCard({ onRequest }) {
   const [cardNum,    setCardNum]    = useState('');
   const [cardExp,    setCardExp]    = useState('');
   const [cardCvv,    setCardCvv]    = useState('');
+  const [ridePayload,setRidePayload]= useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [countdown,  setCountdown]  = useState(5);
   const dateScrollRef = useRef(null);
+  const countdownRef  = useRef(null);
+
+  // ── build & submit payload ─────────────────────────────────────────────────
+  const submitRide = (extraFields = {}) => {
+    setSubmitting(true);
+    const payload = {
+      id:        `ride_${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      pickup,
+      dropoff,
+      rideType,
+      when,
+      scheduledDate: selDate !== null ? DATES[selDate].toISOString() : null,
+      scheduledTime: selTime !== null ? TIME_SLOTS[selTime] : null,
+      discountCode:  discApplied ? discount : null,
+      payment:       payment,
+      status:        'pending',
+      ...extraFields,
+    };
+    setRidePayload(payload);
+    onRequest?.(payload);
+    // small artificial delay for feel
+    setTimeout(() => {
+      setSubmitting(false);
+      setStep(11);
+      setCountdown(5);
+    }, 900);
+  };
+
+  // ── countdown auto-reset on success screen ─────────────────────────────────
+  useEffect(() => {
+    if (step !== 11) return;
+    countdownRef.current = setInterval(() => {
+      setCountdown(c => {
+        if (c <= 1) { clearInterval(countdownRef.current); reset(); return 0; }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(countdownRef.current);
+  }, [step]); // eslint-disable-line
 
   const reset = () => {
     setStep(0); setPickup(''); setDropoff(''); setPickupDraft(''); setDropoffDraft('');
     setRideType(null); setWhen(null); setSelDate(null); setSelTime(null);
     setDiscount(''); setDiscApplied(false); setPayment(null);
     setCardNum(''); setCardExp(''); setCardCvv('');
+    setRidePayload(null); setSubmitting(false); setCountdown(5);
+    clearInterval(countdownRef.current);
   };
 
   const back = () => {
@@ -555,9 +604,9 @@ export default function BookRideCard({ onRequest }) {
         </div>
       ))}
       <Btn
-        label="Request Ride"
-        onClick={() => onRequest?.({ pickup, dropoff, rideType, when, selDate, selTime, discount: discApplied ? discount : null, payment: 'card', cardNum, cardExp })}
-        disabled={cardNum.length < 19 || cardExp.length < 7 || cardCvv.length < 3}
+        label={submitting ? "Requesting…" : "Request Ride"}
+        onClick={() => submitRide({ cardNum, cardExp })}
+        disabled={submitting || cardNum.length < 19 || cardExp.length < 7 || cardCvv.length < 3}
       />
       <Btn label="Back" variant="ghost" onClick={() => setStep(8)}/>
     </div>
@@ -583,13 +632,110 @@ export default function BookRideCard({ onRequest }) {
           Please have the exact fare ready.<br/>Your driver will confirm the amount.
         </div>
       </div>
-      <Btn label="Request Ride" onClick={() => onRequest?.({ pickup, dropoff, rideType, when, selDate, selTime, discount: discApplied ? discount : null, payment: 'cash' })}/>
+      <Btn label={submitting ? "Requesting…" : "Request Ride"} disabled={submitting} onClick={() => submitRide({ payment: 'cash' })}/>
       <Btn label="Back" variant="ghost" onClick={() => setStep(8)}/>
+    </div>
+  );
+
+  // STEP 11 — success
+  const renderSuccess = () => {
+    const p = ridePayload;
+    const pmLabels = { card: 'Card', cash: 'Cash', cashapp: 'Cash App' };
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, animation: 'brSuccessIn .5s cubic-bezier(.34,1.2,.64,1) both' }}>
+
+        {/* animated check */}
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '6px 0 2px', position: 'relative' }}>
+          {[1,2].map(i => (
+            <div key={i} style={{
+              position: 'absolute', top: '50%', left: '50%',
+              width: 72, height: 72, borderRadius: '50%', marginLeft: -36, marginTop: -36,
+              border: `1.5px solid ${C.green}`,
+              animation: `brRingOut ${1 + i * 0.4}s ease-out ${i * 0.25}s both`,
+            }}/>
+          ))}
+          <div style={{
+            width: 64, height: 64, borderRadius: '50%',
+            background: 'rgba(34,197,94,.14)', border: `2px solid ${C.green}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            animation: 'brCheckPop .55s cubic-bezier(.34,1.4,.64,1) .1s both',
+            boxShadow: `0 0 28px rgba(74,222,128,.35)`,
+            position: 'relative', zIndex: 1,
+          }}>
+            <Ico n="check" size={28} color={C.greenBright} sw={2.5}/>
+          </div>
+        </div>
+
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontFamily: COND, fontSize: 18, fontWeight: 900, letterSpacing: '.06em', color: '#fff' }}>
+            Ride Requested!
+          </div>
+          <div style={{ fontFamily: MONO, fontSize: 8.5, color: C.dim, marginTop: 4 }}>
+            Looking for your driver…
+          </div>
+        </div>
+
+        {/* payload summary */}
+        {p && (
+          <div style={{
+            background: C.faint, border: `1px solid ${C.borderDim}`, borderRadius: 11,
+            padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 7,
+            animation: 'brFadeIn .4s ease .25s both',
+          }}>
+            {[
+              { label: 'FROM',    val: p.pickup },
+              { label: 'TO',      val: p.dropoff },
+              { label: 'RIDE',    val: p.rideType },
+              { label: 'WHEN',    val: p.when === 'now' ? 'Leave Now' : `Scheduled · ${p.scheduledTime || ''}` },
+              { label: 'PAY',     val: pmLabels[p.payment] || p.payment },
+              ...(p.discountCode ? [{ label: 'PROMO', val: p.discountCode }] : []),
+              { label: 'REF',     val: p.id?.slice(-10).toUpperCase() },
+            ].map((r, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                <span style={{ fontFamily: COND, fontSize: 7.5, fontWeight: 800, letterSpacing: '.12em',
+                  color: C.dim, textTransform: 'uppercase', minWidth: 38, paddingTop: 1 }}>{r.label}</span>
+                <span style={{ fontFamily: MONO, fontSize: 9, color: 'rgba(255,255,255,.7)',
+                  flex: 1, wordBreak: 'break-all', lineHeight: 1.4 }}>{r.val}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* countdown */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <div style={{ fontFamily: MONO, fontSize: 8.5, color: C.dim }}>
+            Returning in
+          </div>
+          <div style={{
+            fontFamily: MONO, fontSize: 11, fontWeight: 800, color: C.greenBright,
+            minWidth: 18, textAlign: 'center',
+          }}>{countdown}</div>
+          <div style={{ fontFamily: MONO, fontSize: 8.5, color: C.dim }}>s</div>
+        </div>
+
+        <Btn label="Book Another Ride" onClick={reset}/>
+      </div>
+    );
+  };
+
+  // submitting overlay
+  const renderSubmitting = () => (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      gap: 14, padding: '24px 0', animation: 'brFadeIn .2s ease both' }}>
+      <div style={{
+        width: 38, height: 38, borderRadius: '50%',
+        border: `2px solid rgba(34,197,94,.15)`, borderTop: `2px solid ${C.green}`,
+        animation: 'brSpin .8s linear infinite',
+      }}/>
+      <span style={{ fontFamily: MONO, fontSize: 10, color: C.dim, letterSpacing: '.06em' }}>
+        sending request…
+      </span>
     </div>
   );
 
   // ── render ─────────────────────────────────────────────────────────────────
   const body = () => {
+    if (submitting) return renderSubmitting();
     switch (step) {
       case 0:  return renderLanding();
       case 1:  return renderPickup();
@@ -602,6 +748,7 @@ export default function BookRideCard({ onRequest }) {
       case 8:  return renderPayment();
       case 9:  return renderCard();
       case 10: return renderCash();
+      case 11: return renderSuccess();
       default: return null;
     }
   };
