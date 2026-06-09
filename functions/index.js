@@ -53,7 +53,6 @@ const { scheduledRideChecker } = require("./payments/scheduledRideChecker");
 
 // driver functions
 const { driverFeed } = require("./drivers/driverFeed");
-const { createDriverProfile } = require("./drivers/createDriverProfile");
 const { checkDriverDeposit } = require("./drivers/checkDriverDeposit");
 const { DriverStatus } = require("./drivers/DriverStatus");
 const { acceptRide } = require("./drivers/acceptRide");
@@ -158,7 +157,6 @@ exports.updateRiderPhone = updateRiderPhone;
 exports.updateTripStatus = updateTripStatus;
 exports.getTripButtonLabel = getTripButtonLabel;
 exports.ApplicationRejected = ApplicationRejected;
-exports.createDriverProfile = createDriverProfile;
 exports.DriverStatus = DriverStatus;
 exports.trackView = trackView;
 exports.sendPushNotification = sendPushNotification;
