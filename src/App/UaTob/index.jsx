@@ -14,8 +14,10 @@ import { useSaveFcmToken }   from "@/App/Drivers/useSaveFcmToken";
 
 import UaTob from '@/App/UaTob/UaTobApp';
 import { useDrivers } from '@/App/UaTob/useDrivers';
+import { useAccounts } from '@/App/UaTob/useAccounts';
 
 export default function App({ uid }) {
+  const { accounts }               = useAccounts(uid);
   const { rides }                  = useRides(uid);
   const { searches }               = useSearch();
   const { scheduledRides }         = useScheduledRides();
@@ -27,6 +29,7 @@ export default function App({ uid }) {
   return (
     <UaTob
       uid={uid}
+      accounts={accounts}
       rides={rides}
       drivers={drivers}
       searches={searches}
