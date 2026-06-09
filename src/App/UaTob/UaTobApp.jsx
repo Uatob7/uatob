@@ -283,9 +283,10 @@ function buildScheduledGeoJSON(scheduledRides = []) {
 // ═══════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════
-export default function UaTob({ uid, rides = [], searches = [], scheduledRides = [], callSaveFcmToken }) {
+export default function UaTob({ uid, rides = [], searches = [], scheduledRides = [], callSaveFcmToken ,drivers = [] }) {
 
-  console.log('[UaTob] Rendering with props:', { uid, rides, searches, scheduledRides });
+
+  console.log('[UaTob] Rendering with props:', { uid, rides, drivers, scheduledRides });
   const mapContainerRef = useRef(null);
   const mapRef          = useRef(null);
   const sweepRef        = useRef(0);
