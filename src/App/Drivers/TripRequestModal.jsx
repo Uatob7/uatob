@@ -2199,5 +2199,124 @@ export default function TripRequestModal({
       {/* ── floating pickup-proximity pill (server text, while expanded/among map) ── */}
       {routeReady && (driverDist || driverEta) && !accepted && !expired && (
         <div style={{
-          position:'absolute', top:'calc(60px + env(safe-area-inset-top))
+          position:'absolute', top:'calc(60px + env(safe-area-inset-top))',
+          left:'50%', transform:'translateX(-50%)', zIndex:21,
+          display:'flex', alignItems:'center', gap:7,
+          background:C.panelDeep, backdropFilter:'blur(12px)',
+          border:`1px solid ${C.greenBright}2e`, borderRadius:99, padding:'5px 13px',
+          boxShadow:'0 4px 16px rgba(0,0,0,.45)',
+          animation:'trm2-fadein .4s .1s ease both', pointerEvents:'none', whiteSpace:'nowrap',
+        }}>
+          <span style={{ width:5, height:5, borderRadius:'50%', background:C.greenBright, boxShadow:`0 0 6px ${C.greenBright}`, animation:'trm2-blink 1.4s ease-in-out infinite', flexShrink:0 }}/>
+          {driverDist && <span style={{ fontFamily:MONO, fontSize:11, fontWeight:700, color:C.greenBright }}>{driverDist}</span>}
+          {driverEta  && <span style={{ fontFamily:COND, fontSize:9.5, fontWeight:800, letterSpacing:'.1em', color:C.ink }}>· {driverEta}</span>}
+          <span style={{ fontFamily:COND, fontSize:8, fontWeight:800, letterSpacing:'.12em', color:C.inkDim }}>TO PICKUP</span>
+        </div>
+      )}
+
+      {/* ── bottom decision panel ── */}
+      <div style={{
+        position:'absolute', bottom:0, left:0, right:0, zIndex:20,
+        background:C.panel, backdropFilter:'blur(22px)',
+        borderTop:`1px solid ${danger && !expired ? 'rgba(239,68,68,.28)' : 'rgba(255,255,255,.07)'}`,
+        borderRadius:'24px 24px 0 0',
+        boxShadow:'0 -16px 56px rgba(0,0,0,.7)',
+        paddingBottom:'max(12px, env(safe-area-inset-bottom))',
+        display:'flex', flexDirection:'column',
+        maxHeight: panelExpanded ? '86vh' : 'none',
+        animation: danger && !expired
+          ? 'trm2-heartbeat 1s ease-in-out infinite'
+          : 'trm2-slideup .45s cubic-bezier(.34,1.1,.64,1) both',
+      }}>
+        <PanelGrabber expanded={panelExpanded} onToggle={() => setPanelExpanded(v => !v)}/>
+
+        <div style={{ flex:1, overflowY: panelExpanded ? 'auto' : 'visible', padding:'0 18px' }}>
+
+          {/* fare hero */}
+          <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', marginBottom: compact ? 8 : 12 }}>
+            <div>
+              <div style={{ fontFamily:COND, fontSize:8.5, fontWeight:800, letterSpacing:'.16em', color:C.inkDim, marginBottom:2 }}>
+                YOUR PAYOUT
+              </div>
+              <div style={{ fontFamily:MONO, fontSize:36, fontWeight:800, color:C.greenBright, lineHeight:1, textShadow:`0 0 24px ${C.greenBright}44` }}>
+                {money(displayFare)}
+              </div>
+              {!compact && <div style={{ marginTop:5 }}><RatePills perMile={perMile} perMin={perMin}/></div>}
+            </div>
+            <div style={{ display:'flex', gap: compact ? 12 : 16, paddingBottom:4 }}>
+              <MetricTile label="DIST" value={fmtMi(miles)}/>
+              <MetricTile label="TIME" value={fmtMin(mins)}/>
+            </div>
+          </div>
+
+          {/* pickup distance hero */}
+          {(routeReady || loadingGeo) && (
+            <PickupDistanceHero
+              miles={heroMiles}
+              etaMin={heroEtaMin}
+              arrival={arrivalClock}
+              live={liveDriver.live}
+              loading={loadingGeo && heroMiles == null}
+            />
+          )}
+
+          {/* expanded: full details */}
+          {panelExpanded && (
+            <>
+              {isScheduled && <ScheduledCountdown scheduledAt={tripRequest.scheduledAt}/>}
+              <TripTypeRow label={TYPE_LABEL[tripRequest.rideType]} payCfg={payCfg} seats={tripRequest.seats} rideColor={rideColor}/>
+              <RiderCard rider={rider} loading={riderLoading} compact={false}/>
+              {polyline && <MiniRouteProfile polyline={polyline} distanceText={driverDist} routeMi={serverDistMi}/>}
+              <ProximityMeter miles={deadheadMi}/>
+              <EarningsGauge perMile={perMile}/>
+              <EarningsProjection payout={payout} pickupMin={heroEtaMin} tripMin={mins}/>
+              <EarningsDonut payout={payout} fareTotal={tripRequest.fareTotal}/>
+              <ExtendedMetrics routeMi={miles} perHr={projPerHr} engagedMin={engagedMin} arrivalClock={arrivalClock}/>
+              <RideSignals
+                perMile={perMile}
+                deadheadMi={deadheadMi}
+                payMethod={payMethod}
+                surge={surge}
+                isScheduled={isScheduled}
+                isLongTrip={isLongTrip}
+                dropoff={tripRequest.dropoffAddress}
+              />
+              <DecisionHint perMile={perMile} deadheadMi={deadheadMi} surge={surge}/>
+              <NoteCallout note={tripRequest.riderNote}/>
+              <FareBreakdown trip={tripRequest} payout={payout}/>
+            </>
+          )}
+
+          {/* compact: rider card */}
+          {compact && (
+            <RiderCard rider={rider} loading={riderLoading} compact={true}/>
+          )}
+
+          {/* addresses (both modes) */}
+          <div style={{ display:'flex', gap:12, marginBottom:14 }}>
+            <RouteRail/>
+            <div style={{ flex:1, display:'flex', flexDirection:'column', gap:10 }}>
+              <AddressRow label="PICKUP"   raw={tripRequest.pickupAddress}  accepted={accepted}/>
+              <AddressRow label="DROP-OFF" raw={tripRequest.dropoffAddress} accepted={accepted} dimmed/>
+            </div>
+          </div>
+
+          {/* slider */}
+          <BidirectionalSlide
+            onAccept={handleAccept}
+            onDecline={onDecline}
+            pending={actionPending}
+            disabled={expired}
+          />
+        </div>
+      </div>
+
+      {/* overlays */}
+      {accepted && <AcceptedOverlay rider={rider}/>}
+      {expired  && <ExpiredOverlay/>}
+
+    </div>
+  );
+}
+          
 
