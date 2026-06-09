@@ -1,39 +1,48 @@
-// App/UaTob/useAccounts.js
+// useAccount.js
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 import {
-  collection,
+  doc,
   onSnapshot,
   getFirestore,
-} from 'firebase/firestore';
-import { firebase_app } from '@/firebase/config';
+} from "firebase/firestore";
+import { firebase_app } from "@/firebase/config";
 
 const db = getFirestore(firebase_app);
 
-export function useAccounts() {
-  const [accounts, setAccounts] = useState([]);
+export function useAccount(uid) {
+  const [account, setAccount] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(
-      collection(db, 'Accounts'),
-      (snapshot) => {
-        const data = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+    if (!uid) {
+      setAccount(null);
+      setLoading(false);
+      return;
+    }
 
-        setAccounts(data);
+    const unsub = onSnapshot(
+      doc(db, "Accounts", uid),
+      (snapshot) => {
+        if (snapshot.exists()) {
+          setAccount({
+            uid: snapshot.id,
+            ...snapshot.data(),
+          });
+        } else {
+          setAccount(null);
+        }
+
         setLoading(false);
       },
       (error) => {
-        console.error('useAccounts:', error);
+        console.error("useAccount:", error);
         setLoading(false);
       }
     );
 
-    return unsubscribe;
-  }, []);
+    return unsub;
+  }, [uid]);
 
-  return { accounts, loading };
+  return { account, loading };
 }
