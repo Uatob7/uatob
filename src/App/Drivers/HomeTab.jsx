@@ -1830,7 +1830,7 @@ export default function HomeTab({
     };
 
     tick(); // write immediately on going online
-    const id = setInterval(tick, 30_000);
+    const id = setInterval(tick, 5_000);
     return () => clearInterval(id);
   }, [online, driver?.uid]);
 

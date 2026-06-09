@@ -62,11 +62,13 @@ function presenceMillis(d) {
   return fromTs(d.presenceUpdatedAt) ?? fromTs(d.lastSeenAt) ?? fromTs(d.updatedAt) ?? null;
 }
 
-function buildTierEta(tierId, driverInfo) {
-  if (!driverInfo) return null;
-  const adjusted = driverInfo.etaMin + (TIER_BUFFER[tierId] ?? 0);
+function buildTierEta(tierId, matchArr) {
+  if (!matchArr?.length) return null;
+  // Use the nearest (first) driver in the match array for ETA base
+  const nearest  = matchArr.reduce((a, b) => (a.miles < b.miles ? a : b));
+  const adjusted = nearest.etaMin + (TIER_BUFFER[tierId] ?? 0);
   const buffer   = adjusted <= 7 ? 2 : adjusted <= 12 ? 3 : 5;
-  return `${driverInfo.stale ? '~' : ''}${adjusted}–${adjusted + buffer} min`;
+  return `${nearest.stale ? '~' : ''}${adjusted}–${adjusted + buffer} min`;
 }
 
 function calculateRidePrice(p, miles, minutes, etaLabel) {
@@ -75,8 +77,11 @@ function calculateRidePrice(p, miles, minutes, etaLabel) {
   return { id: p.id, label: p.label, desc: p.desc, eta: etaLabel, capacity: p.capacity, total };
 }
 
-// ── Driver ETA ────────────────────────────────────────────────────────
-async function getDriverEta(pickupLat, pickupLng, pickupZip, signal) {
+// ── Driver Match ──────────────────────────────────────────────────────
+// Returns an array of all online drivers with uid, distance, onlineTime,
+// presenceUpdatedAt, etaMin, and stale flag. No filtering by staleness —
+// every driver with status == 'online' is included.
+async function buildDriverMatch(pickupLat, pickupLng, pickupZip, signal) {
   let snap = null;
 
   if (pickupZip) {
@@ -90,49 +95,39 @@ async function getDriverEta(pickupLat, pickupLng, pickupZip, signal) {
   }
 
   if (!snap) {
-    const allQ = query(
-      collection(db, 'Drivers'),
-      where('status', '==', 'online')
-    );
+    const allQ = query(collection(db, 'Drivers'), where('status', '==', 'online'));
     snap = await getDocs(allQ);
   }
 
-  if (signal?.aborted || snap.empty) return null;
+  if (signal?.aborted || snap.empty) return [];
 
-  const now = Date.now();
-  let freshNearest = null;
-  let staleNearest = null;
-  let freshCount   = 0;
+  const now    = Date.now();
+  const match  = [];
 
   snap.forEach((doc) => {
     const d = doc.data();
     if (typeof d.lat !== 'number' || typeof d.lng !== 'number') return;
 
     const lastPresence = presenceMillis(d);
-    const miles        = haversineMiles(pickupLat, pickupLng, d.lat, d.lng);
     const ageMs        = lastPresence === null ? 0 : now - lastPresence;
+    const miles        = round2(haversineMiles(pickupLat, pickupLng, d.lat, d.lng));
+    const stale        = lastPresence !== null && ageMs > FRESH_MS;
+    const etaMin       = estimateEtaMinutes(miles) + (stale ? STALE_PENALTY_MIN : 0);
 
-    if (lastPresence !== null && ageMs > STALE_MS) return;
-
-    if (ageMs <= FRESH_MS) {
-      freshCount++;
-      if (freshNearest === null || miles < freshNearest) freshNearest = miles;
-    } else {
-      if (staleNearest === null || miles < staleNearest) staleNearest = miles;
-    }
+    match.push({
+      uid:                d.uid ?? doc.id,
+      miles,
+      etaMin,
+      stale,
+      onlineTime:         typeof d.onlineTime === 'number' ? d.onlineTime : null,
+      presenceUpdatedAt:  d.presenceUpdatedAt ?? d.lastSeenAt ?? null,
+    });
   });
 
-  if (freshNearest !== null) {
-    const etaMin = estimateEtaMinutes(freshNearest);
-    return { etaMin, etaLabel: formatEtaRange(etaMin), driverCount: freshCount, nearestMiles: round2(freshNearest), stale: false };
-  }
+  // Sort nearest first — useful for ETA display and dispatch ordering
+  match.sort((a, b) => a.miles - b.miles);
 
-  if (staleNearest !== null) {
-    const etaMin = estimateEtaMinutes(staleNearest) + STALE_PENALTY_MIN;
-    return { etaMin, etaLabel: formatEtaRange(etaMin, true), driverCount: 1, nearestMiles: round2(staleNearest), stale: true };
-  }
-
-  return null;
+  return match;
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────
@@ -176,9 +171,9 @@ export function useQuotes(tripData) {
         const minutes = clamp(round2(tripData.durationMin), 0, 600);
         const hasPickup = Number.isFinite(tripData.pickupLat) && Number.isFinite(tripData.pickupLng);
 
-        let driverInfo = null;
+        let match = [];
         if (hasPickup) {
-          driverInfo = await getDriverEta(
+          match = await buildDriverMatch(
             tripData.pickupLat,
             tripData.pickupLng,
             tripData.pickupZip ?? null,
@@ -191,7 +186,7 @@ export function useQuotes(tripData) {
         const rides = Object.fromEntries(
           Object.entries(PRICING).map(([k, v]) => [
             k,
-            calculateRidePrice(v, miles, minutes, buildTierEta(k, driverInfo)),
+            calculateRidePrice(v, miles, minutes, buildTierEta(k, match)),
           ])
         );
 
@@ -206,14 +201,14 @@ export function useQuotes(tripData) {
           pickupLat: hasPickup ? tripData.pickupLat : null,
           pickupLng: hasPickup ? tripData.pickupLng : null,
           pickupZip: tripData.pickupZip ?? null,
-          driverInfo,
+          match,
           rides,
           createdAt: serverTimestamp(),
         }).catch((err) => console.error('[useQuotes] Search write failed:', err));
 
         if (signal.aborted || resetFlag.current) return;
 
-        setQuotesData({ rides, driverInfo, currency: 'USD', generatedAt: new Date().toISOString() });
+        setQuotesData({ rides, match, currency: 'USD', generatedAt: new Date().toISOString() });
         setError(null);
       } catch (err) {
         if (signal.aborted || resetFlag.current) return;
