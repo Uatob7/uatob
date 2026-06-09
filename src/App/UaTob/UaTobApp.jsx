@@ -1080,15 +1080,21 @@ export default function UaTob({ uid, rides = [], searches = [], scheduledRides =
         {/* Center-mounted status card */}
         <div style={{
           position: 'absolute',
-          top: '50%', left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: 'calc(100% - 32px)',
-          maxWidth: 420,
+          inset: 0,
           zIndex: 30,
-          pointerEvents: 'auto',
-          animation: 'uaSlideUp .5s cubic-bezier(.34,1.2,.64,1) both',
-          filter: 'drop-shadow(0 12px 40px rgba(0,0,0,.6))',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '0 16px',
+          pointerEvents: 'none',
         }}>
+          <div style={{
+            width: '100%',
+            maxWidth: 420,
+            pointerEvents: 'auto',
+            animation: 'uaSlideUp .5s cubic-bezier(.34,1.2,.64,1) both',
+            filter: 'drop-shadow(0 12px 40px rgba(0,0,0,.6))',
+          }}>
           <StatusCard
             face={face}
             onFaceChange={setFace}
@@ -1099,6 +1105,7 @@ export default function UaTob({ uid, rides = [], searches = [], scheduledRides =
             callSaveFcmToken={callSaveFcmToken}
             onBook={handleBook}
           />
+          </div>
         </div>
 
         {/* Support FAB */}
