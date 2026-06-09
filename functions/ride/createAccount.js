@@ -1,62 +1,37 @@
-// src/App/UaTob/useCreateAccount.js
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const admin = require("firebase-admin");
+const { FieldValue } = require("firebase-admin/firestore");
 
-import { useState, useCallback } from "react";
-import {
-  doc,
-  setDoc,
-  serverTimestamp,
-  getFirestore,
-} from "firebase/firestore";
-import { firebase_app } from "@/firebase/config";
+if (!admin.apps.length) admin.initializeApp();
+const db = admin.firestore();
 
-const db = getFirestore(firebase_app);
+exports.createAccount = onCall(
+  { region: "us-east1", invoker: "public" },
+  async (request) => {
+    const { uid, email, name } = request.data || {};
 
-export function useCreateAccount() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+    if (!uid || typeof uid !== "string")
+      throw new HttpsError("invalid-argument", "Missing or invalid uid");
 
-  const createAccount = useCallback(async ({ uid, email, name }) => {
-    if (!uid || typeof uid !== "string") {
-      throw new Error("Missing or invalid uid");
-    }
-
-    setLoading(true);
-    setError("");
+    console.log(`[createAccount] UID: ${uid}, Email: ${email}, Name: ${name}`);
 
     try {
-      await setDoc(
-        doc(db, "Accounts", uid),
+      await db.collection("Accounts").doc(uid).set(
         {
           uid,
           email: email ?? null,
-          name: name ?? null,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+          name:  name  ?? null,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         },
         { merge: true }
       );
 
-      return {
-        success: true,
-        uid,
-      };
+      console.log(`[createAccount] Account saved — UID: ${uid}`);
+      return { success: true, uid };
     } catch (err) {
-      const msg = err.message || "Failed to create account";
-      setError(msg);
-      throw new Error(msg);
-    } finally {
-      setLoading(false);
+      console.error("[createAccount] Error:", err);
+      throw new HttpsError("internal", err.message || "Internal server error");
     }
-  }, []);
-
-  const clear = useCallback(() => {
-    setError("");
-  }, []);
-
-  return {
-    createAccount,
-    loading,
-    error,
-    clear,
-  };
-}
+  }
+);
