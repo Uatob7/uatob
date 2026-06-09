@@ -87,23 +87,6 @@ function hasCoords(o) {
   return typeof o?.pickupLat === 'number' && typeof o?.pickupLng === 'number';
 }
 
-// ─── Icon ────────────────────────────────────────────────────────────────────
-function Icon({ name, size = 16, color = 'currentColor', stroke = 1.8 }) {
-  const p = {
-    width: size, height: size, viewBox: '0 0 24 24', fill: 'none',
-    stroke: color, strokeWidth: stroke, strokeLinecap: 'round', strokeLinejoin: 'round',
-  };
-  switch (name) {
-    case 'car':   return <svg {...p}><path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1l2-4h12l2 4h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>;
-    case 'search':return <svg {...p}><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/></svg>;
-    case 'clock': return <svg {...p}><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>;
-    case 'bell':  return <svg {...p}><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>;
-    case 'arrow': return <svg {...p}><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>;
-    case 'check': return <svg {...p}><polyline points="20 6 9 17 4 12"/></svg>;
-    default:      return null;
-  }
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // FACE 0 — Book a Ride
 // ═══════════════════════════════════════════════════════════════════════════
@@ -113,14 +96,6 @@ function BookRideCard({ onBook }) {
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{
-          width: 28, height: 28, borderRadius: 9, flexShrink: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(74,222,128,.14)',
-          boxShadow: '0 0 14px rgba(74,222,128,.22)',
-        }}>
-          <Icon name="car" size={14} color={C.greenBright}/>
-        </div>
         <div>
           <div style={{
             fontFamily: COND, fontSize: 10, fontWeight: 800, letterSpacing: '.16em',
@@ -180,16 +155,14 @@ function BookRideCard({ onBook }) {
         width: '100%', padding: '9px 0', borderRadius: 10,
         background: 'linear-gradient(135deg, #22C55E, #16A34A)',
         border: 'none', cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
         boxShadow: '0 4px 18px rgba(34,197,94,.35)',
         animation: 'uaGlowPulse 2.8s ease-in-out infinite',
       }}>
-        <Icon name="car" size={12} color="#fff"/>
         <span style={{
           fontFamily: COND, fontSize: 11, fontWeight: 800, letterSpacing: '.14em',
           color: '#fff', textTransform: 'uppercase',
         }}>Request Ride</span>
-        <Icon name="arrow" size={11} color="rgba(255,255,255,.7)"/>
       </button>
     </div>
   );
@@ -207,13 +180,6 @@ function SearchesCard({ searches, scheduledRides }) {
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{
-          width: 28, height: 28, borderRadius: 9, flexShrink: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(103,232,249,.12)',
-        }}>
-          <Icon name="search" size={13} color={C.cyan}/>
-        </div>
         <div>
           <div style={{
             fontFamily: COND, fontSize: 10, fontWeight: 800, letterSpacing: '.16em',
@@ -298,13 +264,6 @@ function ScheduledCard({ scheduledRides, now }) {
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{
-          width: 28, height: 28, borderRadius: 9, flexShrink: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(192,132,252,.14)',
-        }}>
-          <Icon name="clock" size={13} color={C.violet}/>
-        </div>
         <div>
           <div style={{
             fontFamily: COND, fontSize: 10, fontWeight: 800, letterSpacing: '.16em',
@@ -405,13 +364,6 @@ function NotificationsCard({ rides, callSaveFcmToken }) {
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{
-          width: 28, height: 28, borderRadius: 9, flexShrink: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(251,191,36,.12)',
-        }}>
-          <Icon name="bell" size={13} color={C.amberBright}/>
-        </div>
         <div>
           <div style={{
             fontFamily: COND, fontSize: 10, fontWeight: 800, letterSpacing: '.16em',
@@ -439,7 +391,6 @@ function NotificationsCard({ rides, callSaveFcmToken }) {
         )}
         {permState === 'granted' && (
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
-            <Icon name="check" size={11} color={C.greenBright}/>
             <span style={{ fontFamily: MONO, fontSize: 8.5, color: C.greenBright }}>ON</span>
           </div>
         )}
@@ -503,10 +454,10 @@ function NotificationsCard({ rides, callSaveFcmToken }) {
 // STATUS CARD (carousel shell)
 // ═══════════════════════════════════════════════════════════════════════════
 const FACES = [
-  { label: 'Book',      color: C.greenBright, icon: 'car'    },
-  { label: 'Searches',  color: C.cyan,        icon: 'search' },
-  { label: 'Scheduled', color: C.violet,      icon: 'clock'  },
-  { label: 'Alerts',    color: C.amberBright, icon: 'bell'   },
+  { label: 'Book',      color: C.greenBright },
+  { label: 'Searches',  color: C.cyan        },
+  { label: 'Scheduled', color: C.violet      },
+  { label: 'Alerts',    color: C.amberBright },
 ];
 
 export default function StatusCard({
@@ -574,16 +525,8 @@ export default function StatusCard({
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
               position: 'relative',
             }}>
-              <div style={{
-                width: 22, height: 22, borderRadius: 7,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: active ? `${f.color}22` : 'transparent',
-                transition: 'background .25s ease',
-              }}>
-                <Icon name={f.icon} size={12} color={active ? f.color : 'rgba(255,255,255,.28)'}/>
-              </div>
               <span style={{
-                fontFamily: COND, fontSize: 7.5, fontWeight: 800, letterSpacing: '.1em',
+                fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.1em',
                 color: active ? f.color : 'rgba(255,255,255,.22)',
                 textTransform: 'uppercase',
                 transition: 'color .25s ease',
