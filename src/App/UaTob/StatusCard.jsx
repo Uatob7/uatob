@@ -26,20 +26,27 @@ export default function StatusCard({
   const [autoCycle, setAutoCycle] = useState(true);
   const timerRef = useRef(null);
 
-  // Auto-advance faces
+  // Auto-advance faces — skip and pause on FACE_BOOK
   useEffect(() => {
     if (!autoCycle) return;
     timerRef.current = setTimeout(() => {
-      onFaceChange((face + 1) % FACE_COUNT);
+      const next = (face + 1) % FACE_COUNT;
+      // skip the booking face during auto-cycle
+      onFaceChange(next === FACE_BOOK ? (next + 1) % FACE_COUNT : next);
     }, AUTO_CYCLE_MS);
     return () => clearTimeout(timerRef.current);
   }, [face, autoCycle, onFaceChange]);
 
   const handleTabClick = useCallback((i) => {
-    setAutoCycle(false);
-    onFaceChange(i);
     clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setAutoCycle(true), 12_000);
+    if (i === FACE_BOOK) {
+      // freeze auto-cycle while user is booking
+      setAutoCycle(false);
+    } else {
+      setAutoCycle(false);
+      timerRef.current = setTimeout(() => setAutoCycle(true), 12_000);
+    }
+    onFaceChange(i);
   }, [onFaceChange]);
 
   return (
@@ -54,7 +61,10 @@ export default function StatusCard({
       backdropFilter: 'blur(16px)',
     }}>
       <div key={face} style={{ animation: 'uaCardFlip .28s ease both' }}>
-        {face === FACE_BOOK      && <BookRideCard onBook={onBook}/>}
+        {face === FACE_BOOK      && <BookRideCard onBook={onBook} onBookingComplete={() => {
+          // resume auto-cycle after booking finishes and card resets
+          timerRef.current = setTimeout(() => setAutoCycle(true), 4_000);
+        }}/>}
         {face === FACE_SEARCHES  && <SearchesCard searches={searches} scheduledRides={scheduledRides}/>}
         {face === FACE_SCHEDULED && <ScheduledCard scheduledRides={scheduledRides} now={now}/>}
         {face === FACE_NOTIFS    && <NotificationsCard rides={rides} callSaveFcmToken={callSaveFcmToken}/>}
