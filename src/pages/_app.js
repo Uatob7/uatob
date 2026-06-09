@@ -1,4 +1,3 @@
-// pages/_app.js
 import "@/styles/globals.css";
 import Head from "next/head";
 import { Elements } from "@stripe/react-stripe-js";
@@ -7,15 +6,16 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
 import { AuthContextProvider, useAuthContext } from "@/context/AuthContext";
-import { useTrackViews } from '@/App/UaTob/useTrackViews';
+import { useTrackViews } from "@/App/UaTob/useTrackViews";
 import { useEffect } from "react";
 import { getMessaging } from "firebase/messaging";
 import { firebase_app } from "@/firebase/config";
-import { getFunctions, httpsCallable } from "firebase/functions";
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
-const functions = getFunctions(firebase_app, "us-central1");
-const callUpdatePresence = httpsCallable(functions, "updateAccountPresence");
+import { useAccountPresence } from '@/App/UaTob/useAccountPresence';
+
+const stripePromise = loadStripe(
+  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+);
 
 function ServiceWorkerInit() {
   useEffect(() => {
@@ -28,7 +28,9 @@ function ServiceWorkerInit() {
         console.log("[SW] Registered:", reg.scope);
         getMessaging(firebase_app);
       })
-      .catch((err) => console.warn("[SW] Registration failed:", err.message));
+      .catch((err) =>
+        console.warn("[SW] Registration failed:", err.message)
+      );
   }, []);
 
   return null;
@@ -60,12 +62,8 @@ function AppWithAuth({ Component, pageProps }) {
 
   useTrackViews();
 
-  useEffect(() => {
-    if (!uid) return;
-    callUpdatePresence({ uid }).catch((err) =>
-      console.warn("[UaTob] updateAccountPresence failed:", err?.message)
-    );
-  }, [uid]);
+  // ✅ moved into hook
+  useAccountPresence(uid);
 
   return (
     <>

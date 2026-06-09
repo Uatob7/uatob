@@ -109,7 +109,6 @@ const { onSupportMessageSent } = require("./admin/onSupportMessageSent");
 
 // Account presence
 
-const { updateAccountPresence } = require("./accounts/updateAccountPresence");
 
 
 // Exports
@@ -203,5 +202,3 @@ exports.deleteDriver = deleteDriver;
 exports.autoApprovePendingDrivers = autoApprovePendingDrivers;
 exports.onSupportMessageSent = onSupportMessageSent;
 
-
-exports.updateAccountPresence = updateAccountPresence;
