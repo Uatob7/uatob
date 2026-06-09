@@ -308,64 +308,62 @@ function SupportFab({ onOpen }) {
 // ─── Card: Book a Ride ─────────────────────────────────────────────────────
 function BookRideCard({ onBook }) {
   return (
-    <div style={{ padding: '18px 18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div style={{ padding: '12px 12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <div style={{
-          width: 34, height: 34, borderRadius: 11, flexShrink: 0,
+          width: 28, height: 28, borderRadius: 9, flexShrink: 0,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           background: 'rgba(74,222,128,.14)',
-          boxShadow: '0 0 16px rgba(74,222,128,.22)',
+          boxShadow: '0 0 14px rgba(74,222,128,.22)',
         }}>
-          <Icon name="car" size={17} color={C.greenBright}/>
+          <Icon name="car" size={14} color={C.greenBright}/>
         </div>
         <div>
           <div style={{
-            fontFamily: COND, fontSize: 11, fontWeight: 800, letterSpacing: '.18em',
+            fontFamily: COND, fontSize: 10, fontWeight: 800, letterSpacing: '.16em',
             color: C.greenBright, textTransform: 'uppercase',
           }}>Book a Ride</div>
           <div style={{
-            fontFamily: MONO, fontSize: 9, color: C.inkTextDim, marginTop: 1,
-          }}>Orlando, FL · drivers online</div>
+            fontFamily: MONO, fontSize: 8.5, color: C.inkTextDim, marginTop: 1,
+          }}>Orlando, FL</div>
         </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
           <div style={{
-            width: 7, height: 7, borderRadius: '50%', background: C.greenBright,
-            boxShadow: `0 0 8px ${C.greenBright}`,
+            width: 6, height: 6, borderRadius: '50%', background: C.greenBright,
+            boxShadow: `0 0 6px ${C.greenBright}`,
             animation: 'uaBlink 1.6s ease-in-out infinite',
           }}/>
-          <span style={{ fontFamily: MONO, fontSize: 9, fontWeight: 700, color: C.greenBright }}>
+          <span style={{ fontFamily: MONO, fontSize: 8, fontWeight: 700, color: C.greenBright }}>
             LIVE
           </span>
         </div>
       </div>
 
-      {/* Pickup / Dropoff inputs (cosmetic — real booking handled elsewhere) */}
+      {/* Pickup / Dropoff rows */}
       <div style={{
-        borderRadius: 12, overflow: 'hidden',
+        borderRadius: 10, overflow: 'hidden',
         border: '1px solid rgba(34,197,94,.18)',
         background: 'rgba(255,255,255,.03)',
       }}>
         {[
-          { icon: 'pin',   label: 'Pickup',   placeholder: 'Where are you?',    dot: C.greenBright },
-          { icon: 'map',   label: 'Drop-off', placeholder: 'Where to?',         dot: 'rgba(255,255,255,.55)' },
+          { label: 'Pickup',   placeholder: 'Where are you?',    dot: C.greenBright, glow: true  },
+          { label: 'Drop-off', placeholder: 'Where to?',         dot: 'rgba(255,255,255,.55)', glow: false },
         ].map((row, i) => (
           <div key={i}>
-            {i > 0 && <div style={{ height: 1, background: 'rgba(34,197,94,.1)', margin: '0 12px' }}/>}
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px',
-            }}>
+            {i > 0 && <div style={{ height: 1, background: 'rgba(34,197,94,.1)', margin: '0 10px' }}/>}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 11px' }}>
               <div style={{
-                width: 9, height: 9, borderRadius: '50%', flexShrink: 0,
-                background: row.dot, boxShadow: i === 0 ? `0 0 6px ${C.greenBright}88` : 'none',
+                width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                background: row.dot, boxShadow: row.glow ? `0 0 5px ${C.greenBright}88` : 'none',
               }}/>
               <div style={{ flex: 1 }}>
                 <div style={{
-                  fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.12em',
-                  color: C.inkTextDim, textTransform: 'uppercase', marginBottom: 1,
+                  fontFamily: COND, fontSize: 7.5, fontWeight: 800, letterSpacing: '.1em',
+                  color: C.inkTextDim, textTransform: 'uppercase',
                 }}>{row.label}</div>
                 <div style={{
-                  fontFamily: MONO, fontSize: 11, fontWeight: 600,
+                  fontFamily: MONO, fontSize: 10, fontWeight: 600,
                   color: 'rgba(255,255,255,.35)',
                 }}>{row.placeholder}</div>
               </div>
@@ -376,19 +374,19 @@ function BookRideCard({ onBook }) {
 
       {/* CTA */}
       <button onClick={onBook} style={{
-        width: '100%', padding: '12px 0', borderRadius: 12,
+        width: '100%', padding: '9px 0', borderRadius: 10,
         background: 'linear-gradient(135deg, #22C55E, #16A34A)',
         border: 'none', cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-        boxShadow: '0 4px 20px rgba(34,197,94,.35)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+        boxShadow: '0 4px 18px rgba(34,197,94,.35)',
         animation: 'uaGlowPulse 2.8s ease-in-out infinite',
       }}>
-        <Icon name="car" size={15} color="#fff"/>
+        <Icon name="car" size={12} color="#fff"/>
         <span style={{
-          fontFamily: COND, fontSize: 13, fontWeight: 800, letterSpacing: '.14em',
+          fontFamily: COND, fontSize: 11, fontWeight: 800, letterSpacing: '.14em',
           color: '#fff', textTransform: 'uppercase',
         }}>Request Ride</span>
-        <Icon name="arrow" size={13} color="rgba(255,255,255,.7)"/>
+        <Icon name="arrow" size={11} color="rgba(255,255,255,.7)"/>
       </button>
     </div>
   );
@@ -400,78 +398,76 @@ function SearchesCard({ searches, scheduledRides }) {
   const schedCount = scheduledRides.filter(hasCoords).length;
 
   return (
-    <div style={{ padding: '18px 18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+    <div style={{ padding: '12px 12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <div style={{
-          width: 34, height: 34, borderRadius: 11, flexShrink: 0,
+          width: 28, height: 28, borderRadius: 9, flexShrink: 0,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           background: 'rgba(103,232,249,.12)',
         }}>
-          <Icon name="search" size={16} color={C.cyan}/>
+          <Icon name="search" size={13} color={C.cyan}/>
         </div>
         <div>
           <div style={{
-            fontFamily: COND, fontSize: 11, fontWeight: 800, letterSpacing: '.18em',
+            fontFamily: COND, fontSize: 10, fontWeight: 800, letterSpacing: '.16em',
             color: C.cyan, textTransform: 'uppercase',
           }}>Live Activity</div>
-          <div style={{ fontFamily: MONO, fontSize: 9, color: C.inkTextDim, marginTop: 1 }}>
+          <div style={{ fontFamily: MONO, fontSize: 8.5, color: C.inkTextDim, marginTop: 1 }}>
             Orlando metro · now
           </div>
         </div>
       </div>
 
-      <div style={{
-        display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8,
-      }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
         {[
-          { value: liveCount,  label: 'Ride Searches',    color: C.cyan,        icon: 'search' },
-          { value: schedCount, label: 'Scheduled',        color: C.violet,      icon: 'clock'  },
+          { value: liveCount,  label: 'Searches',  color: C.cyan   },
+          { value: schedCount, label: 'Scheduled', color: C.violet },
         ].map((tile, i) => (
           <div key={i} style={{
-            borderRadius: 12, padding: '12px 14px',
+            borderRadius: 10, padding: '8px 11px',
             background: 'rgba(255,255,255,.04)',
             border: `1px solid ${tile.color}22`,
           }}>
             <div style={{
-              fontFamily: MONO, fontSize: 26, fontWeight: 800, color: tile.color, lineHeight: 1,
-              textShadow: `0 0 20px ${tile.color}55`,
+              fontFamily: MONO, fontSize: 21, fontWeight: 800, color: tile.color, lineHeight: 1,
+              textShadow: `0 0 16px ${tile.color}55`,
             }}>{tile.value}</div>
             <div style={{
-              fontFamily: COND, fontSize: 8.5, fontWeight: 800, letterSpacing: '.12em',
-              color: C.inkTextDim, textTransform: 'uppercase', marginTop: 4,
+              fontFamily: COND, fontSize: 7.5, fontWeight: 800, letterSpacing: '.12em',
+              color: C.inkTextDim, textTransform: 'uppercase', marginTop: 3,
             }}>{tile.label}</div>
           </div>
         ))}
       </div>
 
-      {/* Live blip legend */}
+      {/* Legend */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 14,
-        padding: '8px 12px', borderRadius: 10,
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '6px 10px', borderRadius: 8,
         background: 'rgba(255,255,255,.03)', border: '1px solid rgba(34,197,94,.1)',
       }}>
         {[
           { c: C.greenBright, label: 'Rider' },
           { c: C.amber,       label: 'Guest' },
-          { c: C.violet,      label: 'Scheduled' },
+          { c: C.violet,      label: 'Sched' },
         ].map((row, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <div style={{
-              width: 7, height: 7, borderRadius: '50%', background: row.c,
-              boxShadow: `0 0 5px ${row.c}88`,
+              width: 6, height: 6, borderRadius: '50%', background: row.c,
+              boxShadow: `0 0 4px ${row.c}88`,
             }}/>
             <span style={{
-              fontFamily: MONO, fontSize: 9, fontWeight: 600,
+              fontFamily: MONO, fontSize: 8.5, fontWeight: 600,
               color: 'rgba(255,255,255,.38)',
             }}>{row.label}</span>
           </div>
         ))}
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
           <div style={{
-            width: 6, height: 6, borderRadius: '50%', background: C.green,
+            width: 5, height: 5, borderRadius: '50%', background: C.green,
             animation: 'uaBlink 1.4s ease-in-out infinite',
           }}/>
-          <span style={{ fontFamily: MONO, fontSize: 9, color: C.greenBright }}>LIVE</span>
+          <span style={{ fontFamily: MONO, fontSize: 8.5, color: C.greenBright }}>LIVE</span>
         </div>
       </div>
     </div>
@@ -484,25 +480,25 @@ function ScheduledCard({ scheduledRides, now }) {
     return [...scheduledRides]
       .map(r => ({ ...r, _when: tsToMillis(r.scheduledAt) }))
       .sort((a, b) => a._when - b._when)
-      .slice(0, 4);
+      .slice(0, 3);
   }, [scheduledRides]);
 
   return (
-    <div style={{ padding: '18px 18px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+    <div style={{ padding: '12px 12px 14px', display: 'flex', flexDirection: 'column', gap: 9 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <div style={{
-          width: 34, height: 34, borderRadius: 11, flexShrink: 0,
+          width: 28, height: 28, borderRadius: 9, flexShrink: 0,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           background: 'rgba(192,132,252,.14)',
         }}>
-          <Icon name="clock" size={16} color={C.violet}/>
+          <Icon name="clock" size={13} color={C.violet}/>
         </div>
         <div>
           <div style={{
-            fontFamily: COND, fontSize: 11, fontWeight: 800, letterSpacing: '.18em',
+            fontFamily: COND, fontSize: 10, fontWeight: 800, letterSpacing: '.16em',
             color: C.violet, textTransform: 'uppercase',
-          }}>Scheduled Rides</div>
-          <div style={{ fontFamily: MONO, fontSize: 9, color: C.inkTextDim, marginTop: 1 }}>
+          }}>Scheduled</div>
+          <div style={{ fontFamily: MONO, fontSize: 8.5, color: C.inkTextDim, marginTop: 1 }}>
             {sorted.length} upcoming
           </div>
         </div>
@@ -510,14 +506,14 @@ function ScheduledCard({ scheduledRides, now }) {
 
       {sorted.length === 0 ? (
         <div style={{
-          textAlign: 'center', padding: '18px 0',
-          fontFamily: MONO, fontSize: 11, color: C.inkTextDim, lineHeight: 1.6,
+          textAlign: 'center', padding: '12px 0',
+          fontFamily: MONO, fontSize: 10, color: C.inkTextDim, lineHeight: 1.6,
         }}>
           No scheduled rides.<br/>
-          <span style={{ color: C.violet, opacity: .7 }}>Book one below ↓</span>
+          <span style={{ color: C.violet, opacity: .7 }}>Book one anytime</span>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           {sorted.map((r, i) => {
             const cd = r._when ? r._when - now : null;
             const due = cd !== null && cd <= 0;
@@ -525,39 +521,34 @@ function ScheduledCard({ scheduledRides, now }) {
             const dotColor = due || urgent ? C.red : C.violet;
             return (
               <div key={r.id || i} style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
-                borderRadius: 10, background: 'rgba(192,132,252,.06)',
+                display: 'flex', alignItems: 'center', gap: 8, padding: '6px 9px',
+                borderRadius: 8, background: 'rgba(192,132,252,.06)',
                 border: '1px solid rgba(192,132,252,.14)',
                 animation: `uaCardFlip .3s ease ${i * 0.05}s both`,
               }}>
                 <div style={{
-                  width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                  background: dotColor, boxShadow: `0 0 7px ${dotColor}`,
+                  width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+                  background: dotColor, boxShadow: `0 0 6px ${dotColor}`,
                   animation: (due || urgent) ? 'uaBlink 1.2s ease-in-out infinite' : 'none',
                 }}/>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
-                    fontFamily: MONO, fontSize: 11, fontWeight: 700, color: '#F3E8FF',
+                    fontFamily: MONO, fontSize: 10, fontWeight: 700, color: '#F3E8FF',
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                   }}>
                     {r.pickupLabel || r.pickupAddress || 'Pickup'}
                   </div>
                   <div style={{
-                    fontFamily: MONO, fontSize: 9, color: 'rgba(192,132,252,.6)', marginTop: 2,
+                    fontFamily: MONO, fontSize: 8.5, color: 'rgba(192,132,252,.6)', marginTop: 1,
                   }}>
                     {fmtSchedTime(r._when)}
-                    {typeof r.driverPayout === 'number' && (
-                      <span style={{ color: C.amberBright, marginLeft: 8 }}>
-                        ${r.driverPayout.toFixed(2)}
-                      </span>
-                    )}
                   </div>
                 </div>
                 <div style={{
-                  fontFamily: MONO, fontSize: 10, fontWeight: 800, flexShrink: 0,
+                  fontFamily: MONO, fontSize: 9, fontWeight: 800, flexShrink: 0,
                   color: due || urgent ? C.red : '#E9D5FF',
                   background: due || urgent ? 'rgba(248,113,113,.14)' : 'rgba(192,132,252,.12)',
-                  padding: '3px 8px', borderRadius: 7,
+                  padding: '2px 7px', borderRadius: 6,
                 }}>
                   {cd !== null ? formatCountdown(cd) : '—'}
                 </div>
@@ -572,13 +563,11 @@ function ScheduledCard({ scheduledRides, now }) {
 
 // ─── Card: Notifications ───────────────────────────────────────────────────
 function NotificationsCard({ rides, callSaveFcmToken }) {
-  const [permState, setPermState] = useState('default'); // default | granted | denied
+  const [permState, setPermState] = useState('default');
   const [enabling,  setEnabling]  = useState(false);
 
   useEffect(() => {
-    if (typeof Notification !== 'undefined') {
-      setPermState(Notification.permission);
-    }
+    if (typeof Notification !== 'undefined') setPermState(Notification.permission);
   }, []);
 
   const handleEnable = useCallback(async () => {
@@ -586,65 +575,59 @@ function NotificationsCard({ rides, callSaveFcmToken }) {
     try {
       const perm = await Notification.requestPermission();
       setPermState(perm);
-      if (perm === 'granted' && callSaveFcmToken) {
-        await callSaveFcmToken();
-      }
-    } catch (e) { /* silently skip */ }
+      if (perm === 'granted' && callSaveFcmToken) await callSaveFcmToken();
+    } catch (e) {}
     setEnabling(false);
   }, [callSaveFcmToken]);
 
-  // Show last 3 ride notifications
   const recentRides = useMemo(() => {
     return [...(rides || [])]
       .sort((a, b) => tsToMillis(b.createdAt) - tsToMillis(a.createdAt))
-      .slice(0, 3);
+      .slice(0, 2);
   }, [rides]);
 
   return (
-    <div style={{ padding: '18px 18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+    <div style={{ padding: '12px 12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <div style={{
-          width: 34, height: 34, borderRadius: 11, flexShrink: 0,
+          width: 28, height: 28, borderRadius: 9, flexShrink: 0,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           background: 'rgba(251,191,36,.12)',
         }}>
-          <Icon name="bell" size={16} color={C.amberBright}/>
+          <Icon name="bell" size={13} color={C.amberBright}/>
         </div>
         <div>
           <div style={{
-            fontFamily: COND, fontSize: 11, fontWeight: 800, letterSpacing: '.18em',
+            fontFamily: COND, fontSize: 10, fontWeight: 800, letterSpacing: '.16em',
             color: C.amberBright, textTransform: 'uppercase',
-          }}>Notifications</div>
-          <div style={{ fontFamily: MONO, fontSize: 9, color: C.inkTextDim, marginTop: 1 }}>
-            {permState === 'granted' ? 'Push enabled' : 'Push off'}
+          }}>Alerts</div>
+          <div style={{ fontFamily: MONO, fontSize: 8.5, color: C.inkTextDim, marginTop: 1 }}>
+            {permState === 'granted' ? 'Push on' : 'Push off'}
           </div>
         </div>
         {permState !== 'granted' && (
           <button onClick={handleEnable} disabled={enabling || permState === 'denied'} style={{
-            marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5,
-            padding: '5px 11px', borderRadius: 8, cursor: permState === 'denied' ? 'default' : 'pointer',
+            marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4,
+            padding: '4px 9px', borderRadius: 7,
+            cursor: permState === 'denied' ? 'default' : 'pointer',
             background: permState === 'denied' ? 'rgba(248,113,113,.12)' : 'rgba(251,191,36,.14)',
             border: `1px solid ${permState === 'denied' ? C.red : C.amberBright}44`,
-            fontFamily: MONO, fontSize: 10, fontWeight: 700,
+            fontFamily: MONO, fontSize: 9, fontWeight: 700,
             color: permState === 'denied' ? C.red : C.amberBright,
           }}>
-            {enabling
-              ? <><span style={{ animation: 'uaSpin .8s linear infinite', display: 'inline-block', width: 10, height: 10, border: `1.5px solid ${C.amberBright}`, borderTopColor: 'transparent', borderRadius: '50%' }}/> Enabling</>
-              : permState === 'denied' ? 'Blocked' : 'Enable'
-            }
+            {enabling ? 'Enabling…' : permState === 'denied' ? 'Blocked' : 'Enable'}
           </button>
         )}
         {permState === 'granted' && (
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <Icon name="check" size={13} color={C.greenBright}/>
-            <span style={{ fontFamily: MONO, fontSize: 9, color: C.greenBright }}>ON</span>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <Icon name="check" size={11} color={C.greenBright}/>
+            <span style={{ fontFamily: MONO, fontSize: 8.5, color: C.greenBright }}>ON</span>
           </div>
         )}
       </div>
 
-      {/* Recent rides */}
       {recentRides.length > 0 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           {recentRides.map((ride, i) => {
             const status = ride.status || 'unknown';
             const statusColor = {
@@ -655,30 +638,27 @@ function NotificationsCard({ rides, callSaveFcmToken }) {
             }[status] || C.inkText;
             return (
               <div key={ride.id || i} style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
-                borderRadius: 10, background: 'rgba(255,255,255,.03)',
+                display: 'flex', alignItems: 'center', gap: 8, padding: '6px 9px',
+                borderRadius: 8, background: 'rgba(255,255,255,.03)',
                 border: `1px solid ${statusColor}1a`,
                 animation: `uaCardFlip .3s ease ${i * 0.06}s both`,
               }}>
                 <div style={{
-                  width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                  background: statusColor, boxShadow: `0 0 6px ${statusColor}77`,
+                  width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+                  background: statusColor, boxShadow: `0 0 5px ${statusColor}77`,
                 }}/>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
-                    fontFamily: MONO, fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,.82)',
+                    fontFamily: MONO, fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,.82)',
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                   }}>
                     {ride.pickupLabel || ride.pickupAddress || 'Pickup'}
                   </div>
-                  <div style={{ fontFamily: MONO, fontSize: 9, color: C.inkTextDim, marginTop: 1 }}>
-                    {ride.dropoffLabel || ride.dropoffAddress || 'Drop-off'}
-                  </div>
                 </div>
                 <span style={{
-                  fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.1em',
+                  fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.1em',
                   color: statusColor, textTransform: 'uppercase',
-                  background: `${statusColor}18`, padding: '2px 7px', borderRadius: 6,
+                  background: `${statusColor}18`, padding: '2px 6px', borderRadius: 5,
                 }}>
                   {status.replace(/_/g, ' ')}
                 </span>
@@ -688,11 +668,10 @@ function NotificationsCard({ rides, callSaveFcmToken }) {
         </div>
       ) : (
         <div style={{
-          textAlign: 'center', padding: '14px 0',
-          fontFamily: MONO, fontSize: 11, color: C.inkTextDim, lineHeight: 1.7,
+          textAlign: 'center', padding: '10px 0',
+          fontFamily: MONO, fontSize: 10, color: C.inkTextDim, lineHeight: 1.7,
         }}>
-          No recent rides.<br/>
-          <span style={{ color: C.amberBright, opacity: .65 }}>Request your first ride ↑</span>
+          No recent rides yet.
         </div>
       )}
     </div>
@@ -732,11 +711,11 @@ function StatusCard({ face, onFaceChange, rides, searches, scheduledRides, now, 
 
   return (
     <div style={{
-      width: '100%', maxWidth: 420,
+      width: '100%', maxWidth: 340,
       background: 'linear-gradient(180deg, rgba(6,14,8,.94), rgba(3,8,5,.97))',
       border: `1px solid ${accentColor}30`,
-      borderRadius: 20, overflow: 'hidden',
-      boxShadow: `0 12px 48px rgba(0,0,0,.65), 0 0 30px ${accentColor}18`,
+      borderRadius: 16, overflow: 'hidden',
+      boxShadow: `0 10px 36px rgba(0,0,0,.6), 0 0 24px ${accentColor}18`,
       backdropFilter: 'blur(16px)',
       transition: 'border-color .35s ease, box-shadow .35s ease',
     }}>
@@ -750,28 +729,28 @@ function StatusCard({ face, onFaceChange, rides, searches, scheduledRides, now, 
       {/* Tab bar */}
       <div style={{
         display: 'flex', alignItems: 'center',
-        padding: '10px 14px 0',
+        padding: '7px 10px 0',
         borderBottom: '1px solid rgba(34,197,94,.1)',
       }}>
         {FACES.map((f, i) => {
           const active = i === face;
           return (
             <button key={i} onClick={() => handleDotClick(i)} style={{
-              flex: 1, padding: '6px 2px 10px', cursor: 'pointer',
+              flex: 1, padding: '4px 2px 7px', cursor: 'pointer',
               background: 'none', border: 'none',
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
               position: 'relative',
             }}>
               <div style={{
-                width: 26, height: 26, borderRadius: 9,
+                width: 22, height: 22, borderRadius: 7,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 background: active ? `${f.color}22` : 'transparent',
                 transition: 'background .25s ease',
               }}>
-                <Icon name={f.icon} size={14} color={active ? f.color : 'rgba(255,255,255,.28)'}/>
+                <Icon name={f.icon} size={12} color={active ? f.color : 'rgba(255,255,255,.28)'}/>
               </div>
               <span style={{
-                fontFamily: COND, fontSize: 8.5, fontWeight: 800, letterSpacing: '.1em',
+                fontFamily: COND, fontSize: 7.5, fontWeight: 800, letterSpacing: '.1em',
                 color: active ? f.color : 'rgba(255,255,255,.22)',
                 textTransform: 'uppercase',
                 transition: 'color .25s ease',
@@ -1077,23 +1056,22 @@ export default function UaTob({ uid, rides = [], searches = [], scheduledRides =
         {/* Top ribbon */}
         <TopRibbon now={now} mapReady={mapReady}/>
 
-        {/* Center-mounted status card */}
+        {/* Status card — anchored under the top ribbon */}
         <div style={{
           position: 'absolute',
-          inset: 0,
+          top: 36, left: 0, right: 0,
           zIndex: 30,
           display: 'flex',
-          alignItems: 'center',
           justifyContent: 'center',
           padding: '0 16px',
           pointerEvents: 'none',
         }}>
           <div style={{
             width: '100%',
-            maxWidth: 420,
+            maxWidth: 340,
             pointerEvents: 'auto',
-            animation: 'uaSlideUp .5s cubic-bezier(.34,1.2,.64,1) both',
-            filter: 'drop-shadow(0 12px 40px rgba(0,0,0,.6))',
+            animation: 'uaSlideDown .5s cubic-bezier(.34,1.2,.64,1) both',
+            filter: 'drop-shadow(0 10px 32px rgba(0,0,0,.55))',
           }}>
           <StatusCard
             face={face}
