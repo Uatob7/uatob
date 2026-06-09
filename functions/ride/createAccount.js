@@ -1,38 +1,62 @@
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
-const admin = require("firebase-admin");
-const { FieldValue } = require("firebase-admin/firestore");
+// src/App/UaTob/useCreateAccount.js
 
-if (!admin.apps.length) admin.initializeApp();
-const db = admin.firestore();
+import { useState, useCallback } from "react";
+import {
+  doc,
+  setDoc,
+  serverTimestamp,
+  getFirestore,
+} from "firebase/firestore";
+import { firebase_app } from "@/firebase/config";
 
-exports.createAccount = onCall(
-  { region: "us-east1", invoker: "public" },
-  async (request) => {
-    const { uid, email, name } = request.data || {};
+const db = getFirestore(firebase_app);
 
-    if (!uid || typeof uid !== "string")
-      throw new HttpsError("invalid-argument", "Missing or invalid uid");
+export function useCreateAccount() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-    console.log(`[createAccount] UID: ${uid}, Email: ${email}, Name: ${name}`);
+  const createAccount = useCallback(async ({ uid, email, name }) => {
+    if (!uid || typeof uid !== "string") {
+      throw new Error("Missing or invalid uid");
+    }
 
-    
+    setLoading(true);
+    setError("");
+
     try {
-      await db.collection("Accounts").doc(uid).set(
+      await setDoc(
+        doc(db, "Accounts", uid),
         {
           uid,
           email: email ?? null,
-          name:  name  ?? null,
-          createdAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
+          name: name ?? null,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
         },
         { merge: true }
       );
 
-      console.log(`[createAccount] Account saved — UID: ${uid}`);
-      return { success: true, uid };
+      return {
+        success: true,
+        uid,
+      };
     } catch (err) {
-      console.error("[createAccount] Error:", err);
-      throw new HttpsError("internal", err.message || "Internal server error");
+      const msg = err.message || "Failed to create account";
+      setError(msg);
+      throw new Error(msg);
+    } finally {
+      setLoading(false);
     }
-  }
-);
+  }, []);
+
+  const clear = useCallback(() => {
+    setError("");
+  }, []);
+
+  return {
+    createAccount,
+    loading,
+    error,
+    clear,
+  };
+}
