@@ -239,7 +239,7 @@ function CardHeader({ step, onBack, onReset, pickup, dropoff, rideType }) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-export default function BookRideCard({ onRequest }) {
+export default function BookRideCard({ onRequest, onBook, onBookingComplete }) {
   const [step,       setStep]       = useState(0);
   const [pickup,     setPickup]     = useState('');
   const [dropoff,    setDropoff]    = useState('');
@@ -293,7 +293,7 @@ export default function BookRideCard({ onRequest }) {
     if (step !== 11) return;
     countdownRef.current = setInterval(() => {
       setCountdown(c => {
-        if (c <= 1) { clearInterval(countdownRef.current); reset(); return 0; }
+        if (c <= 1) { clearInterval(countdownRef.current); reset(); onBookingComplete?.(); return 0; }
         return c - 1;
       });
     }, 1000);
@@ -713,7 +713,7 @@ export default function BookRideCard({ onRequest }) {
           <div style={{ fontFamily: MONO, fontSize: 8.5, color: C.dim }}>s</div>
         </div>
 
-        <Btn label="Book Another Ride" onClick={reset}/>
+        <Btn label="Book Another Ride" onClick={() => { reset(); onBookingComplete?.(); }}/>
       </div>
     );
   };
