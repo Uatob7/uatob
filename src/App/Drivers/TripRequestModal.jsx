@@ -38,14 +38,12 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Zap } from 'lucide-react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebase_app } from '@/firebase/config';
 import { TYPE_COLOR, TYPE_LABEL } from '@/App/Drivers/constants.js';
+import { useGetRoute }      from '@/App/Drivers/useGetRoute';
 
-const db                    = getFirestore(firebase_app);
-const functions             = getFunctions(firebase_app, 'us-east1');
-const callGetDriverToPickup = httpsCallable(functions, 'getDriverToPickup');
+const db = getFirestore(firebase_app);
 
 const MAPBOX_TOKEN = 'pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA';
 const MB_VERSION   = 'v3.3.0';
@@ -1228,6 +1226,8 @@ export default function TripRequestModal({
   const [rider,       setRider]       = useState(null);
   const [riderLoading, setRiderLoading] = useState(false);
 
+  const { getRoute } = useGetRoute();
+
   const prevTripId     = useRef(null);
   const fareRafRef     = useRef(0);
   const dangerFiredRef = useRef(false);
@@ -1284,15 +1284,13 @@ export default function TripRequestModal({
     setDriverDist(null);
     setDriverEta(null);
     setLoadingGeo(true);
-    callGetDriverToPickup({
+    getRoute({
       driverLat: Number(driver.lat), driverLng: Number(driver.lng),
       pickupLat: Number(tripRequest.pickupLat), pickupLng: Number(tripRequest.pickupLng),
-    }).then(({ data }) => {
-      if (data?.success) {
-        setDriverDist(data.distanceText ?? null);
-        setDriverEta(data.etaText ?? null);
-        setPolyline(data.polyline ?? null);
-      }
+    }).then((data) => {
+      setDriverDist(data.distanceText ?? null);
+      setDriverEta(data.etaText ?? null);
+      setPolyline(data.polyline ?? null);
     }).catch(console.error)
       .finally(() => setLoadingGeo(false));
   // eslint-disable-next-line
