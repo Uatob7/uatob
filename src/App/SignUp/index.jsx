@@ -11,7 +11,7 @@ import DriverLogin from '@/App/SignUp/DriverLogin';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { firebase_app } from '@/firebase/config';
 import { useApplicationSubmitted } from '@/App/SignUp/useApplicationSubmitted';
-import { useDriverSignup, lsClear } from '@/App/SignUp/useDriverSignup';
+import { useDriverSignup, lsClear } from '@/App/SignUp/useDriverSignUp';
 
 const storage = getStorage(firebase_app);
 
