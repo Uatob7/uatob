@@ -296,6 +296,7 @@ export default function UaTob({
   uid,
   rides = [],
   searches = [],
+  createTrip,
   trips = [],
   scheduledRides = [],
   callSaveFcmToken,

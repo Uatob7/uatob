@@ -5,16 +5,13 @@ import {
   collection,
   query,
   where,
-  orderBy,
   onSnapshot,
-  limit,
   getFirestore,
 } from 'firebase/firestore';
 import { firebase_app } from '@/firebase/config';
 
 const db = getFirestore(firebase_app);
 
-// optional filter if you only want active lifecycle rides
 const ACTIVE_STATUSES = [
   'searching_driver',
   'driver_assigned',
@@ -27,7 +24,7 @@ const ACTIVE_STATUSES = [
 ];
 
 export function useRides() {
-  const [trips, setTrips] = useState([]);
+  const [rides, setRides] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -40,7 +37,7 @@ export function useRides() {
     try {
       const q = query(
         collection(db, 'Rides'),
-        where('status', 'in', ACTIVE_STATUSES),
+        where('status', 'in', ACTIVE_STATUSES)
       );
 
       const unsub = onSnapshot(
@@ -48,12 +45,12 @@ export function useRides() {
         (snap) => {
           if (!isMounted) return;
 
-          const tripsData = snap.docs.map((doc) => ({
+          const ridesData = snap.docs.map((doc) => ({
             id: doc.id,
             ...doc.data(),
           }));
 
-          setTrips(tripsData);
+          setRides(ridesData);
           setLoading(false);
         },
         (err) => {
@@ -61,11 +58,11 @@ export function useRides() {
 
           setError(
             err.code === 'failed-precondition'
-              ? 'Missing Firestore index for status + createdAt'
+              ? 'Missing Firestore index for status'
               : err.message || 'Failed to load rides'
           );
 
-          setTrips([]);
+          setRides([]);
           setLoading(false);
         }
       );
@@ -77,10 +74,10 @@ export function useRides() {
     } catch (err) {
       console.error('[useRides setup]', err);
       setError(err.message || 'Failed to initialize rides');
-      setTrips([]);
+      setRides([]);
       setLoading(false);
     }
   }, []);
 
-  return { trips, loading, error };
+  return { rides, loading, error };
 }
