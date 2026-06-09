@@ -289,11 +289,11 @@ export default function UaTob({
   scheduledRides = [],
   callSaveFcmToken,
   drivers = [],
-  accounts = [], // ✅ plural
+  account = null,
 }) {
 
 
-  console.log('[UaTob] Rendering with props:', { uid, rides, drivers, scheduledRides ,accounts});
+  console.log(account);
   const mapContainerRef = useRef(null);
   const mapRef          = useRef(null);
   const sweepRef        = useRef(0);
