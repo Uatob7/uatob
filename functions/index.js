@@ -43,6 +43,8 @@ const { setupDeposit } = require("./payments/setupDeposit");
 const { confirmCashCollection } = require("./payments/confirmCashCollection");
 const { validatePromoCode } = require("./payments/validatePromoCode");
 const { scheduledRideChecker } = require("./payments/scheduledRideChecker");
+const { feedChecker } = require("./payments/feedChecker");
+
 
 // driver functions
 const { checkDriverDeposit } = require("./drivers/checkDriverDeposit");
@@ -96,9 +98,12 @@ const { onSupportMessageSent } = require("./admin/onSupportMessageSent");
 // Account presence
 const { dispatch } = require("./accounts/dispatch");
 
+//Feed
+const { feedNotifier } = require("./feed/feedNotifier");
+
 
 exports.dispatch = dispatch;
-
+exports.feedNotifier = feedNotifier;
 
 
 // Exports
@@ -143,6 +148,7 @@ exports.onRideStatusChangedNotifyRider = onRideStatusChangedNotifyRider;
 exports.updateDriverPresence = updateDriverPresence;
 exports.setDriverTripActive = setDriverTripActive;
 exports.cardChecker = cardChecker;
+exports.feedChecker = feedChecker;
 exports.onDriverCreated = onDriverCreated;
 exports.updateDriverAchievements = updateDriverAchievements;
 exports.onDriverApplicationSubmitted = onDriverApplicationSubmitted;

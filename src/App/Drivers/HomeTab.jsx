@@ -1759,6 +1759,7 @@ export default function HomeTab({
   const mapContainerRef  = useRef(null);
   const mapRef           = useRef(null);
   const sweepRef         = useRef(0);
+  const sweepBurstRef    = useRef(0);
   const rafRef           = useRef(null);
   const svgRef           = useRef(null);
   const pulseLayersRef   = useRef(false);
@@ -2328,7 +2329,10 @@ export default function HomeTab({
   useEffect(() => {
     if (!mapReady || !online) { cancelAnimationFrame(rafRef.current); return; }
     const animate = () => {
-      sweepRef.current = (sweepRef.current + 1.2) % 360;
+      const burstActive = sweepBurstRef.current > 0;
+      const step = burstActive ? 3.6 : 1.2;
+      if (burstActive) sweepBurstRef.current = Math.max(0, sweepBurstRef.current - step);
+      sweepRef.current = (sweepRef.current + step) % 360;
       if (svgRef.current) {
         const angle = sweepRef.current;
         const toRad = d => (d * Math.PI) / 180;
@@ -2405,6 +2409,7 @@ export default function HomeTab({
       });
       clearTimeout(alertTimerRef.current);
       alertTimerRef.current = setTimeout(() => setAlert(null), 4200);
+      sweepBurstRef.current = 7 * 360;
     }
     prevDotRef.current = dotCount;
   }, [dotCount, showRadar]); // eslint-disable-line

@@ -37,7 +37,11 @@ function NotificationFaceInner({ online, driver }) {
   const [displayIdx,    setDisplayIdx]    = useState(0);
 
   const uid        = driver?.uid;
-  const driverName = driver?.displayName ?? driver?.name ?? null;
+  const firstName  = driver?.firstName ?? null;
+  const lastName   = driver?.lastName  ?? null;
+  const driverName = driver?.displayName
+    ?? driver?.name
+    ?? (firstName || lastName ? `${firstName ?? ''} ${lastName ?? ''}`.trim() : null);
 
   const {
     loading:     cardLoading,
@@ -52,14 +56,18 @@ function NotificationFaceInner({ online, driver }) {
     uid,
     message,
     driverName,
+    firstName,
+    lastName,
     onSuccess: () => setStep(5),
-    onError:   () => setStep(3), // stay on card form with error shown by hook
+    onError:   () => setStep(3),
   });
 
   const { loading: cashAppLoading, handleCashAppPay } = useNotificationCashAppPayment({
     uid,
     message,
     driverName,
+    firstName,
+    lastName,
     onSuccess: () => setStep(5),
     onError:   (msg) => { setCashError(msg); setStep(2); },
   });

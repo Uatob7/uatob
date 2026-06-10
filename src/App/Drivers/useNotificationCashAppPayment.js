@@ -1,3 +1,4 @@
+// src/App/Drivers/useNotificationCashAppPayment.js
 import { useState, useCallback } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import {
@@ -8,20 +9,49 @@ import { firebase_app } from '@/firebase/config';
 const db      = getFirestore(firebase_app);
 const stripeP = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
 
-export function useNotificationCashAppPayment({ uid, message, driverName, onSuccess, onError }) {
+const NOTIFICATION_AMOUNT_CENTS = 100; // $1.00
+const EXPIRES_HOURS             = 24;
+
+export function useNotificationCashAppPayment({ uid, message, driverName, firstName, lastName, onSuccess, onError }) {
   const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState('');
 
   const handleCashAppPay = useCallback(async () => {
     setLoading(true);
-    try {
-      if (!uid) throw new Error('Driver UID missing.');
+    setError('');
 
-      // 1. Create PaymentIntent via Stripe REST
+    try {
+      if (!uid)     throw new Error('Missing uid');
+      if (!message) throw new Error('Missing message');
+
+      // ── 1. Write Feed doc first to get feedId ────────────────────
+      const feedRef   = doc(collection(db, 'Feed'));
+      const feedId    = feedRef.id;
+      const expiresAt = Timestamp.fromMillis(Date.now() + EXPIRES_HOURS * 3600 * 1000);
+
+      await setDoc(feedRef, {
+        uid,
+        driverName:      driverName ?? null,
+        firstName:       firstName  ?? null,
+        lastName:        lastName   ?? null,
+        message,
+        status:          'pending',          // webhook / return_url flow activates this
+        paymentMethod:   'cashapp',
+        paymentIntentId: null,
+        paymentStatus:   'pending',
+        expiresAt,
+        createdAt:       serverTimestamp(),
+        updatedAt:       serverTimestamp(),
+      });
+
+      // ── 2. Create PaymentIntent via Stripe REST ───────────────────
       const body = new URLSearchParams({
-        amount:                        '100',
-        currency:                      'usd',
-        'payment_method_types[]':      'cashapp',
-        'metadata[uid]':               uid,
+        amount:                   String(NOTIFICATION_AMOUNT_CENTS),
+        currency:                 'usd',
+        'payment_method_types[]': 'cashapp',
+        'metadata[uid]':          uid,
+        'metadata[feedId]':       feedId,
+        'metadata[type]':         'driver_notification',
       });
 
       const intentRes = await fetch('https://api.stripe.com/v1/payment_intents', {
@@ -38,40 +68,32 @@ export function useNotificationCashAppPayment({ uid, message, driverName, onSucc
 
       const { id: paymentIntentId, client_secret: clientSecret } = intent;
 
-      // 2. Write Feed doc as pending (webhook will activate on payment_intent.succeeded)
-      const feedRef = doc(collection(db, 'Feed'));
-      await setDoc(feedRef, {
-        uid,
-        driverName:     driverName ?? null,
-        message:        message.trim(),
-        status:         'pending',
-        expiresAt:      Timestamp.fromDate(new Date(Date.now() + 24 * 60 * 60 * 1000)),
-        paymentIntentId,
-        paymentStatus:  'pending',
-        paymentMethod:  'cashapp',
-        createdAt:      serverTimestamp(),
-      });
+      // ── 3. Patch Feed doc with real intent id ─────────────────────
+      await setDoc(feedRef, { paymentIntentId, updatedAt: serverTimestamp() }, { merge: true });
 
-      // 3. Confirm → redirects into Cash App
+      // ── 4. Confirm → redirects into Cash App ─────────────────────
       const stripe = await stripeP;
-      const { error: stripeErr } = await stripe.confirmCashappPayment(
+
+      const { error: stripeError } = await stripe.confirmCashappPayment(
         clientSecret,
         {
-          payment_method: { cashapp: {} },
-          return_url: `${window.location.origin}`,
+          payment_method: {},
+          return_url: `${window.location.origin}/driver/feed-confirmed?feedId=${feedId}`,
         }
       );
 
-      // confirmCashappPayment redirects on success — won't reach here
-      if (stripeErr) throw new Error(stripeErr.message);
+      if (stripeError) throw new Error(stripeError.message);
 
-      onSuccess?.();
+      // confirmCashappPayment redirects on success — won't reach here
+
     } catch (err) {
-      onError?.(err.message || 'Cash App payment failed. Try again.');
+      console.error('❌ NOTIFICATION CASHAPP ERROR:', err);
+      setError(err.message);
+      onError?.(err.message);
     } finally {
       setLoading(false);
     }
   }, [uid, message, driverName, onSuccess, onError]);
 
-  return { loading, handleCashAppPay };
+  return { loading, error, setError, handleCashAppPay };
 }
