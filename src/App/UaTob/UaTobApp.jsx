@@ -31,6 +31,8 @@ import {
   FACE_NOTIFS, FACE_ACCOUNT, FACE_TRIPS, FACE_COUNT,
 } from '@/App/UaTob/Statuscardtokens';
 import StatusCard from '@/App/UaTob/StatusCard';
+import RiderSupportOverlay from '@/App/UaTob/RiderSupportOverlay';
+import { useRiderSupportUnread } from '@/App/UaTob/useRiderSupportUnread';
 
 const db = getFirestore(firebase_app);
 
@@ -688,18 +690,30 @@ function CornerBrackets() {
     </div>
   );
 }
-function SupportFab({ onOpen }) {
+function SupportFab({ onOpen, unread = 0 }) {
   return (
     <button onClick={onOpen} style={{
       position: 'absolute', bottom: 100, right: 16, zIndex: 26,
       width: 44, height: 44, borderRadius: 14, cursor: 'pointer',
       background: 'rgba(5,10,6,.78)', backdropFilter: 'blur(10px)',
-      border: '1.5px solid rgba(34,197,94,.3)',
-      boxShadow: '0 6px 20px rgba(0,0,0,.5), 0 0 14px rgba(34,197,94,.15)',
+      border: `1.5px solid ${unread > 0 ? 'rgba(239,68,68,.55)' : 'rgba(34,197,94,.3)'}`,
+      boxShadow: `0 6px 20px rgba(0,0,0,.5), 0 0 14px ${unread > 0 ? 'rgba(239,68,68,.2)' : 'rgba(34,197,94,.15)'}`,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       animation: 'uaSlideUp .4s ease both',
     }} aria-label="Support">
-      <Icon name="chat" size={18} color={C.greenBright}/>
+      <Icon name="chat" size={18} color={unread > 0 ? '#F87171' : C.greenBright}/>
+      {unread > 0 && (
+        <div style={{
+          position: 'absolute', top: -5, right: -5,
+          minWidth: 18, height: 18, borderRadius: 9,
+          background: '#DC2626', color: '#fff',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 10, fontWeight: 800, padding: '0 5px',
+          boxShadow: '0 2px 6px rgba(220,38,38,.5)', border: '2px solid rgba(5,10,6,.9)',
+        }}>
+          {unread > 9 ? '9+' : unread}
+        </div>
+      )}
     </button>
   );
 }
@@ -1186,6 +1200,10 @@ export default function UaTob({
   const [mapBearing,     setMapBearing]     = useState(-20);
   const [routeInfo,      setRouteInfo]      = useState(null);   // { distanceMi, durationSecs }
   const [completedRide,  setCompletedRide]  = useState(null);   // popup trigger
+  const [showSupport,    setShowSupport]    = useState(false);
+
+  // ── Support unread ────────────────────────────────────────────────────────
+  const supportUnread = useRiderSupportUnread(uid);
 
   // ── Derived ───────────────────────────────────────────────────────────────
   const { rider, fix, live } = useLiveRiderPosition(uid, account);
@@ -1752,7 +1770,18 @@ export default function UaTob({
         </div>
 
         {/* Support FAB */}
-        <SupportFab onOpen={onOpenSupport}/>
+        <SupportFab
+          onOpen={() => { setShowSupport(true); onOpenSupport(); }}
+          unread={supportUnread}
+        />
+
+        {/* Rider support overlay */}
+        {showSupport && (
+          <RiderSupportOverlay
+            account={account}
+            onClose={() => setShowSupport(false)}
+          />
+        )}
 
         {/* Bottom HUD — active ride or idle counters */}
         {activeRide ? (

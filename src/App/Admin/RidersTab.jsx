@@ -866,7 +866,7 @@ function RiderDrawer({ rider, rides = [], onClose, onAction }) {
               fontFamily: T.sans, fontSize: 10, fontWeight: 800,
               color: "rgba(255,255,255,.4)", letterSpacing: ".1em", textTransform: "uppercase",
             }}>
-              Rider Profile
+              {rider.isDriver ? "Driver Account" : "Rider Profile"}
             </div>
             <button
               className="close-btn"
@@ -891,7 +891,13 @@ function RiderDrawer({ rider, rides = [], onClose, onAction }) {
                 {rider.name || "—"}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <StatusBadge status={rider.status} />
+                {rider.isDriver
+                  ? <Tag icon={<Car size={9} />} label="Driver" color="#60A5FA" bg="rgba(96,165,250,.18)" />
+                  : <StatusBadge status={rider.status} />
+                }
+                {rider.isOrphaned && !rider.isDriver && (
+                  <Tag icon={<AlertTriangle size={9} />} label="No Account Doc" color="#FCA5A5" bg="rgba(239,68,68,.18)" />
+                )}
                 {rider.adminNote && <Tag icon={<Flag size={9} />} label="Flagged" color={C.amber} bg={C.amberBg} />}
               </div>
             </div>
@@ -1312,9 +1318,13 @@ function RiderCard({ rider, rides, index, onOpen, onMenu }) {
           <span style={{ fontFamily: T.sans, fontWeight: 800, fontSize: 14.5, color: C.ink, letterSpacing: "-.02em" }}>
             {rider.name || "—"}
           </span>
-          <StatusBadge status={rider.status} size="sm" />
-          {rider.isOrphaned && (
-            <Tag icon={<AlertTriangle size={9} />} label="Orphaned" color={C.rose} bg={C.roseBg} />
+          {rider.isDriver ? (
+            <Tag icon={<Car size={9} />} label="Driver" color={C.sapphire} bg={C.sapphireBg} />
+          ) : (
+            <StatusBadge status={rider.status} size="sm" />
+          )}
+          {rider.isOrphaned && !rider.isDriver && (
+            <Tag icon={<AlertTriangle size={9} />} label="No Account" color={C.rose} bg={C.roseBg} />
           )}
           {rider.adminNote && (
             <span title="Has admin note">
@@ -1432,7 +1442,7 @@ function LoadingSkeleton() {
 }
 
 // ─── Main Export ─────────────────────────────────────────────────────────────────
-export function RidersTab({ useriders, rideUids, rides = [], onBack }) {
+export function RidersTab({ useriders, rideUids, rides = [], drivers = [], onBack }) {
   const rawRiders = useriders?.riders || [];
 
   const [local,       setLocal]       = useState({});
@@ -1454,25 +1464,32 @@ export function RidersTab({ useriders, rideUids, rides = [], onBack }) {
     return () => document.removeEventListener("mousedown", handle);
   }, []);
 
-  // Orphaned UIDs
+  // Orphaned UIDs — cross-reference against Drivers to label correctly
   const orphanedUids = useMemo(() => {
-    const riderIds  = new Set(rawRiders.map(r => r.id).filter(Boolean));
-    const riderUids = new Set(rawRiders.map(r => r.uid).filter(Boolean));
+    const riderIds   = new Set(rawRiders.map(r => r.id).filter(Boolean));
+    const riderUids  = new Set(rawRiders.map(r => r.uid).filter(Boolean));
+    const driverMap  = new Map(drivers.map(d => [d.id, d]));
     const uniqueRideUids = new Set(rides.map(r => r.uid).filter(Boolean));
     const out = [];
     uniqueRideUids.forEach(uid => {
-      if (!riderIds.has(uid) && !riderUids.has(uid)) {
-        out.push({
-          id: uid, uid,
-          name: "Unknown Account", email: "—",
-          status: "active", isOrphaned: true,
-          rideCount: rides.filter(r => r.uid === uid).length,
-          createdAt: rides.find(r => r.uid === uid)?.createdAt || null,
-        });
-      }
+      if (riderIds.has(uid) || riderUids.has(uid)) return;
+      const driverDoc = driverMap.get(uid);
+      const dName = driverDoc
+        ? [driverDoc.firstName, driverDoc.lastName].filter(Boolean).join(" ") || driverDoc.name || driverDoc.displayName || "Driver"
+        : null;
+      out.push({
+        id: uid, uid,
+        name:      driverDoc ? dName : "Unknown",
+        email:     driverDoc?.email ?? "—",
+        status:    "active",
+        isOrphaned: true,
+        isDriver:  !!driverDoc,
+        rideCount: rides.filter(r => r.uid === uid).length,
+        createdAt: rides.find(r => r.uid === uid)?.createdAt || null,
+      });
     });
     return out;
-  }, [rawRiders, rides]);
+  }, [rawRiders, rides, drivers]);
 
   const allRiders = useMemo(() => [...rawRiders, ...orphanedUids], [rawRiders, orphanedUids]);
 
@@ -1483,10 +1500,12 @@ export function RidersTab({ useriders, rideUids, rides = [], onBack }) {
   })), [allRiders, local]);
 
   const counts = useMemo(() => {
-    const c = { all: 0, active: 0, suspended: 0, banned: 0 };
+    const c = { all: 0, active: 0, suspended: 0, banned: 0, driver: 0, unknown: 0 };
     riders.forEach(r => {
       if (local[r.id]?.deleted) return;
       c.all++;
+      if (r.isDriver) { c.driver++; return; }
+      if (r.isOrphaned) { c.unknown++; return; }
       if (c[r.status] !== undefined) c[r.status]++;
     });
     return c;
@@ -1495,7 +1514,12 @@ export function RidersTab({ useriders, rideUids, rides = [], onBack }) {
   const filtered = useMemo(() => {
     let list = riders
       .filter(r => !local[r.id]?.deleted)
-      .filter(r => filter === "all" || r.status === filter)
+      .filter(r => {
+        if (filter === "all")     return true;
+        if (filter === "driver")  return r.isDriver;
+        if (filter === "unknown") return r.isOrphaned && !r.isDriver;
+        return r.status === filter && !r.isDriver;
+      })
       .filter(r => {
         const q = search.toLowerCase();
         return !q || [r.name, r.email, r.id, r.uid].some(v => (v || "").toLowerCase().includes(q));
@@ -1748,10 +1772,12 @@ export function RidersTab({ useriders, rideUids, rides = [], onBack }) {
           {/* Filter pills */}
           <div style={{ display: "flex", gap: 7, marginBottom: 20, flexWrap: "wrap" }}>
             {[
-              { key: "all",       label: "All Riders",   count: counts.all       },
+              { key: "all",       label: "All",          count: counts.all       },
               { key: "active",    label: "Active",       count: counts.active    },
               { key: "suspended", label: "Suspended",    count: counts.suspended },
               { key: "banned",    label: "Banned",       count: counts.banned    },
+              { key: "driver",    label: "Drivers",      count: counts.driver    },
+              { key: "unknown",   label: "Unknown",      count: counts.unknown   },
             ].map(f => (
               <FilterPill
                 key={f.key}

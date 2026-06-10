@@ -323,7 +323,7 @@ export default function UaTobAdminDashboard() {
           />
         );
       case "riders":
-        return <RidersTab useriders={useriders} rideUids={rideUids} rides={rides} onBack={() => setActiveTab("home")} />;
+        return <RidersTab useriders={useriders} rideUids={rideUids} rides={rides} drivers={fleet} onBack={() => setActiveTab("home")} />;
       case "search":
         return <SearchTab searches={searches} onToast={showToast} />;
       case "compliance":
