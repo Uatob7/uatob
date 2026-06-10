@@ -1,12 +1,11 @@
 // src/hooks/useTrackViews.js
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
-import { getFunctions, httpsCallable } from "firebase/functions";
+import { getFirestore, collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { firebase_app } from "@/firebase/config";
 import { useAuthContext } from "@/context/AuthContext";
 
-const functions = getFunctions(firebase_app, "us-east1");
-const trackViewCallable = httpsCallable(functions, "trackView");
+const db = getFirestore(firebase_app);
 
 export function useTrackViews() {
   const router = useRouter();
@@ -31,13 +30,14 @@ export function useTrackViews() {
         if (now - lastTrackedRef.current < 1500) return;
         lastTrackedRef.current = now;
 
-        await trackViewCallable({
-          path: url,
-          uid: uid ?? null,
+        await addDoc(collection(db, "Views"), {
+          path:      url,
+          uid:       uid ?? null,
           sessionId,
           timestamp: now,
-          title: document.title,
-          referrer: document.referrer || null,
+          createdAt: serverTimestamp(),
+          title:     document.title,
+          referrer:  document.referrer || null,
           userAgent: navigator.userAgent,
           screen: {
             w: window.innerWidth,
