@@ -137,8 +137,8 @@ export function useQuotes(tripData) {
   const [quotesData, setQuotesData] = useState(null);
   const [loading,    setLoading]    = useState(false);
   const [error,      setError]      = useState(null);
-  const abortRef     = useRef(null);
-  const searchDocRef = useRef(null);
+  const abortRef          = useRef(null);
+  const searchDocPromise  = useRef(null);
 
   const reset = useCallback(() => {
     abortRef.current?.abort();
@@ -177,9 +177,9 @@ export function useQuotes(tripData) {
           ]),
         );
 
-        searchDocRef.current = null;
-        logSearch({ uid: getAuth(firebase_app).currentUser?.uid, tripData, miles, minutes, match, rides })
-          .then(ref => { searchDocRef.current = ref ?? null; });
+        searchDocPromise.current = logSearch({
+          uid: getAuth(firebase_app).currentUser?.uid, tripData, miles, minutes, match, rides,
+        });
 
         if (ctrl.signal.aborted) return;
 
@@ -198,9 +198,11 @@ export function useQuotes(tripData) {
   }, [tripData, reset]);
 
   const selectRide = useCallback((tierId) => {
-    const ref = searchDocRef.current;
-    if (!ref || !tierId) return;
-    updateDoc(ref, { selectedRide: tierId, selectedAt: serverTimestamp() }).catch(() => {});
+    if (!tierId || !searchDocPromise.current) return;
+    searchDocPromise.current.then(ref => {
+      if (!ref) return;
+      updateDoc(ref, { selectedRide: tierId, selectedAt: serverTimestamp() }).catch(() => {});
+    });
   }, []);
 
   return { quotesData, loading, error, reset, selectRide };
