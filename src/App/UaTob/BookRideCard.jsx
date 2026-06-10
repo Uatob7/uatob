@@ -309,17 +309,40 @@ export default function BookRideCard({ onRequest, onBook, onBookingComplete, onA
 
   // STEP 0 — landing
   const renderLanding = () => (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, animation: 'brSlideUp .3s ease both' }}>
-      <div style={{ fontFamily: COND, fontSize: 22, fontWeight: 900, letterSpacing: '.06em', color: '#fff', lineHeight: 1.1 }}>
-        Need a ride?
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14,
+      background: 'rgba(34,197,94,.05)', border: `1px solid ${C.borderDim}`,
+      borderRadius: 14, padding: '12px 14px', animation: 'brSlideUp .3s ease both',
+    }}>
+      {/* icon + text */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+        <div style={{
+          width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+          background: 'rgba(34,197,94,.1)', border: `1px solid ${C.border}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 0 14px rgba(74,222,128,.15)',
+        }}>
+          <Ico n="car" size={19} color={C.greenBright}/>
+        </div>
+        <div>
+          <div style={{ fontFamily: COND, fontSize: 18, fontWeight: 900, letterSpacing: '.05em', color: '#fff', lineHeight: 1.1 }}>
+            Need a ride?
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3 }}>
+            <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.greenBright, boxShadow: `0 0 5px ${C.greenBright}`, animation: 'brBlink 1.6s ease-in-out infinite' }}/>
+            <span style={{ fontFamily: MONO, fontSize: 8, color: C.dim }}>drivers nearby · flat-rate</span>
+          </div>
+        </div>
       </div>
+
+      {/* request button */}
       <button
         onClick={() => { onActiveChange?.(true); setStep(1); }}
         style={{
           flexShrink: 0, background: 'linear-gradient(135deg,#22C55E,#16A34A)', color: '#fff',
-          border: 'none', borderRadius: 10, padding: '8px 16px', cursor: 'pointer',
-          fontFamily: COND, fontSize: 11.5, fontWeight: 800, letterSpacing: '.14em',
-          textTransform: 'uppercase', boxShadow: '0 4px 18px rgba(34,197,94,.3)',
+          border: 'none', borderRadius: 10, padding: '9px 15px', cursor: 'pointer',
+          fontFamily: COND, fontSize: 11, fontWeight: 800, letterSpacing: '.14em',
+          textTransform: 'uppercase', boxShadow: '0 4px 18px rgba(34,197,94,.35)',
           animation: 'brGlowPulse 2.8s ease-in-out infinite',
         }}
       >
