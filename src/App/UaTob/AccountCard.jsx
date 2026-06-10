@@ -8,6 +8,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import signUp        from '@/firebase/auth/signup';
 import signIn        from '@/firebase/auth/signin';
+import signOutUser   from '@/firebase/auth/signOutUser';
 import resetPassword from '@/firebase/auth/passwordReset';
 import { useCreateAccount } from '@/App/UaTob/useCreateAccount';
 
@@ -657,9 +658,9 @@ function LoginFlow({ onDone, onSwitchToSignup }) {
 // ═════════════════════════════════════════════════════════════════════════════
 // AUTHED VIEW
 // ═════════════════════════════════════════════════════════════════════════════
-function AuthedView({ uid, account, rides = [], onSignOut }) {
+function AuthedView({ uid, account, rides = [] }) {
   const [signOutConfirm, setSignOutConfirm] = useState(false);
-  const [lastRideOpen,   setLastRideOpen]   = useState(false);
+  const [signingOut,     setSigningOut]     = useState(false);
 
   const stats = useMemo(() => {
     const done  = rides.filter(r => r.status === 'completed');
@@ -669,214 +670,119 @@ function AuthedView({ uid, account, rides = [], onSignOut }) {
 
   const totalRides  = account?.totalRides ?? stats.count;
   const totalSpend  = account?.totalSpend ?? stats.spend;
-  const memberSince = fmtDate(account?.createdAt);
   const accountAge  = fmtAccountAge(account?.createdAt);
-  const name        = account?.displayName || account?.name || 'Rider';
-  const email       = account?.email || '';
-  const phone       = account?.phone ? fmtPhoneInput(account.phone) : '';
-  const tier        = tierFor(totalRides);
+  const memberSince = fmtDate(account?.createdAt);
+  const name = account?.displayName || account?.name || 'Rider';
+  const tier = tierFor(totalRides);
 
-  const lastRide = useMemo(() => {
-    if (!rides.length) return null;
-    return [...rides].sort((a, b) => {
-      const ta = tsToMillis(a.createdAt);
-      const tb = tsToMillis(b.createdAt);
-      return tb - ta;
-    })[0];
-  }, [rides]);
+  const handleSignOut = useCallback(async () => {
+    setSigningOut(true);
+    await signOutUser();
+    setSigningOut(false);
+  }, []);
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:13, animation:'acSlideUp .3s ease both' }}>
+    <div style={{ display:'flex', flexDirection:'column', gap:9, animation:'acSlideUp .3s ease both' }}>
 
-      {/* ── Avatar pedestal ─────────────────────────────────────────── */}
-      <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+      {/* ── Header row: avatar + name + tier ──────────────────────────── */}
+      <div style={{ display:'flex', alignItems:'center', gap:10 }}>
         <div style={{ position:'relative', flexShrink:0 }}>
-          {/* outer glow ring */}
           <div style={{
-            position:'absolute', inset:-4, borderRadius:18,
-            border:`1px solid ${tier.accent}44`,
+            position:'absolute', inset:-3, borderRadius:13,
+            border:`1px solid ${tier.accent}33`,
             animation:'acRippleOut 3s ease-out 1s infinite',
             pointerEvents:'none',
           }}/>
           <div style={{
-            width:50, height:50, borderRadius:14,
+            width:40, height:40, borderRadius:11,
             background:'rgba(0,0,0,.45)',
             border:`1.5px solid ${tier.accent}55`,
             display:'flex', alignItems:'center', justifyContent:'center',
-            boxShadow:`0 0 18px ${tier.accent}22, inset 0 1px 0 rgba(255,255,255,.06)`,
+            boxShadow:`0 0 14px ${tier.accent}1A`,
           }}>
-            <span style={{ fontFamily:COND, fontSize:17, fontWeight:900, color:tier.accent, letterSpacing:'.04em' }}>
+            <span style={{ fontFamily:COND, fontSize:15, fontWeight:900, color:tier.accent, letterSpacing:'.04em' }}>
               {initials(name)}
             </span>
           </div>
         </div>
 
         <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ fontFamily:COND, fontSize:17, fontWeight:900, letterSpacing:'.03em', color:'#fff', lineHeight:1.1 }}>
+          <div style={{ fontFamily:COND, fontSize:15, fontWeight:900, letterSpacing:'.03em', color:'#fff', lineHeight:1.1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
             {name}
           </div>
-          {/* Tier ribbon */}
-          <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:5, flexWrap:'wrap' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:5, marginTop:3 }}>
             <span style={{
-              fontFamily:COND, fontSize:8, fontWeight:800, letterSpacing:'.16em',
-              textTransform:'uppercase', padding:'2px 7px', borderRadius:5,
-              background:`${tier.accent}18`, border:`1px solid ${tier.accent}44`,
+              fontFamily:COND, fontSize:7.5, fontWeight:800, letterSpacing:'.14em',
+              textTransform:'uppercase', padding:'1px 6px', borderRadius:4,
+              background:`${tier.accent}15`, border:`1px solid ${tier.accent}33`,
               color:tier.accent,
             }}>
-              <Ico n="spark" size={8} color={tier.accent} style={{ marginRight:3, verticalAlign:'middle' }}/>
+              <Ico n="spark" size={7} color={tier.accent} style={{ marginRight:2, verticalAlign:'middle' }}/>
               {tier.label}
             </span>
-            <div style={{ display:'flex', alignItems:'center', gap:4 }}>
-              <div style={{ width:5, height:5, borderRadius:'50%', background:C.greenBright, boxShadow:`0 0 5px ${C.greenBright}`, animation:'acBlink 1.6s ease-in-out infinite' }}/>
-              <span style={{ fontFamily:MONO, fontSize:8, color:C.dim }}>Active rider</span>
+            <div style={{ display:'flex', alignItems:'center', gap:3 }}>
+              <div style={{ width:4, height:4, borderRadius:'50%', background:C.greenBright, boxShadow:`0 0 4px ${C.greenBright}`, animation:'acBlink 1.6s ease-in-out infinite' }}/>
+              <span style={{ fontFamily:MONO, fontSize:7.5, color:C.dim }}>active</span>
             </div>
           </div>
         </div>
       </div>
 
-      <div style={{ height:1, background:'rgba(255,255,255,.05)' }}/>
-
-      {/* ── Contact info ────────────────────────────────────────────── */}
-      <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-        {[
-          { icon:'mail',  val: email || '—' },
-          { icon:'phone', val: phone || '—' },
-        ].map((r, i) => (
-          <div key={i} style={{
-            display:'flex', alignItems:'center', gap:8,
-            padding:'6px 9px', borderRadius:8,
-            background:C.surfaceField,
-            border:`1px solid rgba(255,255,255,.04)`,
-          }}>
-            <Ico n={r.icon} size={11} color={C.fade}/>
-            <span style={{ fontFamily:MONO, fontSize:9.5, color: r.val === '—' ? C.fade : C.inkText }}>
-              {r.val}
-            </span>
-          </div>
-        ))}
-      </div>
-
       {/* ── Stats strip ─────────────────────────────────────────────── */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:1, background:'rgba(255,255,255,.04)', borderRadius:11, overflow:'hidden' }}>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:1, background:'rgba(255,255,255,.04)', borderRadius:9, overflow:'hidden' }}>
         {[
-          { lbl:'RIDES',  val: totalRides,                    color: C.greenBright },
-          { lbl:'SPENT',  val: `$${Number(totalSpend).toFixed(2)}`, color: C.greenSoft },
-          { lbl:'MEMBER', val: accountAge || memberSince,    color: 'rgba(255,255,255,.55)' },
+          { lbl:'RIDES',  val: totalRides,                         color: C.greenBright },
+          { lbl:'SPENT',  val: `$${Number(totalSpend).toFixed(2)}`, color: C.greenSoft  },
+          { lbl:'MEMBER', val: accountAge || memberSince,           color: 'rgba(255,255,255,.5)' },
         ].map((s, i) => (
           <div key={i} style={{
-            padding:'9px 10px', background:'rgba(0,0,0,.22)',
+            padding:'7px 8px', background:'rgba(0,0,0,.22)',
             borderRight: i < 2 ? '1px solid rgba(255,255,255,.04)' : 'none',
           }}>
-            <div style={{ fontFamily:COND, fontSize:7.5, fontWeight:800, letterSpacing:'.1em', color:C.fade, textTransform:'uppercase', marginBottom:4 }}>
+            <div style={{ fontFamily:COND, fontSize:7, fontWeight:800, letterSpacing:'.1em', color:C.fade, textTransform:'uppercase', marginBottom:3 }}>
               {s.lbl}
             </div>
-            <div style={{ fontFamily:MONO, fontSize:13, fontWeight:700, color:s.color }}>
+            <div style={{ fontFamily:MONO, fontSize:12, fontWeight:700, color:s.color }}>
               {s.val}
             </div>
           </div>
         ))}
       </div>
 
-      {/* ── Last ride (expandable) ───────────────────────────────────── */}
-      {lastRide && (
-        <div style={{
-          background:'rgba(0,0,0,.25)',
-          border:`1px solid ${C.borderFaint}`,
-          borderRadius:11, overflow:'hidden',
-        }}>
-          <button type="button"
-            onClick={() => setLastRideOpen(o => !o)}
-            style={{
-              display:'flex', alignItems:'center', justifyContent:'space-between',
-              width:'100%', padding:'9px 11px', background:'transparent',
-              border:'none', cursor:'pointer',
-            }}>
-            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-              <Ico n="route" size={11} color={C.fade}/>
-              <span style={{ fontFamily:COND, fontSize:8, fontWeight:800, letterSpacing:'.14em', color:C.dim, textTransform:'uppercase' }}>
-                Last Ride
-              </span>
-            </div>
-            <div style={{ display:'flex', alignItems:'center', gap:7 }}>
-              <span style={{ fontFamily:MONO, fontSize:12, fontWeight:800, color:C.greenBright }}>
-                ${Number(lastRide.fareTotal || 0).toFixed(2)}
-              </span>
-              <Ico n="chevD" size={11} color={C.fade}
-                style={{ transform: lastRideOpen ? 'rotate(180deg)' : 'rotate(0)', transition:'transform .2s' }}/>
-            </div>
-          </button>
-
-          {lastRideOpen && (
-            <div style={{ padding:'0 11px 11px', borderTop:`1px solid rgba(255,255,255,.04)`, animation:'acSlideDown .2s ease both' }}>
-              <div style={{ display:'flex', flexDirection:'column', gap:7, paddingTop:9 }}>
-                {[
-                  { dot:C.greenBright, lbl:'PICKUP',   val:lastRide.pickup  || '—' },
-                  { dot:C.indigo,      lbl:'DROP-OFF',  val:lastRide.dropoff || '—' },
-                ].map((r, i) => (
-                  <div key={i} style={{ display:'flex', gap:8, alignItems:'flex-start' }}>
-                    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', paddingTop:3, flexShrink:0 }}>
-                      <div style={{ width:7, height:7, borderRadius: i===0?'50%':'0', transform: i===1?'rotate(45deg)':undefined, background:r.dot, boxShadow:`0 0 5px ${r.dot}88` }}/>
-                      {i === 0 && <div style={{ width:1.5, height:14, background:`linear-gradient(to bottom, ${r.dot}55, rgba(129,140,248,.4))`, margin:'3px 0' }}/>}
-                    </div>
-                    <div>
-                      <div style={{ fontFamily:COND, fontSize:7.5, fontWeight:800, letterSpacing:'.14em', color:C.fade, textTransform:'uppercase', marginBottom:1 }}>{r.lbl}</div>
-                      <div style={{ fontFamily:MONO, fontSize:10, color:'rgba(255,255,255,.55)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:200 }}>{r.val}</div>
-                    </div>
-                  </div>
-                ))}
-                <div style={{ display:'flex', alignItems:'center', gap:7, paddingTop:4, borderTop:'1px solid rgba(255,255,255,.04)', flexWrap:'wrap' }}>
-                  {lastRide.rideLabel && (
-                    <span style={{ fontFamily:COND, fontSize:9, fontWeight:700, letterSpacing:'.08em', color:C.fade, textTransform:'uppercase' }}>
-                      {lastRide.rideLabel}
-                    </span>
-                  )}
-                  {typeof lastRide.tripDistanceMiles === 'number' && (
-                    <span style={{ fontFamily:MONO, fontSize:9, color:C.fade }}>
-                      {lastRide.tripDistanceMiles.toFixed(1)} mi
-                    </span>
-                  )}
-                  {typeof lastRide.tripDurationMin === 'number' && (
-                    <span style={{ fontFamily:MONO, fontSize:9, color:C.fade }}>
-                      {lastRide.tripDurationMin} min
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Sign-out (two-step confirm) ──────────────────────────────── */}
+      {/* ── Sign-out (two-step) ──────────────────────────────────────── */}
       {!signOutConfirm ? (
         <button type="button" onClick={() => setSignOutConfirm(true)} style={{
-          width:'100%', padding:'9px 0', borderRadius:10,
+          width:'100%', padding:'8px 0', borderRadius:9,
           border:'1px solid rgba(248,113,113,.15)', background:'rgba(248,113,113,.04)',
-          cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:7,
-          fontFamily:COND, fontSize:11, fontWeight:700, letterSpacing:'.12em',
-          textTransform:'uppercase', color:'rgba(248,113,113,.65)',
+          cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+          fontFamily:COND, fontSize:10, fontWeight:700, letterSpacing:'.12em',
+          textTransform:'uppercase', color:'rgba(248,113,113,.6)',
           transition:'background .12s',
         }}>
-          <Ico n="sign-out" size={12} color="rgba(248,113,113,.65)"/>
+          <Ico n="sign-out" size={11} color="rgba(248,113,113,.6)"/>
           Sign Out
         </button>
       ) : (
-        <div style={{ display:'flex', flexDirection:'column', gap:7, animation:'acSlideUp .2s ease both' }}>
-          <div style={{ fontFamily:MONO, fontSize:9.5, color:C.dim, textAlign:'center' }}>
+        <div style={{ display:'flex', flexDirection:'column', gap:6, animation:'acSlideUp .2s ease both' }}>
+          <div style={{ fontFamily:MONO, fontSize:9, color:C.dim, textAlign:'center' }}>
             Sign out of your rider account?
           </div>
-          <div style={{ display:'flex', gap:7 }}>
+          <div style={{ display:'flex', gap:6 }}>
             <GhostBtn onClick={() => setSignOutConfirm(false)} style={{ flex:1 }}>
               Cancel
             </GhostBtn>
-            <button type="button" onClick={onSignOut} style={{
-              flex:1, padding:'9px 0', borderRadius:10,
+            <button type="button" onClick={handleSignOut} disabled={signingOut} style={{
+              flex:1, padding:'8px 0', borderRadius:9,
               border:'1px solid rgba(248,113,113,.35)', background:'rgba(248,113,113,.12)',
-              cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6,
-              fontFamily:COND, fontSize:11, fontWeight:800, letterSpacing:'.12em',
-              textTransform:'uppercase', color:C.red,
+              cursor: signingOut ? 'not-allowed' : 'pointer',
+              display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+              fontFamily:COND, fontSize:10, fontWeight:800, letterSpacing:'.12em',
+              textTransform:'uppercase', color:C.red, opacity: signingOut ? 0.6 : 1,
             }}>
-              <Ico n="sign-out" size={12} color={C.red}/> Confirm
+              {signingOut
+                ? <><Spinner size={11}/> Signing out…</>
+                : <><Ico n="sign-out" size={11} color={C.red}/> Confirm</>
+              }
             </button>
           </div>
         </div>
@@ -888,7 +794,7 @@ function AuthedView({ uid, account, rides = [], onSignOut }) {
 // ═════════════════════════════════════════════════════════════════════════════
 // ROOT
 // ═════════════════════════════════════════════════════════════════════════════
-export default function AccountCard({ uid, account = null, rides = [], onSignOut, onSignUp, onSignIn }) {
+export default function AccountCard({ uid, account = null, rides = [], onSignUp, onSignIn }) {
   const [authMode, setAuthMode] = useState('signup');
 
   return (
@@ -901,7 +807,7 @@ export default function AccountCard({ uid, account = null, rides = [], onSignOut
       }}>
         <div style={{ padding:'12px 13px 14px' }}>
           {uid ? (
-            <AuthedView uid={uid} account={account} rides={rides} onSignOut={onSignOut}/>
+            <AuthedView uid={uid} account={account} rides={rides}/>
           ) : (
             <>
               <BrandStrip/>
