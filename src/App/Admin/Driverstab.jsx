@@ -1142,7 +1142,7 @@ export function DriversTab({ rides = [], fleet = [], onToast, onSelectRide }) {
               <div style={{ height: 3, background: STATUS_CONFIG[driver.status]?.color || C.border }} />
               <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ position: "relative" }}>
-                  <Avatar name={fullName(driver)} size={42} colorIdx={i} />
+                  <Avatar name={fullName(driver)} size={42} colorIdx={i} photo={driver.profilePhotoUrl || null} />
                   <div style={{ position: "absolute", bottom: 0, right: 0, width: 11, height: 11, borderRadius: "50%", background: STATUS_CONFIG[driver.status]?.color || C.textDim, border: `2px solid ${C.surface}` }} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -1334,7 +1334,7 @@ function DriverDetail({ driverId, driverIdx, onBack, onToast }) {
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: statusColor }} />
         <div style={{ position: "absolute", top: -60, right: -60, width: 180, height: 180, borderRadius: "50%", background: `${statusColor}12`, pointerEvents: "none" }} />
         <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 16 }}>
-          <Avatar name={name} size={56} colorIdx={driverIdx} />
+          <Avatar name={name} size={56} colorIdx={driverIdx} photo={d.profilePhotoUrl || null} />
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 20, fontWeight: 900, color: "#fff", marginBottom: 4, letterSpacing: "-0.3px" }}>{name}</div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>

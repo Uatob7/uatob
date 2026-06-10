@@ -11,16 +11,27 @@ export function initials(name) {
 }
 
 // ── Avatar ────────────────────────────────────────────────────────────
-export function Avatar({ name, size = 36, colorIdx = 0 }) {
+export function Avatar({ name, size = 36, colorIdx = 0, photo }) {
   const bg = AVATAR_PALETTE[colorIdx % AVATAR_PALETTE.length];
+  const base = {
+    width: size, height: size, borderRadius: "50%",
+    flexShrink: 0, overflow: "hidden",
+  };
+  if (photo) {
+    return (
+      <div style={{ ...base, background: `linear-gradient(135deg,${bg},${bg}bb)` }}>
+        <img src={photo} alt={name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={e => { e.currentTarget.style.display = "none"; }}/>
+      </div>
+    );
+  }
   return (
     <div style={{
-      width: size, height: size, borderRadius: "50%",
+      ...base,
       background: `linear-gradient(135deg,${bg},${bg}bb)`,
       display: "flex", alignItems: "center", justifyContent: "center",
       fontSize: size * 0.33, fontWeight: 800, color: "#fff",
       fontFamily: "'Barlow Condensed',sans-serif",
-      letterSpacing: "0.5px", flexShrink: 0,
+      letterSpacing: "0.5px",
     }}>
       {initials(name)}
     </div>

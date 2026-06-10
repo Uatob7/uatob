@@ -226,8 +226,21 @@ const GLOBAL_CSS = `
 `;
 
 // ─── Avatar ─────────────────────────────────────────────────────────────────────
-function Avatar({ name, size = 44 }) {
+function Avatar({ name, size = 44, photo }) {
   const [bg, fg] = avatarColor(name);
+  if (photo) {
+    return (
+      <div style={{
+        width: size, height: size,
+        borderRadius: size > 50 ? 16 : 12,
+        overflow: "hidden", flexShrink: 0,
+        border: `1.5px solid ${fg}22`,
+        background: bg,
+      }}>
+        <img src={photo} alt={name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={e => { e.currentTarget.style.display = "none"; }}/>
+      </div>
+    );
+  }
   return (
     <div style={{
       width: size, height: size,
@@ -573,7 +586,7 @@ function ActionsMenu({ rider, onClose, onAction }) {
           borderBottom: `1px solid ${C.line}`,
           background: "linear-gradient(135deg, #F8F8F6 0%, #FFFFFF 100%)",
         }}>
-          <Avatar name={rider.name} size={50} />
+          <Avatar name={rider.name} size={50} photo={rider.photoURL || null} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
               fontFamily: T.sans, fontWeight: 800, fontSize: 16,
@@ -885,7 +898,7 @@ function RiderDrawer({ rider, rides = [], onClose, onAction }) {
           </div>
 
           <div style={{ display: "flex", alignItems: "flex-start", gap: 14, position: "relative" }}>
-            <Avatar name={rider.name} size={58} />
+            <Avatar name={rider.name} size={58} photo={rider.photoURL || null} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontFamily: T.display, fontWeight: 700, fontSize: 20, color: "#fff", letterSpacing: "-.02em", lineHeight: 1.2, marginBottom: 8 }}>
                 {rider.name || "—"}
@@ -1310,7 +1323,7 @@ function RiderCard({ rider, rides, index, onOpen, onMenu }) {
       }}
       onClick={() => onOpen(rider)}
     >
-      <Avatar name={rider.name} size={46} />
+      <Avatar name={rider.name} size={46} photo={rider.photoURL || null} />
 
       <div style={{ flex: 1, minWidth: 0 }}>
         {/* Name row */}

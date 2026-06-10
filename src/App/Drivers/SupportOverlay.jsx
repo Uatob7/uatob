@@ -396,8 +396,8 @@ function ChatScreen({ driver, onClose }) {
             updatedAt:   serverTimestamp(),
             lastMessage: WELCOME_TEXT(driver?.firstName),
             lastSender:  "support",
-            unreadByDriver:   0,
-            unreadBySupport:  0,
+            unreadByDriver: 0,
+            unreadByAdmin:  0,
             welcomeSent:      true,
             autoReplySent:    false,
           });
@@ -467,7 +467,7 @@ function ChatScreen({ driver, onClose }) {
         updatedAt:   serverTimestamp(),
         lastMessage: trimmed,
         lastSender:  "driver",
-        unreadBySupport: (threadData.unreadBySupport ?? 0) + 1,
+        unreadByAdmin: (threadData.unreadByAdmin ?? 0) + 1,
       }, { merge: true });
 
       if (!threadData.autoReplySent) {

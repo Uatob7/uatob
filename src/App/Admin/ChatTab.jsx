@@ -38,6 +38,10 @@ const QUICK_REPLIES = [
   "I'm marking this as a no-show. The fee will appear in your next payout.",
 ];
 
+// ── Thread-type helpers ────────────────────────────────────────────────
+function isRiderThread(id) { return (id || "").startsWith("rider_"); }
+function threadRole(id)    { return isRiderThread(id) ? "Rider" : "Driver"; }
+
 // ── Helpers ────────────────────────────────────────────────────────────
 function formatTime(ts) {
   if (!ts) return "";
@@ -378,8 +382,15 @@ const CSS = `
 `;
 
 // ── Avatar ─────────────────────────────────────────────────────────────
-function Avatar({ name, size = 46, fontSize = 15 }) {
+function Avatar({ name, size = 46, fontSize = 15, photo }) {
   const color = avatarColor(name);
+  if (photo) {
+    return (
+      <div className="ac-avatar" style={{ width: size, height: size, fontSize, background: color, overflow: "hidden" }}>
+        <img src={photo} alt={name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={e => { e.currentTarget.style.display = "none"; }}/>
+      </div>
+    );
+  }
   return (
     <div className="ac-avatar" style={{ width: size, height: size, fontSize, background: color }}>
       {initials(name)}
@@ -416,10 +427,12 @@ function ChatScreen({ conv, onBack, onToast }) {
   const [messages, setMessages] = useState([]);
   const [text,     setText]     = useState("");
   const [sending,  setSending]  = useState(false);
-  const [driver,   setDriver]   = useState(null);
-  const [showInfo, setShowInfo] = useState(false);
+  const [person,   setPerson]   = useState(null);
   const bottomRef  = useRef(null);
   const textaRef   = useRef(null);
+
+  const riderThread = isRiderThread(conv.id);
+  const personId    = riderThread ? conv.riderId : conv.driverId;
 
   // Load messages
   useEffect(() => {
@@ -432,9 +445,6 @@ function ChatScreen({ conv, onBack, onToast }) {
       const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setMessages(msgs);
 
-      // Mark any unread driver messages as read and always clear the counter.
-      // Always resetting unreadByAdmin ensures the badge clears even when
-      // messages were already marked read but the counter drifted out of sync.
       const unread = msgs.filter(m => m.status === "unread" && m.sender !== "admin");
       try {
         const batch = writeBatch(db);
@@ -447,13 +457,13 @@ function ChatScreen({ conv, onBack, onToast }) {
     return () => unsub();
   }, [conv.id]);
 
-  // Load driver details
+  // Load person details (Drivers for driver threads, Accounts for rider threads)
   useEffect(() => {
-    if (!conv.driverId) return;
-    getDoc(doc(db, "Drivers", conv.driverId)).then(snap => {
-      if (snap.exists()) setDriver(snap.data());
-    }).catch(() => {});
-  }, [conv.driverId]);
+    if (!personId) return;
+    getDoc(doc(db, riderThread ? "Accounts" : "Drivers", personId))
+      .then(snap => { if (snap.exists()) setPerson(snap.data()); })
+      .catch(() => {});
+  }, [personId, riderThread]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -469,18 +479,20 @@ function ChatScreen({ conv, onBack, onToast }) {
     if (textaRef.current) textaRef.current.style.height = "auto";
     try {
       await addDoc(collection(db, "Support"), {
-        threadId: conv.id, driverId: conv.driverId,
+        threadId: conv.id,
+        ...(riderThread ? { riderId: conv.riderId } : { driverId: conv.driverId }),
         message: m, sender: "admin", status: "read",
         createdAt: serverTimestamp(), readAt: serverTimestamp(),
       });
       await updateDoc(doc(db, "SupportThreads", conv.id), {
         lastMessage: m, lastSender: "admin", updatedAt: serverTimestamp(),
-        unreadByDriver: increment(1),
+        unreadByAdmin: 0,
+        ...(riderThread ? { unreadByRider: increment(1) } : { unreadByDriver: increment(1) }),
       });
       onToast?.("Sent", "success");
-    } catch { onToast?.("Failed to send", "error"); }
+    } catch (e) { console.error(e); onToast?.("Failed to send", "error"); }
     finally { setSending(false); }
-  }, [text, conv, sending]);
+  }, [text, conv, sending, riderThread]);
 
   const handleChange = e => {
     setText(e.target.value);
@@ -488,8 +500,11 @@ function ChatScreen({ conv, onBack, onToast }) {
     if (el) { el.style.height = "auto"; el.style.height = Math.min(el.scrollHeight, 110) + "px"; }
   };
 
-  const driverName = driver ? `${driver.firstName || ""} ${driver.lastName || ""}`.trim() : conv.driverName || "Driver";
+  const personName = person
+    ? (`${person.firstName || ""} ${person.lastName || ""}`.trim() || person.displayName || person.name || "")
+    : (riderThread ? (conv.riderName || "Rider") : (conv.driverName || "Driver"));
   const grouped = groupByDay(messages);
+  const role = threadRole(conv.id);
 
   return (
     <>
@@ -501,49 +516,49 @@ function ChatScreen({ conv, onBack, onToast }) {
           <button className="ac-icon-btn" onClick={handleBack}>
             <ArrowLeft size={18} />
           </button>
-          <Avatar name={driverName} size={40} fontSize={14} />
+          <Avatar name={personName} size={40} fontSize={14} photo={riderThread ? (person?.photoURL || null) : (person?.profilePhotoUrl || null)} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="ac-chat-driver-name">{driverName}</div>
+            <div className="ac-chat-driver-name">{personName}</div>
             <div className="ac-chat-driver-sub">
               <span className="ac-online-dot" />
-              <span>Support thread</span>
+              <span>{role} · Support thread</span>
             </div>
           </div>
           <button
             className="ac-icon-btn"
-            onClick={() => navigator.clipboard.writeText(conv.driverId || "")}
-            title="Copy driver ID"
+            onClick={() => navigator.clipboard.writeText(personId || "")}
+            title={`Copy ${role.toLowerCase()} ID`}
           >
             <Copy size={16} />
           </button>
         </div>
 
-        {/* Driver info pills */}
-        {driver && (
+        {/* Person info pills */}
+        {person && (
           <div className="ac-driver-strip">
-            {driver.email && (
+            {person.email && (
               <div className="ac-driver-pill">
                 <Mail size={12} color={T.accent} />
-                <span style={{ color: T.textSec }}>{driver.email}</span>
+                <span style={{ color: T.textSec }}>{person.email}</span>
               </div>
             )}
-            {driver.averageRating != null && (
+            {!riderThread && person.averageRating != null && (
               <div className="ac-driver-pill">
                 <Star size={12} fill={T.amber} color={T.amber} />
                 <span style={{ color: T.textPri, fontWeight: 700 }}>
-                  {driver.averageRating.toFixed(2)}
+                  {person.averageRating.toFixed(2)}
                 </span>
               </div>
             )}
-            {driver.phone && (
+            {person.phone && (
               <div className="ac-driver-pill" style={{ color: T.textSec }}>
-                <span>📱</span><span>{driver.phone}</span>
+                <span>📱</span><span>{person.phone}</span>
               </div>
             )}
-            {conv.driverId && (
+            {personId && (
               <div className="ac-driver-pill" style={{ fontFamily: "'DM Mono', monospace", fontSize: 11 }}>
-                <span style={{ color: T.textMut }}>ID:</span>
-                <span style={{ color: T.textSec }}>{conv.driverId.slice(0, 10)}…</span>
+                <span style={{ color: T.textMut }}>{role} ID:</span>
+                <span style={{ color: T.textSec }}>{personId.slice(0, 10)}…</span>
               </div>
             )}
           </div>
@@ -565,7 +580,7 @@ function ChatScreen({ conv, onBack, onToast }) {
                       {isAdmin ? (
                         <>{msg.status === "read" ? <CheckCheck size={11} color={T.green} /> : <Check size={11} color={T.textMut} />}<span>{fullTime(msg.createdAt)}</span></>
                       ) : (
-                        <span>{driverName.split(" ")[0]} · {fullTime(msg.createdAt)}</span>
+                        <span>{personName.split(" ")[0]} · {fullTime(msg.createdAt)}</span>
                       )}
                     </div>
                   </div>
@@ -622,12 +637,13 @@ function ChatScreen({ conv, onBack, onToast }) {
 
 // ── Main export ────────────────────────────────────────────────────────
 export function ChatTab({ onBack, onToast }) {
-  const [user,        setUser]        = useState(null);
-  const [convs,       setConvs]       = useState([]);
-  const [driverNames, setDriverNames] = useState({});
-  const [sel,         setSel]         = useState(null);
-  const [search,      setSearch]      = useState("");
-  const [filter,      setFilter]      = useState("all");
+  const [user,       setUser]       = useState(null);
+  const [convs,      setConvs]      = useState([]);
+  const [userNames,  setUserNames]  = useState({});
+  const [userPhotos, setUserPhotos] = useState({});
+  const [sel,        setSel]        = useState(null);
+  const [search,    setSearch]    = useState("");
+  const [filter,    setFilter]    = useState("all");
 
   useEffect(() => onAuthStateChanged(auth, setUser), []);
 
@@ -640,16 +656,26 @@ export function ChatTab({ onBack, onToast }) {
     }, err => { console.error(err); onToast?.("Failed to load conversations", "error"); });
   }, [user]);
 
-  // Look up real driver names for threads that don't have one stored
+  // Look up names for threads that don't have one stored
   useEffect(() => {
-    const missing = convs.filter(c => !c.driverName && c.driverId && !driverNames[c.driverId]);
+    const missing = convs.filter(c => {
+      const rider = isRiderThread(c.id);
+      const pid   = rider ? c.riderId  : c.driverId;
+      const name  = rider ? c.riderName : c.driverName;
+      return !name && pid && !userNames[pid];
+    });
     if (!missing.length) return;
     missing.forEach(c => {
-      getDoc(doc(db, "Drivers", c.driverId)).then(snap => {
+      const rider = isRiderThread(c.id);
+      const pid   = rider ? c.riderId : c.driverId;
+      if (!pid) return;
+      getDoc(doc(db, rider ? "Accounts" : "Drivers", pid)).then(snap => {
         if (!snap.exists()) return;
-        const d = snap.data();
-        const full = `${d.firstName ?? ""} ${d.lastName ?? ""}`.trim();
-        if (full) setDriverNames(prev => ({ ...prev, [c.driverId]: full }));
+        const d     = snap.data();
+        const full  = `${d.firstName ?? ""} ${d.lastName ?? ""}`.trim() || d.displayName || d.name || "";
+        const photo = rider ? (d.photoURL || null) : (d.profilePhotoUrl || null);
+        if (full)  setUserNames( prev => ({ ...prev, [pid]: full  }));
+        if (photo) setUserPhotos(prev => ({ ...prev, [pid]: photo }));
       }).catch(() => {});
     });
   }, [convs]);
@@ -668,10 +694,11 @@ export function ChatTab({ onBack, onToast }) {
     }
     if (search) {
       const s = search.toLowerCase();
-      list = list.filter(c =>
-        c.driverName?.toLowerCase().includes(s) ||
-        c.driverEmail?.toLowerCase().includes(s)
-      );
+      list = list.filter(c => {
+        const name  = (c.driverName  || c.riderName  || "").toLowerCase();
+        const email = (c.driverEmail || c.riderEmail || "").toLowerCase();
+        return name.includes(s) || email.includes(s);
+      });
     }
     return list;
   }, [convs, filter, search]);
@@ -749,8 +776,15 @@ export function ChatTab({ onBack, onToast }) {
             </div>
           ) : (
             filtered.map((c, i) => {
-              const unread = c.unreadByAdmin || 0;
-              const name   = c.driverName || driverNames[c.driverId] || c.driverId?.slice(0, 8) || "Unknown";
+              const unread  = c.unreadByAdmin || 0;
+              const rider   = isRiderThread(c.id);
+              const pid     = rider ? c.riderId  : c.driverId;
+              const name    = (rider ? c.riderName  : c.driverName)
+                           || userNames[pid]
+                           || pid?.slice(0, 8)
+                           || (rider ? "Rider" : "Driver");
+              const role    = threadRole(c.id);
+              const senderNotAdmin = c.lastSender && c.lastSender !== "admin";
               return (
                 <div
                   key={c.id}
@@ -758,9 +792,21 @@ export function ChatTab({ onBack, onToast }) {
                   style={{ animationDelay: `${i * 0.04}s` }}
                   onClick={() => setSel(c)}
                 >
-                  <Avatar name={name} />
+                  <Avatar name={name} photo={userPhotos[pid] || null} />
                   <div className="ac-conv-body">
-                    <div className="ac-conv-name">{name}</div>
+                    <div className="ac-conv-name" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      {name}
+                      <span style={{
+                        fontSize: 9.5, fontWeight: 800, letterSpacing: ".06em",
+                        padding: "1px 6px", borderRadius: 4,
+                        background: rider ? "#FEF3C7" : "#EFF6FF",
+                        color:      rider ? "#D97706"  : T.accent,
+                        border:     `1px solid ${rider ? "#FDE68A" : "#BFDBFE"}`,
+                        flexShrink: 0,
+                      }}>
+                        {role.toUpperCase()}
+                      </span>
+                    </div>
                     <div className="ac-conv-preview">
                       {c.lastSender === "admin" ? "You: " : ""}
                       {c.lastMessage || "No messages yet"}
@@ -771,7 +817,7 @@ export function ChatTab({ onBack, onToast }) {
                     {unread > 0 && (
                       <span className="ac-unread-dot">{unread > 9 ? "9+" : unread}</span>
                     )}
-                    {unread === 0 && c.lastSender === "driver" && (
+                    {unread === 0 && senderNotAdmin && (
                       <Reply size={13} color={T.accent} />
                     )}
                   </div>

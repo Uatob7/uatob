@@ -258,8 +258,8 @@ function ChatScreen({ account, onClose }) {
             updatedAt:      serverTimestamp(),
             lastMessage:    WELCOME_TEXT(account?.firstName),
             lastSender:     "support",
-            unreadByRider:  0,
-            unreadBySupport: 0,
+            unreadByRider: 0,
+            unreadByAdmin: 0,
             welcomeSent:    true,
             autoReplySent:  false,
           });
@@ -318,7 +318,7 @@ function ChatScreen({ account, onClose }) {
         updatedAt:      serverTimestamp(),
         lastMessage:    trimmed,
         lastSender:     "rider",
-        unreadBySupport: (threadData.unreadBySupport ?? 0) + 1,
+        unreadByAdmin: (threadData.unreadByAdmin ?? 0) + 1,
       }, { merge: true });
 
       if (!threadData.autoReplySent) {
