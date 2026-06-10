@@ -114,24 +114,6 @@ export function useCardPayment({ uid, bookingPayload, onSuccess, onError }) {
 
       console.log('✅ Ride saved:', rideRef.id);
 
-      // ── simulate dispatch timer ─────────────────────────────────
-      if (!isScheduled) {
-        setTimeout(async () => {
-          try {
-            console.log('🚖 Updating status → searching_driver');
-            await setDoc(
-              rideRef,
-              {
-                status: 'searching_driver',
-                updatedAt: serverTimestamp(),
-              },
-              { merge: true }
-            );
-          } catch (err) {
-            console.log('⚠️ status update failed (non-critical)', err.message);
-          }
-        }, 60000);
-      }
 
       setComplete(true);
 

@@ -87,24 +87,6 @@ export function useCashAppPayment({ uid, bookingPayload, onSuccess, onError }) {
 
       console.log('✅ CashApp Ride Created:', rideRef.id);
 
-      // ── delayed driver search ───────────────────────────────────
-      if (!isScheduled) {
-        setTimeout(async () => {
-          try {
-            await setDoc(
-              rideRef,
-              {
-                status: 'searching_driver',
-                updatedAt: serverTimestamp(),
-              },
-              { merge: true }
-            );
-          } catch (e) {
-            console.log('⚠️ status update failed (non-critical)');
-          }
-        }, 60000);
-      }
-
       onSuccess?.({
         method: 'cashapp',
         rideId: rideRef.id,
