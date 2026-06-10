@@ -1108,6 +1108,9 @@ function BookRideCardInner({ uid, onRequest, onBookingComplete, onActiveChange }
   // ── geo ────────────────────────────────────────────────────────────────────
   const [showGeoAlert, setShowGeoAlert] = useState(false);
 
+  // ── auth notice ────────────────────────────────────────────────────────────
+  const [showAuthNotice, setShowAuthNotice] = useState(false);
+
   // ── totals ─────────────────────────────────────────────────────────────────
   const baseTotal  = useMemo(() => Number(selectedQuote?.total || 0), [selectedQuote]);
   const grandTotal = useMemo(() => {
@@ -1249,7 +1252,7 @@ function BookRideCardInner({ uid, onRequest, onBookingComplete, onActiveChange }
   const renderLanding = () => (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:14,
       background:'rgba(34,197,94,.05)', border:`1px solid ${C.borderDim}`, borderRadius:14,
-      padding:'13px 14px', animation:'brSlideUp .3s ease both' }}>
+      padding:'13px 14px', animation:'brSlideUp .3s ease both', position:'relative' }}>
       <div style={{ display:'flex', alignItems:'center', gap:11 }}>
         <div style={{ width:42, height:42, borderRadius:12, flexShrink:0,
           background:'rgba(34,197,94,.1)', border:`1px solid ${C.border}`,
@@ -1265,13 +1268,30 @@ function BookRideCardInner({ uid, onRequest, onBookingComplete, onActiveChange }
           </div>
         </div>
       </div>
-      <button onClick={() => { onActiveChange?.(true); setStep(1); }}
+      <button onClick={() => { if (!uid) { setShowAuthNotice(true); return; } onActiveChange?.(true); setStep(1); }}
         style={{ flexShrink:0, background:'linear-gradient(135deg,#22C55E,#16A34A)', color:'#fff',
           border:'none', borderRadius:10, padding:'10px 16px', cursor:'pointer',
           fontFamily:COND, fontSize:11.5, fontWeight:800, letterSpacing:'.14em', textTransform:'uppercase',
           boxShadow:'0 4px 18px rgba(34,197,94,.35)', animation:'brGlowPulse 2.8s ease-in-out infinite' }}>
         Request
       </button>
+      {showAuthNotice && (
+        <div style={{ position:'absolute', bottom:'calc(100% + 8px)', right:0, minWidth:220, zIndex:400, animation:'brSlideUp .22s ease both' }}>
+          <div style={{ background:'#0D1A0F', border:`1px solid ${C.border}`, borderRadius:11,
+            padding:'11px 13px', boxShadow:'0 8px 28px rgba(0,0,0,.55)', display:'flex', flexDirection:'column', gap:8 }}>
+            <div style={{ display:'flex', alignItems:'flex-start', gap:8 }}>
+              <Ico n="user" size={13} color={C.greenBright} style={{ flexShrink:0, marginTop:1 }}/>
+              <span style={{ fontFamily:MONO, fontSize:9.5, color:'#fff', lineHeight:1.55 }}>
+                Create an account to request a ride.
+              </span>
+              <button type="button" onClick={() => setShowAuthNotice(false)} aria-label="Dismiss"
+                style={{ background:'none', border:'none', cursor:'pointer', color:C.dim, padding:0, flexShrink:0, marginLeft:'auto' }}>
+                <Ico n="x" size={11}/>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
