@@ -31,7 +31,7 @@ import { useDriverStatus }    from "@/App/Drivers/useDriverStatus";
 import { useAcceptRide }      from "@/App/Drivers/useAcceptRide";
 import { useDeclineRide }     from "@/App/Drivers/useDeclineRide";
 import { useUpdateTrip }      from "@/App/Drivers/useUpdateTrip";
-import { useSaveFcmToken }    from "@/App/Drivers/useSaveRiderFcmToken";
+import { useSaveFcmToken }    from "@/App/Drivers/useSaveFcmToken";
 
 import { firebase_app } from "@/firebase/config";
 

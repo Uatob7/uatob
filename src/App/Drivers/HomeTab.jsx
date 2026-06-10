@@ -6,12 +6,10 @@ import {
   doc,
   updateDoc,
 } from "firebase/firestore";
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { firebase_app } from "@/firebase/config";
+import { useGetDriverToPickup } from '@/App/Drivers/useGetDriverToPickup';
 
 const db = getFirestore(firebase_app);
-const _functions = getFunctions(firebase_app, 'us-east1');
-const callGetDriverToPickup = httpsCallable(_functions, 'getDriverToPickup');
 
 import StatusCard from '@/App/Drivers/StatusCard.jsx';
 
@@ -1799,6 +1797,7 @@ export default function HomeTab({
   // to the `driver` prop transparently.
   const { driver: liveDriver, fix: liveFix, live: gpsLive } =
     useLiveDriverPosition(driver, online, onDriverMove);
+  const { call: callGetDriverToPickup } = useGetDriverToPickup();
 
   const liveLat = liveDriver?.lat;
   const liveLng = liveDriver?.lng;
@@ -2168,7 +2167,7 @@ export default function HomeTab({
       driverLng: liveLng,
       pickupLat: activeTrip.pickupLat,
       pickupLng: activeTrip.pickupLng,
-    }).then(({ data }) => {
+    }).then((data) => {
       if (!data?.success || !mapRef.current) return;
       const polyline = data.polyline;
       if (!polyline) return;

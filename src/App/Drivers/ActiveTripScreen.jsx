@@ -1239,7 +1239,7 @@ export default function ActiveTripScreen({
 }) {
   // ── callable hooks ───────────────────────────────────────────────────────
   const { call: callUpdateTrip } = useUpdateTrip();
-  const { call: callGetRoute   } = useGetRoute();
+  const { getRoute: callGetRoute } = useGetRoute();
 
   // ── refs: map + markers ──────────────────────────────────────────────────
   const containerRef   = useRef(null);
