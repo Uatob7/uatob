@@ -71,6 +71,7 @@ function tsToMillis(ts) {
 function stripAddr(a) {
   if (!a) return '—';
   return a
+    .replace(/^\d+[-–]?\d*\s+/, '')
     .replace(/,\s*(Orlando|Tampa|Kissimmee|Sanford|FL|USA).*$/i, '')
     .trim() || a;
 }

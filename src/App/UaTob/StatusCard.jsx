@@ -29,11 +29,12 @@ export default function StatusCard({
 }) {
   // Booking flow takes over the card; while active, the auto-cycle is paused.
   const [bookingActive, setBookingActive] = useState(false);
+  const [cyclePaused,   setCyclePaused]   = useState(false);
   const cycleRef = useRef(null);
 
   // Pause the cycle whenever the user is actively filling out a form
   const authActive  = face === FACE_ACCOUNT && !uid;
-  const flowBlocked = bookingActive || authActive;
+  const flowBlocked = bookingActive || authActive || cyclePaused;
 
   const startCycle = useCallback(() => {
     clearInterval(cycleRef.current);
@@ -52,7 +53,12 @@ export default function StatusCard({
 
   const goFace = (f) => {
     onFaceChange?.(f);
-    startCycle(); // reset timer on manual tap
+    if (f === FACE_ACCOUNT) {
+      setCyclePaused(true);
+      clearInterval(cycleRef.current);
+    } else {
+      setCyclePaused(false); // triggers startCycle via effect
+    }
   };
 
   return (

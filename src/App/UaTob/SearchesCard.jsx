@@ -52,6 +52,10 @@ function truncate(s, n) {
   if (!s) return '';
   return s.length > n ? `${s.slice(0, n - 1)}…` : s;
 }
+function stripStreetNumber(s) {
+  if (!s) return s;
+  return s.replace(/^\d+[-–]?\d*\s+/, '');
+}
 
 // Compass label for a bearing in degrees
 function compassFromBearing(b) {
@@ -207,7 +211,7 @@ function Sparkline({ searches, now }) {
 function TickerRow({ search, now, index }) {
   const ts      = tsToMillis(search.createdAt);
   const isGuest = !search.uid || search.uid === 'null';
-  const label   = search.pickup || (hasCoords(search)
+  const label   = stripStreetNumber(search.pickup) || (hasCoords(search)
     ? `${search.pickupLat.toFixed(3)}, ${search.pickupLng.toFixed(3)}`
     : 'Pickup');
 
