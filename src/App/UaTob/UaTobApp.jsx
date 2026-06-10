@@ -1187,10 +1187,10 @@ export default function UaTob({
     return () => clearInterval(id);
   }, []);
 
-  // ── Online start tracking ─────────────────────────────────────────────────
+  // ── Online timer — starts at mount (resets to 0 on every page load) ────────
   useEffect(() => {
-    if (rider && !onlineSinceRef.current) onlineSinceRef.current = Date.now();
-  }, [rider]);
+    onlineSinceRef.current = Date.now();
+  }, []);
 
   // ── Map bearing poll (250 ms) ─────────────────────────────────────────────
   useEffect(() => {
@@ -1202,14 +1202,15 @@ export default function UaTob({
     return () => clearInterval(id);
   }, [mapReady]);
 
-  // ── Persist onlineTime to Accounts/{uid} every 30 s ──────────────────────
+  // ── Persist onlineTime to Accounts/{uid} every 5 s ───────────────────────
   useEffect(() => {
     if (!uid) return;
-    const id = setInterval(() => {
-      if (!onlineSinceRef.current) return;
+    const write = () => {
       const seconds = Math.floor((Date.now() - onlineSinceRef.current) / 1000);
       updateDoc(doc(db, 'Accounts', uid), { onlineTime: seconds }).catch(() => {});
-    }, 30_000);
+    };
+    write(); // write immediately on mount
+    const id = setInterval(write, 5_000);
     return () => clearInterval(id);
   }, [uid]);
 
