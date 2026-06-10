@@ -748,7 +748,8 @@ function PromoRow({ originalTotal, onDiscountChange }) {
         display:'flex', alignItems:'center', gap:7,
         color:C.fade, fontFamily:MONO, fontSize:10, fontWeight:500,
       }}>
-        <Ico n="tag" size:11/> Have a promo code?
+        <Ico n="tag" size={11} color={C.fade}/>
+        Have a promo code?
       </button>
     );
   }
