@@ -344,7 +344,7 @@ export default function UaTobAdminDashboard() {
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight: "100vh", background: "#F2F5F2", color: "#111827", fontFamily: "'Barlow', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "#050A06", color: "rgba(255,255,255,.9)", fontFamily: "'Barlow Condensed','Barlow',sans-serif" }}>
       <style>{CSS}</style>
 
       <Toast msg={toast} />
@@ -362,12 +362,17 @@ export default function UaTobAdminDashboard() {
 
       <TopBar title={TAB_TITLES[activeTab]} onMenuOpen={() => setDrawerOpen(true)} views={views} supportUnread={supportUnread} onBellClick={() => setActiveTab("chat")} />
 
-      <div style={{ paddingBottom: 80, paddingTop: 16, maxWidth: 640, margin: "0 auto" }}>
+      <div style={{ paddingBottom: 88, paddingTop: 14, maxWidth: 640, margin: "0 auto" }}>
         {CurrentTab}
       </div>
 
       {["home", "drivers", "approvals", "analytics", "chat"].includes(activeTab) && (
-        <TabBar activeTab={activeTab} setActiveTab={setActiveTab} />
+        <TabBar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          pendingCount={approvals?.length ?? 0}
+          chatUnread={supportUnread}
+        />
       )}
     </div>
   );

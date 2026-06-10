@@ -17,44 +17,42 @@ const db        = getFirestore(firebase_app);
 
 /* ─── Design Tokens ─────────────────────────────────────────────── */
 const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@400;500;600;700;800&display=swap');
-
-:root {
-  --bg:            #F0F1F3;
-  --bg-card:       #FFFFFF;
-  --bg-soft:       #F5F6F8;
-  --bg-deep:       #0A0A0F;
-  --border:        rgba(0,0,0,.07);
-  --border-mid:    rgba(0,0,0,.11);
-  --border-strong: rgba(0,0,0,.18);
-  --ink:           #0A0A0F;
-  --ink-2:         #1C1C26;
-  --ink-3:         #4A4A5E;
-  --ink-4:         #6E6E82;
-  --ink-5:         #9898AA;
-  --green:         #00C16A;
-  --green-dim:     rgba(0,193,106,.12);
-  --green-glow:    rgba(0,193,106,.5);
-  --blue:          #2F6FED;
-  --blue-dim:      rgba(47,111,237,.10);
-  --amber:         #F59500;
-  --amber-dim:     rgba(245,149,0,.12);
-  --red:           #E8383A;
-  --red-dim:       rgba(232,56,58,.10);
-  --purple:        #7C3AED;
-  --font:          'Sora', system-ui, sans-serif;
-  --mono:          'DM Mono', monospace;
-  --radius-card:   18px;
-  --radius-sm:     10px;
-}
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Barlow+Condensed:wght@400;700;800;900&family=Barlow:wght@400;500;600;700;800&display=swap');
 
 .ht * { box-sizing:border-box; margin:0; padding:0; }
 .ht {
-  font-family:var(--font);
-  background:var(--bg);
-  color:var(--ink);
-  min-height:100vh;
-  -webkit-font-smoothing:antialiased;
+  --bg:            #050A06;
+  --bg-card:       rgba(255,255,255,.05);
+  --bg-soft:       rgba(255,255,255,.025);
+  --bg-deep:       #020503;
+  --border:        rgba(74,222,128,.13);
+  --border-mid:    rgba(74,222,128,.22);
+  --border-strong: rgba(74,222,128,.40);
+  --ink:           rgba(255,255,255,.95);
+  --ink-2:         rgba(255,255,255,.85);
+  --ink-3:         rgba(255,255,255,.65);
+  --ink-4:         rgba(255,255,255,.40);
+  --ink-5:         rgba(255,255,255,.28);
+  --green:         #4ADE80;
+  --green-dim:     rgba(74,222,128,.12);
+  --green-glow:    rgba(74,222,128,.5);
+  --blue:          #60A5FA;
+  --blue-dim:      rgba(96,165,250,.12);
+  --amber:         #FCD34D;
+  --amber-dim:     rgba(252,211,77,.12);
+  --red:           #F87171;
+  --red-dim:       rgba(248,113,113,.12);
+  --purple:        #A78BFA;
+  --font:          'Barlow Condensed','Barlow',sans-serif;
+  --mono:          'JetBrains Mono','SFMono-Regular',monospace;
+  --radius-card:   18px;
+  --radius-sm:     10px;
+
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
 }
 
 @keyframes fadeUp    { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
@@ -192,7 +190,7 @@ const CSS = `
 
 /* ── Sparkline shimmer ── */
 .shimmer {
-  background:linear-gradient(90deg,#f6f6fa 0%,#eaeaef 50%,#f6f6fa 100%);
+  background:linear-gradient(90deg,rgba(255,255,255,.03) 0%,rgba(74,222,128,.07) 50%,rgba(255,255,255,.03) 100%);
   background-size:200% 100%;
   animation:shimmer 1.4s linear infinite;
 }
@@ -296,24 +294,24 @@ function loadMapbox(cb) {
 
 /* ─── Status config ──────────────────────────────────────────────── */
 const STATUS = {
-  searching_driver: { label: "Searching",    accent: "#F59500", bg: "#FFF8E6", border: "#FFE099", dot: "#F59500" },
-  driver_assigned:  { label: "Assigned",     accent: "#2F6FED", bg: "#EDF2FF", border: "#BAD0FF", dot: "#2F6FED" },
-  driver_arriving:  { label: "Arriving",     accent: "#2F6FED", bg: "#EDF2FF", border: "#BAD0FF", dot: "#2F6FED" },
-  arrived:          { label: "Arrived",      accent: "#00C16A", bg: "#E6FFF3", border: "#99EDCA", dot: "#00C16A" },
-  in_progress:      { label: "In Progress",  accent: "#00C16A", bg: "#E6FFF3", border: "#99EDCA", dot: "#00C16A" },
-  completed:        { label: "Completed",    accent: "#6E6E82", bg: "#F5F5F8", border: "#D4D4E0", dot: "#6E6E82" },
-  cancelled:        { label: "Cancelled",    accent: "#E8383A", bg: "#FEECEC", border: "#F9BCBC", dot: "#E8383A" },
+  searching_driver: { label: "Searching",   accent: "#FCD34D", bg: "rgba(252,211,77,.1)",  border: "rgba(252,211,77,.25)", dot: "#FCD34D" },
+  driver_assigned:  { label: "Assigned",    accent: "#60A5FA", bg: "rgba(96,165,250,.1)",  border: "rgba(96,165,250,.25)", dot: "#60A5FA" },
+  driver_arriving:  { label: "Arriving",    accent: "#60A5FA", bg: "rgba(96,165,250,.1)",  border: "rgba(96,165,250,.25)", dot: "#60A5FA" },
+  arrived:          { label: "Arrived",     accent: "#4ADE80", bg: "rgba(74,222,128,.1)",  border: "rgba(74,222,128,.25)", dot: "#4ADE80" },
+  in_progress:      { label: "In Progress", accent: "#4ADE80", bg: "rgba(74,222,128,.1)",  border: "rgba(74,222,128,.25)", dot: "#4ADE80" },
+  completed:        { label: "Completed",   accent: "rgba(255,255,255,.35)", bg: "rgba(255,255,255,.04)", border: "rgba(255,255,255,.1)", dot: "rgba(255,255,255,.35)" },
+  cancelled:        { label: "Cancelled",   accent: "#F87171", bg: "rgba(248,113,113,.1)", border: "rgba(248,113,113,.25)", dot: "#F87171" },
 };
 const PAY_STATUS = {
-  succeeded: { bg: "#E6FFF3", color: "#00A659", label: "Paid"    },
-  pending:   { bg: "#FFF8E6", color: "#CC7A00", label: "Pending" },
-  failed:    { bg: "#FEECEC", color: "#C42D2F", label: "Failed"  },
+  succeeded: { bg: "rgba(74,222,128,.12)",  color: "#4ADE80", label: "Paid"    },
+  pending:   { bg: "rgba(252,211,77,.12)",  color: "#FCD34D", label: "Pending" },
+  failed:    { bg: "rgba(248,113,113,.12)", color: "#F87171", label: "Failed"  },
 };
 const PAYOUT = {
-  processing: { bg: "#EDF2FF", color: "#2F6FED", label: "Processing" },
-  pending:    { bg: "#FFF8E6", color: "#CC7A00", label: "Pending"     },
-  paid:       { bg: "#E6FFF3", color: "#00A659", label: "Paid Out"    },
-  failed:     { bg: "#FEECEC", color: "#C42D2F", label: "Failed"      },
+  processing: { bg: "rgba(96,165,250,.12)",  color: "#60A5FA", label: "Processing" },
+  pending:    { bg: "rgba(252,211,77,.12)",  color: "#FCD34D", label: "Pending"     },
+  paid:       { bg: "rgba(74,222,128,.12)",  color: "#4ADE80", label: "Paid Out"    },
+  failed:     { bg: "rgba(248,113,113,.12)", color: "#F87171", label: "Failed"      },
 };
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -1507,67 +1505,84 @@ export function HomeTab({
       <div className="ht" style={{ padding: "0 14px 48px" }}>
 
         {/* ── KPI strip ── */}
-        <div className="card fade-up" style={{ padding: "11px 14px", marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-            <div style={{ display: "flex", gap: 0, overflowX: "auto", flex: 1 }}>
-              {kpis.map(({ val, sub, dot }, i) => (
-                <div key={sub} className="kpi-tile" style={{ borderRight: i < 3 ? "1px solid var(--border)" : "none" }}>
-                  <div className="live-dot" style={{ background: dot, color: dot }} />
-                  <span style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", letterSpacing: "-.03em", fontFamily: "var(--mono)" }}>{val}</span>
-                  <span style={{ fontSize: 11, color: "var(--ink-5)", fontWeight: 500 }}>{sub}</span>
-                </div>
-              ))}
+        <div className="fade-up" style={{
+          display: "grid", gridTemplateColumns: "repeat(4,1fr)",
+          gap: 8, marginBottom: 12,
+        }}>
+          {kpis.map(({ val, sub, dot }) => (
+            <div key={sub} style={{
+              background: "rgba(255,255,255,.04)",
+              border: "1px solid rgba(74,222,128,.13)",
+              borderRadius: 14, padding: "12px 10px",
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 5,
+            }}>
+              <div style={{
+                width: 6, height: 6, borderRadius: "50%",
+                background: dot, boxShadow: `0 0 8px ${dot}`,
+                flexShrink: 0,
+              }} />
+              <span style={{
+                fontFamily: "var(--mono)", fontSize: 20, fontWeight: 700,
+                color: "var(--ink)", letterSpacing: "-.04em", lineHeight: 1,
+              }}>{val}</span>
+              <span style={{
+                fontFamily: "var(--font)", fontSize: 9, fontWeight: 800,
+                color: "var(--ink-5)", letterSpacing: ".1em", textTransform: "uppercase",
+                textAlign: "center",
+              }}>{sub}</span>
             </div>
-            <button onClick={handleRefresh} style={{ width: 34, height: 34, borderRadius: 9, border: "1px solid var(--border-mid)", background: "var(--bg-card)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--ink-4)", flexShrink: 0, transition: "all .15s" }}>
-              <RefreshCw size={13} className={refreshing ? "spin" : ""} />
-            </button>
-          </div>
+          ))}
         </div>
 
         {/* ── Stat cards (2-col grid) ── */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
           {statRows.map(({ label, val, accent, Icon, delay, breakdown }) => (
-            <div key={label} className="card card-hover fade-up" style={{ padding: 15, animationDelay: `${delay}ms`, overflow: "hidden", position: "relative" }}>
-              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2.5, background: accent, opacity: .9, borderRadius: "18px 18px 0 0" }} />
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 11 }}>
-                <div className="hero-stat-icon" style={{ background: `${accent}14`, border: `1px solid ${accent}30` }}>
-                  <Icon size={14} color={accent} strokeWidth={2.3} />
-                </div>
-                <ArrowUpRight size={11} color="var(--ink-5)" />
-              </div>
-              <div style={{ fontSize: 25, color: "var(--ink)", fontWeight: 800, letterSpacing: "-.05em", lineHeight: 1, fontFamily: "var(--mono)", marginBottom: 5 }}>{val}</div>
-              <div style={{ fontSize: 11, color: "var(--ink-5)", fontWeight: 600, letterSpacing: ".01em" }}>{label}</div>
-
-              {/* Online/offline breakdown */}
-              {breakdown && (
+            <div key={label} className="fade-up" style={{
+              background: "rgba(255,255,255,.04)",
+              border: `1px solid ${accent}28`,
+              borderRadius: 18, padding: "16px 14px",
+              animationDelay: `${delay}ms`, overflow: "hidden", position: "relative",
+            }}>
+              {/* left accent bar */}
+              <div style={{
+                position: "absolute", top: 0, left: 0, bottom: 0, width: 3,
+                background: `linear-gradient(180deg,${accent},${accent}55)`,
+                borderRadius: "18px 0 0 18px",
+              }} />
+              {/* glow blob */}
+              <div style={{
+                position: "absolute", top: -20, right: -20, width: 80, height: 80,
+                borderRadius: "50%", background: `${accent}0a`, filter: "blur(20px)",
+                pointerEvents: "none",
+              }} />
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                 <div style={{
-                  display: "flex", gap: 8, marginTop: 10,
-                  paddingTop: 9, borderTop: "1px solid var(--border)",
+                  width: 34, height: 34, borderRadius: 10,
+                  background: `${accent}14`, border: `1px solid ${accent}30`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
                 }}>
+                  <Icon size={15} color={accent} strokeWidth={2.2} />
+                </div>
+                <span style={{ fontFamily: "var(--font)", fontSize: 8.5, fontWeight: 900, letterSpacing: ".12em", color: `${accent}99`, textTransform: "uppercase" }}>LIVE</span>
+              </div>
+              <div style={{
+                fontFamily: "var(--mono)", fontSize: 28, fontWeight: 700,
+                color: accent, letterSpacing: "-.04em", lineHeight: 1, marginBottom: 4,
+                textShadow: `0 0 24px ${accent}55`,
+              }}>{val}</div>
+              <div style={{ fontFamily: "var(--font)", fontSize: 10, fontWeight: 800, color: "var(--ink-4)", letterSpacing: ".08em", textTransform: "uppercase" }}>{label}</div>
+
+              {breakdown && (
+                <div style={{ display: "flex", gap: 8, marginTop: 10, paddingTop: 9, borderTop: "1px solid var(--border)" }}>
                   {breakdown.map(b => (
-                    <div key={b.label} style={{
-                      display: "flex", alignItems: "center", gap: 5,
-                      flex: 1,
-                    }}>
-                      <div className={b.label === "online" && b.val > 0 ? "live-dot blink" : ""} style={{
+                    <div key={b.label} style={{ display: "flex", alignItems: "center", gap: 5, flex: 1 }}>
+                      <div style={{
                         width: 6, height: 6, borderRadius: "50%",
-                        background: b.dot, color: b.dot,
+                        background: b.dot, flexShrink: 0,
                         boxShadow: b.label === "online" && b.val > 0 ? `0 0 6px ${b.dot}` : "none",
-                        flexShrink: 0,
                       }}/>
-                      <span style={{
-                        fontSize: 11, fontFamily: "var(--mono)",
-                        fontWeight: 700, color: "var(--ink)",
-                      }}>
-                        {b.val}
-                      </span>
-                      <span style={{
-                        fontSize: 9.5, color: "var(--ink-5)",
-                        fontWeight: 600, textTransform: "uppercase",
-                        letterSpacing: ".05em",
-                      }}>
-                        {b.label}
-                      </span>
+                      <span style={{ fontFamily: "var(--mono)", fontSize: 11, fontWeight: 700, color: "var(--ink)" }}>{b.val}</span>
+                      <span style={{ fontFamily: "var(--font)", fontSize: 9, color: "var(--ink-5)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em" }}>{b.label}</span>
                     </div>
                   ))}
                 </div>
@@ -1581,11 +1596,11 @@ export function HomeTab({
 
         {/* ── Rides header ── */}
         <div className="fade-up" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, animationDelay: "180ms" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-            <span style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)", letterSpacing: "-.03em" }}>Live Rides</span>
-            <div className="live-dot blink" style={{ background: "#00C16A", color: "#00C16A", width: 7, height: 7 }} />
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontFamily: "var(--font)", fontSize: 13, fontWeight: 900, color: "var(--ink)", letterSpacing: ".08em", textTransform: "uppercase" }}>Live Rides</span>
+            <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ADE80", boxShadow: "0 0 8px #4ADE80", animation: "blink 1.8s ease-in-out infinite" }} />
             {liveRides.length > 0 && (
-              <span style={{ fontSize: 11, color: "var(--ink-5)", fontWeight: 600, fontFamily: "var(--mono)" }}>{filtered.length}/{liveRides.length}</span>
+              <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-5)", fontWeight: 600 }}>{filtered.length}/{liveRides.length}</span>
             )}
           </div>
           <button onClick={() => setShowFilters(p => !p)} className={`action-btn ${showFilters || activeCount > 0 ? "active" : ""}`}>
