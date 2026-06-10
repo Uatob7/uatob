@@ -34,6 +34,8 @@ function strip(a) {
 
 // Live scheduled rides feed
 export default function SearchesCard({ scheduledRides = [] }) {
+
+  console.log('ScheduledCard render', { scheduledRides });
   const feed = useMemo(
     () =>
       [...scheduledRides]

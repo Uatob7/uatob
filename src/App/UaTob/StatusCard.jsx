@@ -85,7 +85,7 @@ export default function StatusCard({
         {face === FACE_SEARCHES  && <SearchesCard searches={searches} now={now}  />}
         {face === FACE_SCHEDULED && <ScheduledCard scheduledRides={scheduledRides} now={now} />}
         {face === FACE_NOTIFS    && <NotificationsCard uid={uid} account={account} callSaveFcmToken={callSaveFcmToken} />}
-        {face === FACE_ACCOUNT   && <AccountCard account={account} rides={rides} />}
+        {face === FACE_ACCOUNT   && <AccountCard account={account} rides={rides} uid={uid} />}
         {face === FACE_TRIPS     && <TripsCard rides={rides} trips={trips} now={now} />}
       </div>
 

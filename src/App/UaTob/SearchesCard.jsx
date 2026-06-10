@@ -1,13 +1,16 @@
 import { C, MONO, COND } from '@/App/UaTob/Statuscardtokens';
 
 const hasCoords = (item) => {
-  return item?.lat && item?.lng;
+  return item?.pickupLat && item?.pickupLng;
 };
+
+function safeText(v) {
+  if (!v) return '—';
+  return v;
+}
 
 export default function SearchesCard({ searches = [] }) {
   const liveCount = searches.filter(hasCoords).length;
-
-  console.log('searches', searches);
 
   return (
     <div
@@ -80,8 +83,59 @@ export default function SearchesCard({ searches = [] }) {
             marginTop: 3,
           }}
         >
-          Searches
+          Active Searches
         </div>
+      </div>
+
+      {/* List preview (optional but useful) */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+        }}
+      >
+        {searches.slice(0, 3).map((s) => (
+          <div
+            key={s.id}
+            style={{
+              padding: 8,
+              borderRadius: 8,
+              background: 'rgba(255,255,255,.03)',
+              border: '1px solid rgba(255,255,255,.05)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+            }}
+          >
+            <div
+              style={{
+                fontFamily: COND,
+                fontSize: 11,
+                fontWeight: 700,
+                color: '#fff',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {safeText(s.pickup)}
+            </div>
+
+            <div
+              style={{
+                fontFamily: MONO,
+                fontSize: 9,
+                color: C.inkTextDim,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              → {safeText(s.dropoff)}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
