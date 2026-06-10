@@ -76,24 +76,6 @@ function Btn({ label, onClick, variant = 'primary', disabled = false, style: sx 
   return <button onClick={disabled ? undefined : onClick} style={{ ...base, ...styles[variant] }}>{label}</button>;
 }
 
-function AddressRow({ label, value, dot, glow }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 11px' }}>
-      <div style={{
-        width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-        background: dot, boxShadow: glow ? `0 0 5px ${C.greenBright}88` : 'none',
-      }}/>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: COND, fontSize: 7.5, fontWeight: 800, letterSpacing: '.1em',
-          color: C.dim, textTransform: 'uppercase' }}>{label}</div>
-        <div style={{ fontFamily: MONO, fontSize: 9.5, color: value ? 'rgba(255,255,255,.75)' : 'rgba(255,255,255,.28)',
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {value || (label === 'Pickup' ? 'Where are you?' : 'Where to?')}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function AddressInput({ label, placeholder, value, onChange, onSubmit, autoFocus }) {
   return (
@@ -327,23 +309,22 @@ export default function BookRideCard({ onRequest, onBook, onBookingComplete, onA
 
   // STEP 0 — landing
   const renderLanding = () => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'brSlideUp .3s ease both' }}>
-      <div style={{ textAlign: 'center', padding: '8px 0 4px' }}>
-        <div style={{ fontFamily: COND, fontSize: 22, fontWeight: 900, letterSpacing: '.06em',
-          color: '#fff', lineHeight: 1.1 }}>Need a ride?</div>
-        <div style={{ fontFamily: MONO, fontSize: 9, color: C.dim, marginTop: 5 }}>
-          Flat-rate · No surge pricing
-        </div>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, animation: 'brSlideUp .3s ease both' }}>
+      <div style={{ fontFamily: COND, fontSize: 22, fontWeight: 900, letterSpacing: '.06em', color: '#fff', lineHeight: 1.1 }}>
+        Need a ride?
       </div>
-      <div style={{
-        borderRadius: 10, overflow: 'hidden', border: `1px solid ${C.border}`,
-        background: C.panel, pointerEvents: 'none', opacity: .6,
-      }}>
-        <AddressRow label="Pickup"   value="" dot={C.greenBright} glow={true}/>
-        <div style={{ height: 1, background: C.borderDim, margin: '0 10px' }}/>
-        <AddressRow label="Drop-off" value="" dot="rgba(255,255,255,.4)" glow={false}/>
-      </div>
-      <Btn label="Request Ride" onClick={() => { onActiveChange?.(true); setStep(1); }}/>
+      <button
+        onClick={() => { onActiveChange?.(true); setStep(1); }}
+        style={{
+          flexShrink: 0, background: 'linear-gradient(135deg,#22C55E,#16A34A)', color: '#fff',
+          border: 'none', borderRadius: 10, padding: '8px 16px', cursor: 'pointer',
+          fontFamily: COND, fontSize: 11.5, fontWeight: 800, letterSpacing: '.14em',
+          textTransform: 'uppercase', boxShadow: '0 4px 18px rgba(34,197,94,.3)',
+          animation: 'brGlowPulse 2.8s ease-in-out infinite',
+        }}
+      >
+        Request
+      </button>
     </div>
   );
 
