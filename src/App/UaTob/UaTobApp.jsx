@@ -1725,8 +1725,8 @@ export default function UaTob({
         <div style={{
           position: 'absolute', top: 36, left: 0, right: 0, zIndex: 30,
           display: 'flex', justifyContent: 'center', padding: '0 16px',
-          pointerEvents: activeRide ? 'none' : 'auto',
-          opacity: activeRide ? 0.3 : 1,
+          pointerEvents: activeRide?.status === 'in_progress' || activeRide?.status === 'searching_driver' ? 'none' : 'auto',
+          opacity: activeRide?.status === 'in_progress' ? 0.3 : activeRide?.status === 'searching_driver' ? 0.65 : 1,
           transition: 'opacity .4s ease',
         }}>
           <div style={{
