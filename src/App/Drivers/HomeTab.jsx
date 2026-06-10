@@ -1260,7 +1260,7 @@ function ActiveTripHud({ activeTrip, driver, now }) {
 
 function RotatingBadge({
   dotCount, accounts, scheduledCount,
-  scheduledNearestMi, searchNearestMi, earnings, fmtMi,
+  scheduledNearestMi, searchNearestMi, riderNearestMi, earnings, fmtMi,
 }) {
   const [active, setActive] = useState(0);
   const moneyStr = fmtMoney(earnings);
@@ -1274,7 +1274,7 @@ function RotatingBadge({
     {
       color: C.cyan, glyph: 'user',
       label: `${accounts.length} ${accounts.length === 1 ? 'Rider' : 'Riders'}`,
-      sub:   null,
+      sub:   fmtMi(riderNearestMi),
     },
     {
       color: C.violet, glyph: 'clock',
@@ -2421,6 +2421,16 @@ export default function HomeTab({
     () => nearestMi(liveLat, liveLng, searches),
     [liveLat, liveLng, searches]
   );
+  const riderNearestMi = useMemo(() => {
+    if (!liveLat || !liveLng) return null;
+    const valid = accounts.filter(a => typeof a.lat === 'number' && typeof a.lng === 'number');
+    if (!valid.length) return null;
+    const min = valid.reduce(
+      (m, a) => Math.min(m, haversineMiles(liveLat, liveLng, a.lat, a.lng)),
+      Infinity
+    );
+    return isFinite(min) ? min : null;
+  }, [liveLat, liveLng, accounts]);
   const contacts = useMemo(
     () => gatherContacts(liveDriver, searches, scheduledRides, accounts),
     [liveLat, liveLng, searches, scheduledRides, accounts]
@@ -2577,6 +2587,7 @@ export default function HomeTab({
             scheduledCount={scheduledCount}
             scheduledNearestMi={scheduledNearestMi}
             searchNearestMi={searchNearestMi}
+            riderNearestMi={riderNearestMi}
             earnings={earnings}
             fmtMi={fmtMi}
           />

@@ -22,15 +22,16 @@ function fmtRelative(ts) {
 
 function strip(addr) {
   if (!addr) return '—';
-  // Address format: "123 Main St, City, ST 12345, USA"
-  // We want:        "City, ST 12345"
   const parts = addr.split(',').map(s => s.trim()).filter(Boolean);
   const stateZipIdx = parts.findIndex(p => /^[A-Z]{2}(\s+\d{5}(-\d{4})?)?$/.test(p));
   if (stateZipIdx > 0) {
-    return `${parts[stateZipIdx - 1]}, ${parts[stateZipIdx]}`;
+    const candidate = parts[stateZipIdx - 1];
+    // if the part before state is a street address (starts with a digit), skip it
+    if (/^\d/.test(candidate)) return parts[stateZipIdx];
+    return `${candidate}, ${parts[stateZipIdx]}`;
   }
-  // Fallback: drop "USA" and return the last meaningful segment
-  const filtered = parts.filter(p => !/^USA$/i.test(p));
+  // Fallback: drop "USA" and any street-like segments (start with digit)
+  const filtered = parts.filter(p => !/^USA$/i.test(p) && !/^\d/.test(p));
   return filtered[filtered.length - 1] || '—';
 }
 
