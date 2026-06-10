@@ -1,0 +1,21 @@
+[debug] [2026-06-10T19:34:32.492Z] ----------------------------------------------------------------------
+[debug] [2026-06-10T19:34:32.506Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only functions:dispatch
+[debug] [2026-06-10T19:34:32.506Z] CLI Version:   15.15.0
+[debug] [2026-06-10T19:34:32.506Z] Platform:      win32
+[debug] [2026-06-10T19:34:32.506Z] Node Version:  v24.14.0
+[debug] [2026-06-10T19:34:32.506Z] Time:          Wed Jun 10 2026 15:34:32 GMT-0400 (Eastern Daylight Time)
+[debug] [2026-06-10T19:34:32.506Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-06-10T19:34:35.228Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-06-10T19:34:35.229Z] > authorizing via signed-in user (support@calltelo.com)
+[debug] [2026-06-10T19:34:35.229Z] [iam] checking project uatob-e7b4b for permissions ["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]
+[debug] [2026-06-10T19:34:35.230Z] Checked if tokens are valid: false, expires at: 1781075367002
+[debug] [2026-06-10T19:34:35.230Z] Checked if tokens are valid: false, expires at: 1781075367002
+[debug] [2026-06-10T19:34:35.231Z] > refreshing access token with scopes: []
+[debug] [2026-06-10T19:34:35.232Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-06-10T19:34:35.233Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-06-10T19:34:35.374Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-06-10T19:34:35.374Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-06-10T19:34:35.385Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions [none]
+[debug] [2026-06-10T19:34:35.385Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions  x-goog-user-project=uatob-e7b4b
+[debug] [2026-06-10T19:34:35.385Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/uatob-e7b4b:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
