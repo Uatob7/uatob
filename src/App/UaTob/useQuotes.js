@@ -1,20 +1,14 @@
-// src/App/UaTob/useQuotes.js
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getAuth } from 'firebase/auth';
 import {
-  collection,
-  query,
-  where,
-  getDocs,
-  addDoc,
-  serverTimestamp,
-  getFirestore,
+  collection, query, where, getDocs,
+  addDoc, serverTimestamp, getFirestore,
 } from 'firebase/firestore';
 import { firebase_app } from '@/firebase/config';
 
 const db = getFirestore(firebase_app);
 
-// ── Pricing config ────────────────────────────────────────────────────
+// ── Pricing ───────────────────────────────────────────────────────────────────
 const PRICING = {
   economy:  { id: 'economy',  label: 'Economy',  desc: 'Affordable everyday rides', capacity: 4, base: 1.5,  perMile: 1.2,  perMin: 0.18, bookingFee: 0.99, minimumFare: 4.99 },
   standard: { id: 'standard', label: 'Standard', desc: 'Comfortable daily rides',   capacity: 4, base: 2.0,  perMile: 1.65, perMin: 0.25, bookingFee: 1.29, minimumFare: 6.99 },
@@ -24,12 +18,11 @@ const PRICING = {
 
 const TIER_BUFFER       = { economy: 0, standard: 0, premium: 2, xl: 1 };
 const FRESH_MS          = 10 * 60 * 1000;
-const STALE_MS          = 4  * 60 * 60 * 1000;
 const STALE_PENALTY_MIN = 10;
 const AVG_SPEED_MPH     = 25;
 const MIN_ETA_MIN       = 7;
 
-// ── Helpers ───────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 const round2 = (n) => Number(Number(n).toFixed(2));
 const clamp  = (n, min, max) => Math.min(Math.max(Number(n), min), max);
 
@@ -45,13 +38,8 @@ function haversineMiles(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function estimateEtaMinutes(miles) {
+function estimateEtaMin(miles) {
   return Math.max(MIN_ETA_MIN, Math.round((miles / AVG_SPEED_MPH) * 60 + 1));
-}
-
-function formatEtaRange(etaMin, stale = false) {
-  const buffer = etaMin <= 7 ? 2 : etaMin <= 12 ? 3 : 5;
-  return `${stale ? '~' : ''}${etaMin}–${etaMin + buffer} min`;
 }
 
 function presenceMillis(d) {
@@ -64,7 +52,6 @@ function presenceMillis(d) {
 
 function buildTierEta(tierId, matchArr) {
   if (!matchArr?.length) return null;
-  // Use the nearest (first) driver in the match array for ETA base
   const nearest  = matchArr.reduce((a, b) => (a.miles < b.miles ? a : b));
   const adjusted = nearest.etaMin + (TIER_BUFFER[tierId] ?? 0);
   const buffer   = adjusted <= 7 ? 2 : adjusted <= 12 ? 3 : 5;
@@ -77,89 +64,92 @@ function calculateRidePrice(p, miles, minutes, etaLabel) {
   return { id: p.id, label: p.label, desc: p.desc, eta: etaLabel, capacity: p.capacity, total };
 }
 
-// ── Driver Match ──────────────────────────────────────────────────────
-// Returns an array of all online drivers with uid, distance, onlineTime,
-// presenceUpdatedAt, etaMin, and stale flag. No filtering by staleness —
-// every driver with status == 'online' is included.
+// ── Driver match ──────────────────────────────────────────────────────────────
 async function buildDriverMatch(pickupLat, pickupLng, pickupZip, signal) {
   let snap = null;
 
   if (pickupZip) {
-    const zipQ = query(
+    const zipSnap = await getDocs(query(
       collection(db, 'Drivers'),
       where('status', '==', 'online'),
-      where('contact.zip', '==', String(pickupZip))
-    );
-    snap = await getDocs(zipQ);
-    if (snap.empty) snap = null;
+      where('contact.zip', '==', String(pickupZip)),
+    ));
+    if (!zipSnap.empty) snap = zipSnap;
   }
 
   if (!snap) {
-    const allQ = query(collection(db, 'Drivers'), where('status', '==', 'online'));
-    snap = await getDocs(allQ);
+    snap = await getDocs(query(collection(db, 'Drivers'), where('status', '==', 'online')));
   }
 
   if (signal?.aborted || snap.empty) return [];
 
-  const now    = Date.now();
-  const match  = [];
+  const now   = Date.now();
+  const match = [];
 
   snap.forEach((doc) => {
     const d = doc.data();
     if (typeof d.lat !== 'number' || typeof d.lng !== 'number') return;
 
     const lastPresence = presenceMillis(d);
-    const ageMs        = lastPresence === null ? 0 : now - lastPresence;
+    const stale        = lastPresence !== null && (now - lastPresence) > FRESH_MS;
     const miles        = round2(haversineMiles(pickupLat, pickupLng, d.lat, d.lng));
-    const stale        = lastPresence !== null && ageMs > FRESH_MS;
-    const etaMin       = estimateEtaMinutes(miles) + (stale ? STALE_PENALTY_MIN : 0);
+    const etaMin       = estimateEtaMin(miles) + (stale ? STALE_PENALTY_MIN : 0);
 
     match.push({
-      uid:                d.uid ?? doc.id,
+      uid:        d.uid ?? doc.id,
       miles,
       etaMin,
       stale,
-      onlineTime:         typeof d.onlineTime === 'number' ? d.onlineTime : null,
-      presenceUpdatedAt:  d.presenceUpdatedAt ?? d.lastSeenAt ?? null,
+      onlineTime: typeof d.onlineTime === 'number' ? d.onlineTime : null,
+      // store as millis so Firestore doesn't nest a Timestamp inside an array
+      lastSeenMs: lastPresence,
     });
   });
 
-  // Sort nearest first — useful for ETA display and dispatch ordering
   match.sort((a, b) => a.miles - b.miles);
-
   return match;
 }
 
-// ── Hook ──────────────────────────────────────────────────────────────
+// ── Search log ────────────────────────────────────────────────────────────────
+function logSearch({ uid, tripData, miles, minutes, match, rides }) {
+  addDoc(collection(db, 'Search'), {
+    uid:         uid ?? null,
+    pickup:      tripData.pickup    ?? null,
+    dropoff:     tripData.dropoff   ?? null,
+    miles,
+    minutes,
+    pickupLat:   tripData.pickupLat ?? null,
+    pickupLng:   tripData.pickupLng ?? null,
+    pickupZip:   tripData.pickupZip ?? null,
+    driverCount: match.length,
+    nearestMi:   match[0]?.miles    ?? null,
+    nearestEta:  match[0]?.etaMin   ?? null,
+    match,
+    rides,
+    createdAt:   serverTimestamp(),
+  }).catch((err) => console.error('[useQuotes] search log failed:', err));
+}
+
+// ── Hook ──────────────────────────────────────────────────────────────────────
 export function useQuotes(tripData) {
   const [quotesData, setQuotesData] = useState(null);
   const [loading,    setLoading]    = useState(false);
   const [error,      setError]      = useState(null);
+  const abortRef = useRef(null);
 
-  const abortRef  = useRef(null);
-  const resetFlag = useRef(false);
-
-  function reset() {
-    resetFlag.current = true;
+  const reset = useCallback(() => {
     abortRef.current?.abort();
     setQuotesData(null);
     setLoading(false);
     setError(null);
-  }
+  }, []);
 
   useEffect(() => {
-    if (!tripData) {
-      abortRef.current?.abort();
-      setQuotesData(null);
-      setLoading(false);
-      setError(null);
-      return;
-    }
+    if (!tripData) { reset(); return; }
 
-    resetFlag.current = false;
     abortRef.current?.abort();
-    abortRef.current = new AbortController();
-    const { signal } = abortRef.current;
+    const ctrl   = new AbortController();
+    abortRef.current = ctrl;
 
     setLoading(true);
     setError(null);
@@ -167,60 +157,40 @@ export function useQuotes(tripData) {
 
     (async () => {
       try {
-        const miles   = clamp(round2(tripData.miles),       0, 300);
-        const minutes = clamp(round2(tripData.durationMin), 0, 600);
+        const miles     = clamp(round2(tripData.miles),       0, 300);
+        const minutes   = clamp(round2(tripData.durationMin), 0, 600);
         const hasPickup = Number.isFinite(tripData.pickupLat) && Number.isFinite(tripData.pickupLng);
 
-        let match = [];
-        if (hasPickup) {
-          match = await buildDriverMatch(
-            tripData.pickupLat,
-            tripData.pickupLng,
-            tripData.pickupZip ?? null,
-            signal
-          );
-        }
+        const match = hasPickup
+          ? await buildDriverMatch(tripData.pickupLat, tripData.pickupLng, tripData.pickupZip ?? null, ctrl.signal)
+          : [];
 
-        if (signal.aborted || resetFlag.current) return;
+        if (ctrl.signal.aborted) return;
 
         const rides = Object.fromEntries(
-          Object.entries(PRICING).map(([k, v]) => [
+          Object.entries(PRICING).map(([k, p]) => [
             k,
-            calculateRidePrice(v, miles, minutes, buildTierEta(k, match)),
-          ])
+            calculateRidePrice(p, miles, minutes, buildTierEta(k, match)),
+          ]),
         );
 
-        // Fire-and-forget search log
-        const uid = getAuth(firebase_app).currentUser?.uid ?? null;
-        addDoc(collection(db, 'Search'), {
-          uid,
-          pickup:    tripData.pickup    ?? null,
-          dropoff:   tripData.dropoff   ?? null,
-          miles,
-          minutes,
-          pickupLat: hasPickup ? tripData.pickupLat : null,
-          pickupLng: hasPickup ? tripData.pickupLng : null,
-          pickupZip: tripData.pickupZip ?? null,
-          match,
-          rides,
-          createdAt: serverTimestamp(),
-        }).catch((err) => console.error('[useQuotes] Search write failed:', err));
+        logSearch({ uid: getAuth(firebase_app).currentUser?.uid, tripData, miles, minutes, match, rides });
 
-        if (signal.aborted || resetFlag.current) return;
+        if (ctrl.signal.aborted) return;
 
         setQuotesData({ rides, match, currency: 'USD', generatedAt: new Date().toISOString() });
         setError(null);
       } catch (err) {
-        if (signal.aborted || resetFlag.current) return;
+        if (ctrl.signal.aborted) return;
         setError(err.message || 'Failed to calculate prices');
         setQuotesData(null);
       } finally {
-        if (!signal.aborted && !resetFlag.current) setLoading(false);
+        if (!ctrl.signal.aborted) setLoading(false);
       }
     })();
 
-    return () => { abortRef.current?.abort(); };
-  }, [tripData]);
+    return () => ctrl.abort();
+  }, [tripData, reset]);
 
   return { quotesData, loading, error, reset };
 }
