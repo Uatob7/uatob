@@ -72,6 +72,42 @@ const BOOT_LINES = [
   'driver node online. standing by.',
 ];
 
+// ── Radar ping sound (Web Audio API, no external file) ───────────────────────
+function playSearchPing() {
+  try {
+    const ctx  = new (window.AudioContext || window.webkitAudioContext)();
+    const t    = ctx.currentTime;
+
+    // first tone: sharp attack, falling pitch
+    const osc1  = ctx.createOscillator();
+    const env1  = ctx.createGain();
+    osc1.connect(env1);
+    env1.connect(ctx.destination);
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(1100, t);
+    osc1.frequency.exponentialRampToValueAtTime(620, t + 0.18);
+    env1.gain.setValueAtTime(0.28, t);
+    env1.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+    osc1.start(t);
+    osc1.stop(t + 0.28);
+
+    // second softer tone: brief echo feel
+    const osc2  = ctx.createOscillator();
+    const env2  = ctx.createGain();
+    osc2.connect(env2);
+    env2.connect(ctx.destination);
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(620, t + 0.22);
+    osc2.frequency.exponentialRampToValueAtTime(380, t + 0.46);
+    env2.gain.setValueAtTime(0.12, t + 0.22);
+    env2.gain.exponentialRampToValueAtTime(0.001, t + 0.46);
+    osc2.start(t + 0.22);
+    osc2.stop(t + 0.46);
+
+    osc2.onended = () => ctx.close();
+  } catch (e) {}
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────────────
 function tsToMillis(ts) {
   if (!ts) return 0;
@@ -278,8 +314,15 @@ function buildPickupGeoJSON(searches = []) {
 }
 
 function buildRiderGeoJSON(accounts = []) {
+  const seen = new Set();
   const features = accounts
-    .filter(a => typeof a.lat === 'number' && typeof a.lng === 'number')
+    .filter(a => {
+      if (typeof a.lat !== 'number' || typeof a.lng !== 'number') return false;
+      const key = a.id ?? a.uid;
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
     .map(a => ({
       type: 'Feature',
       properties: { id: a.id },
@@ -366,8 +409,15 @@ function gatherContacts(driver, searches, scheduledRides, accounts = []) {
       bearing: bearingBetween(dLat, dLng, s.pickupLat, s.pickupLng),
     });
   });
+  const seenRiders = new Set();
   accounts
-    .filter(a => typeof a.lat === 'number' && typeof a.lng === 'number')
+    .filter(a => {
+      if (typeof a.lat !== 'number' || typeof a.lng !== 'number') return false;
+      const key = a.id ?? a.uid;
+      if (!key || seenRiders.has(key)) return false;
+      seenRiders.add(key);
+      return true;
+    })
     .forEach(a => {
       out.push({
         id:      `a_${a.id}`,
@@ -2462,6 +2512,7 @@ export default function HomeTab({
       clearTimeout(alertTimerRef.current);
       alertTimerRef.current = setTimeout(() => setAlert(null), 4200);
       sweepBurstRef.current = 7 * 360;
+      playSearchPing();
     }
     prevDotRef.current = dotCount;
   }, [dotCount, showRadar]); // eslint-disable-line

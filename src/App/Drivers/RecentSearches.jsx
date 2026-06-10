@@ -96,9 +96,13 @@ export default function RecentSearches({ searches = [], loading = false, limit =
 
   const current     = feed[index];
   const guest       = current ? isGuest(current) : false;
-  const driverCount = current?.driverInfo?.driverCount ?? 0;
+  const driverCount = current?.driverCount
+    ?? current?.driverInfo?.driverCount
+    ?? (Array.isArray(current?.match) ? current.match.length : 0);
   const hasDrivers  = driverCount > 0;
-  const etaLabel    = current?.driverInfo?.etaLabel ?? null;
+  const nearestEta  = current?.nearestEta ?? current?.driverInfo?.nearestEta ?? null;
+  const etaLabel    = nearestEta != null ? `~${nearestEta} min`
+                    : current?.driverInfo?.etaLabel ?? null;
 
   return (
     <>
