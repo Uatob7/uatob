@@ -2,10 +2,8 @@
  * TripsCard.jsx — Ride history face for the StatusCard HUD
  *
  * Props:
- *   rides   array  — rider's ride history, newest-first preferred
- *                    each ride: { id, status, pickup, dropoff, rideType,
- *                                 fareCents, payment, createdAt, driverName }
- *   now     number — Date.now() tick from parent (for live relative times)
+ *   uid  string — rider's uid
+ *   now  number — Date.now() tick from parent (for live relative times)
  */
 
 import { useState, useMemo } from 'react';
@@ -20,6 +18,8 @@ const C = {
   green:       '#22C55E',
   greenBright: '#4ADE80',
   greenSoft:   '#34D399',
+  amber:       'rgba(251,191,36,.9)',
+  amberDim:    'rgba(251,191,36,.6)',
   white:       '#fff',
   dim:         'rgba(255,255,255,.22)',
   fade:        'rgba(255,255,255,.10)',
@@ -30,15 +30,16 @@ const COND = "'Barlow Condensed','Barlow',sans-serif";
 
 // ── status config ────────────────────────────────────────────────────────────
 const STATUS = {
-  pending:         { label: 'Pending',    color: 'rgba(251,191,36,.9)',  bg: 'rgba(251,191,36,.12)' },
-  driver_assigned: { label: 'On the way', color: C.greenBright,          bg: 'rgba(74,222,128,.12)' },
-  arrived:         { label: 'Arrived',    color: C.greenBright,          bg: 'rgba(74,222,128,.12)' },
-  in_progress:     { label: 'In ride',    color: C.greenSoft,            bg: 'rgba(52,211,153,.12)' },
-  completed:       { label: 'Completed',  color: 'rgba(255,255,255,.35)', bg: 'rgba(255,255,255,.06)' },
-  cancelled:       { label: 'Cancelled',  color: 'rgba(239,68,68,.7)',   bg: 'rgba(239,68,68,.08)'  },
+  scheduled:       { label: 'Scheduled',   color: 'rgba(251,191,36,.9)',  bg: 'rgba(251,191,36,.12)' },
+  pending:         { label: 'Pending',     color: 'rgba(251,191,36,.9)',  bg: 'rgba(251,191,36,.12)' },
+  driver_assigned: { label: 'On the way',  color: C.greenBright,          bg: 'rgba(74,222,128,.12)' },
+  arrived:         { label: 'Arrived',     color: C.greenBright,          bg: 'rgba(74,222,128,.12)' },
+  in_progress:     { label: 'In ride',     color: C.greenSoft,            bg: 'rgba(52,211,153,.12)' },
+  completed:       { label: 'Completed',   color: 'rgba(255,255,255,.35)', bg: 'rgba(255,255,255,.06)' },
+  cancelled:       { label: 'Cancelled',   color: 'rgba(239,68,68,.7)',   bg: 'rgba(239,68,68,.08)'  },
 };
 
-const ACTIVE_STATUSES = new Set(['pending', 'driver_assigned', 'arrived', 'in_progress']);
+const ACTIVE_STATUSES = new Set(['scheduled', 'pending', 'driver_assigned', 'arrived', 'in_progress']);
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 function tsToMillis(ts) {
@@ -61,9 +62,15 @@ function relTime(ms, now) {
   return new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function fmtMoney(cents) {
-  if (!cents && cents !== 0) return '';
-  return `$${(cents / 100).toFixed(2)}`;
+function fmtDollars(amount) {
+  if (amount == null) return '';
+  return `$${Number(amount).toFixed(2)}`;
+}
+
+function fmtTime(ts) {
+  const ms = tsToMillis(ts);
+  if (!ms) return '—';
+  return new Date(ms).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 }
 
 function truncate(str, n) {
@@ -78,16 +85,18 @@ function Ico({ n, size = 14, color = 'currentColor', sw = 1.7 }) {
     stroke: color, strokeWidth: sw, strokeLinecap: 'round', strokeLinejoin: 'round',
   };
   switch (n) {
-    case 'car':    return <svg {...p}><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 5v4h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>;
-    case 'pin':    return <svg {...p}><path d="M12 21s-7-5.2-7-11a7 7 0 0 1 14 0c0 5.8-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>;
-    case 'clock':  return <svg {...p}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
-    case 'card':   return <svg {...p}><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>;
-    case 'cash':   return <svg {...p}><rect x="2" y="6" width="20" height="12" rx="1"/><circle cx="12" cy="12" r="3"/></svg>;
-    case 'user':   return <svg {...p}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
-    case 'repeat': return <svg {...p}><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>;
-    case 'empty':  return <svg {...p}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
-    case 'dot':    return <svg width={size} height={size} viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill={color}/></svg>;
-    default:       return null;
+    case 'car':      return <svg {...p}><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 5v4h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>;
+    case 'pin':      return <svg {...p}><path d="M12 21s-7-5.2-7-11a7 7 0 0 1 14 0c0 5.8-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>;
+    case 'clock':    return <svg {...p}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
+    case 'card':     return <svg {...p}><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>;
+    case 'cash':     return <svg {...p}><rect x="2" y="6" width="20" height="12" rx="1"/><circle cx="12" cy="12" r="3"/></svg>;
+    case 'user':     return <svg {...p}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+    case 'repeat':   return <svg {...p}><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>;
+    case 'empty':    return <svg {...p}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
+    case 'dot':      return <svg width={size} height={size} viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill={color}/></svg>;
+    case 'calendar': return <svg {...p}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>;
+    case 'nav':      return <svg {...p}><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>;
+    default:         return null;
   }
 }
 
@@ -145,57 +154,181 @@ function RouteRow({ pickup, dropoff }) {
   );
 }
 
+// ── live context strip shown in collapsed active rides ────────────────────────
+function LiveStrip({ ride }) {
+  const s = ride.status;
+
+  if (s === 'scheduled') {
+    const count = ride.match?.length;
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
+        <Ico n="calendar" size={9} color={C.amberDim}/>
+        <span style={{ fontFamily: MONO, fontSize: 8, color: C.amberDim }}>
+          {fmtTime(ride.scheduledAt)}{count ? ` · ${count} drivers nearby` : ''}
+        </span>
+      </div>
+    );
+  }
+
+  if (s === 'driver_assigned') {
+    const eta = ride.livePickup != null ? Math.round(ride.livePickup) : ride.driverEtaMin;
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
+        <Ico n="nav" size={9} color={`${C.greenBright}99`}/>
+        <span style={{ fontFamily: MONO, fontSize: 8, color: `${C.greenBright}bb` }}>
+          {eta != null ? `~${eta} min away` : '—'}
+          {ride.liveArrival ? ` · Arrives ${ride.liveArrival}` : ''}
+        </span>
+      </div>
+    );
+  }
+
+  if (s === 'arrived') {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
+        <div style={{
+          width: 5, height: 5, borderRadius: '50%', background: C.greenBright,
+          boxShadow: `0 0 6px ${C.greenBright}`, animation: 'uaBlink 1s ease-in-out infinite',
+        }}/>
+        <span style={{ fontFamily: MONO, fontSize: 8, color: C.greenBright }}>Driver is here</span>
+      </div>
+    );
+  }
+
+  if (s === 'in_progress') {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
+        <Ico n="car" size={9} color={`${C.greenSoft}99`}/>
+        <span style={{ fontFamily: MONO, fontSize: 8, color: `${C.greenSoft}bb` }}>
+          En route{ride.tripDurationMin ? ` · ${ride.tripDurationMin} min` : ''}
+        </span>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+// ── stat cell for live panel ──────────────────────────────────────────────────
+function Stat({ label, value, color }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+      <span style={{
+        fontFamily: COND, fontSize: 7, fontWeight: 800, letterSpacing: '.14em',
+        color: 'rgba(255,255,255,.3)', textTransform: 'uppercase',
+      }}>{label}</span>
+      <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color }}>{value}</span>
+    </div>
+  );
+}
+
+// ── expanded live data panel ──────────────────────────────────────────────────
+function LivePanel({ ride }) {
+  const s = ride.status;
+
+  if (s === 'driver_assigned') {
+    const dist = ride.liveDistance ?? ride.driverDistanceMi;
+    const eta  = ride.livePickup != null ? Math.round(ride.livePickup) : ride.driverEtaMin;
+    if (dist == null && eta == null) return null;
+    return (
+      <div style={{
+        padding: '7px 9px', borderRadius: 7,
+        background: 'rgba(74,222,128,.05)', border: '1px solid rgba(74,222,128,.14)',
+        display: 'flex', flexWrap: 'wrap', gap: '5px 16px',
+      }}>
+        {dist    != null && <Stat label="DISTANCE" value={`${Number(dist).toFixed(1)} mi`}     color={C.greenBright}/>}
+        {ride.liveMph != null && <Stat label="SPEED"    value={`${Number(ride.liveMph).toFixed(1)} mph`} color={C.greenSoft}/>}
+        {eta    != null && <Stat label="ETA"      value={`~${eta} min`}                    color={C.greenBright}/>}
+        {ride.liveArrival  && <Stat label="ARRIVES"  value={ride.liveArrival}                   color={C.greenBright}/>}
+      </div>
+    );
+  }
+
+  if (s === 'scheduled') {
+    const best = ride.match?.[0];
+    return (
+      <div style={{
+        padding: '7px 9px', borderRadius: 7,
+        background: 'rgba(251,191,36,.05)', border: '1px solid rgba(251,191,36,.14)',
+        display: 'flex', flexWrap: 'wrap', gap: '5px 16px',
+      }}>
+        <Stat label="SCHED FOR" value={fmtTime(ride.scheduledAt)}                              color={C.amber}/>
+        {ride.match?.length > 0 && <Stat label="MATCHED"   value={`${ride.match.length} drivers`}              color={C.amberDim}/>}
+        {best && <Stat label="CLOSEST"   value={`${best.etaMin} min · ${best.miles.toFixed(1)} mi`} color={C.amberDim}/>}
+      </div>
+    );
+  }
+
+  return null;
+}
+
 // ── single trip card ──────────────────────────────────────────────────────────
 function TripRow({ ride, now, isActive }) {
   const [expanded, setExpanded] = useState(false);
   const ms    = tsToMillis(ride.createdAt);
-  const fare  = fmtMoney(ride.fareCents);
+  const fare  = fmtDollars(ride.fareTotal);
+  const label = ride.rideLabel || ride.rideType || 'Economy';
+
+  const isScheduled = ride.status === 'scheduled';
+  const accentColor = isActive ? (isScheduled ? C.amber : C.greenBright) : null;
+  const borderColor = isActive
+    ? (isScheduled ? 'rgba(251,191,36,.25)' : C.border)
+    : C.borderDim;
+  const bgColor = isActive
+    ? (isScheduled ? 'rgba(251,191,36,.05)' : 'rgba(34,197,94,.06)')
+    : C.faint;
 
   return (
     <div
       onClick={() => setExpanded(e => !e)}
       style={{
         borderRadius: 10, overflow: 'hidden',
-        background: isActive ? 'rgba(34,197,94,.06)' : C.faint,
-        border: `1px solid ${isActive ? C.border : C.borderDim}`,
+        background: bgColor,
+        border: `1px solid ${borderColor}`,
         cursor: 'pointer', transition: 'border-color .15s',
       }}
     >
       {/* collapsed row */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 9, padding: '9px 10px',
+        display: 'flex', alignItems: 'flex-start', gap: 9, padding: '9px 10px',
       }}>
-        {/* ride type icon */}
+        {/* icon */}
         <div style={{
-          width: 30, height: 30, borderRadius: 8, flexShrink: 0,
-          background: isActive ? 'rgba(34,197,94,.1)' : 'rgba(255,255,255,.04)',
-          border: `1px solid ${isActive ? C.border : C.borderDim}`,
+          width: 30, height: 30, borderRadius: 8, flexShrink: 0, marginTop: 1,
+          background: isActive
+            ? (isScheduled ? 'rgba(251,191,36,.1)' : 'rgba(34,197,94,.1)')
+            : 'rgba(255,255,255,.04)',
+          border: `1px solid ${borderColor}`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <Ico n="car" size={14} color={isActive ? C.greenBright : C.dim}/>
+          <Ico
+            n={isScheduled ? 'calendar' : 'car'}
+            size={14}
+            color={accentColor || C.dim}
+          />
         </div>
 
-        {/* main info */}
+        {/* info */}
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
             <span style={{
               fontFamily: COND, fontSize: 11, fontWeight: 800, letterSpacing: '.06em',
               color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            }}>{ride.rideType || 'Economy'}</span>
+            }}>{label}</span>
             {fare && (
               <span style={{
-                fontFamily: MONO, fontSize: 10, fontWeight: 700,
-                color: isActive ? C.greenBright : 'rgba(255,255,255,.6)',
-                flexShrink: 0,
+                fontFamily: MONO, fontSize: 10, fontWeight: 700, flexShrink: 0,
+                color: accentColor || 'rgba(255,255,255,.6)',
               }}>{fare}</span>
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
             <StatusBadge status={ride.status}/>
-            <span style={{
-              fontFamily: MONO, fontSize: 8, color: C.dim, flexShrink: 0,
-            }}>{relTime(ms, now)}</span>
+            <span style={{ fontFamily: MONO, fontSize: 8, color: C.dim, flexShrink: 0 }}>
+              {relTime(ms, now)}
+            </span>
           </div>
+          {isActive && <LiveStrip ride={ride}/>}
         </div>
       </div>
 
@@ -211,30 +344,22 @@ function TripRow({ ride, now, isActive }) {
 
           <RouteRow pickup={ride.pickup} dropoff={ride.dropoff}/>
 
+          <LivePanel ride={ride}/>
+
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-            {ride.driverName && (
+            {ride.paymentMethod && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <Ico n="user" size={10} color={C.dim}/>
-                <span style={{ fontFamily: MONO, fontSize: 8.5, color: 'rgba(255,255,255,.5)' }}>
-                  {ride.driverName}
-                </span>
-              </div>
-            )}
-            {ride.payment && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <PayIco method={ride.payment}/>
+                <PayIco method={ride.paymentMethod}/>
                 <span style={{ fontFamily: MONO, fontSize: 8.5, color: C.dim }}>
-                  {ride.payment === 'cashapp' ? 'Cash App' : ride.payment === 'cash' ? 'Cash' : 'Card'}
+                  {ride.paymentMethod === 'cashapp' ? 'Cash App'
+                    : ride.paymentMethod === 'cash' ? 'Cash' : 'Card'}
                 </span>
               </div>
             )}
             {ride.id && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{
-                  fontFamily: MONO, fontSize: 7.5, color: C.fade,
-                  letterSpacing: '.06em',
-                }}>REF {ride.id.slice(-8).toUpperCase()}</span>
-              </div>
+              <span style={{
+                fontFamily: MONO, fontSize: 7.5, color: C.fade, letterSpacing: '.06em',
+              }}>REF {ride.id.slice(-8).toUpperCase()}</span>
             )}
           </div>
         </div>
@@ -248,8 +373,7 @@ function EmptyState() {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center',
-      gap: 8, padding: '24px 0',
-      animation: 'uaFadeIn .3s ease both',
+      gap: 8, padding: '24px 0', animation: 'uaFadeIn .3s ease both',
     }}>
       <div style={{
         width: 44, height: 44, borderRadius: 14,
@@ -276,7 +400,6 @@ export default function TripsCard({ uid, now = Date.now() }) {
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState('all'); // 'all' | 'active' | 'completed'
 
-  // sort newest first
   const sorted = useMemo(() => (
     [...trips].sort((a, b) => tsToMillis(b.createdAt) - tsToMillis(a.createdAt))
   ), [trips]);
@@ -287,8 +410,8 @@ export default function TripsCard({ uid, now = Date.now() }) {
     return sorted;
   }, [sorted, filter]);
 
-  const visible    = filtered.slice(0, page * PAGE_SIZE);
-  const hasMore    = visible.length < filtered.length;
+  const visible     = filtered.slice(0, page * PAGE_SIZE);
+  const hasMore     = visible.length < filtered.length;
   const activeCount = sorted.filter(r => ACTIVE_STATUSES.has(r.status)).length;
 
   const FILTERS = [
