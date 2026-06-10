@@ -86,15 +86,6 @@ export function useCashAppPayment({
         paymentStatus: 'succeeded',
         paymentIntentId: mockIntentId,
 
-        driverInfo: bookingPayload.driverInfo
-          ? {
-              driverCount: bookingPayload.driverInfo.driverCount ?? null,
-              etaLabel: bookingPayload.driverInfo.etaLabel ?? null,
-              etaMin: bookingPayload.driverInfo.etaMin ?? null,
-              nearestMiles: bookingPayload.driverInfo.nearestMiles ?? null,
-              stale: bookingPayload.driverInfo.stale ?? null,
-            }
-          : null,
 
         status: isScheduled ? 'scheduled' : 'searching_driver',
 

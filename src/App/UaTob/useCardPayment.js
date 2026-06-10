@@ -98,7 +98,6 @@ export function useCardPayment({ uid, bookingPayload, onSuccess, onError }) {
         paymentIntentId: mockPaymentIntent.id,
         paymentStatus: 'succeeded',
 
-        driverInfo: bookingPayload?.driverInfo ?? null,
 
         status: 'pending_dispatch',
 
