@@ -20,6 +20,8 @@ const FRESH_MS            = 10 * 60 * 1000;     // mirrors useQuotes
 const STALE_PENALTY_MIN   = 10;
 const AVG_SPEED_MPH       = 25;
 const MIN_ETA_MIN         = 7;
+const EXPIRE_ETA_MULT     = 2;                   // expireAt = base + (nearestEtaMin × 2)
+const EXPIRE_FLOOR_MS     = 30 * 60 * 1000;      // minimum 30 min from base regardless of ETA
 
 // ── HELPERS (mirrors useQuotes match math) ─────────
 const round2 = (n) => Number(Number(n).toFixed(2));
@@ -54,6 +56,18 @@ function toMillisSafe(v) {
   if (typeof v === "number") return v;
   const ms = new Date(v).getTime();
   return Number.isNaN(ms) ? null : ms;
+}
+
+// ── EXPIRE AT ──────────────────────────────────────
+// base = scheduledAt for scheduled rides, createdAt otherwise.
+// offset = max(30 min, nearestEtaMin × 2).
+function computeExpireAt(ride, match) {
+  const nearestEtaMin = match.length ? match[0].etaMin : 45;
+  const baseMs =
+    toMillisSafe(ride.isScheduled && ride.scheduledAt ? ride.scheduledAt : ride.createdAt)
+    ?? Date.now();
+  const offsetMs = Math.max(EXPIRE_FLOOR_MS, nearestEtaMin * EXPIRE_ETA_MULT * 60_000);
+  return new Date(baseMs + offsetMs);
 }
 
 // ── BUILD MATCH FROM CACHED DRIVER POOL ────────────
@@ -104,13 +118,36 @@ exports.dispatch = onSchedule(
     secrets: [STRIPE_SECRET_KEY],
   },
   async () => {
-    const now = Date.now();
+    const now    = Date.now();
+    const nowTs  = admin.firestore.Timestamp.fromMillis(now);
 
-    // ── 1. FIND RIDES AWAITING DISPATCH ────────────
-    const snapshot = await db
-      .collection("Rides")
-      .where("status", "in", ["scheduled", "pending_dispatch"])
-      .get();
+    // ── 1. PARALLEL QUERIES ────────────────────────
+    const [snapshot, expiredSnap, driverSnap] = await Promise.all([
+      db.collection("Rides")
+        .where("status", "in", ["scheduled", "pending_dispatch"])
+        .get(),
+      db.collection("Rides")
+        .where("status", "==", "searching_driver")
+        .where("expireAt", "<=", nowTs)
+        .get(),
+      db.collection("Drivers")
+        .where("status", "==", "online")
+        .get(),
+    ]);
+
+    // ── 2. EXPIRE TIMED-OUT RIDES ──────────────────
+    if (!expiredSnap.empty) {
+      console.log(`[dispatch] Timing out ${expiredSnap.size} expired ride(s)...`);
+      const timeoutJobs = expiredSnap.docs.map((doc) =>
+        doc.ref.update({
+          status:      "timeout",
+          timedOutAt:  admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt:   admin.firestore.FieldValue.serverTimestamp(),
+        }).then(() => console.log(`[dispatch] ⏰ ${doc.id} → timeout`))
+          .catch((err) => console.error(`[dispatch] ❌ timeout update failed for ${doc.id}:`, err))
+      );
+      await Promise.allSettled(timeoutJobs);
+    }
 
     if (snapshot.empty) {
       console.log("[dispatch] No rides awaiting dispatch.");
@@ -119,12 +156,7 @@ exports.dispatch = onSchedule(
 
     console.log(`[dispatch] Evaluating ${snapshot.size} ride(s)...`);
 
-    // ── 2. FETCH ONLINE DRIVER POOL ONCE ───────────
-    const driverSnap = await db
-      .collection("Drivers")
-      .where("status", "==", "online")
-      .get();
-
+    // ── 3. DRIVER POOL ─────────────────────────────
     const driverPool = driverSnap.docs.map((doc) => ({
       id: doc.id,
       raw: doc.data(),
@@ -132,7 +164,7 @@ exports.dispatch = onSchedule(
 
     console.log(`[dispatch] Driver pool: ${driverPool.length} online`);
 
-    // ── 3. LAZY STRIPE INIT (only if a card/cashapp ride needs verify)
+    // ── 4. LAZY STRIPE INIT (only if a card/cashapp ride needs verify)
     let stripe = null;
     const getStripe = () => {
       if (!stripe) {
@@ -143,13 +175,18 @@ exports.dispatch = onSchedule(
       return stripe;
     };
 
-    // ── 4. PROCESS RIDES ───────────────────────────
+    // ── 5. PROCESS RIDES ───────────────────────────
     const jobs = snapshot.docs.map(async (doc) => {
       const ride   = doc.data();
       const rideId = doc.id;
 
       try {
-        // ── 4a. SCHEDULED GATE ─────────────────────
+        // ── 4a. RECORD LAST SEEN BY DISPATCH ───────
+        await doc.ref.update({
+          dispatchLastCheckedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // ── 4b. SCHEDULED GATE ─────────────────────
         // Scheduled rides only dispatch inside the lead window.
         if (ride.isScheduled && ride.scheduledAt) {
           const schedMs = toMillisSafe(ride.scheduledAt);
@@ -163,7 +200,7 @@ exports.dispatch = onSchedule(
           }
         }
 
-        // ── 4b. PAYMENT GATE ───────────────────────
+        // ── 4c. PAYMENT GATE ───────────────────────
         const method = ride.paymentMethod ?? "card";
         let paymentVerified = false;
         let patchPayment = null;
@@ -206,7 +243,7 @@ exports.dispatch = onSchedule(
 
         if (!paymentVerified) return;
 
-        // ── 4c. BUILD MATCH ────────────────────────
+        // ── 4d. BUILD MATCH ────────────────────────
         const hasPickup =
           Number.isFinite(ride.pickupLat) && Number.isFinite(ride.pickupLng);
 
@@ -214,11 +251,12 @@ exports.dispatch = onSchedule(
           ? buildMatch(driverPool, ride.pickupLat, ride.pickupLng, ride.pickupZip ?? null)
           : [];
 
-        // ── 4d. DISPATCH ───────────────────────────
+        // ── 4e. DISPATCH ───────────────────────────
         const update = {
           status: "searching_driver",
           match,
           matchCount: match.length,
+          expireAt: computeExpireAt(ride, match),
           dispatchedAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         };
