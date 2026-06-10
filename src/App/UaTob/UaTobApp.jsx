@@ -6,6 +6,10 @@
  *   rides             array   — rider's ride history / active rides
  *   searches          array   — live search pool (for ambient heatmap)
  *   scheduledRides    array   — rider's own scheduled rides
+ *   trips             array   — completed trip history (falls back to rides)
+ *   drivers           array   — nearby drivers (reserved)
+ *   account           object  — rider account doc
+ *   createTrip        fn      — books a ride (payload => Promise)
  *   callSaveFcmToken  fn      — saves FCM push token to Firestore
  */
 
@@ -21,6 +25,7 @@ import {
 } from '@/App/UaTob/Statuscardtokens';
 
 import StatusCard from '@/App/UaTob/StatusCard';
+
 // ─── Design tokens ──────────────────────────────────────────────────────────
 const C = {
   bg:          '#050A06',
@@ -303,9 +308,6 @@ export default function UaTob({
   drivers = [],
   account = null,
 }) {
-
-
-  console.log(account);
   const mapContainerRef = useRef(null);
   const mapRef          = useRef(null);
   const sweepRef        = useRef(0);
@@ -478,8 +480,10 @@ export default function UaTob({
     return () => cancelAnimationFrame(rafRef.current);
   }, [mapReady]);
 
-  const handleBook = useCallback(() => {
-    console.log('[UaTob] Book ride tapped');
+  // ── Handlers ────────────────────────────────────────────────────────────────
+  const handleBook = useCallback((payload) => {
+    console.log('[UaTob] Ride requested', payload);
+    // optional: persist locally, optimistic UI, etc.
   }, []);
 
   const handleOpenSupport = useCallback(() => {
@@ -552,9 +556,14 @@ export default function UaTob({
             <StatusCard
               face={face}
               onFaceChange={setFace}
+              uid={uid}
+              account={account}
+              createTrip={createTrip}
               rides={rides}
+              trips={trips}
               searches={searches}
               scheduledRides={scheduledRides}
+              drivers={drivers}
               now={now}
               callSaveFcmToken={callSaveFcmToken}
               onBook={handleBook}

@@ -1,141 +1,123 @@
-/**
- * StatusCard.jsx — Rider HUD card shell
- *
- * Fix: auto-cycle is fully frozen while face === FACE_BOOK.
- * It only resumes after onBookingComplete fires (with a 6s grace delay).
- */
-
-import { useState, useEffect, useRef, useCallback } from 'react';
-
+import { useEffect, useRef, useState, useCallback } from 'react';
 import {
-  C,
-  FACES,
-  FACE_BOOK,
-  FACE_SEARCHES,
-  FACE_SCHEDULED,
-  FACE_NOTIFS,
-  FACE_ACCOUNT,
-  FACE_TRIPS,
-  FACE_COUNT,
+  FACE_BOOK, FACE_SEARCHES, FACE_SCHEDULED, FACE_NOTIFS, FACE_ACCOUNT, FACE_TRIPS,
+  FACE_ORDER, FACE_CYCLE_MS, FACE_META,
 } from '@/App/UaTob/Statuscardtokens';
 
 import BookRideCard      from '@/App/UaTob/BookRideCard';
 import SearchesCard      from '@/App/UaTob/SearchesCard';
-import ScheduledCard     from '@/App/UaTob/ScheduledCar';
+import ScheduledCard     from '@/App/UaTob/ScheduledCard';
 import NotificationsCard from '@/App/UaTob/NotificationsCard';
 import AccountCard       from '@/App/UaTob/AccountCard';
 import TripsCard         from '@/App/UaTob/TripsCard';
 
-const AUTO_CYCLE_MS    = 3800;
-const POST_BOOKING_MS  = 6000;
-const POST_INTERACT_MS = 12000;
+const SHELL = {
+  borderRadius: 22,
+  background: 'linear-gradient(180deg, rgba(6,14,9,.94), rgba(4,9,6,.97))',
+  border: '1px solid rgba(34,197,94,.22)',
+  boxShadow: '0 18px 60px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.04)',
+  backdropFilter: 'blur(20px)',
+  WebkitBackdropFilter: 'blur(20px)',
+  overflow: 'hidden',
+};
 
 export default function StatusCard({
   face,
   onFaceChange,
-  rides,
-  searches,
-  scheduledRides,
+  rides = [],
+  searches = [],
+  scheduledRides = [],
+  trips = [],
+  account = null,
+  drivers = [],
   now,
+  uid,
+  createTrip,
   callSaveFcmToken,
   onBook,
 }) {
-  const [autoCycle, setAutoCycle] = useState(true);
-  const timerRef = useRef(null);
+  // Booking flow takes over the card; while active, the auto-cycle is paused.
+  const [bookingActive, setBookingActive] = useState(false);
+  const cycleRef = useRef(null);
 
-  // ── Auto-cycle ─────────────────────────────────────────────
+  const startCycle = useCallback(() => {
+    clearInterval(cycleRef.current);
+    if (bookingActive) return;
+    cycleRef.current = setInterval(() => {
+      const idx  = FACE_ORDER.indexOf(face);
+      const next = FACE_ORDER[(idx + 1) % FACE_ORDER.length];
+      onFaceChange?.(next);
+    }, FACE_CYCLE_MS);
+  }, [face, bookingActive, onFaceChange]);
+
   useEffect(() => {
-    clearTimeout(timerRef.current);
+    startCycle();
+    return () => clearInterval(cycleRef.current);
+  }, [startCycle]);
 
-    if (!autoCycle || face === FACE_BOOK) return;
+  const goFace = (f) => {
+    onFaceChange?.(f);
+    startCycle(); // reset timer on manual tap
+  };
 
-    timerRef.current = setTimeout(() => {
-      const next = (face + 1) % FACE_COUNT;
-
-      // skip booking face during auto-cycle
-      onFaceChange(next === FACE_BOOK ? (next + 1) % FACE_COUNT : next);
-    }, AUTO_CYCLE_MS);
-
-    return () => clearTimeout(timerRef.current);
-  }, [face, autoCycle, onFaceChange]);
-
-  // ── Tab / face selection ───────────────────────────────────
-  const handleTabClick = useCallback(
-    (i) => {
-      clearTimeout(timerRef.current);
-
-      if (i === FACE_BOOK) {
-        // hard freeze until booking completes
-        setAutoCycle(false);
-      } else {
-        setAutoCycle(false);
-        timerRef.current = setTimeout(() => setAutoCycle(true), POST_INTERACT_MS);
-      }
-
-      onFaceChange(i);
-    },
-    [onFaceChange]
-  );
-
-  // ── Booking complete ───────────────────────────────────────
-  const handleBookingComplete = useCallback(() => {
-    clearTimeout(timerRef.current);
-
-    timerRef.current = setTimeout(() => {
-      setAutoCycle(true);
-    }, POST_BOOKING_MS);
-  }, []);
-
-  // ── Cleanup ────────────────────────────────────────────────
-  useEffect(() => () => clearTimeout(timerRef.current), []);
+  const meta = FACE_META[face] ?? FACE_META[FACE_BOOK];
 
   return (
-    <div
-      style={{
-        width: '100%',
-        maxWidth: 340,
-        background: 'linear-gradient(180deg, rgba(6,14,8,.94), rgba(3,8,5,.97))',
-        border: '1px solid rgba(34,197,94,.18)',
-        borderRadius: 16,
-        overflow: 'hidden',
-        boxShadow: '0 10px 36px rgba(0,0,0,.6), 0 0 24px rgba(34,197,94,.1)',
-        backdropFilter: 'blur(16px)',
-      }}
-    >
-      <div key={face} style={{ animation: 'uaCardFlip .28s ease both' }}>
+    <div style={SHELL}>
+      <style>{`
+        @keyframes scFaceIn { from{opacity:0;transform:translateY(8px) scale(.985)} to{opacity:1;transform:translateY(0) scale(1)} }
+        .sc-face { animation: scFaceIn .42s cubic-bezier(.34,1.2,.64,1) both; }
+      `}</style>
+
+      {/* Top accent line — tints to the active face color */}
+      <div style={{
+        height: 2,
+        background: `linear-gradient(90deg, transparent, ${meta.color}, transparent)`,
+        transition: 'background .5s ease',
+      }}/>
+
+      {/* Face body */}
+      <div className="sc-face" key={face} style={{ position: 'relative', padding: '16px 18px 12px' }}>
         {face === FACE_BOOK && (
           <BookRideCard
-            bare
-            onBook={onBook}
-            onBookingComplete={handleBookingComplete}
-          />
-        )}
-
-        {face === FACE_SEARCHES && (
-          <SearchesCard
+            uid={uid}
+            account={account}
+            createTrip={createTrip}
             searches={searches}
-            scheduledRides={scheduledRides}
+            onActiveChange={setBookingActive}
+            onBook={onBook}
           />
         )}
-
-        {face === FACE_SCHEDULED && (
-          <ScheduledCard
-            scheduledRides={scheduledRides}
-            now={now}
-          />
-        )}
-
-        {face === FACE_NOTIFS && (
-          <NotificationsCard
-            rides={rides}
-            callSaveFcmToken={callSaveFcmToken}
-          />
-        )}
-
-        {face === FACE_ACCOUNT && <AccountCard />}
-
-        {face === FACE_TRIPS && <TripsCard />}
+        {face === FACE_SEARCHES  && <SearchesCard searches={searches} now={now} />}
+        {face === FACE_SCHEDULED && <ScheduledCard scheduledRides={scheduledRides} now={now} />}
+        {face === FACE_NOTIFS    && <NotificationsCard uid={uid} account={account} callSaveFcmToken={callSaveFcmToken} />}
+        {face === FACE_ACCOUNT   && <AccountCard account={account} rides={rides} />}
+        {face === FACE_TRIPS     && <TripsCard rides={rides} trips={trips} now={now} />}
       </div>
+
+      {/* Dot pagination — hidden while a booking flow owns the card */}
+      {!bookingActive && (
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 6, padding: '0 0 14px' }}>
+          {FACE_ORDER.map((f) => {
+            const m = FACE_META[f];
+            const isActive = f === face;
+            return (
+              <button
+                key={f}
+                onClick={() => goFace(f)}
+                aria-label={m.label}
+                style={{
+                  width: isActive ? 22 : 6, height: 6, borderRadius: 3,
+                  border: 'none', padding: 0, cursor: 'pointer',
+                  background: isActive ? m.color : 'rgba(255,255,255,.16)',
+                  boxShadow: isActive ? `0 0 8px ${m.color}88` : 'none',
+                  transition: 'all .3s cubic-bezier(.34,1.2,.64,1)', flexShrink: 0,
+                }}
+              />
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
