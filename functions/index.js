@@ -11,11 +11,6 @@ setGlobalOptions({
 });
 
 // Ride function
-const { createAccount } = require("./ride/createAccount");
-const { ATOB } = require("./ride/ATOB");
-const { Price } = require("./ride/Price"); 
-const { Autocomplete } = require("./ride/Autocomplete"); 
-const { Geo } = require("./ride/Geo"); 
 const { onAccountCreated } = require("./ride/email/onAccountCreated");
 const { activateScheduledRides } = require("./ride/activateScheduledRides");
 const { riderLocation } = require("./ride/riderLocation");
@@ -50,7 +45,6 @@ const { validatePromoCode } = require("./payments/validatePromoCode");
 const { scheduledRideChecker } = require("./payments/scheduledRideChecker");
 
 // driver functions
-const { driverFeed } = require("./drivers/driverFeed");
 const { checkDriverDeposit } = require("./drivers/checkDriverDeposit");
 const { getTripButtonLabel } = require("./drivers/getTripButtonLabel");
 const { getDriverEarnings } = require("./drivers/getDriverEarnings");
@@ -100,21 +94,19 @@ const { autoApprovePendingDrivers } = require("./admin/autoApprovePendingDrivers
 const { onSupportMessageSent } = require("./admin/onSupportMessageSent");
 
 // Account presence
+const { dispatch } = require("./accounts/dispatch");
+
+
+exports.dispatch = dispatch;
 
 
 
 // Exports
-exports.createAccount = createAccount;
-exports.driverFeed = driverFeed;
 exports.onAccountCreated = onAccountCreated;
-exports.ATOB = ATOB;
 exports.riderLocation = riderLocation;
-exports.Autocomplete = Autocomplete;
 exports.activateScheduledRides = activateScheduledRides;
-exports.Price = Price;
 exports.cancelRide = cancelRide;
 exports.extendRideSearch = extendRideSearch;
-exports.Geo = Geo;
 exports.autoRefundTimeoutRides = autoRefundTimeoutRides;
 exports.refreshRidePolylines = refreshRidePolylines;
 exports.onRideStatusChangedRefreshPolylines = onRideStatusChangedRefreshPolylines;
