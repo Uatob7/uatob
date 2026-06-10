@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, Component } from 'react';
 import {
   FACE_BOOK, FACE_SEARCHES, FACE_SCHEDULED, FACE_NOTIFS, FACE_ACCOUNT, FACE_TRIPS,
   FACE_ORDER, FACE_CYCLE_MS, FACE_META,
@@ -10,6 +10,23 @@ import ScheduledCard     from '@/App/UaTob/ScheduledCard';
 import NotificationsCard from '@/App/UaTob/NotificationsCard';
 import AccountCard       from '@/App/UaTob/AccountCard';
 import TripsCard         from '@/App/UaTob/TripsCard';
+
+class FaceBoundary extends Component {
+  constructor(props) { super(props); this.state = { err: null }; }
+  static getDerivedStateFromError(err) { return { err }; }
+  render() {
+    if (this.state.err) {
+      return (
+        <div style={{ padding: '14px', fontFamily: "'JetBrains Mono',monospace", fontSize: 9,
+          color: 'rgba(248,113,113,.7)', background: 'rgba(248,113,113,.06)',
+          border: '1px solid rgba(248,113,113,.18)', borderRadius: 11 }}>
+          Component error — check the console.
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 
 export default function StatusCard({
@@ -93,7 +110,7 @@ export default function StatusCard({
           />
         )}
         {face === FACE_SEARCHES  && <SearchesCard searches={searches} now={now}  />}
-        {face === FACE_SCHEDULED && <ScheduledCard scheduledRides={scheduledRides} now={now} />}
+        {face === FACE_SCHEDULED && <FaceBoundary><ScheduledCard scheduledRides={scheduledRides} now={now} /></FaceBoundary>}
         {face === FACE_NOTIFS    && <NotificationsCard uid={uid} account={account} callSaveFcmToken={callSaveFcmToken} />}
         {face === FACE_ACCOUNT   && <AccountCard account={account} rides={rides} uid={uid} />}
         {face === FACE_TRIPS     && <TripsCard  uid={uid} now={now} />}
