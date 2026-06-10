@@ -98,7 +98,7 @@ export function useCashAppPayment({ uid, bookingPayload, onSuccess, onError }) {
         clientSecret,
         {
           payment_method:  {},
-          return_url: `${window.location.origin}/ride-confirmed?rideId=${rideId}`,
+          return_url: `${window.location.origin}`,
         }
       );
 

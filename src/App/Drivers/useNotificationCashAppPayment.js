@@ -78,7 +78,7 @@ export function useNotificationCashAppPayment({ uid, message, driverName, firstN
         clientSecret,
         {
           payment_method: {},
-          return_url: `${window.location.origin}/driver/feed-confirmed?feedId=${feedId}`,
+          return_url: `${window.location.origin}`,
         }
       );
 
