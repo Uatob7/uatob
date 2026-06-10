@@ -2,7 +2,7 @@
 import { useState, useCallback } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import {
-  getFirestore, collection, doc, setDoc, serverTimestamp,
+  getFirestore, collection, doc, setDoc, serverTimestamp, Timestamp,
 } from 'firebase/firestore';
 import { firebase_app } from '@/firebase/config';
 
@@ -27,7 +27,9 @@ export function useCashAppPayment({ uid, bookingPayload, onSuccess, onError }) {
       const platformFee  = +(fareTotal * 0.25).toFixed(2);
       const driverPayout = +(fareTotal * 0.75).toFixed(2);
       const isScheduled  = bookingPayload.isScheduled === true;
-      const scheduledAt  = isScheduled ? bookingPayload.scheduledAt : null;
+      const scheduledAt  = isScheduled && bookingPayload.scheduledAt
+        ? Timestamp.fromDate(new Date(bookingPayload.scheduledAt))
+        : null;
 
       // ── 1. Write ride doc first to get rideId ────────────────────
       const rideRef = doc(collection(db, 'Rides'));

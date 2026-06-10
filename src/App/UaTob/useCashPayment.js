@@ -6,6 +6,7 @@ import {
   doc,
   setDoc,
   serverTimestamp,
+  Timestamp,
 } from 'firebase/firestore';
 import { firebase_app } from '@/firebase/config';
 
@@ -38,10 +39,9 @@ export function useCashPayment({
 
       // ── schedule
       const isScheduled = bookingPayload.isScheduled === true;
-      const scheduledAt =
-        isScheduled && bookingPayload.scheduledAt
-          ? bookingPayload.scheduledAt
-          : null;
+      const scheduledAt = isScheduled && bookingPayload.scheduledAt
+        ? Timestamp.fromDate(new Date(bookingPayload.scheduledAt))
+        : null;
 
       // ── canonical ride object (MATCHES card + cashapp)
       const rideData = {

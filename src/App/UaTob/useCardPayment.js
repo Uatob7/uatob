@@ -2,7 +2,7 @@
 import { useState, useCallback } from 'react';
 import { useStripe, useElements, CardElement } from '@stripe/react-stripe-js';
 import {
-  getFirestore, collection, doc, setDoc, serverTimestamp,
+  getFirestore, collection, doc, setDoc, serverTimestamp, Timestamp,
 } from 'firebase/firestore';
 import { firebase_app } from '@/firebase/config';
 
@@ -33,12 +33,13 @@ export function useCardPayment({ uid, bookingPayload, onSuccess, onError }) {
       if (!fareTotal)      throw new Error('Missing fare estimate');
 
       const isScheduled = bookingPayload.isScheduled === true;
-      const scheduledAt = isScheduled ? bookingPayload.scheduledAt : null;
+      const scheduledAt = isScheduled && bookingPayload.scheduledAt
+        ? Timestamp.fromDate(new Date(bookingPayload.scheduledAt))
+        : null;
 
       if (isScheduled) {
         if (!scheduledAt) throw new Error('scheduledAt required');
-        const ms = new Date(scheduledAt).getTime();
-        if (isNaN(ms))    throw new Error('Invalid scheduledAt');
+        const ms = scheduledAt.toMillis();
         if (ms < Date.now() + 10 * 60 * 1000)
           throw new Error('Must be at least 10 minutes in future');
       }
