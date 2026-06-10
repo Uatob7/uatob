@@ -9,8 +9,8 @@ export default function StatusFace({ mode, online, activeTrip, tripStage, sinceM
           <div style={{
             display:'inline-flex', alignItems:'center', gap:6,
             padding:'4px 10px', borderRadius:100,
-            background: mode==='trip' ? 'rgba(255,255,255,0.10)' : mode==='waiting' ? 'rgba(22,163,74,.12)' : C.surfaceAlt,
-            border: mode==='trip' ? '1px solid rgba(255,255,255,0.15)' : mode==='waiting' ? '1px solid rgba(22,163,74,.20)' : `1px solid ${C.border}`,
+            background: mode==='trip' ? 'rgba(34,197,94,.18)' : mode==='waiting' ? 'rgba(22,163,74,.12)' : C.surfaceAlt,
+            border: mode==='trip' ? '1px solid rgba(34,197,94,.45)' : mode==='waiting' ? '1px solid rgba(22,163,74,.20)' : `1px solid ${C.border}`,
           }}>
             <div style={{
               width:6, height:6, borderRadius:'50%',
@@ -18,7 +18,7 @@ export default function StatusFace({ mode, online, activeTrip, tripStage, sinceM
               boxShadow: mode!=='offline' ? '0 0 8px rgba(34,197,94,0.7)' : 'none',
               animation: mode!=='offline' ? 'scLiveDot 1.6s ease-in-out infinite' : 'none',
             }}/>
-            <span className="mono" style={{ fontSize:10, fontWeight:800, letterSpacing:'.12em', textTransform:'uppercase', color: mode==='trip' ? 'rgba(255,255,255,0.85)' : mode==='waiting' ? C.onlineGreen : C.textDim }}>
+            <span className="mono" style={{ fontSize:10, fontWeight:800, letterSpacing:'.12em', textTransform:'uppercase', color: mode==='trip' ? '#4ADE80' : mode==='waiting' ? C.onlineGreen : C.textDim }}>
               {mode==='trip' ? 'On trip' : mode==='waiting' ? 'Online · ready' : 'Offline'}
             </span>
           </div>
@@ -30,7 +30,7 @@ export default function StatusFace({ mode, online, activeTrip, tripStage, sinceM
           {mode==='trip'    && `Active trip · ${(tripStage ?? '').replace('_', ' ')}`}
         </div>
 
-        <div style={{ display:'flex', alignItems:'center', gap:10, fontSize:12, fontWeight:600, color: mode==='trip' ? 'rgba(255,255,255,0.55)' : mode==='waiting' ? '#15803D' : C.textDim, flexWrap:'wrap' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10, fontSize:12, fontWeight:600, color: mode==='trip' ? 'rgba(74,222,128,.80)' : mode==='waiting' ? '#15803D' : C.textDim, flexWrap:'wrap' }}>
           {mode==='offline' && <span>Tap "Go online" to start earning</span>}
           {mode==='waiting' && (
             <>
