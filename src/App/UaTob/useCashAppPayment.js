@@ -1,36 +1,31 @@
 // src/App/UaTob/useCashAppPayment.js
 import { useState, useEffect, useCallback } from 'react';
 import { useStripe } from '@stripe/react-stripe-js';
-import { getFirestore, collection, doc, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import {
+  getFirestore, collection, doc,
+  setDoc, updateDoc, serverTimestamp,
+} from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { firebase_app } from '@/firebase/config';
+import { buildRideData } from './rideUtils';
 
 const db               = getFirestore(firebase_app);
 const functions        = getFunctions(firebase_app, 'us-east1');
 const callCreateIntent = httpsCallable(functions, 'createPaymentIntent');
+const callCheckIntent  = httpsCallable(functions, 'checkRideIntent');
 
-// Booking payload is persisted across the Cash App redirect.
 const STORAGE_KEY = 'cashapp_pending_booking';
 
 /**
- * Cash App Pay hook — mirrors useCardPayment.
+ * Cash App Pay hook.
  *
  * Flow:
- *   1. handleSubmit  → server creates PaymentIntent (cashapp)
- *   2. confirmCashAppPayment → redirects user to Cash App
- *   3. Cash App redirects back with ?payment_intent=... in the URL
- *   4. useEffect on mount detects paymentIntentId, writes ride to Firestore
- *
- * @param {string}   uid            Firebase UID
- * @param {object}   bookingPayload Final payload
- * @param {function} onSuccess      Called with { method: 'cashapp', rideId, paymentIntent }
- * @param {function} onError        Called with error message string
- *
- * Returns:
- *   loading        bool
- *   error          string
- *   setError       (string) => void
- *   handleSubmit   (e?: Event) => Promise<void>
+ *   1. handleCashApp → server creates PaymentIntent → stripe.confirmCashappPayment (redirect)
+ *   2. Cash App redirects back with ?payment_intent=... in URL
+ *   3. useEffect detects redirect, restores saved booking from sessionStorage
+ *   4. Calls checkRideIntent({ uid, paymentIntentId, rideData })
+ *   5. Writes Rides doc (status: 'pending_dispatch')
+ *   6. After 60s → updates status to 'searching_driver' (unless scheduled)
  */
 export function useCashAppPayment({ uid, bookingPayload, onSuccess, onError }) {
   const stripe = useStripe();
@@ -38,7 +33,7 @@ export function useCashAppPayment({ uid, bookingPayload, onSuccess, onError }) {
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState('');
 
-  // ── On mount: check if we just returned from a Cash App redirect ───────────
+  // ── On mount: handle Cash App redirect return ──────────────────
   useEffect(() => {
     if (!stripe) return;
 
@@ -49,7 +44,7 @@ export function useCashAppPayment({ uid, bookingPayload, onSuccess, onError }) {
 
     if (!paymentIntentId || !clientSecret) return;
 
-    // Strip the Stripe params from the URL immediately.
+    // Strip Stripe params from URL immediately.
     window.history.replaceState({}, '', window.location.pathname);
 
     if (redirectStatus !== 'succeeded') {
@@ -61,7 +56,7 @@ export function useCashAppPayment({ uid, bookingPayload, onSuccess, onError }) {
       return;
     }
 
-    // Restore the booking payload saved before the redirect.
+    // Restore saved booking.
     let saved = null;
     try { saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || 'null'); } catch {}
     sessionStorage.removeItem(STORAGE_KEY);
@@ -74,76 +69,55 @@ export function useCashAppPayment({ uid, bookingPayload, onSuccess, onError }) {
     setLoading(true);
     (async () => {
       try {
-        const {
-          savedUid, fareTotal, isScheduled, scheduledAt,
-          platformFee, driverPayout, promoCode, discountAmount,
-          pickup, dropoff, pickupCity, pickupZip, pickupLat, pickupLng,
-          dropoffCity, dropoffZip, dropoffLat, dropoffLng,
-          polyline, rideType, rideLabel,
-          tripDistanceMiles, tripDurationMin, breakdown,
-          driverInfo,
-        } = saved;
+        const { savedUid, fareTotal, isScheduled, scheduledAt,
+                platformFee, driverPayout, savedPayload } = saved;
 
-        const rideRef = doc(collection(db, 'Rides'));
-
-        await setDoc(rideRef, {
-          pickup,
-          dropoff,
-
-          pickupCity,
-          pickupZip,
-          pickupLat,
-          pickupLng,
-
-          dropoffCity,
-          dropoffZip,
-          dropoffLat,
-          dropoffLng,
-
-          polyline,
-
-          rideType:  rideType  ?? 'standard',
-          rideLabel: rideLabel ?? null,
-
+        const rideData = buildRideData({
+          uid:            savedUid,
+          bookingPayload: savedPayload,
           fareTotal,
           platformFee,
           driverPayout,
-          payoutStatus: 'pending',
-
-          tripDistanceMiles: tripDistanceMiles ?? null,
-          tripDurationMin:   tripDurationMin   ?? null,
-          fareBreakdown:     breakdown         ?? null,
-
           isScheduled,
-          scheduledAt: scheduledAt
-            ? Timestamp.fromDate(new Date(scheduledAt))
-            : null,
-
-          promoCode:      promoCode      ?? null,
-          discountAmount: discountAmount ?? null,
-
+          scheduledAt,
           paymentMethod:   'cashapp',
           paymentIntentId,
-          paymentStatus:   'pending',   // webhook flips this to 'succeeded'
+        });
 
-          driverInfo: driverInfo
-            ? {
-                driverCount:  driverInfo.driverCount  ?? null,
-                etaLabel:     driverInfo.etaLabel      ?? null,
-                etaMin:       driverInfo.etaMin        ?? null,
-                nearestMiles: driverInfo.nearestMiles  ?? null,
-                stale:        driverInfo.stale         ?? null,
-              }
-            : null,
+        // ── checkRideIntent ────────────────────────────────────────
+        const { data: checkResult } = await callCheckIntent({
+          uid:            savedUid,
+          paymentIntentId,
+          rideData,
+        });
 
-          status: isScheduled ? 'scheduled' : 'searching_driver',
+        if (!checkResult?.approved)
+          throw new Error(checkResult?.message || 'Ride intent check failed.');
 
-          uid: savedUid,
+        // ── Write Rides doc ────────────────────────────────────────
+        const rideRef = doc(collection(db, 'Rides'));
+
+        await setDoc(rideRef, {
+          ...rideData,
+          status:    'pending_dispatch',
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
 
+        // ── Flip to searching_driver after 60s ─────────────────────
+        if (!isScheduled) {
+          setTimeout(async () => {
+            try {
+              await updateDoc(rideRef, {
+                status:    'searching_driver',
+                updatedAt: serverTimestamp(),
+              });
+            } catch { /* non-critical */ }
+          }, 60_000);
+        }
+
         onSuccess?.({ method: 'cashapp', rideId: rideRef.id, paymentIntent: paymentIntentId });
+
       } catch (err) {
         const m = err.message || 'Failed to save ride after Cash App payment';
         setError(m);
@@ -155,15 +129,13 @@ export function useCashAppPayment({ uid, bookingPayload, onSuccess, onError }) {
   // eslint-disable-next-line
   }, [stripe]);
 
-  // ── Initiate Cash App Pay ──────────────────────────────────────────────────
-  const handleSubmit = useCallback(async (e) => {
-    e?.preventDefault();
+  // ── Initiate Cash App Pay ──────────────────────────────────────
+  const handleCashApp = useCallback(async () => {
     setError('');
     if (!stripe) return;
     setLoading(true);
 
     try {
-      // ── Validation (mirrors card hook) ──────────────────────────
       const fareTotal = Number(bookingPayload?.fareEstimate);
       if (!fareTotal) throw new Error('Missing fare estimate.');
       if (Math.round(fareTotal * 100) < 50) throw new Error('Amount too low (minimum $0.50).');
@@ -175,13 +147,12 @@ export function useCashAppPayment({ uid, bookingPayload, onSuccess, onError }) {
 
       if (isScheduled) {
         if (!scheduledAt) throw new Error('scheduledAt is required for scheduled rides.');
-        const scheduledMs = new Date(scheduledAt).getTime();
-        if (isNaN(scheduledMs)) throw new Error('scheduledAt is not a valid date.');
-        if (scheduledMs < Date.now() + 10 * 60 * 1000)
+        const ms = new Date(scheduledAt).getTime();
+        if (isNaN(ms)) throw new Error('scheduledAt is not a valid date.');
+        if (ms < Date.now() + 10 * 60 * 1000)
           throw new Error('Scheduled pickup must be at least 10 minutes from now.');
       }
 
-      // ── Step 1: server creates PaymentIntent ────────────────────
       const { data: intentData } = await callCreateIntent({
         uid,
         amountCents:        Math.round(fareTotal * 100),
@@ -200,58 +171,33 @@ export function useCashAppPayment({ uid, bookingPayload, onSuccess, onError }) {
           driverPayout:      String(+(fareTotal * 0.75).toFixed(2)),
           isScheduled:       String(isScheduled),
           scheduledAt:       scheduledAt ?? '',
-          promoCode:         bookingPayload.promoCode      ?? '',
+          promoCode:         bookingPayload.promoCode          ?? '',
           discountAmount:    bookingPayload.discountAmount != null
                                ? String(bookingPayload.discountAmount) : '',
-          driverCount:       String(bookingPayload.driverInfo?.driverCount  ?? ''),
-          driverEtaMin:      String(bookingPayload.driverInfo?.etaMin       ?? ''),
-          driverEtaLabel:    bookingPayload.driverInfo?.etaLabel             ?? '',
-          driverNearestMi:   String(bookingPayload.driverInfo?.nearestMiles ?? ''),
-          driverStale:       String(bookingPayload.driverInfo?.stale        ?? ''),
         },
       });
 
-      if (!intentData?.clientSecret) throw new Error(intentData?.message || 'Failed to create payment intent.');
+      if (!intentData?.clientSecret)
+        throw new Error(intentData?.message || 'Failed to create payment intent.');
 
-      // ── Step 2: persist booking so it survives the redirect ─────
       const platformFee  = +(fareTotal * 0.25).toFixed(2);
       const driverPayout = +(fareTotal * 0.75).toFixed(2);
 
+      // Persist everything needed to rebuild rideData after redirect.
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
-        savedUid:          uid,
+        savedUid:     uid,
         fareTotal,
         isScheduled,
         scheduledAt,
         platformFee,
         driverPayout,
-        promoCode:         bookingPayload.promoCode         ?? null,
-        discountAmount:    bookingPayload.discountAmount != null
-                             ? Number(bookingPayload.discountAmount) : null,
-        pickup:            bookingPayload.pickup            ?? null,
-        dropoff:           bookingPayload.dropoff           ?? null,
-        pickupCity:        bookingPayload.pickupCity        ?? null,
-        pickupZip:         bookingPayload.pickupZip         ?? null,
-        pickupLat:         bookingPayload.pickupLat         ?? null,
-        pickupLng:         bookingPayload.pickupLng         ?? null,
-        dropoffCity:       bookingPayload.dropoffCity       ?? null,
-        dropoffZip:        bookingPayload.dropoffZip        ?? null,
-        dropoffLat:        bookingPayload.dropoffLat        ?? null,
-        dropoffLng:        bookingPayload.dropoffLng        ?? null,
-        polyline:          bookingPayload.polyline          ?? null,
-        rideType:          bookingPayload.rideType          ?? 'standard',
-        rideLabel:         bookingPayload.rideLabel         ?? null,
-        tripDistanceMiles: bookingPayload.tripDistanceMiles ?? null,
-        tripDurationMin:   bookingPayload.tripDurationMin   ?? null,
-        breakdown:         bookingPayload.breakdown         ?? null,
-        driverInfo:        bookingPayload.driverInfo        ?? null,
+        savedPayload: bookingPayload,   // full payload survives redirect
       }));
 
-      // ── Step 3: confirm → redirects user to Cash App ────────────
       const { error: confirmError } = await stripe.confirmCashappPayment(
         intentData.clientSecret,
-        { return_url: window.location.href }
+        { return_url: window.location.href },
       );
-      // Only reached if the redirect did NOT happen (i.e. an error).
       if (confirmError) throw new Error(confirmError.message);
 
     } catch (err) {
@@ -264,5 +210,5 @@ export function useCashAppPayment({ uid, bookingPayload, onSuccess, onError }) {
     }
   }, [stripe, uid, bookingPayload, onSuccess, onError]);
 
-  return { loading, error, setError, handleSubmit };
+  return { loading, error, setError, handleCashApp };
 }
