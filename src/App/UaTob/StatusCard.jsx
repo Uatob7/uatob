@@ -11,15 +11,6 @@ import NotificationsCard from '@/App/UaTob/NotificationsCard';
 import AccountCard       from '@/App/UaTob/AccountCard';
 import TripsCard         from '@/App/UaTob/TripsCard';
 
-const SHELL = {
-  borderRadius: 22,
-  background: 'linear-gradient(180deg, rgba(6,14,9,.94), rgba(4,9,6,.97))',
-  border: '1px solid rgba(34,197,94,.22)',
-  boxShadow: '0 18px 60px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.04)',
-  backdropFilter: 'blur(20px)',
-  WebkitBackdropFilter: 'blur(20px)',
-  overflow: 'hidden',
-};
 
 export default function StatusCard({
   face,
@@ -60,28 +51,18 @@ export default function StatusCard({
     startCycle(); // reset timer on manual tap
   };
 
-  const meta = FACE_META[face] ?? FACE_META[FACE_BOOK];
-
   return (
-    <div style={SHELL}>
+    <div>
       <style>{`
         @keyframes scFaceIn { from{opacity:0;transform:translateY(8px) scale(.985)} to{opacity:1;transform:translateY(0) scale(1)} }
         .sc-face { animation: scFaceIn .42s cubic-bezier(.34,1.2,.64,1) both; }
       `}</style>
-
-      {/* Top accent line — tints to the active face color */}
-      <div style={{
-        height: 2,
-        background: `linear-gradient(90deg, transparent, ${meta.color}, transparent)`,
-        transition: 'background .5s ease',
-      }}/>
 
       {/* Face body */}
       <div
         className="sc-face"
         key={face}
         style={{
-          position: 'relative', padding: '16px 18px 12px',
           cursor: !bookingActive && face !== FACE_BOOK ? 'pointer' : 'default',
         }}
         onClick={(e) => {
