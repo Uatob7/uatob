@@ -239,7 +239,7 @@ function CardHeader({ step, onBack, onReset, pickup, dropoff, rideType }) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-export default function BookRideCard({ onRequest, onBook, onBookingComplete }) {
+export default function BookRideCard({ onRequest, onBook, onBookingComplete, onActiveChange }) {
   const [step,       setStep]       = useState(0);
   const [pickup,     setPickup]     = useState('');
   const [dropoff,    setDropoff]    = useState('');
@@ -301,6 +301,7 @@ export default function BookRideCard({ onRequest, onBook, onBookingComplete }) {
   }, [step]); // eslint-disable-line
 
   const reset = () => {
+    onActiveChange?.(false);
     setStep(0); setPickup(''); setDropoff(''); setPickupDraft(''); setDropoffDraft('');
     setRideType(null); setWhen(null); setSelDate(null); setSelTime(null);
     setDiscount(''); setDiscApplied(false); setPayment(null);
@@ -342,7 +343,7 @@ export default function BookRideCard({ onRequest, onBook, onBookingComplete }) {
         <div style={{ height: 1, background: C.borderDim, margin: '0 10px' }}/>
         <AddressRow label="Drop-off" value="" dot="rgba(255,255,255,.4)" glow={false}/>
       </div>
-      <Btn label="Request Ride" onClick={() => setStep(1)}/>
+      <Btn label="Request Ride" onClick={() => { onActiveChange?.(true); setStep(1); }}/>
     </div>
   );
 

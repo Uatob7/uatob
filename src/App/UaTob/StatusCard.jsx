@@ -77,7 +77,20 @@ export default function StatusCard({
       }}/>
 
       {/* Face body */}
-      <div className="sc-face" key={face} style={{ position: 'relative', padding: '16px 18px 12px' }}>
+      <div
+        className="sc-face"
+        key={face}
+        style={{
+          position: 'relative', padding: '16px 18px 12px',
+          cursor: !bookingActive && face !== FACE_BOOK ? 'pointer' : 'default',
+        }}
+        onClick={(e) => {
+          if (bookingActive || face === FACE_BOOK) return;
+          if (['BUTTON', 'INPUT', 'A', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+          const idx = FACE_ORDER.indexOf(face);
+          goFace(FACE_ORDER[(idx + 1) % FACE_ORDER.length]);
+        }}
+      >
         {face === FACE_BOOK && (
           <BookRideCard
             uid={uid}
