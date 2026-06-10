@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   Send, MessageCircle, Search, CheckCheck, Clock, Mail,
   Star, ChevronRight, AlertCircle, Check, ArrowLeft, Zap,
-  Filter, Copy, Flag, Reply, X
+  Filter, Copy, Flag, Reply, X, Route, ChevronDown, ChevronUp,
 } from "lucide-react";
 import {
   getFirestore, collection, query, where, orderBy, onSnapshot,
@@ -421,13 +421,233 @@ function groupByDay(msgs) {
   return groups;
 }
 
+// ── TripsPanel (dark HUD design) ───────────────────────────────────────
+const TC = {
+  bg:          '#050A06',
+  panel:       'rgba(255,255,255,.035)',
+  border:      'rgba(34,197,94,.18)',
+  borderDim:   'rgba(34,197,94,.09)',
+  green:       '#22C55E',
+  greenBright: '#4ADE80',
+  greenSoft:   '#34D399',
+  amber:       'rgba(251,191,36,.9)',
+  amberDim:    'rgba(251,191,36,.6)',
+  dim:         'rgba(255,255,255,.22)',
+  fade:        'rgba(255,255,255,.10)',
+  faint:       'rgba(255,255,255,.06)',
+  red:         'rgba(239,68,68,.7)',
+  redBg:       'rgba(239,68,68,.08)',
+};
+const MONO_T = "'JetBrains Mono','SFMono-Regular',monospace";
+const COND_T = "'Barlow Condensed','Barlow',sans-serif";
+
+const TRIP_STATUS = {
+  scheduled:       { label: 'Scheduled',  color: TC.amber,       bg: 'rgba(251,191,36,.12)' },
+  pending:         { label: 'Pending',    color: TC.amber,       bg: 'rgba(251,191,36,.12)' },
+  driver_assigned: { label: 'On the way', color: TC.greenBright, bg: 'rgba(74,222,128,.12)' },
+  arrived:         { label: 'Arrived',    color: TC.greenBright, bg: 'rgba(74,222,128,.12)' },
+  in_progress:     { label: 'In ride',   color: TC.greenSoft,   bg: 'rgba(52,211,153,.12)' },
+  completed:       { label: 'Completed',  color: 'rgba(255,255,255,.35)', bg: TC.faint },
+  cancelled:       { label: 'Cancelled',  color: TC.red,         bg: TC.redBg },
+};
+const ACTIVE_TRIP = new Set(['scheduled','pending','driver_assigned','arrived','in_progress']);
+
+function tsMs(ts) {
+  if (!ts) return 0;
+  if (typeof ts.toMillis === 'function') return ts.toMillis();
+  if (ts?.seconds) return ts.seconds * 1000;
+  if (ts instanceof Date) return ts.getTime();
+  if (typeof ts === 'number') return ts;
+  return 0;
+}
+function relT(ms, now) {
+  if (!ms) return '—';
+  const d = now - ms;
+  if (d < 60000)    return 'just now';
+  if (d < 3600000)  return `${Math.floor(d / 60000)}m ago`;
+  if (d < 86400000) return `${Math.floor(d / 3600000)}h ago`;
+  if (d < 604800000)return `${Math.floor(d / 86400000)}d ago`;
+  return new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+function fmtDol(v) { return v != null ? `$${Number(v).toFixed(2)}` : ''; }
+function trunc(s, n) { return !s ? '—' : s.length > n ? s.slice(0, n - 1) + '…' : s; }
+
+function TStatusBadge({ status }) {
+  const c = TRIP_STATUS[status] || TRIP_STATUS.pending;
+  return (
+    <span style={{
+      display:'inline-flex', alignItems:'center', gap:4,
+      padding:'2px 7px', borderRadius:20,
+      background:c.bg, border:`1px solid ${c.color}33`,
+      fontFamily:COND_T, fontSize:8, fontWeight:800,
+      letterSpacing:'.12em', color:c.color, textTransform:'uppercase',
+    }}>
+      {ACTIVE_TRIP.has(status) && (
+        <span style={{ width:4, height:4, borderRadius:'50%', background:c.color, boxShadow:`0 0 4px ${c.color}`, display:'inline-block' }}/>
+      )}
+      {c.label}
+    </span>
+  );
+}
+
+function TRouteRow({ pickup, dropoff }) {
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:3 }}>
+      {[
+        { dot:TC.greenBright, val:trunc(pickup, 34) },
+        { dot:'rgba(255,255,255,.3)', val:trunc(dropoff, 34) },
+      ].map((r, i) => (
+        <div key={i} style={{ display:'flex', alignItems:'center', gap:6 }}>
+          <div style={{ width:5, height:5, borderRadius:'50%', background:r.dot, flexShrink:0 }}/>
+          <span style={{ fontFamily:MONO_T, fontSize:8.5, color:'rgba(255,255,255,.5)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+            {r.val}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TripCard({ ride, now }) {
+  const [exp, setExp] = useState(false);
+  const ms    = tsMs(ride.createdAt);
+  const fare  = fmtDol(ride.fareTotal);
+  const label = ride.rideLabel || ride.rideType || 'Economy';
+  const isAct = ACTIVE_TRIP.has(ride.status);
+  const isSched = ride.status === 'scheduled';
+  const accentColor  = isAct ? (isSched ? TC.amber : TC.greenBright) : null;
+  const borderColor  = isAct ? (isSched ? 'rgba(251,191,36,.25)' : TC.border) : TC.borderDim;
+  const bgCol        = isAct ? (isSched ? 'rgba(251,191,36,.05)' : 'rgba(34,197,94,.06)') : TC.faint;
+
+  return (
+    <div onClick={() => setExp(e => !e)} style={{ borderRadius:10, overflow:'hidden', background:bgCol, border:`1px solid ${borderColor}`, cursor:'pointer' }}>
+      <div style={{ display:'flex', alignItems:'flex-start', gap:9, padding:'9px 10px' }}>
+        <div style={{
+          width:30, height:30, borderRadius:8, flexShrink:0, marginTop:1,
+          background:isAct ? (isSched ? 'rgba(251,191,36,.1)' : 'rgba(34,197,94,.1)') : 'rgba(255,255,255,.04)',
+          border:`1px solid ${borderColor}`,
+          display:'flex', alignItems:'center', justifyContent:'center',
+        }}>
+          {isSched
+            ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={accentColor || TC.dim} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={accentColor || TC.dim} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 5v4h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+          }
+        </div>
+        <div style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', gap:3 }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:6 }}>
+            <span style={{ fontFamily:COND_T, fontSize:11, fontWeight:800, letterSpacing:'.06em', color:'#fff', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+              {label}
+            </span>
+            {fare && <span style={{ fontFamily:MONO_T, fontSize:10, fontWeight:700, flexShrink:0, color:accentColor || 'rgba(255,255,255,.6)' }}>{fare}</span>}
+          </div>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:6 }}>
+            <TStatusBadge status={ride.status}/>
+            <span style={{ fontFamily:MONO_T, fontSize:8, color:TC.dim, flexShrink:0 }}>{relT(ms, now)}</span>
+          </div>
+        </div>
+      </div>
+      {exp && (
+        <div style={{ padding:'0 10px 10px', borderTop:`1px solid ${TC.borderDim}`, display:'flex', flexDirection:'column', gap:8 }}>
+          <div style={{ height:0 }}/>
+          <TRouteRow pickup={ride.pickup} dropoff={ride.dropoff}/>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:10 }}>
+            {ride.paymentMethod && (
+              <span style={{ fontFamily:MONO_T, fontSize:8.5, color:TC.dim }}>
+                {ride.paymentMethod === 'cashapp' ? '💸 Cash App' : ride.paymentMethod === 'cash' ? '💵 Cash' : '💳 Card'}
+              </span>
+            )}
+            {ride.id && (
+              <span style={{ fontFamily:MONO_T, fontSize:7.5, color:TC.fade, letterSpacing:'.06em' }}>
+                REF {ride.id.slice(-8).toUpperCase()}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TripsPanel({ personId, now }) {
+  const [rides,   setRides]   = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [page,    setPage]    = useState(1);
+  const PAGE = 4;
+
+  useEffect(() => {
+    if (!personId) { setRides([]); setLoading(false); return; }
+    setLoading(true);
+    const q = query(collection(db, 'Rides'), where('uid', '==', personId));
+    const unsub = onSnapshot(q, snap => {
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => tsMs(b.createdAt) - tsMs(a.createdAt));
+      setRides(data);
+      setLoading(false);
+    }, () => setLoading(false));
+    return () => unsub();
+  }, [personId]);
+
+  const visible  = rides.slice(0, page * PAGE);
+  const hasMore  = visible.length < rides.length;
+  const actCount = rides.filter(r => ACTIVE_TRIP.has(r.status)).length;
+
+  return (
+    <div style={{ background:TC.bg, borderBottom:`1px solid rgba(34,197,94,.15)`, padding:'10px 12px 12px', flexShrink:0 }}>
+      {/* panel header */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+          <span style={{ fontFamily:COND_T, fontSize:9.5, fontWeight:800, letterSpacing:'.14em', color:TC.greenBright, textTransform:'uppercase' }}>
+            Ride History
+          </span>
+          <span style={{ fontFamily:MONO_T, fontSize:8, color:TC.dim }}>
+            {loading ? '…' : `${rides.length} total`}
+          </span>
+        </div>
+        {actCount > 0 && (
+          <span style={{ display:'flex', alignItems:'center', gap:4, background:'rgba(34,197,94,.1)', border:`1px solid ${TC.border}`, borderRadius:99, padding:'2px 8px' }}>
+            <span style={{ width:4, height:4, borderRadius:'50%', background:TC.greenBright, boxShadow:`0 0 5px ${TC.greenBright}` }}/>
+            <span style={{ fontFamily:MONO_T, fontSize:7.5, fontWeight:700, color:TC.greenBright }}>{actCount} ACTIVE</span>
+          </span>
+        )}
+      </div>
+
+      {loading ? (
+        <div style={{ display:'flex', alignItems:'center', gap:6, padding:'10px 0' }}>
+          <div style={{ width:5, height:5, borderRadius:'50%', background:TC.greenBright }}/>
+          <span style={{ fontFamily:MONO_T, fontSize:8.5, color:TC.dim }}>Loading rides…</span>
+        </div>
+      ) : rides.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'12px 0' }}>
+          <span style={{ fontFamily:MONO_T, fontSize:9, color:TC.dim }}>No rides found</span>
+        </div>
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+          {visible.map(r => <TripCard key={r.id} ride={r} now={now}/>)}
+          {hasMore && (
+            <button onClick={() => setPage(p => p + 1)} style={{
+              background:TC.faint, border:`1px solid ${TC.borderDim}`, borderRadius:9,
+              padding:'6px 0', cursor:'pointer', width:'100%',
+              fontFamily:COND_T, fontSize:9, fontWeight:800, letterSpacing:'.12em',
+              color:TC.dim, textTransform:'uppercase',
+            }}>
+              Load more
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Chat Screen ────────────────────────────────────────────────────────
 function ChatScreen({ conv, onBack, onToast }) {
-  const [leaving,  setLeaving]  = useState(false);
-  const [messages, setMessages] = useState([]);
-  const [text,     setText]     = useState("");
-  const [sending,  setSending]  = useState(false);
-  const [person,   setPerson]   = useState(null);
+  const [leaving,    setLeaving]    = useState(false);
+  const [messages,   setMessages]   = useState([]);
+  const [text,       setText]       = useState("");
+  const [sending,    setSending]    = useState(false);
+  const [person,     setPerson]     = useState(null);
+  const [showTrips,  setShowTrips]  = useState(false);
+  const [tripsNow,   setTripsNow]   = useState(Date.now());
   const bottomRef  = useRef(null);
   const textaRef   = useRef(null);
 
@@ -531,6 +751,14 @@ function ChatScreen({ conv, onBack, onToast }) {
           >
             <Copy size={16} />
           </button>
+          <button
+            className="ac-icon-btn"
+            onClick={() => { setShowTrips(v => !v); setTripsNow(Date.now()); }}
+            title="Toggle ride history"
+            style={showTrips ? { color: TC.greenBright, background: 'rgba(34,197,94,.1)' } : {}}
+          >
+            <Route size={16} />
+          </button>
         </div>
 
         {/* Person info pills */}
@@ -563,6 +791,9 @@ function ChatScreen({ conv, onBack, onToast }) {
             )}
           </div>
         )}
+
+        {/* Trips panel */}
+        {showTrips && <TripsPanel personId={personId} now={tripsNow} />}
 
         {/* Messages */}
         <div className="ac-messages">
