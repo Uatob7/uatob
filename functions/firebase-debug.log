@@ -227,3 +227,121 @@
 [debug] [2026-06-10T19:35:23.201Z] >>> [apiv2][query] GET https://cloudfunctions.googleapis.com/v2/projects/uatob-e7b4b/locations/us-central1/operations/operation-1781120095577-653eb56996719-a2388eeb-912478fd [none]
 [debug] [2026-06-10T19:35:23.402Z] <<< [apiv2][status] GET https://cloudfunctions.googleapis.com/v2/projects/uatob-e7b4b/locations/us-central1/operations/operation-1781120095577-653eb56996719-a2388eeb-912478fd 200
 [debug] [2026-06-10T19:35:23.403Z] <<< [apiv2][body] GET https://cloudfunctions.googleapis.com/v2/projects/uatob-e7b4b/locations/us-central1/operations/operation-1781120095577-653eb56996719-a2388eeb-912478fd {"name":"projects/uatob-e7b4b/locations/us-central1/operations/operation-1781120095577-653eb56996719-a2388eeb-912478fd","metadata":{"@type":"type.googleapis.com/google.cloud.functions.v2.OperationMetadata","createTime":"2026-06-10T19:34:56.414913600Z","target":"projects/uatob-e7b4b/locations/us-central1/functions/dispatch","verb":"update","cancelRequested":false,"apiVersion":"v2","requestResource":{"@type":"type.googleapis.com/google.cloud.functions.v2.Function","name":"projects/uatob-e7b4b/locations/us-central1/functions/dispatch","buildConfig":{"runtime":"nodejs22","entryPoint":"dispatch","source":{"storageSource":{"bucket":"gcf-v2-sources-714931905484-us-central1","object":"dispatch/function-source.zip","generation":"1781120096355112"}},"environmentVariables":{"GOOGLE_NODE_RUN_SCRIPTS":""},"dockerRepository":"projects/uatob-e7b4b/locations/us-central1/repositories/gcf-artifacts","sourceProvenance":{"resolvedStorageSource":{"bucket":"gcf-v2-sources-714931905484-us-central1","object":"dispatch/function-source.zip","generation":"1781072099792452"}},"dockerRegistry":"ARTIFACT_REGISTRY","serviceAccount":"projects/uatob-e7b4b/serviceAccounts/714931905484-compute@developer.gserviceaccount.com","automaticUpdatePolicy":{}},"serviceConfig":{"service":"projects/uatob-e7b4b/locations/us-central1/services/dispatch","timeoutSeconds":60,"environmentVariables":{"FIREBASE_CONFIG":"{\"projectId\":\"uatob-e7b4b\",\"storageBucket\":\"uatob-e7b4b.firebasestorage.app\"}","GCLOUD_PROJECT":"uatob-e7b4b","EVENTARC_CLOUD_EVENT_SOURCE":"projects/uatob-e7b4b/locations/us-central1/services/dispatch","FUNCTION_TARGET":"dispatch","LOG_EXECUTION_ID":"true"},"maxInstanceCount":5,"ingressSettings":"ALLOW_ALL","uri":"https://dispatch-ady2s2xhhq-uc.a.run.app","serviceAccountEmail":"714931905484-compute@developer.gserviceaccount.com","availableMemory":"256Mi","allTrafficOnLatestRevision":true,"secretEnvironmentVariables":[{"key":"STRIPE_SECRET_KEY","projectId":"uatob-e7b4b","secret":"STRIPE_SECRET_KEY","version":"2"}],"revision":"dispatch-00001-baz","maxInstanceRequestConcurrency":80,"availableCpu":"1"},"state":"ACTIVE","labels":{"deployment-tool":"cli-firebase","deployment-scheduled":"true","firebase-functions-hash":"6690b91384e63d03b4ef62b4c73d0b76e20c46f8"},"environment":"GEN_2","url":"https://us-central1-uatob-e7b4b.cloudfunctions.net/dispatch","satisfiesPzi":true},"stages":[{"name":"BUILD","message":"Build in progress","state":"IN_PROGRESS","resource":"projects/714931905484/locations/us-central1/builds/69d8b1a9-598e-4d3c-a2ef-d14fdc9003fc","resourceUri":"https://console.cloud.google.com/cloud-build/builds;region=us-central1/69d8b1a9-598e-4d3c-a2ef-d14fdc9003fc?project=714931905484"},{"name":"SERVICE","state":"NOT_STARTED"}],"operationType":"UPDATE_FUNCTION","buildName":"projects/714931905484/locations/us-central1/builds/69d8b1a9-598e-4d3c-a2ef-d14fdc9003fc"},"done":false}
+[debug] [2026-06-10T19:35:33.416Z] [update-default-us-central1-dispatch] Retrying task index 0
+[debug] [2026-06-10T19:35:33.416Z] Checked if tokens are valid: true, expires at: 1781123674374
+[debug] [2026-06-10T19:35:33.416Z] Checked if tokens are valid: true, expires at: 1781123674374
+[debug] [2026-06-10T19:35:33.416Z] >>> [apiv2][query] GET https://cloudfunctions.googleapis.com/v2/projects/uatob-e7b4b/locations/us-central1/operations/operation-1781120095577-653eb56996719-a2388eeb-912478fd [none]
+[debug] [2026-06-10T19:35:33.654Z] <<< [apiv2][status] GET https://cloudfunctions.googleapis.com/v2/projects/uatob-e7b4b/locations/us-central1/operations/operation-1781120095577-653eb56996719-a2388eeb-912478fd 200
+[debug] [2026-06-10T19:35:33.654Z] <<< [apiv2][body] GET https://cloudfunctions.googleapis.com/v2/projects/uatob-e7b4b/locations/us-central1/operations/operation-1781120095577-653eb56996719-a2388eeb-912478fd {"name":"projects/uatob-e7b4b/locations/us-central1/operations/operation-1781120095577-653eb56996719-a2388eeb-912478fd","metadata":{"@type":"type.googleapis.com/google.cloud.functions.v2.OperationMetadata","createTime":"2026-06-10T19:34:56.414913600Z","target":"projects/uatob-e7b4b/locations/us-central1/functions/dispatch","verb":"update","cancelRequested":false,"apiVersion":"v2","requestResource":{"@type":"type.googleapis.com/google.cloud.functions.v2.Function","name":"projects/uatob-e7b4b/locations/us-central1/functions/dispatch","buildConfig":{"runtime":"nodejs22","entryPoint":"dispatch","source":{"storageSource":{"bucket":"gcf-v2-sources-714931905484-us-central1","object":"dispatch/function-source.zip","generation":"1781120096355112"}},"environmentVariables":{"GOOGLE_NODE_RUN_SCRIPTS":""},"dockerRepository":"projects/uatob-e7b4b/locations/us-central1/repositories/gcf-artifacts","sourceProvenance":{"resolvedStorageSource":{"bucket":"gcf-v2-sources-714931905484-us-central1","object":"dispatch/function-source.zip","generation":"1781072099792452"}},"dockerRegistry":"ARTIFACT_REGISTRY","serviceAccount":"projects/uatob-e7b4b/serviceAccounts/714931905484-compute@developer.gserviceaccount.com","automaticUpdatePolicy":{}},"serviceConfig":{"service":"projects/uatob-e7b4b/locations/us-central1/services/dispatch","timeoutSeconds":60,"environmentVariables":{"FIREBASE_CONFIG":"{\"projectId\":\"uatob-e7b4b\",\"storageBucket\":\"uatob-e7b4b.firebasestorage.app\"}","GCLOUD_PROJECT":"uatob-e7b4b","EVENTARC_CLOUD_EVENT_SOURCE":"projects/uatob-e7b4b/locations/us-central1/services/dispatch","FUNCTION_TARGET":"dispatch","LOG_EXECUTION_ID":"true"},"maxInstanceCount":5,"ingressSettings":"ALLOW_ALL","uri":"https://dispatch-ady2s2xhhq-uc.a.run.app","serviceAccountEmail":"714931905484-compute@developer.gserviceaccount.com","availableMemory":"256Mi","allTrafficOnLatestRevision":true,"secretEnvironmentVariables":[{"key":"STRIPE_SECRET_KEY","projectId":"uatob-e7b4b","secret":"STRIPE_SECRET_KEY","version":"2"}],"revision":"dispatch-00001-baz","maxInstanceRequestConcurrency":80,"availableCpu":"1"},"state":"ACTIVE","labels":{"deployment-tool":"cli-firebase","deployment-scheduled":"true","firebase-functions-hash":"6690b91384e63d03b4ef62b4c73d0b76e20c46f8"},"environment":"GEN_2","url":"https://us-central1-uatob-e7b4b.cloudfunctions.net/dispatch","satisfiesPzi":true},"stages":[{"name":"BUILD","message":"Build finished","state":"COMPLETE","resource":"projects/714931905484/locations/us-central1/builds/69d8b1a9-598e-4d3c-a2ef-d14fdc9003fc","resourceUri":"https://console.cloud.google.com/cloud-build/builds;region=us-central1/69d8b1a9-598e-4d3c-a2ef-d14fdc9003fc?project=714931905484"},{"name":"SERVICE","state":"NOT_STARTED"}],"sourceToken":"Cldwcm9qZWN0cy83MTQ5MzE5MDU0ODQvbG9jYXRpb25zL3VzLWNlbnRyYWwxL2J1aWxkcy82OWQ4YjFhOS01OThlLTRkM2MtYTJlZi1kMTRmZGM5MDAzZmMSY3VzLWNlbnRyYWwxLWRvY2tlci5wa2cuZGV2L3VhdG9iLWU3YjRiL2djZi1hcnRpZmFjdHMvdWF0b2ItLWU3YjRiX191cy0tY2VudHJhbDFfX2Rpc3BhdGNoOnZlcnNpb25fMRjMx4yq5xQiPXByb2plY3RzL3VhdG9iLWU3YjRiL2xvY2F0aW9ucy91cy1jZW50cmFsMS9mdW5jdGlvbnMvZGlzcGF0Y2gqDAiF+abRBhDg2KnfATIIbm9kZWpzMjI6dgojZ2NyLmlvL2dhZS1ydW50aW1lcy9ub2RlanMyMjpzdGFibGUST3VzLWNlbnRyYWwxLWRvY2tlci5wa2cuZGV2L3NlcnZlcmxlc3MtcnVudGltZXMvZ29vZ2xlLTIyLWZ1bGwvcnVudGltZXMvbm9kZWpzMjJAAQ==","operationType":"UPDATE_FUNCTION","buildName":"projects/714931905484/locations/us-central1/builds/69d8b1a9-598e-4d3c-a2ef-d14fdc9003fc"},"done":false}
+[debug] [2026-06-10T19:35:33.654Z] Got source token Cldwcm9qZWN0cy83MTQ5MzE5MDU0ODQvbG9jYXRpb25zL3VzLWNlbnRyYWwxL2J1aWxkcy82OWQ4YjFhOS01OThlLTRkM2MtYTJlZi1kMTRmZGM5MDAzZmMSY3VzLWNlbnRyYWwxLWRvY2tlci5wa2cuZGV2L3VhdG9iLWU3YjRiL2djZi1hcnRpZmFjdHMvdWF0b2ItLWU3YjRiX191cy0tY2VudHJhbDFfX2Rpc3BhdGNoOnZlcnNpb25fMRjMx4yq5xQiPXByb2plY3RzL3VhdG9iLWU3YjRiL2xvY2F0aW9ucy91cy1jZW50cmFsMS9mdW5jdGlvbnMvZGlzcGF0Y2gqDAiF+abRBhDg2KnfATIIbm9kZWpzMjI6dgojZ2NyLmlvL2dhZS1ydW50aW1lcy9ub2RlanMyMjpzdGFibGUST3VzLWNlbnRyYWwxLWRvY2tlci5wa2cuZGV2L3NlcnZlcmxlc3MtcnVudGltZXMvZ29vZ2xlLTIyLWZ1bGwvcnVudGltZXMvbm9kZWpzMjJAAQ== for region us-central1
+[debug] [2026-06-10T19:36:46.500Z] [update-default-us-central1-dispatch] Retrying task index 0
+[debug] [2026-06-10T19:36:46.500Z] Checked if tokens are valid: true, expires at: 1781123674374
+[debug] [2026-06-10T19:36:46.500Z] Checked if tokens are valid: true, expires at: 1781123674374
+[debug] [2026-06-10T19:36:46.500Z] >>> [apiv2][query] GET https://cloudfunctions.googleapis.com/v2/projects/uatob-e7b4b/locations/us-central1/operations/operation-1781120095577-653eb56996719-a2388eeb-912478fd [none]
+[debug] [2026-06-10T19:36:48.084Z] *** [apiv2] error from fetch(https://cloudfunctions.googleapis.com/v2/projects/uatob-e7b4b/locations/us-central1/operations/operation-1781120095577-653eb56996719-a2388eeb-912478fd, {"headers":{},"method":"GET"}): FetchError: request to https://cloudfunctions.googleapis.com/v2/projects/uatob-e7b4b/locations/us-central1/operations/operation-1781120095577-653eb56996719-a2388eeb-912478fd failed, reason: 
+[debug] [2026-06-10T19:36:58.091Z] [update-default-us-central1-dispatch] Retrying task index 0
+[debug] [2026-06-10T19:36:58.092Z] Checked if tokens are valid: true, expires at: 1781123674374
+[debug] [2026-06-10T19:36:58.092Z] Checked if tokens are valid: true, expires at: 1781123674374
+[debug] [2026-06-10T19:36:58.092Z] >>> [apiv2][query] GET https://cloudfunctions.googleapis.com/v2/projects/uatob-e7b4b/locations/us-central1/operations/operation-1781120095577-653eb56996719-a2388eeb-912478fd [none]
+[debug] [2026-06-10T19:36:58.238Z] <<< [apiv2][status] GET https://cloudfunctions.googleapis.com/v2/projects/uatob-e7b4b/locations/us-central1/operations/operation-1781120095577-653eb56996719-a2388eeb-912478fd 200
+[debug] [2026-06-10T19:36:58.238Z] <<< [apiv2][body] GET https://cloudfunctions.googleapis.com/v2/projects/uatob-e7b4b/locations/us-central1/operations/operation-1781120095577-653eb56996719-a2388eeb-912478fd {"name":"projects/uatob-e7b4b/locations/us-central1/operations/operation-1781120095577-653eb56996719-a2388eeb-912478fd","metadata":{"@type":"type.googleapis.com/google.cloud.functions.v2.OperationMetadata","createTime":"2026-06-10T19:34:56.414913600Z","endTime":"2026-06-10T19:36:02.351911734Z","target":"projects/uatob-e7b4b/locations/us-central1/functions/dispatch","verb":"update","cancelRequested":false,"apiVersion":"v2","requestResource":{"@type":"type.googleapis.com/google.cloud.functions.v2.Function","name":"projects/uatob-e7b4b/locations/us-central1/functions/dispatch","buildConfig":{"runtime":"nodejs22","entryPoint":"dispatch","source":{"storageSource":{"bucket":"gcf-v2-sources-714931905484-us-central1","object":"dispatch/function-source.zip","generation":"1781120096355112"}},"environmentVariables":{"GOOGLE_NODE_RUN_SCRIPTS":""},"dockerRepository":"projects/uatob-e7b4b/locations/us-central1/repositories/gcf-artifacts","sourceProvenance":{"resolvedStorageSource":{"bucket":"gcf-v2-sources-714931905484-us-central1","object":"dispatch/function-source.zip","generation":"1781072099792452"}},"dockerRegistry":"ARTIFACT_REGISTRY","serviceAccount":"projects/uatob-e7b4b/serviceAccounts/714931905484-compute@developer.gserviceaccount.com","automaticUpdatePolicy":{}},"serviceConfig":{"service":"projects/uatob-e7b4b/locations/us-central1/services/dispatch","timeoutSeconds":60,"environmentVariables":{"FIREBASE_CONFIG":"{\"projectId\":\"uatob-e7b4b\",\"storageBucket\":\"uatob-e7b4b.firebasestorage.app\"}","GCLOUD_PROJECT":"uatob-e7b4b","EVENTARC_CLOUD_EVENT_SOURCE":"projects/uatob-e7b4b/locations/us-central1/services/dispatch","FUNCTION_TARGET":"dispatch","LOG_EXECUTION_ID":"true"},"maxInstanceCount":5,"ingressSettings":"ALLOW_ALL","uri":"https://dispatch-ady2s2xhhq-uc.a.run.app","serviceAccountEmail":"714931905484-compute@developer.gserviceaccount.com","availableMemory":"256Mi","allTrafficOnLatestRevision":true,"secretEnvironmentVariables":[{"key":"STRIPE_SECRET_KEY","projectId":"uatob-e7b4b","secret":"STRIPE_SECRET_KEY","version":"2"}],"revision":"dispatch-00001-baz","maxInstanceRequestConcurrency":80,"availableCpu":"1"},"state":"ACTIVE","labels":{"deployment-tool":"cli-firebase","deployment-scheduled":"true","firebase-functions-hash":"6690b91384e63d03b4ef62b4c73d0b76e20c46f8"},"environment":"GEN_2","url":"https://us-central1-uatob-e7b4b.cloudfunctions.net/dispatch","satisfiesPzi":true},"stages":[{"name":"SERVICE","state":"NOT_STARTED"}],"operationType":"UPDATE_FUNCTION"},"done":true,"error":{"code":3,"message":"Could not create or update Cloud Run service dispatch, Container Healthcheck failed. Revision 'dispatch-00002-zuw' is not ready and cannot serve traffic. Quota exceeded for total allowable CPU per project per region.\n\nLogs URL: https://console.cloud.google.com/logs/viewer?project=uatob-e7b4b&resource=cloud_run_revision/service_name/dispatch/revision_name/dispatch-00002-zuw&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22dispatch%22%0Aresource.labels.revision_name%3D%22dispatch-00002-zuw%22 \nFor more troubleshooting guidance, see https://cloud.google.com/run/docs/troubleshooting#container-failed-to-start"}}
+[debug] [2026-06-10T19:36:58.239Z] Got source token undefined for region us-central1
+[error] Could not create or update Cloud Run service dispatch, Container Healthcheck failed. Revision 'dispatch-00002-zuw' is not ready and cannot serve traffic. Quota exceeded for total allowable CPU per project per region.
+
+Logs URL: https://console.cloud.google.com/logs/viewer?project=uatob-e7b4b&resource=cloud_run_revision/service_name/dispatch/revision_name/dispatch-00002-zuw&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22dispatch%22%0Aresource.labels.revision_name%3D%22dispatch-00002-zuw%22 
+For more troubleshooting guidance, see https://cloud.google.com/run/docs/troubleshooting#container-failed-to-start
+[warn] !  functions: Deploys failed. Skipping deletes. 
+[debug] [2026-06-10T19:36:58.258Z] Total Function Deployment time: 123256
+[debug] [2026-06-10T19:36:58.259Z] 1 Functions Deployed
+[debug] [2026-06-10T19:36:58.259Z] 1 Functions Errored
+[debug] [2026-06-10T19:36:58.259Z] 0 Function Deployments Aborted
+[debug] [2026-06-10T19:36:58.259Z] Average Function Deployment time: 123254
+[info] 
+[info] Functions deploy had errors with the following functions:
+	dispatch(us-central1)
+[debug] [2026-06-10T19:36:58.388Z] Not printing URL for HTTPS function. Typically this means it didn't match a filter or we failed deployment
+[debug] [2026-06-10T19:36:58.388Z] Not printing URL for HTTPS function. Typically this means it didn't match a filter or we failed deployment
+[debug] [2026-06-10T19:36:58.389Z] Checked if tokens are valid: true, expires at: 1781123674374
+[debug] [2026-06-10T19:36:58.389Z] Checked if tokens are valid: true, expires at: 1781123674374
+[debug] [2026-06-10T19:36:58.390Z] Checked if tokens are valid: true, expires at: 1781123674374
+[debug] [2026-06-10T19:36:58.390Z] Checked if tokens are valid: true, expires at: 1781123674374
+[debug] [2026-06-10T19:36:58.390Z] >>> [apiv2][query] GET https://artifactregistry.googleapis.com/v1/projects/uatob-e7b4b/locations/us-central1/repositories/gcf-artifacts [none]
+[debug] [2026-06-10T19:36:58.391Z] >>> [apiv2][query] GET https://artifactregistry.googleapis.com/v1/projects/uatob-e7b4b/locations/us-east1/repositories/gcf-artifacts [none]
+[debug] [2026-06-10T19:36:58.585Z] <<< [apiv2][status] GET https://artifactregistry.googleapis.com/v1/projects/uatob-e7b4b/locations/us-east1/repositories/gcf-artifacts 200
+[debug] [2026-06-10T19:36:58.585Z] <<< [apiv2][body] GET https://artifactregistry.googleapis.com/v1/projects/uatob-e7b4b/locations/us-east1/repositories/gcf-artifacts {"name":"projects/uatob-e7b4b/locations/us-east1/repositories/gcf-artifacts","format":"DOCKER","description":"This repository is created and used by Cloud Functions for storing function docker images.","labels":{"goog-managed-by":"cloudfunctions"},"createTime":"2026-04-15T21:01:58.770678Z","updateTime":"2026-06-10T06:13:52.080580Z","mode":"STANDARD_REPOSITORY","cleanupPolicies":{"firebase-functions-cleanup":{"id":"firebase-functions-cleanup","action":"DELETE","condition":{"tagState":"ANY","olderThan":"86400s"}}},"vulnerabilityScanningConfig":{"lastEnableTime":"2026-04-15T21:01:51.143838324Z","enablementState":"SCANNING_DISABLED","enablementStateReason":"API containerscanning.googleapis.com is not enabled."},"satisfiesPzi":true,"registryUri":"us-east1-docker.pkg.dev/uatob-e7b4b/gcf-artifacts"}
+[debug] [2026-06-10T19:36:58.698Z] <<< [apiv2][status] GET https://artifactregistry.googleapis.com/v1/projects/uatob-e7b4b/locations/us-central1/repositories/gcf-artifacts 200
+[debug] [2026-06-10T19:36:58.698Z] <<< [apiv2][body] GET https://artifactregistry.googleapis.com/v1/projects/uatob-e7b4b/locations/us-central1/repositories/gcf-artifacts {"name":"projects/uatob-e7b4b/locations/us-central1/repositories/gcf-artifacts","format":"DOCKER","description":"This repository is created and used by Cloud Functions for storing function docker images.","labels":{"goog-managed-by":"cloudfunctions"},"createTime":"2026-03-29T16:23:55.454478Z","updateTime":"2026-06-10T19:35:26.896360Z","mode":"STANDARD_REPOSITORY","cleanupPolicies":{"firebase-functions-cleanup":{"id":"firebase-functions-cleanup","action":"DELETE","condition":{"tagState":"ANY","olderThan":"86400s"}}},"sizeBytes":"134560280","vulnerabilityScanningConfig":{"lastEnableTime":"2026-03-29T16:23:43.474987857Z","enablementState":"SCANNING_DISABLED","enablementStateReason":"API containerscanning.googleapis.com is not enabled."},"satisfiesPzi":true,"registryUri":"us-central1-docker.pkg.dev/uatob-e7b4b/gcf-artifacts"}
+[debug] [2026-06-10T19:36:58.699Z] Functions deploy failed.
+[debug] [2026-06-10T19:36:58.699Z] {
+  "endpoint": {
+    "id": "dispatch",
+    "project": "uatob-e7b4b",
+    "region": "us-central1",
+    "entryPoint": "dispatch",
+    "platform": "gcfv2",
+    "runtime": "nodejs22",
+    "scheduleTrigger": {
+      "schedule": "every 1 minutes",
+      "timeZone": null,
+      "retryConfig": {}
+    },
+    "labels": {
+      "deployment-tool": "cli-firebase"
+    },
+    "secretEnvironmentVariables": [
+      {
+        "key": "STRIPE_SECRET_KEY",
+        "secret": "STRIPE_SECRET_KEY",
+        "projectId": "uatob-e7b4b",
+        "version": "2"
+      }
+    ],
+    "serviceAccount": null,
+    "ingressSettings": null,
+    "availableMemoryMb": 256,
+    "timeoutSeconds": 60,
+    "maxInstances": 5,
+    "minInstances": null,
+    "concurrency": 80,
+    "vpc": null,
+    "environmentVariables": {
+      "FIREBASE_CONFIG": "{\"projectId\":\"uatob-e7b4b\",\"storageBucket\":\"uatob-e7b4b.firebasestorage.app\"}",
+      "GCLOUD_PROJECT": "uatob-e7b4b",
+      "EVENTARC_CLOUD_EVENT_SOURCE": "projects/uatob-e7b4b/locations/us-central1/services/dispatch",
+      "FUNCTION_TARGET": "dispatch",
+      "LOG_EXECUTION_ID": "true"
+    },
+    "codebase": "default",
+    "runServiceId": "dispatch",
+    "cpu": 1,
+    "securityLevel": "SECURE_ALWAYS",
+    "targetedByOnly": true,
+    "hash": "6690b91384e63d03b4ef62b4c73d0b76e20c46f8"
+  },
+  "op": "update",
+  "original": {
+    "name": "FirebaseError",
+    "children": [],
+    "exit": 1,
+    "message": "Could not create or update Cloud Run service dispatch, Container Healthcheck failed. Revision 'dispatch-00002-zuw' is not ready and cannot serve traffic. Quota exceeded for total allowable CPU per project per region.\n\nLogs URL: https://console.cloud.google.com/logs/viewer?project=uatob-e7b4b&resource=cloud_run_revision/service_name/dispatch/revision_name/dispatch-00002-zuw&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22dispatch%22%0Aresource.labels.revision_name%3D%22dispatch-00002-zuw%22 \nFor more troubleshooting guidance, see https://cloud.google.com/run/docs/troubleshooting#container-failed-to-start",
+    "original": {
+      "code": 3,
+      "message": "Could not create or update Cloud Run service dispatch, Container Healthcheck failed. Revision 'dispatch-00002-zuw' is not ready and cannot serve traffic. Quota exceeded for total allowable CPU per project per region.\n\nLogs URL: https://console.cloud.google.com/logs/viewer?project=uatob-e7b4b&resource=cloud_run_revision/service_name/dispatch/revision_name/dispatch-00002-zuw&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22dispatch%22%0Aresource.labels.revision_name%3D%22dispatch-00002-zuw%22 \nFor more troubleshooting guidance, see https://cloud.google.com/run/docs/troubleshooting#container-failed-to-start"
+    },
+    "status": 3,
+    "code": 3
+  }
+}
+[debug] [2026-06-10T19:36:58.726Z] Error: Failed to update function dispatch in region us-central1
+    at C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\release\fabricator.js:454:19
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async Fabricator.updateV2Function (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\release\fabricator.js:438:32)
+    at async Fabricator.updateEndpoint (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\release\fabricator.js:174:13)
+    at async Fabricator.wrapOperation (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\release\fabricator.js:138:13)
+    at async Promise.all (index 0)
+    at async Promise.allSettled (index 0)
+    at async Fabricator.applyPlan (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\release\fabricator.js:77:45)
+    at async release (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\release\index.js:87:21)
+    at async chain (C:\Users\UaTob\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\index.js:45:9)
+[error] 
+[error] Error: There was an error deploying functions

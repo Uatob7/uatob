@@ -13,6 +13,7 @@ import { firebase_app } from '@/firebase/config';
 const db = getFirestore(firebase_app);
 
 const ACTIVE_STATUSES = [
+  'scheduled',
   'searching_driver',
   'driver_assigned',
   'driver_arriving',
