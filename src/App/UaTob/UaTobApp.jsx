@@ -156,6 +156,18 @@ function fmtElapsed(startMs) {
   const m = Math.floor(s / 60); const ss = s % 60;
   return `${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
 }
+function normalizeHeading(b) { return ((b % 360) + 360) % 360; }
+function compassLabel(b) {
+  const dirs = ['N','NE','E','SE','S','SW','W','NW'];
+  return dirs[Math.round(normalizeHeading(b) / 45) % 8];
+}
+function fmtUptime(onlineSinceMs, now) {
+  if (!onlineSinceMs) return null;
+  const s = Math.floor(Math.max(0, now - onlineSinceMs) / 1000);
+  const m = Math.floor(s / 60); const h = Math.floor(m / 60);
+  if (h > 0) return `${h}:${String(m % 60).padStart(2,'0')}`;
+  return `${m}:${String(s % 60).padStart(2,'0')}`;
+}
 
 // Project [lat,lng] to screen xy, return null if off-screen
 function projectToScreen(map, lat, lng) {
@@ -680,6 +692,75 @@ function SupportFab({ onOpen }) {
   );
 }
 
+// ─── Rider compass ───────────────────────────────────────────────────────────
+function RiderCompass({ bearing, onlineSinceMs, now }) {
+  const hdg = normalizeHeading(bearing);
+  const uptime = fmtUptime(onlineSinceMs, now);
+  return (
+    <div style={{
+      position: 'absolute', top: '50%', right: 12, transform: 'translateY(-50%)',
+      zIndex: 14, pointerEvents: 'none', textAlign: 'center',
+      animation: 'uaFadeIn .6s ease both',
+    }}>
+      <div style={{ position: 'relative', width: 62, height: 62 }}>
+        <svg viewBox="0 0 100 100" width={62} height={62}
+          style={{ transform: `rotate(${-hdg}deg)`, transition: 'transform .22s linear' }}>
+          <circle cx="50" cy="50" r="46" fill="rgba(5,10,6,.55)"
+            stroke="rgba(34,197,94,.22)" strokeWidth="1"/>
+          {Array.from({ length: 24 }).map((_, i) => {
+            const a = (i * 15) * Math.PI / 180;
+            const major = i % 6 === 0;
+            const r1 = major ? 38 : 42;
+            const x1 = 50 + r1 * Math.sin(a), y1 = 50 - r1 * Math.cos(a);
+            const x2 = 50 + 46 * Math.sin(a), y2 = 50 - 46 * Math.cos(a);
+            return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2}
+              stroke={major ? 'rgba(74,222,128,.55)' : 'rgba(34,197,94,.2)'}
+              strokeWidth={major ? 1.1 : 0.6}/>;
+          })}
+          <polygon points="50,9 46,20 54,20" fill={C.red}/>
+          <text x="50" y="33" textAnchor="middle" fontSize="9" fontWeight="800"
+            fill="rgba(255,255,255,.5)" fontFamily="monospace">S</text>
+          <text x="50" y="71" textAnchor="middle" fontSize="9" fontWeight="800"
+            fill={C.red} fontFamily="monospace" transform="rotate(180 50 67)">N</text>
+        </svg>
+        <div style={{
+          position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+        }}>
+          <span style={{
+            fontFamily: MONO, fontSize: uptime ? 9 : 12, fontWeight: 800,
+            color: C.greenBright, lineHeight: 1,
+            textShadow: uptime ? `0 0 8px ${C.greenBright}88` : 'none',
+          }}>
+            {uptime ?? String(Math.round(hdg)).padStart(3, '0')}
+          </span>
+          <span style={{
+            fontFamily: COND, fontSize: 7, fontWeight: 800,
+            letterSpacing: '.14em', color: C.inkDim,
+          }}>
+            {uptime ? 'ONLINE' : 'DEG'}
+          </span>
+        </div>
+      </div>
+      <div style={{ marginTop: 5, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+        <span style={{
+          fontFamily: MONO, fontSize: 10, fontWeight: 800,
+          color: C.greenBright,
+          textShadow: uptime ? `0 0 8px ${C.greenBright}88` : 'none',
+        }}>
+          {uptime ?? compassLabel(hdg)}
+        </span>
+        <span style={{
+          fontFamily: COND, fontSize: 7.5, fontWeight: 800,
+          letterSpacing: '.14em', color: C.inkDim, textTransform: 'uppercase',
+        }}>
+          {uptime ? 'online' : ''}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // ─── Boot terminal ────────────────────────────────────────────────────────────
 const BOOT_LINES = [
   { text: 'UATOB RIDER HUD v3.2.0', color: C.greenBright, delay: 0 },
@@ -1083,11 +1164,13 @@ export default function UaTob({
   const lastRouteFetchRef= useRef({ time: 0, lat: 0, lng: 0 });
   const lastCompletedIdRef = useRef(null);
   const mapBearingRef    = useRef(-20);
+  const onlineSinceRef   = useRef(null);
 
   // ── State ─────────────────────────────────────────────────────────────────
   const [mapReady,       setMapReady]       = useState(false);
   const [now,            setNow]            = useState(Date.now());
   const [face,           setFace]           = useState(FACE_BOOK);
+  const [mapBearing,     setMapBearing]     = useState(-20);
   const [routeInfo,      setRouteInfo]      = useState(null);   // { distanceMi, durationSecs }
   const [completedRide,  setCompletedRide]  = useState(null);   // popup trigger
 
@@ -1103,6 +1186,32 @@ export default function UaTob({
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
+
+  // ── Online start tracking ─────────────────────────────────────────────────
+  useEffect(() => {
+    if (rider && !onlineSinceRef.current) onlineSinceRef.current = Date.now();
+  }, [rider]);
+
+  // ── Map bearing poll (250 ms) ─────────────────────────────────────────────
+  useEffect(() => {
+    if (!mapReady) return;
+    const id = setInterval(() => {
+      if (!mapRef.current) return;
+      try { setMapBearing(mapRef.current.getBearing()); } catch {}
+    }, 250);
+    return () => clearInterval(id);
+  }, [mapReady]);
+
+  // ── Persist onlineTime to Accounts/{uid} every 30 s ──────────────────────
+  useEffect(() => {
+    if (!uid) return;
+    const id = setInterval(() => {
+      if (!onlineSinceRef.current) return;
+      const seconds = Math.floor((Date.now() - onlineSinceRef.current) / 1000);
+      updateDoc(doc(db, 'Accounts', uid), { onlineTime: seconds }).catch(() => {});
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [uid]);
 
   // ── Completed ride popup watch ────────────────────────────────────────────
   useEffect(() => {
@@ -1581,6 +1690,15 @@ export default function UaTob({
 
         {/* Top ribbon */}
         <TopRibbon now={now} mapReady={mapReady} speed={rider?.speed} activeRide={activeRide}/>
+
+        {/* Rider compass — heading + uptime */}
+        {mapReady && !activeRide && (
+          <RiderCompass
+            bearing={mapBearing}
+            onlineSinceMs={onlineSinceRef.current}
+            now={now}
+          />
+        )}
 
         {/* StatusCard */}
         <div style={{

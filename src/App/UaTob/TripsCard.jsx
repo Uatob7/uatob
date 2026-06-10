@@ -9,6 +9,7 @@
  */
 
 import { useState, useMemo } from 'react';
+import { useTrips } from '@/App/UaTob/useTrips';
 
 // ── tokens ───────────────────────────────────────────────────────────────────
 const C = {
@@ -270,14 +271,15 @@ function EmptyState() {
 // ════════════════════════════════════════════════════════════════════════════
 const PAGE_SIZE = 4;
 
-export default function TripsCard({ rides = [], now = Date.now() }) {
+export default function TripsCard({ uid, now = Date.now() }) {
+  const { trips, loading } = useTrips(uid);
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState('all'); // 'all' | 'active' | 'completed'
 
   // sort newest first
   const sorted = useMemo(() => (
-    [...rides].sort((a, b) => tsToMillis(b.createdAt) - tsToMillis(a.createdAt))
-  ), [rides]);
+    [...trips].sort((a, b) => tsToMillis(b.createdAt) - tsToMillis(a.createdAt))
+  ), [trips]);
 
   const filtered = useMemo(() => {
     if (filter === 'active')    return sorted.filter(r => ACTIVE_STATUSES.has(r.status));
@@ -357,7 +359,18 @@ export default function TripsCard({ rides = [], now = Date.now() }) {
 
       {/* ── trip list ── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-        {visible.length === 0 ? (
+        {loading ? (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            gap: 7, padding: '20px 0', animation: 'uaFadeIn .2s ease both',
+          }}>
+            <div style={{
+              width: 6, height: 6, borderRadius: '50%', background: C.greenBright,
+              animation: 'uaBlink 1s ease-in-out infinite',
+            }}/>
+            <span style={{ fontFamily: MONO, fontSize: 9, color: C.dim }}>Loading trips…</span>
+          </div>
+        ) : visible.length === 0 ? (
           <EmptyState/>
         ) : (
           visible.map(ride => (
