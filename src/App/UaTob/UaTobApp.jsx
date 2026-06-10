@@ -156,6 +156,16 @@ function fmtElapsed(startMs) {
   const m = Math.floor(s / 60); const ss = s % 60;
   return `${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
 }
+function fmtTimeAgo(ms, now) {
+  if (!ms) return null;
+  const diff = now - ms;
+  if (diff < 0) return null;
+  const s = Math.floor(diff / 1000);
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  return `${Math.floor(m / 60)}h ago`;
+}
 function normalizeHeading(b) { return ((b % 360) + 360) % 360; }
 function compassLabel(b) {
   const dirs = ['N','NE','E','SE','S','SW','W','NW'];
@@ -378,20 +388,22 @@ function makeSearchRingEl(isGuest) {
 function makeDriverDotEl() {
   const wrap = document.createElement('div');
   wrap.style.cssText = 'position:relative;width:0;height:0;pointer-events:none;';
-  const pulse = document.createElement('div');
-  pulse.style.cssText = [
-    'position:absolute','left:0','top:0','width:18px','height:18px','border-radius:50%',
-    'border:1.5px solid rgba(74,222,128,.5)',
-    'transform:translate(-50%,-50%) scale(.4)','opacity:0',
-    'animation:ua-driver-pulse 2s ease-out infinite',
-  ].join(';');
+  [0, 0.9].forEach(delay => {
+    const ring = document.createElement('div');
+    ring.style.cssText = [
+      'position:absolute','left:0','top:0','width:22px','height:22px','border-radius:50%',
+      'border:1.5px solid rgba(96,165,250,.55)',
+      'transform:translate(-50%,-50%) scale(.4)','opacity:0',
+      `animation:ua-driver-pulse 2s ease-out ${delay}s infinite`,
+    ].join(';');
+    wrap.appendChild(ring);
+  });
   const dot = document.createElement('div');
   dot.style.cssText = [
     'position:absolute','left:0','top:0','width:10px','height:10px','border-radius:50%',
-    'background:#22C55E','border:2px solid #fff','box-shadow:0 0 8px rgba(34,197,94,.9)',
+    'background:#60A5FA','border:2px solid #fff','box-shadow:0 0 10px rgba(96,165,250,.9)',
     'transform:translate(-50%,-50%)',
   ].join(';');
-  wrap.appendChild(pulse);
   wrap.appendChild(dot);
   return wrap;
 }
@@ -693,9 +705,10 @@ function SupportFab({ onOpen }) {
 }
 
 // ─── Rider compass ───────────────────────────────────────────────────────────
-function RiderCompass({ bearing, onlineSinceMs, now }) {
+function RiderCompass({ bearing, onlineSinceMs, lastSearchAt, now }) {
   const hdg = normalizeHeading(bearing);
   const uptime = fmtUptime(onlineSinceMs, now);
+  const searchAgo = fmtTimeAgo(lastSearchAt, now);
   return (
     <div style={{
       position: 'absolute', top: '50%', right: 12, transform: 'translateY(-50%)',
@@ -745,16 +758,16 @@ function RiderCompass({ bearing, onlineSinceMs, now }) {
       <div style={{ marginTop: 5, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
         <span style={{
           fontFamily: MONO, fontSize: 10, fontWeight: 800,
-          color: C.greenBright,
-          textShadow: uptime ? `0 0 8px ${C.greenBright}88` : 'none',
+          color: searchAgo ? C.greenBright : C.inkDim,
+          textShadow: searchAgo ? `0 0 8px ${C.greenBright}88` : 'none',
         }}>
-          {uptime ?? compassLabel(hdg)}
+          {searchAgo ?? '—'}
         </span>
         <span style={{
           fontFamily: COND, fontSize: 7.5, fontWeight: 800,
           letterSpacing: '.14em', color: C.inkDim, textTransform: 'uppercase',
         }}>
-          {uptime ? 'online' : ''}
+          last search
         </span>
       </div>
     </div>
@@ -1180,6 +1193,12 @@ export default function UaTob({
   const assignedDriverUid     = activeRide?.driverInfo?.uid ?? activeRide?.driverUid ?? null;
   const driverDoc             = useAssignedDriverLive(assignedDriverUid);
   const { drivers: onlineDrivers, counts: driverCounts } = useOnlineDrivers();
+
+  const lastSearchAt = useMemo(() => {
+    const mine = searches.filter(s => s.uid === uid);
+    if (!mine.length) return null;
+    return Math.max(...mine.map(s => tsToMillis(s.createdAt)));
+  }, [searches, uid]);
 
   // ── 1 Hz clock ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1697,6 +1716,7 @@ export default function UaTob({
           <RiderCompass
             bearing={mapBearing}
             onlineSinceMs={onlineSinceRef.current}
+            lastSearchAt={lastSearchAt}
             now={now}
           />
         )}
