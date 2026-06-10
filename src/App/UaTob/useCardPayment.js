@@ -75,6 +75,7 @@ export function useCardPayment({ uid, bookingPayload, onSuccess, onError }) {
         paymentStatus:     'pending',
         status:            'pending_dispatch',
         driverInfo:        bookingPayload.driverInfo        ?? null,
+        match:             bookingPayload.match             ?? [],
         createdAt:         serverTimestamp(),
         updatedAt:         serverTimestamp(),
       });

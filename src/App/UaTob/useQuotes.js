@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { getAuth } from 'firebase/auth';
 import {
   collection, query, where, getDocs,
-  addDoc, serverTimestamp, getFirestore,
+  addDoc, updateDoc, serverTimestamp, getFirestore,
 } from 'firebase/firestore';
 import { firebase_app } from '@/firebase/config';
 
@@ -111,8 +111,8 @@ async function buildDriverMatch(pickupLat, pickupLng, pickupZip, signal) {
 }
 
 // ── Search log ────────────────────────────────────────────────────────────────
-function logSearch({ uid, tripData, miles, minutes, match, rides }) {
-  addDoc(collection(db, 'Search'), {
+async function logSearch({ uid, tripData, miles, minutes, match, rides }) {
+  return addDoc(collection(db, 'Search'), {
     uid:         uid ?? null,
     pickup:      tripData.pickup    ?? null,
     dropoff:     tripData.dropoff   ?? null,
@@ -126,8 +126,10 @@ function logSearch({ uid, tripData, miles, minutes, match, rides }) {
     nearestEta:  match[0]?.etaMin   ?? null,
     match,
     rides,
+    selectedRide:   null,
+    selectedAt:     null,
     createdAt:   serverTimestamp(),
-  }).catch((err) => console.error('[useQuotes] search log failed:', err));
+  }).catch((err) => { console.error('[useQuotes] search log failed:', err); return null; });
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -135,7 +137,8 @@ export function useQuotes(tripData) {
   const [quotesData, setQuotesData] = useState(null);
   const [loading,    setLoading]    = useState(false);
   const [error,      setError]      = useState(null);
-  const abortRef = useRef(null);
+  const abortRef     = useRef(null);
+  const searchDocRef = useRef(null);
 
   const reset = useCallback(() => {
     abortRef.current?.abort();
@@ -174,7 +177,9 @@ export function useQuotes(tripData) {
           ]),
         );
 
-        logSearch({ uid: getAuth(firebase_app).currentUser?.uid, tripData, miles, minutes, match, rides });
+        searchDocRef.current = null;
+        logSearch({ uid: getAuth(firebase_app).currentUser?.uid, tripData, miles, minutes, match, rides })
+          .then(ref => { searchDocRef.current = ref ?? null; });
 
         if (ctrl.signal.aborted) return;
 
@@ -192,5 +197,11 @@ export function useQuotes(tripData) {
     return () => ctrl.abort();
   }, [tripData, reset]);
 
-  return { quotesData, loading, error, reset };
+  const selectRide = useCallback((tierId) => {
+    const ref = searchDocRef.current;
+    if (!ref || !tierId) return;
+    updateDoc(ref, { selectedRide: tierId, selectedAt: serverTimestamp() }).catch(() => {});
+  }, []);
+
+  return { quotesData, loading, error, reset, selectRide };
 }

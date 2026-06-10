@@ -79,6 +79,8 @@ export function useCashPayment({
         promoCode: bookingPayload.promoCode ?? null,
         discountAmount: bookingPayload.discountAmount ?? null,
 
+        match: bookingPayload.match ?? [],
+
         paymentMethod: 'cash',
         paymentStatus: 'succeeded',
         paymentIntentId: null,

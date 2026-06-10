@@ -1037,7 +1037,7 @@ function BookRideCardInner({ uid, onRequest, onBookingComplete, onActiveChange }
   const [dropoff, setDropoffVal] = useState('');
 
   const { tripData,   loading:loadingTrip,   error:routeErr,   reset:resetRoute  } = useRoute(pickup, dropoff);
-  const { quotesData, loading:loadingQuotes, error:quotesErr,  reset:resetQuotes } = useQuotes(tripData);
+  const { quotesData, loading:loadingQuotes, error:quotesErr,  reset:resetQuotes, selectRide } = useQuotes(tripData);
   const { resolve:resolveGeo, loading:geoLoading, error:geoErr, clear:clearGeoErr } = useGeo();
 
   const [selectedRide, setSelectedRide] = useState('standard');
@@ -1340,7 +1340,7 @@ function BookRideCardInner({ uid, onRequest, onBookingComplete, onActiveChange }
         const etaNone  = ride.eta == null;
         return (
           <button key={ride.id} className="br-ride-row"
-            onClick={() => { setSelectedRide(ride.id); setStep(4); }}
+            onClick={() => { setSelectedRide(ride.id); selectRide(ride.id); setStep(4); }}
             style={{ display:'flex', alignItems:'center', gap:11, padding:'10px 13px', borderRadius:11,
               background: active ? 'rgba(34,197,94,.12)' : C.faint,
               border:`1px solid ${active ? C.green : C.borderDim}`, cursor:'pointer', textAlign:'left' }}>
