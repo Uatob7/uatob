@@ -11,6 +11,11 @@ import signIn        from '@/firebase/auth/signin';
 import signOutUser   from '@/firebase/auth/signOutUser';
 import resetPassword from '@/firebase/auth/passwordReset';
 import { useCreateAccount } from '@/App/UaTob/useCreateAccount';
+import { storage, ref, uploadBytesResumable, getDownloadURL } from '@/firebase/config';
+import { getFirestore, doc, updateDoc } from 'firebase/firestore';
+import { firebase_app } from '@/firebase/config';
+
+const db = getFirestore(firebase_app);
 
 // ── tokens (darker palette) ───────────────────────────────────────────────────
 const C = {
@@ -661,6 +666,10 @@ function LoginFlow({ onDone, onSwitchToSignup }) {
 function AuthedView({ uid, account, rides = [] }) {
   const [signOutConfirm, setSignOutConfirm] = useState(false);
   const [signingOut,     setSigningOut]     = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoProgress,  setPhotoProgress]  = useState(0);
+  const [photoError,     setPhotoError]     = useState('');
+  const fileInputRef = useRef(null);
 
   const stats = useMemo(() => {
     const done  = rides.filter(r => r.status === 'completed');
@@ -672,8 +681,9 @@ function AuthedView({ uid, account, rides = [] }) {
   const totalSpend  = account?.totalSpend ?? stats.spend;
   const accountAge  = fmtAccountAge(account?.createdAt);
   const memberSince = fmtDate(account?.createdAt);
-  const name = account?.displayName || account?.name || 'Rider';
-  const tier = tierFor(totalRides);
+  const name     = account?.displayName || account?.name || 'Rider';
+  const photoURL = account?.photoURL || null;
+  const tier     = tierFor(totalRides);
 
   const handleSignOut = useCallback(async () => {
     setSigningOut(true);
@@ -681,8 +691,42 @@ function AuthedView({ uid, account, rides = [] }) {
     setSigningOut(false);
   }, []);
 
+  const handlePhotoChange = useCallback(async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !uid) return;
+    setPhotoError('');
+    setPhotoUploading(true);
+    setPhotoProgress(0);
+    try {
+      const path    = `profile-photos/${uid}/${Date.now()}-${file.name}`;
+      const fileRef = ref(storage, path);
+      await new Promise((resolve, reject) => {
+        const task = uploadBytesResumable(fileRef, file);
+        task.on('state_changed',
+          snap => setPhotoProgress(Math.round(snap.bytesTransferred / snap.totalBytes * 100)),
+          reject,
+          resolve,
+        );
+      });
+      const url = await getDownloadURL(fileRef);
+      await updateDoc(doc(db, 'Accounts', uid), { photoURL: url });
+    } catch (err) {
+      setPhotoError('Upload failed — try again');
+    } finally {
+      setPhotoUploading(false);
+      e.target.value = '';
+    }
+  }, [uid]);
+
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:9, animation:'acSlideUp .3s ease both' }}>
+
+      {/* hidden file input */}
+      <input
+        ref={fileInputRef} type="file" accept="image/*"
+        onChange={handlePhotoChange}
+        style={{ display:'none' }}
+      />
 
       {/* ── Header row: avatar + name + tier ──────────────────────────── */}
       <div style={{ display:'flex', alignItems:'center', gap:10 }}>
@@ -693,17 +737,55 @@ function AuthedView({ uid, account, rides = [] }) {
             animation:'acRippleOut 3s ease-out 1s infinite',
             pointerEvents:'none',
           }}/>
-          <div style={{
-            width:40, height:40, borderRadius:11,
-            background:'rgba(0,0,0,.45)',
-            border:`1.5px solid ${tier.accent}55`,
-            display:'flex', alignItems:'center', justifyContent:'center',
-            boxShadow:`0 0 14px ${tier.accent}1A`,
-          }}>
-            <span style={{ fontFamily:COND, fontSize:15, fontWeight:900, color:tier.accent, letterSpacing:'.04em' }}>
-              {initials(name)}
-            </span>
-          </div>
+          {/* clickable avatar */}
+          <button
+            type="button"
+            onClick={() => !photoUploading && fileInputRef.current?.click()}
+            style={{
+              width:40, height:40, borderRadius:11, padding:0, border:'none',
+              background:'rgba(0,0,0,.45)',
+              outline:`1.5px solid ${tier.accent}55`,
+              boxShadow:`0 0 14px ${tier.accent}1A`,
+              cursor: photoUploading ? 'not-allowed' : 'pointer',
+              overflow:'hidden', position:'relative',
+              display:'flex', alignItems:'center', justifyContent:'center',
+            }}
+          >
+            {photoURL ? (
+              <img src={photoURL} alt="avatar"
+                style={{ width:'100%', height:'100%', objectFit:'cover', borderRadius:11 }}/>
+            ) : (
+              <span style={{ fontFamily:COND, fontSize:15, fontWeight:900, color:tier.accent, letterSpacing:'.04em' }}>
+                {initials(name)}
+              </span>
+            )}
+            {/* camera overlay */}
+            {!photoUploading && (
+              <div style={{
+                position:'absolute', inset:0, borderRadius:11,
+                background:'rgba(0,0,0,.52)',
+                display:'flex', alignItems:'center', justifyContent:'center',
+                opacity:0,
+                transition:'opacity .15s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+              onMouseLeave={e => e.currentTarget.style.opacity = '0'}
+              >
+                <Ico n="edit" size={13} color="#fff"/>
+              </div>
+            )}
+            {/* upload progress overlay */}
+            {photoUploading && (
+              <div style={{
+                position:'absolute', inset:0, borderRadius:11,
+                background:'rgba(0,0,0,.7)',
+                display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3,
+              }}>
+                <Spinner size={12}/>
+                <span style={{ fontFamily:MONO, fontSize:7, color:'#fff' }}>{photoProgress}%</span>
+              </div>
+            )}
+          </button>
         </div>
 
         <div style={{ flex:1, minWidth:0 }}>
@@ -727,6 +809,8 @@ function AuthedView({ uid, account, rides = [] }) {
           </div>
         </div>
       </div>
+
+      {photoError && <Banner kind="error">{photoError}</Banner>}
 
       {/* ── Stats strip ─────────────────────────────────────────────── */}
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:1, background:'rgba(255,255,255,.04)', borderRadius:9, overflow:'hidden' }}>
