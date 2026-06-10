@@ -641,7 +641,7 @@ export default function ScheduledRidesCard({ scheduledRides = [] }) {
                 <span style={{
                   fontFamily: MONO, fontSize: 9.5, fontWeight: 600, color: 'rgba(255,255,255,.42)',
                 }}>
-                  · {formatScheduled(cur.scheduledAt).split(',').slice(0, 1).join('')}
+                  · {(formatScheduled(cur.scheduledAt) ?? '').split(',').slice(0, 1).join('')}
                 </span>
               </div>
             </div>
