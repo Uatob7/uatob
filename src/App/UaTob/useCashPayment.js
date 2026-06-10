@@ -1,7 +1,23 @@
 // src/App/UaTob/useCashPayment.js
 import { useState, useCallback } from 'react';
+import {
+  getFirestore,
+  collection,
+  doc,
+  setDoc,
+  serverTimestamp,
+} from 'firebase/firestore';
+import { firebase_app } from '@/firebase/config';
 
-export function useCashPayment({ uid, bookingPayload, onSuccess, onError, onClose }) {
+const db = getFirestore(firebase_app);
+
+export function useCashPayment({
+  uid,
+  bookingPayload,
+  onSuccess,
+  onError,
+  onClose,
+}) {
   const [loading, setLoading] = useState(false);
 
   const handleCash = useCallback(async () => {
@@ -16,18 +32,18 @@ export function useCashPayment({ uid, bookingPayload, onSuccess, onError, onClos
       const fareTotal = Number(bookingPayload.fareEstimate || 0);
       if (!fareTotal) throw new Error('Missing fareEstimate');
 
-      // ── consistent split (MATCHES card + cashapp hooks)
+      // ── split (same across system)
       const platformFee = +(fareTotal * 0.25).toFixed(2);
       const driverPayout = +(fareTotal * 0.75).toFixed(2);
 
-      // ── schedule normalization (same logic as other hooks)
+      // ── schedule
       const isScheduled = bookingPayload.isScheduled === true;
       const scheduledAt =
         isScheduled && bookingPayload.scheduledAt
           ? bookingPayload.scheduledAt
           : null;
 
-      // ── build canonical ride payload (IMPORTANT)
+      // ── canonical ride object (MATCHES card + cashapp)
       const rideData = {
         uid,
 
@@ -79,21 +95,21 @@ export function useCashPayment({ uid, bookingPayload, onSuccess, onError, onClos
 
         status: isScheduled ? 'scheduled' : 'searching_driver',
 
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       };
 
-      const debugRideId = `debug_${Date.now()}`;
+      // ── WRITE TO FIRESTORE ─────────────────────────────
+      const rideRef = doc(collection(db, 'Rides'));
 
-      console.log('[useCashPayment] RIDE DATA:', rideData);
-      console.log('[useCashPayment] FAKE RIDE CREATED:', {
-        rideId: debugRideId,
-      });
+      await setDoc(rideRef, rideData);
+
+      console.log('[useCashPayment] RIDE CREATED:', rideRef.id);
 
       onSuccess?.({
         method: 'cash',
-        rideId: debugRideId,
-        rideData, // 👈 important: same shape as real system
+        rideId: rideRef.id,
+        rideData,
       });
 
       onClose?.();

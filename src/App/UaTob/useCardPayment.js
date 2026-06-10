@@ -1,13 +1,22 @@
 // src/App/UaTob/useCardPayment.js
 
 import { useState, useCallback } from 'react';
+import {
+  getFirestore,
+  collection,
+  doc,
+  setDoc,
+  serverTimestamp,
+} from 'firebase/firestore';
+import { firebase_app } from '@/firebase/config';
+
+const db = getFirestore(firebase_app);
 
 /**
- * DEBUG ONLY CARD PAYMENT FLOW
+ * DEBUG CARD PAYMENT FLOW (NOW PERSISTS TO FIRESTORE)
  * - No Stripe
- * - No Firebase
- * - No backend calls
- * - Only logs full payment + ride lifecycle
+ * - Mock payment
+ * - Writes to Rides collection
  */
 export function useCardPayment({ uid, bookingPayload, onSuccess, onError }) {
   const [loading, setLoading] = useState(false);
@@ -22,109 +31,120 @@ export function useCardPayment({ uid, bookingPayload, onSuccess, onError }) {
     setError('');
 
     try {
-      console.log('💳 [CARD DEBUG] Payment flow started');
-      console.log('UID:', uid);
-      console.log('Booking Payload:', bookingPayload);
-
-      // ── Validation ──────────────────────────────────────────────
-      const fareTotal = Number(bookingPayload?.fareEstimate);
+      console.log('💳 [CARD DEBUG + FIRESTORE] Start');
 
       if (!uid) throw new Error('Missing uid');
-      if (!fareTotal) throw new Error('Missing fare estimate');
-      if (Math.round(fareTotal * 100) < 50)
-        throw new Error('Minimum $0.50 required');
+      if (!bookingPayload) throw new Error('Missing bookingPayload');
 
+      const fareTotal = Number(bookingPayload?.fareEstimate);
+      if (!fareTotal) throw new Error('Missing fare estimate');
+
+      // ── schedule validation (same as real system) ────────────────
       const isScheduled = bookingPayload?.isScheduled === true;
       const scheduledAt = isScheduled ? bookingPayload?.scheduledAt : null;
-
-      console.log('💰 Fare:', fareTotal);
-      console.log('📅 Scheduled:', isScheduled);
-      console.log('⏱ Scheduled At:', scheduledAt);
 
       if (isScheduled) {
         if (!scheduledAt) throw new Error('scheduledAt required');
         const ms = new Date(scheduledAt).getTime();
         if (isNaN(ms)) throw new Error('Invalid scheduledAt');
-        if (ms < Date.now() + 10 * 60 * 1000)
-          throw new Error('Must be 10+ minutes in future');
+        if (ms < Date.now() + 10 * 60 * 1000) {
+          throw new Error('Must be at least 10 minutes in future');
+        }
       }
 
-      // ── Mock Stripe PaymentMethod ───────────────────────────────
-      const mockPaymentMethod = {
-        id: `pm_mock_${Date.now()}`,
-        type: 'card',
-      };
+      // ── fee breakdown ───────────────────────────────────────────
+      const platformFee = +(fareTotal * 0.25).toFixed(2);
+      const driverPayout = +(fareTotal * 0.75).toFixed(2);
 
-      console.log('🧪 PaymentMethod Created:', mockPaymentMethod);
-
-      // ── Mock PaymentIntent ───────────────────────────────────────
+      // ── mock payment objects ────────────────────────────────────
       const mockPaymentIntent = {
         id: `pi_mock_${Date.now()}`,
         status: 'succeeded',
       };
 
-      console.log('🧾 PaymentIntent Created:', mockPaymentIntent);
+      console.log('🧾 Mock PaymentIntent:', mockPaymentIntent);
 
-      // ── Fee breakdown ────────────────────────────────────────────
-      const platformFee = +(fareTotal * 0.25).toFixed(2);
-      const driverPayout = +(fareTotal * 0.75).toFixed(2);
-
-      console.log('💸 Fee Breakdown:', {
-        fareTotal,
-        platformFee,
-        driverPayout,
-      });
-
-      // ── Build ride object ────────────────────────────────────────
+      // ── build canonical ride object (REAL FORMAT) ───────────────
       const rideData = {
         uid,
-        pickup: bookingPayload?.pickup,
-        dropoff: bookingPayload?.dropoff,
+
+        pickup: bookingPayload?.pickup ?? null,
+        dropoff: bookingPayload?.dropoff ?? null,
+
+        pickupCity: bookingPayload?.pickupCity ?? null,
+        dropoffCity: bookingPayload?.dropoffCity ?? null,
+
+        pickupLat: bookingPayload?.pickupLat ?? null,
+        pickupLng: bookingPayload?.pickupLng ?? null,
+        dropoffLat: bookingPayload?.dropoffLat ?? null,
+        dropoffLng: bookingPayload?.dropoffLng ?? null,
+
         rideType: bookingPayload?.rideType ?? 'standard',
+
         fareTotal,
         platformFee,
         driverPayout,
+
+        tripDistanceMiles: bookingPayload?.tripDistanceMiles ?? null,
+        tripDurationMin: bookingPayload?.tripDurationMin ?? null,
+
         isScheduled,
-        scheduledAt,
+        scheduledAt: scheduledAt ?? null,
+
+        promoCode: bookingPayload?.promoCode ?? null,
+        discountAmount: bookingPayload?.discountAmount ?? null,
+
         paymentMethod: 'card_debug',
         paymentIntentId: mockPaymentIntent.id,
+        paymentStatus: 'succeeded',
+
+        driverInfo: bookingPayload?.driverInfo ?? null,
+
         status: 'pending_dispatch',
-        createdAt: new Date().toISOString(),
+
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       };
 
-      console.log('🚗 Ride Data Generated:', rideData);
+      console.log('🚗 Writing ride to Firestore...');
 
-      // ── Simulate backend check ──────────────────────────────────
-      console.log('🔍 Simulating checkRideIntent...');
-      await new Promise((res) => setTimeout(res, 400));
-      console.log('✅ Ride intent approved (mock)');
+      // ── FIRESTORE WRITE ─────────────────────────────────────────
+      const rideRef = doc(collection(db, 'Rides'));
 
-      // ── Simulate DB write ───────────────────────────────────────
-      const rideId = `ride_mock_${Date.now()}`;
-      console.log('🗄️ Ride stored with ID:', rideId);
+      await setDoc(rideRef, rideData);
 
-      // ── Simulate dispatch delay ─────────────────────────────────
+      console.log('✅ Ride saved:', rideRef.id);
+
+      // ── simulate dispatch timer ─────────────────────────────────
       if (!isScheduled) {
-        console.log('⏳ Scheduling driver search in 60s (simulated)');
-        setTimeout(() => {
-          console.log('🚖 STATUS UPDATE → searching_driver (mock)');
-        }, 2000); // shortened for debug
+        setTimeout(async () => {
+          try {
+            console.log('🚖 Updating status → searching_driver');
+            await setDoc(
+              rideRef,
+              {
+                status: 'searching_driver',
+                updatedAt: serverTimestamp(),
+              },
+              { merge: true }
+            );
+          } catch (err) {
+            console.log('⚠️ status update failed (non-critical)', err.message);
+          }
+        }, 60000);
       }
 
-      // ── Success callback ─────────────────────────────────────────
-      console.log('🎉 Payment flow completed');
+      setComplete(true);
 
       onSuccess?.({
         method: 'card_debug',
-        rideId,
+        rideId: rideRef.id,
         paymentIntent: mockPaymentIntent.id,
         rideData,
       });
 
-      setComplete(true);
-
     } catch (err) {
-      console.error('❌ CARD DEBUG ERROR:', err.message);
+      console.error('❌ CARD DEBUG ERROR:', err);
       setError(err.message);
       onError?.(err.message);
     } finally {

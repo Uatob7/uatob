@@ -1,104 +1,130 @@
-// src/App/UaTob/useCashAppPayment.js
-
 import { useState, useCallback } from 'react';
+import {
+  getFirestore,
+  collection,
+  doc,
+  setDoc,
+  serverTimestamp,
+} from 'firebase/firestore';
+import { firebase_app } from '@/firebase/config';
+
+const db = getFirestore(firebase_app);
 
 /**
- * DEBUG ONLY VERSION
+ * DEBUG VERSION (but now writes to Firestore)
  * - No Stripe
- * - No Firebase
  * - No redirects
- * - Just logs everything
+ * - Creates real Rides docs in Firestore
  */
-export function useCashAppPayment({ uid, bookingPayload, onSuccess, onError }) {
+export function useCashAppPayment({
+  uid,
+  bookingPayload,
+  onSuccess,
+  onError,
+}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // ── Simulate CashApp flow ─────────────────────────────────────
   const handleCashApp = useCallback(async () => {
     setLoading(true);
     setError('');
 
     try {
-      console.log('🟢 [CashApp DEBUG] Start payment flow');
-      console.log('UID:', uid);
-      console.log('Booking Payload:', bookingPayload);
+      console.log('🟢 [CashApp] START');
 
-      if (!uid) {
-        throw new Error('Missing uid');
-      }
+      if (!uid) throw new Error('Missing uid');
+      if (!bookingPayload) throw new Error('Missing bookingPayload');
 
-      if (!bookingPayload) {
-        throw new Error('Missing bookingPayload');
-      }
-
-      const fareTotal = Number(bookingPayload?.fareEstimate);
-
-      console.log('💰 Fare Total:', fareTotal);
-
-      if (!fareTotal) {
-        throw new Error('Missing fare estimate');
-      }
+      const fareTotal = Number(bookingPayload?.fareEstimate || 0);
+      if (!fareTotal) throw new Error('Missing fare estimate');
 
       const isScheduled = bookingPayload?.isScheduled === true;
-
-      console.log('📅 Is Scheduled:', isScheduled);
-
-      const scheduledAt = isScheduled
-        ? bookingPayload?.scheduledAt
-        : null;
-
-      console.log('⏱ Scheduled At:', scheduledAt);
+      const scheduledAt = isScheduled ? bookingPayload?.scheduledAt : null;
 
       const platformFee = +(fareTotal * 0.25).toFixed(2);
       const driverPayout = +(fareTotal * 0.75).toFixed(2);
 
       const mockIntentId = `pi_mock_${Date.now()}`;
-      const mockRideId = `ride_mock_${Date.now()}`;
 
-      console.log('🧾 Calculated Breakdown:', {
-        fareTotal,
-        platformFee,
-        driverPayout,
-      });
-
-      console.log('🧪 Mock Payment Intent Created:', mockIntentId);
-
+      // ── FULL CONSISTENT RIDE DATA ─────────────────────────────
       const rideData = {
         uid,
-        pickup: bookingPayload?.pickup,
-        dropoff: bookingPayload?.dropoff,
-        rideType: bookingPayload?.rideType ?? 'standard',
+
+        pickup: bookingPayload.pickup ?? null,
+        dropoff: bookingPayload.dropoff ?? null,
+
+        pickupCity: bookingPayload.pickupCity ?? null,
+        pickupZip: bookingPayload.pickupZip ?? null,
+        pickupLat: bookingPayload.pickupLat ?? null,
+        pickupLng: bookingPayload.pickupLng ?? null,
+
+        dropoffCity: bookingPayload.dropoffCity ?? null,
+        dropoffZip: bookingPayload.dropoffZip ?? null,
+        dropoffLat: bookingPayload.dropoffLat ?? null,
+        dropoffLng: bookingPayload.dropoffLng ?? null,
+
+        polyline: bookingPayload.polyline ?? null,
+
+        rideType: bookingPayload.rideType ?? 'standard',
+        rideLabel: bookingPayload.rideLabel ?? null,
+
         fareTotal,
         platformFee,
         driverPayout,
+
+        tripDistanceMiles: bookingPayload.tripDistanceMiles ?? null,
+        tripDurationMin: bookingPayload.tripDurationMin ?? null,
+        fareBreakdown: bookingPayload.breakdown ?? null,
+
         isScheduled,
         scheduledAt,
+
+        promoCode: bookingPayload.promoCode ?? null,
+        discountAmount: bookingPayload.discountAmount ?? null,
+
         paymentMethod: 'cashapp_debug',
+        paymentStatus: 'succeeded',
         paymentIntentId: mockIntentId,
-        status: 'pending_dispatch',
-        createdAt: new Date().toISOString(),
+
+        driverInfo: bookingPayload.driverInfo
+          ? {
+              driverCount: bookingPayload.driverInfo.driverCount ?? null,
+              etaLabel: bookingPayload.driverInfo.etaLabel ?? null,
+              etaMin: bookingPayload.driverInfo.etaMin ?? null,
+              nearestMiles: bookingPayload.driverInfo.nearestMiles ?? null,
+              stale: bookingPayload.driverInfo.stale ?? null,
+            }
+          : null,
+
+        status: isScheduled ? 'scheduled' : 'searching_driver',
+
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       };
 
-      console.log('🚗 Generated Ride Data:', rideData);
+      console.log('🚗 Writing Firestore Rides doc...', rideData);
 
-      // simulate async delay
-      await new Promise((res) => setTimeout(res, 500));
+      // ── WRITE TO FIRESTORE ─────────────────────────────────────
+      const rideRef = doc(collection(db, 'Rides'));
 
-      console.log('✅ Simulating onSuccess callback');
+      await setDoc(rideRef, rideData);
+
+      console.log('✅ RIDE CREATED:', rideRef.id);
 
       onSuccess?.({
         method: 'cashapp_debug',
-        rideId: mockRideId,
+        rideId: rideRef.id,
         paymentIntent: mockIntentId,
         rideData,
       });
 
     } catch (err) {
-      console.error('❌ CashApp DEBUG Error:', err.message);
+      console.error('❌ CashApp ERROR:', err);
       setError(err.message);
       onError?.(err.message);
     } finally {
       setLoading(false);
+      console.log('🔵 [CashApp] END');
     }
   }, [uid, bookingPayload, onSuccess, onError]);
 
