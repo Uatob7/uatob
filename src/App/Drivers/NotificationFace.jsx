@@ -1,32 +1,68 @@
 import { useState, useEffect } from 'react';
-import { Share2, Edit3, X, CreditCard, Clock, ChevronLeft } from 'lucide-react';
+import { Share2, Edit3, X, CreditCard, Clock, ChevronLeft, Lock, Loader2, AlertCircle } from 'lucide-react';
 import {
   collection, query, where, orderBy,
   onSnapshot, Timestamp, getFirestore,
 } from 'firebase/firestore';
-import { firebase_app } from '@/firebase/config';
 import { loadStripe } from '@stripe/stripe-js';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { Elements, CardElement } from '@stripe/react-stripe-js';
+import { firebase_app } from '@/firebase/config';
+import { useNotificationCardPayment }    from '@/App/Drivers/useNotificationCardPayment';
+import { useNotificationCashAppPayment } from '@/App/Drivers/useNotificationCashAppPayment';
 
-const db           = getFirestore(firebase_app);
+const db            = getFirestore(firebase_app);
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
 
-const functions                    = getFunctions(firebase_app, 'us-east1');
-const callCardFeedPayment          = httpsCallable(functions, 'createNotificationPaymentCard');
-const callCashAppFeedPayment       = httpsCallable(functions, 'createNotificationPaymentCashApp');
-
 // ── Steps ──────────────────────────────────────────────
-// 0=feed  1=compose  2=pay-method  3=card-processing  4=cashapp-instructions  5=success
+// 0=feed  1=compose  2=pay-method  3=card-form  4=cashapp-processing  5=success
 
-export default function NotificationFace({ online, driver }) {
+const CARD_ELEMENT_OPTIONS = {
+  style: {
+    base: {
+      color: 'rgba(255,255,255,.88)',
+      fontFamily: 'monospace',
+      fontSize: '13px',
+      '::placeholder': { color: 'rgba(255,255,255,.25)' },
+    },
+    invalid: { color: '#F87171' },
+  },
+  hidePostalCode: true,
+};
 
-  console.log(driver);
+function NotificationFaceInner({ online, driver }) {
   const [step,          setStep]          = useState(0);
   const [message,       setMessage]       = useState('');
   const [notifications, setNotifications] = useState([]);
-  const [loading,       setLoading]       = useState(false);
-  const [error,         setError]         = useState('');
+  const [cashError,     setCashError]     = useState('');
   const [displayIdx,    setDisplayIdx]    = useState(0);
+
+  const uid        = driver?.uid;
+  const driverName = driver?.displayName ?? driver?.name ?? null;
+
+  const {
+    loading:     cardLoading,
+    error:       cardError,
+    complete:    cardComplete,
+    focused:     cardFocused,
+    setComplete: setCardComplete,
+    setError:    setCardError,
+    setFocused:  setCardFocused,
+    handleSubmit,
+  } = useNotificationCardPayment({
+    uid,
+    message,
+    driverName,
+    onSuccess: () => setStep(5),
+    onError:   () => setStep(3), // stay on card form with error shown by hook
+  });
+
+  const { loading: cashAppLoading, handleCashAppPay } = useNotificationCashAppPayment({
+    uid,
+    message,
+    driverName,
+    onSuccess: () => setStep(5),
+    onError:   (msg) => { setCashError(msg); setStep(2); },
+  });
 
   // ── Live feed from Firestore ───────────────────────
   useEffect(() => {
@@ -78,85 +114,8 @@ export default function NotificationFace({ online, driver }) {
   function reset() {
     setStep(0);
     setMessage('');
-    setError('');
-    setLoading(false);
-  }
-
-  // ── CARD payment ───────────────────────────────────
-  // 1. Call Cloud Function → get clientSecret
-  // 2. stripe.confirmCardPayment(clientSecret) — Stripe handles 3DS etc.
-  // 3. On success the notification is already active (function wrote it optimistically)
-  async function handleCardPay() {
-    setLoading(true);
-    setError('');
-    try {
-      const uid = driver?.uid;
-      if (!uid) throw new Error('Driver UID missing.');
-
-      // Step 1 — create PaymentIntent + notification doc on server
-      const { data } = await callCardFeedPayment({
-        uid,
-        message: message.trim(),
-      });
-
-      if (!data?.clientSecret) throw new Error('No client secret returned.');
-
-      // Step 2 — confirm card payment client-side
-      const stripe = await stripePromise;
-      const { error: stripeErr } = await stripe.confirmCardPayment(data.clientSecret);
-      if (stripeErr) throw new Error(stripeErr.message);
-
-      // Step 3 — done, notification is already active on the server
-      setStep(5);
-    } catch (e) {
-      setError(e.message || 'Payment failed. Try again.');
-      setStep(2); // send back to method selector on error
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // ── CASH APP payment ───────────────────────────────
-  // 1. Call Cloud Function → get clientSecret (notification written as 'pending')
-  // 2. stripe.confirmCashappPayment(clientSecret) — opens Cash App
-  // 3. Stripe webhook activates the notification on payment_intent.succeeded
-  async function handleCashAppPay() {
-    setLoading(true);
-    setError('');
-    try {
-      const uid = driver?.uid;
-      if (!uid) throw new Error('Driver UID missing.');
-
-      // Step 1 — create PaymentIntent + pending notification doc on server
-      const { data } = await callCashAppFeedPayment({
-        uid,
-        message: message.trim(),
-      });
-
-      if (!data?.clientSecret) throw new Error('No client secret returned.');
-
-      // Step 2 — redirect to Cash App via Stripe
-      const stripe = await stripePromise;
-      const { error: stripeErr } = await stripe.confirmCashappPayment(
-        data.clientSecret,
-        {
-          payment_method: { cashapp: {} },
-          return_url: `${window.location.origin}`,
-        }
-      );
-
-      // If we reach here without redirect it means it failed synchronously
-      if (stripeErr) throw new Error(stripeErr.message);
-
-      // On successful redirect Stripe returns the user to return_url.
-      // The notification activates via webhook. Show pending success state.
-      setStep(5);
-    } catch (e) {
-      setError(e.message || 'Cash App payment failed. Try again.');
-      setStep(2);
-    } finally {
-      setLoading(false);
-    }
+    setCashError('');
+    setCardError('');
   }
 
   // ─────────────────────────────────────────────────────
@@ -306,7 +265,7 @@ export default function NotificationFace({ online, driver }) {
 
         {/* Card */}
         <button
-          onClick={() => { setStep(3); handleCardPay(); }}
+          onClick={() => setStep(3)}
           style={{
             display:'flex', alignItems:'center', gap:10,
             padding:'10px 14px', borderRadius:12, cursor:'pointer',
@@ -329,7 +288,7 @@ export default function NotificationFace({ online, driver }) {
 
         {/* Cash App */}
         <button
-          onClick={() => { setStep(3); handleCashAppPay(); }}
+          onClick={() => { setStep(4); handleCashAppPay(); }}
           style={{
             display:'flex', alignItems:'center', gap:10,
             padding:'10px 14px', borderRadius:12, cursor:'pointer',
@@ -352,36 +311,78 @@ export default function NotificationFace({ online, driver }) {
         </button>
       </div>
 
-      {error && (
-        <div style={{ marginTop:8, fontSize:10, color:'#F87171', textAlign:'center' }}>{error}</div>
+      {cashError && (
+        <div style={{ marginTop:8, fontSize:10, color:'#F87171', textAlign:'center' }}>{cashError}</div>
       )}
     </div>
   );
 
-  // ── STEP 3: Processing (card OR cashapp redirect in flight) ──
+  // ── STEP 3: Card form ────────────────────────────────
   if (step === 3) return (
+    <form onSubmit={handleSubmit}>
+      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12 }}>
+        <button type="button" onClick={() => setStep(2)} style={{ background:'none', border:'none', cursor:'pointer', padding:2 }}>
+          <ChevronLeft size={14} color="rgba(255,255,255,.4)"/>
+        </button>
+        <span style={{ fontSize:11, fontWeight:800, color:'#6EE7B7', letterSpacing:'.06em', textTransform:'uppercase' }}>
+          Card Details
+        </span>
+      </div>
+
+      <div style={{
+        border: `1.5px solid ${cardError ? '#F87171' : cardFocused ? '#3B82F6' : 'rgba(255,255,255,.12)'}`,
+        borderRadius:10, padding:'10px 12px',
+        background:'rgba(255,255,255,.04)', marginBottom:8,
+        transition:'border-color .2s',
+      }}>
+        <CardElement
+          options={CARD_ELEMENT_OPTIONS}
+          onFocus={() => setCardFocused(true)}
+          onBlur={() => setCardFocused(false)}
+          onChange={e => { setCardComplete(e.complete); setCardError(e.error?.message || ''); }}
+        />
+      </div>
+
+      {cardError && (
+        <div style={{
+          marginBottom:8, display:'flex', alignItems:'center', gap:5,
+          fontSize:11, color:'#F87171', fontFamily:'inherit',
+        }}>
+          <AlertCircle size={11} strokeWidth={2.4}/>{cardError}
+        </div>
+      )}
+
+      <button
+        type="submit"
+        disabled={!cardComplete || cardLoading}
+        style={{
+          width:'100%', padding:'10px', borderRadius:10, border:'none',
+          background: !cardComplete || cardLoading ? 'rgba(255,255,255,.08)' : 'linear-gradient(135deg,#3B82F6,#2563EB)',
+          color: !cardComplete || cardLoading ? 'rgba(255,255,255,.3)' : '#fff',
+          fontSize:12, fontWeight:800, cursor: !cardComplete || cardLoading ? 'not-allowed' : 'pointer',
+          display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+          transition:'all .2s',
+        }}
+      >
+        {cardLoading
+          ? <><Loader2 size={13} style={{ animation:'spin .8s linear infinite' }}/>Processing…</>
+          : <><Lock size={12} strokeWidth={2.4}/>Pay $1.00</>
+        }
+      </button>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </form>
+  );
+
+  // ── STEP 4: Cash App processing ──────────────────────
+  if (step === 4) return (
     <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:78, gap:10 }}>
-      {loading ? (
-        <>
-          <div style={{
-            width:32, height:32, borderRadius:'50%',
-            border:'2.5px solid rgba(59,130,246,.2)',
-            borderTop:'2.5px solid #60A5FA',
-            animation:'spin 0.8s linear infinite',
-          }}/>
-          <span style={{ fontSize:11, color:'rgba(255,255,255,.5)', fontWeight:600 }}>Processing payment…</span>
-        </>
-      ) : error ? (
-        <>
-          <span style={{ fontSize:11, color:'#F87171', fontWeight:600, textAlign:'center' }}>{error}</span>
-          <button onClick={() => setStep(2)} style={{
-            padding:'5px 14px', borderRadius:100, border:'none', cursor:'pointer',
-            background:'rgba(248,113,113,.15)', fontSize:10, color:'#F87171', fontWeight:700,
-          }}>
-            Try Again
-          </button>
-        </>
-      ) : null}
+      <div style={{
+        width:32, height:32, borderRadius:'50%',
+        border:'2.5px solid rgba(0,212,100,.2)',
+        borderTop:'2.5px solid #00D464',
+        animation:'spin 0.8s linear infinite',
+      }}/>
+      <span style={{ fontSize:11, color:'rgba(255,255,255,.5)', fontWeight:600 }}>Opening Cash App…</span>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
@@ -412,4 +413,12 @@ export default function NotificationFace({ online, driver }) {
   );
 
   return null;
+}
+
+export default function NotificationFace(props) {
+  return (
+    <Elements stripe={stripePromise}>
+      <NotificationFaceInner {...props}/>
+    </Elements>
+  );
 }
