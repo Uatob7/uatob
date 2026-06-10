@@ -1,142 +1,97 @@
 import { C, MONO, COND } from '@/App/UaTob/Statuscardtokens';
 
-const hasCoords = (item) => {
-  return item?.pickupLat && item?.pickupLng;
-};
+const hasCoords = (item) => item?.pickupLat && item?.pickupLng;
 
-function safeText(v) {
-  if (!v) return '—';
-  return v;
+function Ico({ n, size = 14, color = 'currentColor', sw = 1.7 }) {
+  const p = {
+    width: size, height: size, viewBox: '0 0 24 24', fill: 'none',
+    stroke: color, strokeWidth: sw, strokeLinecap: 'round', strokeLinejoin: 'round',
+  };
+  switch (n) {
+    case 'radar': return <svg {...p}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/><line x1="12" y1="2" x2="12" y2="4"/></svg>;
+    case 'pin':   return <svg {...p}><path d="M12 21s-7-5.2-7-11a7 7 0 0 1 14 0c0 5.8-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>;
+    default:      return null;
+  }
 }
 
 export default function SearchesCard({ searches = [] }) {
   const liveCount = searches.filter(hasCoords).length;
+  const nearest   = searches.find(hasCoords);
 
   return (
-    <div
-      style={{
-        padding: '12px 12px 14px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 10,
-      }}
-    >
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div>
-          <div
-            style={{
-              fontFamily: COND,
-              fontSize: 10,
-              fontWeight: 800,
-              letterSpacing: '.16em',
-              color: C.cyan,
-              textTransform: 'uppercase',
-            }}
-          >
-            Live Activity
-          </div>
+    <>
+      <style>{`
+        @keyframes scBlink { 0%,100%{opacity:1} 50%{opacity:.22} }
+        @keyframes scGlow  { 0%,100%{box-shadow:0 0 18px rgba(6,182,212,.18)} 50%{box-shadow:0 0 30px rgba(6,182,212,.38)} }
+      `}</style>
 
-          <div
-            style={{
-              fontFamily: MONO,
-              fontSize: 8.5,
-              color: C.inkTextDim,
-              marginTop: 1,
-            }}
-          >
-            Orlando metro · now
-          </div>
-        </div>
-      </div>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14,
+        background: 'rgba(6,182,212,.05)', border: '1px solid rgba(6,182,212,.18)',
+        borderRadius: 14, padding: '13px 14px',
+        boxShadow: '0 0 0 1px rgba(6,182,212,.04)',
+      }}>
 
-      {/* Stat tile */}
-      <div
-        style={{
-          borderRadius: 10,
-          padding: '8px 11px',
-          background: 'rgba(255,255,255,.04)',
-          border: `1px solid ${C.cyan}22`,
-        }}
-      >
-        <div
-          style={{
-            fontFamily: MONO,
-            fontSize: 21,
-            fontWeight: 800,
-            color: C.cyan,
-            lineHeight: 1,
-            textShadow: `0 0 16px ${C.cyan}55`,
-          }}
-        >
-          {liveCount}
+        {/* Icon */}
+        <div style={{
+          width: 42, height: 42, borderRadius: 12, flexShrink: 0,
+          background: 'rgba(6,182,212,.1)', border: '1px solid rgba(6,182,212,.25)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          animation: 'scGlow 2.8s ease-in-out infinite',
+        }}>
+          <Ico n="radar" size={20} color="#06B6D4"/>
         </div>
 
-        <div
-          style={{
-            fontFamily: COND,
-            fontSize: 7.5,
-            fontWeight: 800,
-            letterSpacing: '.12em',
-            color: C.inkTextDim,
+        {/* Text */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontFamily: COND, fontSize: 20, fontWeight: 900,
+            letterSpacing: '.04em', color: '#fff', lineHeight: 1.05,
+          }}>
+            {liveCount} searching
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
+            <div style={{
+              width: 5, height: 5, borderRadius: '50%', background: '#06B6D4',
+              boxShadow: '0 0 5px #06B6D4',
+              animation: 'scBlink 1.6s ease-in-out infinite',
+            }}/>
+            {nearest
+              ? <span style={{ fontFamily: MONO, fontSize: 8, color: 'rgba(255,255,255,.35)',
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 140 }}>
+                  <Ico n="pin" size={8} color="rgba(255,255,255,.3)"/> {nearest.pickup}
+                </span>
+              : <span style={{ fontFamily: MONO, fontSize: 8, color: 'rgba(255,255,255,.35)' }}>
+                  Orlando metro · now
+                </span>
+            }
+          </div>
+        </div>
+
+        {/* Badge */}
+        <div style={{
+          flexShrink: 0, background: 'rgba(6,182,212,.12)',
+          border: '1px solid rgba(6,182,212,.3)', borderRadius: 10,
+          padding: '8px 13px', display: 'flex', flexDirection: 'column',
+          alignItems: 'center', gap: 1,
+        }}>
+          <span style={{
+            fontFamily: MONO, fontSize: 18, fontWeight: 800,
+            color: '#06B6D4', lineHeight: 1,
+            textShadow: '0 0 14px rgba(6,182,212,.5)',
+          }}>
+            {liveCount}
+          </span>
+          <span style={{
+            fontFamily: COND, fontSize: 7, fontWeight: 800,
+            letterSpacing: '.12em', color: 'rgba(255,255,255,.35)',
             textTransform: 'uppercase',
-            marginTop: 3,
-          }}
-        >
-          Active Searches
+          }}>
+            live
+          </span>
         </div>
-      </div>
 
-      {/* List preview (optional but useful) */}
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 6,
-        }}
-      >
-        {searches.slice(0, 3).map((s) => (
-          <div
-            key={s.id}
-            style={{
-              padding: 8,
-              borderRadius: 8,
-              background: 'rgba(255,255,255,.03)',
-              border: '1px solid rgba(255,255,255,.05)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 2,
-            }}
-          >
-            <div
-              style={{
-                fontFamily: COND,
-                fontSize: 11,
-                fontWeight: 700,
-                color: '#fff',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {safeText(s.pickup)}
-            </div>
-
-            <div
-              style={{
-                fontFamily: MONO,
-                fontSize: 9,
-                color: C.inkTextDim,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              → {safeText(s.dropoff)}
-            </div>
-          </div>
-        ))}
       </div>
-    </div>
+    </>
   );
 }

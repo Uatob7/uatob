@@ -2,18 +2,21 @@
  * UaTobApp.jsx  — Rider-facing full-screen Mapbox HUD
  *
  * Props:
- *   uid               string
- *   rides             array   — rider's ride history / active rides
- *   searches          array   — live search pool (for ambient heatmap)
- *   scheduledRides    array   — rider's own scheduled rides
- *   trips             array   — completed trip history (falls back to rides)
- *   drivers           array   — nearby drivers (reserved)
- *   account           object  — rider account doc
- *   createTrip        fn      — books a ride (payload => Promise)
- *   callSaveFcmToken  fn      — saves FCM push token to Firestore
+ *   uid            string
+ *   rides          array   — rider's ride history / active rides
+ *   searches       array   — live search pool (for ambient heatmap)
+ *   scheduledRides array   — rider's own scheduled rides
+ *   trips          array   — completed trip history (falls back to rides)
+ *   drivers        array   — nearby drivers (reserved)
+ *   account        object  — rider account doc
+ *   createTrip     fn      — books a ride (payload => Promise)
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { collection, onSnapshot, getFirestore, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { firebase_app } from '@/firebase/config';
+
+const db = getFirestore(firebase_app);
 import {
   FACE_BOOK,
   FACE_SEARCHES,
@@ -57,6 +60,12 @@ function tsToMillis(ts) {
   return 0;
 }
 
+function fmtSpeed(mps) {
+  if (mps == null || !isFinite(mps) || mps < 0) return null;
+  const mph = mps * 2.236936;
+  return mph < 1 ? null : String(Math.round(mph));
+}
+
 function fmtClock(ms) {
   const d = new Date(ms);
   const p = n => String(n).padStart(2, '0');
@@ -80,9 +89,10 @@ const KEYFRAMES = `
   @keyframes uaBarPulse   { 0%,100%{transform:scaleY(.5);opacity:.45} 50%{transform:scaleY(1);opacity:1} }
   @keyframes uaCardFlip   { 0%{opacity:0;transform:translateY(8px) scale(.98)} 100%{opacity:1;transform:translateY(0) scale(1)} }
   @keyframes uaGlowPulse  { 0%,100%{box-shadow:0 0 18px rgba(74,222,128,.25)} 50%{box-shadow:0 0 38px rgba(74,222,128,.55)} }
+  @keyframes ua-driver-pulse { 0%{transform:translate(-50%,-50%) scale(.4);opacity:.7} 100%{transform:translate(-50%,-50%) scale(2.2);opacity:0} }
 `;
 
-// ─── HUD-only icons (not used by StatusCard) ─────────────────────────────────
+// ─── HUD-only icons ───────────────────────────────────────────────────────────
 function Icon({ name, size = 16, color = 'currentColor', stroke = 1.8 }) {
   const p = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none',
     stroke: color, strokeWidth: stroke, strokeLinecap: 'round', strokeLinejoin: 'round' };
@@ -110,7 +120,7 @@ function SignalBars({ active = true, color = C.greenBright }) {
 }
 
 // ─── Top Ribbon ──────────────────────────────────────────────────────────────
-function TopRibbon({ now, mapReady }) {
+function TopRibbon({ now, mapReady, speed }) {
   return (
     <div style={{
       position: 'absolute', top: 0, left: 0, right: 0, height: 28, zIndex: 24,
@@ -119,15 +129,11 @@ function TopRibbon({ now, mapReady }) {
       background: 'linear-gradient(180deg, rgba(3,6,4,.88), rgba(3,6,4,0))',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-        <span style={{
-          fontFamily: COND, fontSize: 11, fontWeight: 800, letterSpacing: '.22em',
-          color: 'rgba(255,255,255,.52)',
-        }}>UATOB</span>
+        <span style={{ fontFamily: COND, fontSize: 11, fontWeight: 800,
+          letterSpacing: '.22em', color: 'rgba(255,255,255,.52)' }}>UATOB</span>
         <span style={{ fontFamily: MONO, fontSize: 9, color: C.inkTextFade }}>·</span>
-        <span style={{
-          fontFamily: COND, fontSize: 9.5, fontWeight: 700, letterSpacing: '.16em',
-          color: C.inkTextDim,
-        }}>RIDER</span>
+        <span style={{ fontFamily: COND, fontSize: 9.5, fontWeight: 700,
+          letterSpacing: '.16em', color: C.inkTextDim }}>RIDER</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -136,15 +142,22 @@ function TopRibbon({ now, mapReady }) {
             boxShadow: `0 0 7px ${C.greenBright}`,
             animation: 'uaBlink 1.6s ease-in-out infinite',
           }}/>
-          <span style={{
-            fontFamily: MONO, fontSize: 9.5, fontWeight: 800,
-            letterSpacing: '.08em', color: C.greenBright,
-          }}>{mapReady ? 'LIVE' : 'SYNC'}</span>
+          <span style={{ fontFamily: MONO, fontSize: 9.5, fontWeight: 800,
+            letterSpacing: '.08em', color: C.greenBright }}>
+            {mapReady ? 'LIVE' : 'SYNC'}
+          </span>
         </div>
-        <span style={{
-          fontFamily: MONO, fontSize: 10, fontWeight: 700,
-          color: 'rgba(255,255,255,.4)',
-        }}>{fmtClock(now)}</span>
+        {speed != null && (
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
+            <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 800, color: C.greenSoft }}>
+              {speed}
+            </span>
+            <span style={{ fontFamily: COND, fontSize: 7.5, fontWeight: 800,
+              letterSpacing: '.1em', color: C.inkTextDim }}>MPH</span>
+          </div>
+        )}
+        <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700,
+          color: 'rgba(255,255,255,.4)' }}>{fmtClock(now)}</span>
         <Icon name="sat" size={11} color={C.greenSoft}/>
         <SignalBars active={true}/>
       </div>
@@ -156,7 +169,8 @@ function TopRibbon({ now, mapReady }) {
 function RadarOverlay({ svgRef }) {
   return (
     <svg ref={svgRef}
-      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 10 }}
+      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%',
+        pointerEvents: 'none', zIndex: 10 }}
       viewBox="0 0 100 100" preserveAspectRatio="none">
       <defs>
         <radialGradient id="ua-sweepGrad" cx="50%" cy="50%" r="50%">
@@ -202,10 +216,8 @@ function RadarOverlay({ svgRef }) {
 
 function ScanlineOverlay() {
   return (
-    <div style={{
-      position: 'absolute', inset: 0, zIndex: 8, pointerEvents: 'none',
-      mixBlendMode: 'screen', opacity: .45,
-    }}>
+    <div style={{ position: 'absolute', inset: 0, zIndex: 8,
+      pointerEvents: 'none', mixBlendMode: 'screen', opacity: .45 }}>
       <div style={{
         position: 'absolute', inset: 0,
         backgroundImage: 'repeating-linear-gradient(0deg, rgba(34,197,94,.03) 0px, rgba(34,197,94,.03) 1px, transparent 2px, transparent 4px)',
@@ -233,10 +245,10 @@ function CornerBrackets() {
   return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 12, pointerEvents: 'none' }}>
       {[
-        { top: off, left: off,    bt: 1, bl: 1 },
-        { top: off, right: off,   bt: 1, br: 1 },
-        { bottom: off, left: off, bb: 1, bl: 1 },
-        { bottom: off, right: off,bb: 1, br: 1 },
+        { top: off, left: off,     bt: 1, bl: 1 },
+        { top: off, right: off,    bt: 1, br: 1 },
+        { bottom: off, left: off,  bb: 1, bl: 1 },
+        { bottom: off, right: off, bb: 1, br: 1 },
       ].map((c, i) => (
         <div key={i} style={{
           position: 'absolute', width: sz, height: sz,
@@ -269,7 +281,77 @@ function SupportFab({ onOpen }) {
   );
 }
 
-// ─── GeoJSON helpers ─────────────────────────────────────────────────────────
+// ─── Search ring marker element ──────────────────────────────────────────────
+function makeSearchRingEl(isGuest) {
+  const col   = isGuest ? '#FB923C' : '#4ADE80';
+  const colDim = isGuest ? 'rgba(251,146,60,' : 'rgba(74,222,128,';
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:relative;width:0;height:0;pointer-events:none;';
+
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes ua-ring-out {
+      0%   { transform:translate(-50%,-50%) scale(.2); opacity:.9; }
+      100% { transform:translate(-50%,-50%) scale(2.8); opacity:0; }
+    }
+  `;
+  wrap.appendChild(style);
+
+  [0, 0.7, 1.4].forEach(delay => {
+    const ring = document.createElement('div');
+    ring.style.cssText = [
+      'position:absolute', 'left:0', 'top:0',
+      'width:26px', 'height:26px', 'border-radius:50%',
+      `border:1.5px solid ${colDim}.55)`,
+      'transform:translate(-50%,-50%) scale(.2)',
+      `animation:ua-ring-out 2.4s ease-out ${delay}s infinite`,
+    ].join(';');
+    wrap.appendChild(ring);
+  });
+
+  const dot = document.createElement('div');
+  dot.style.cssText = [
+    'position:absolute', 'left:0', 'top:0',
+    'width:8px', 'height:8px', 'border-radius:50%',
+    `background:${col}`, `border:1.5px solid #fff`,
+    `box-shadow:0 0 10px ${col}`,
+    'transform:translate(-50%,-50%)',
+  ].join(';');
+  wrap.appendChild(dot);
+
+  return wrap;
+}
+
+// ─── Driver dot marker element ───────────────────────────────────────────────
+function makeDriverDotEl() {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:relative;width:0;height:0;pointer-events:none;';
+
+  const pulse = document.createElement('div');
+  pulse.style.cssText = [
+    'position:absolute','left:0','top:0',
+    'width:18px','height:18px','border-radius:50%',
+    'border:1.5px solid rgba(74,222,128,.5)',
+    'transform:translate(-50%,-50%) scale(.4)','opacity:0',
+    'animation:ua-driver-pulse 2s ease-out infinite',
+  ].join(';');
+
+  const dot = document.createElement('div');
+  dot.style.cssText = [
+    'position:absolute','left:0','top:0',
+    'width:10px','height:10px','border-radius:50%',
+    'background:#22C55E','border:2px solid #fff',
+    'box-shadow:0 0 8px rgba(34,197,94,.9)',
+    'transform:translate(-50%,-50%)',
+  ].join(';');
+
+  wrap.appendChild(pulse);
+  wrap.appendChild(dot);
+  return wrap;
+}
+
+// ─── GeoJSON helpers ──────────────────────────────────────────────────────────
 function buildSearchGeoJSON(searches = []) {
   return {
     type: 'FeatureCollection',
@@ -299,26 +381,73 @@ function buildScheduledGeoJSON(scheduledRides = []) {
 // MAIN COMPONENT
 export default function UaTob({
   uid,
-  rides = [],
-  searches = [],
+  rides          = [],
+  searches       = [],
   createTrip,
-  trips = [],
+  trips          = [],
   scheduledRides = [],
-  callSaveFcmToken,
-  drivers = [],
-  account = null,
+  drivers        = [],
+  account        = null,
 }) {
+  const mapContainerRef    = useRef(null);
+  const mapRef             = useRef(null);
+  const sweepRef           = useRef(0);
+  const rafRef             = useRef(null);
+  const svgRef             = useRef(null);
+  const pulseRef           = useRef(false);
+  const searchMarkersRef   = useRef(new Map());
+  const driverMarkersRef   = useRef(new Map());
 
-  const mapContainerRef = useRef(null);
-  const mapRef          = useRef(null);
-  const sweepRef        = useRef(0);
-  const rafRef          = useRef(null);
-  const svgRef          = useRef(null);
-  const pulseRef        = useRef(false);
+  const [mapReady,      setMapReady]      = useState(false);
+  const [now,           setNow]           = useState(Date.now());
+  const [face,          setFace]          = useState(FACE_BOOK);
+  const [driverCounts,  setDriverCounts]  = useState({ online: 0, total: 0 });
+  const [speed,         setSpeed]         = useState(null);
 
-  const [mapReady, setMapReady] = useState(false);
-  const [now,      setNow]      = useState(Date.now());
-  const [face,     setFace]     = useState(FACE_BOOK);
+  // Driver fleet counts + live positions
+  const [onlineDrivers, setOnlineDrivers] = useState([]);
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'Drivers'), snap => {
+      let online = 0;
+      const positions = [];
+      snap.forEach(d => {
+        const data = d.data();
+        if ((data.status ?? '').toLowerCase() === 'online') {
+          online++;
+          if (typeof data.lat === 'number' && typeof data.lng === 'number') {
+            positions.push({ id: d.id, lat: data.lat, lng: data.lng });
+          }
+        }
+      });
+      setDriverCounts({ online, total: snap.size });
+      setOnlineDrivers(positions);
+    });
+    return () => unsub();
+  }, []);
+
+  // GPS speed watch + location sync
+  useEffect(() => {
+    if (!navigator?.geolocation) return;
+    const id = navigator.geolocation.watchPosition(
+      pos => {
+        const { latitude, longitude, speed: mps } = pos.coords;
+        setSpeed(fmtSpeed(mps));
+        if (mapRef.current) {
+          try { mapRef.current.easeTo({ center: [longitude, latitude], duration: 800 }); } catch (e) {}
+        }
+        if (uid) {
+          updateDoc(doc(db, 'Accounts', uid), {
+            lat:       latitude,
+            lng:       longitude,
+            locationUpdatedAt: serverTimestamp(),
+          }).catch(() => {});
+        }
+      },
+      () => setSpeed(null),
+      { enableHighAccuracy: true, maximumAge: 1000, timeout: 12000 },
+    );
+    return () => navigator.geolocation.clearWatch(id);
+  }, [uid]);
 
   // 1 Hz clock
   useEffect(() => {
@@ -347,7 +476,7 @@ export default function UaTob({
       const map = new mapboxgl.Map({
         container:          mapContainerRef.current,
         style:              MAP_STYLE,
-        center:             [ORL_LNG, ORL_LAT],
+        center:             [account?.lng ?? ORL_LNG, account?.lat ?? ORL_LAT],
         zoom:               12,
         pitch:              45,
         bearing:            -20,
@@ -443,6 +572,73 @@ export default function UaTob({
     if (map.isStyleLoaded()) apply(); else map.once('styledata', apply);
   }, [searches, scheduledRides, mapReady]);
 
+  // ── Search ring markers ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !window.mapboxgl) return;
+    const store = searchMarkersRef.current;
+    const seen  = new Set();
+
+    searches.filter(s => typeof s.pickupLat === 'number' && typeof s.pickupLng === 'number')
+      .forEach(s => {
+        seen.add(s.id);
+        if (!store.has(s.id)) {
+          const isGuest = !s.uid || s.uid === 'null';
+          const el      = makeSearchRingEl(isGuest);
+          const marker  = new window.mapboxgl.Marker({ element: el, anchor: 'center' })
+            .setLngLat([s.pickupLng, s.pickupLat])
+            .addTo(mapRef.current);
+          store.set(s.id, marker);
+        }
+      });
+
+    store.forEach((marker, id) => {
+      if (!seen.has(id)) {
+        try { marker.remove(); } catch (e) {}
+        store.delete(id);
+      }
+    });
+  }, [searches, mapReady]);
+
+  // ── Tear down search markers when map goes away ────────────────────────────
+  useEffect(() => {
+    if (mapReady) return;
+    searchMarkersRef.current.forEach(m => { try { m.remove(); } catch (e) {} });
+    searchMarkersRef.current.clear();
+  }, [mapReady]);
+
+  // ── Online driver dot markers ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !window.mapboxgl) return;
+    const store = driverMarkersRef.current;
+    const seen  = new Set();
+
+    onlineDrivers.forEach(({ id, lat, lng }) => {
+      seen.add(id);
+      if (store.has(id)) {
+        try { store.get(id).setLngLat([lng, lat]); } catch (e) {}
+      } else {
+        const marker = new window.mapboxgl.Marker({ element: makeDriverDotEl(), anchor: 'center' })
+          .setLngLat([lng, lat])
+          .addTo(mapRef.current);
+        store.set(id, marker);
+      }
+    });
+
+    store.forEach((marker, id) => {
+      if (!seen.has(id)) {
+        try { marker.remove(); } catch (e) {}
+        store.delete(id);
+      }
+    });
+  }, [onlineDrivers, mapReady]);
+
+  // ── Tear down driver markers when map goes away ────────────────────────────
+  useEffect(() => {
+    if (mapReady) return;
+    driverMarkersRef.current.forEach(m => { try { m.remove(); } catch (e) {} });
+    driverMarkersRef.current.clear();
+  }, [mapReady]);
+
   // ── Radar sweep RAF ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapReady) { cancelAnimationFrame(rafRef.current); return; }
@@ -481,10 +677,9 @@ export default function UaTob({
     return () => cancelAnimationFrame(rafRef.current);
   }, [mapReady]);
 
-  // ── Handlers ────────────────────────────────────────────────────────────────
+  // ── Handlers ──────────────────────────────────────────────────────────────
   const handleBook = useCallback((payload) => {
     console.log('[UaTob] Ride requested', payload);
-    // optional: persist locally, optimistic UI, etc.
   }, []);
 
   const handleOpenSupport = useCallback(() => {
@@ -503,11 +698,12 @@ export default function UaTob({
           opacity: mapReady ? 1 : 0, transition: 'opacity .7s ease',
         }}/>
 
-        {/* Map loading spinner */}
+        {/* Map loading state */}
         {!mapReady && (
           <div style={{
             position: 'absolute', inset: 0, zIndex: 9,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12,
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', gap: 12,
           }}>
             {[60, 110, 160].map((r, i) => (
               <div key={i} style={{
@@ -535,22 +731,16 @@ export default function UaTob({
         <CornerBrackets/>
 
         {/* Top ribbon */}
-        <TopRibbon now={now} mapReady={mapReady}/>
+        <TopRibbon now={now} mapReady={mapReady} speed={speed}/>
 
         {/* Status card */}
         <div style={{
-          position: 'absolute',
-          top: 36, left: 0, right: 0,
-          zIndex: 30,
-          display: 'flex',
-          justifyContent: 'center',
-          padding: '0 16px',
-          pointerEvents: 'none',
+          position: 'absolute', top: 36, left: 0, right: 0, zIndex: 30,
+          display: 'flex', justifyContent: 'center',
+          padding: '0 16px', pointerEvents: 'none',
         }}>
           <div style={{
-            width: '100%',
-            maxWidth: 340,
-            pointerEvents: 'auto',
+            width: '100%', maxWidth: 340, pointerEvents: 'auto',
             animation: 'uaSlideDown .5s cubic-bezier(.34,1.2,.64,1) both',
             filter: 'drop-shadow(0 10px 32px rgba(0,0,0,.55))',
           }}>
@@ -566,7 +756,6 @@ export default function UaTob({
               scheduledRides={scheduledRides}
               drivers={drivers}
               now={now}
-              callSaveFcmToken={callSaveFcmToken}
               onBook={handleBook}
             />
           </div>
@@ -575,12 +764,56 @@ export default function UaTob({
         {/* Support FAB */}
         <SupportFab onOpen={handleOpenSupport}/>
 
+        {/* Search count — bottom left */}
+        <div style={{
+          position: 'absolute', bottom: 48, left: 16, zIndex: 18,
+          pointerEvents: 'none', animation: 'uaFadeIn .8s ease .4s both',
+          display: 'flex', alignItems: 'center', gap: 5,
+          padding: '4px 10px', borderRadius: 99,
+          background: 'rgba(5,10,6,.55)', backdropFilter: 'blur(8px)',
+          border: '1px solid rgba(34,197,94,.12)',
+        }}>
+          <div style={{
+            width: 6, height: 6, borderRadius: '50%', background: C.greenBright,
+            boxShadow: `0 0 6px ${C.greenBright}`,
+            animation: searches.length > 0 ? 'uaBlink 1.8s ease-in-out infinite' : 'none',
+          }}/>
+          <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 800, color: C.greenBright }}>
+            {searches.length}
+          </span>
+          <span style={{ fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.13em',
+            color: 'rgba(74,222,128,.5)', textTransform: 'uppercase' }}>
+            searches
+          </span>
+        </div>
+
+        {/* Fleet count — bottom right */}
+        <div style={{
+          position: 'absolute', bottom: 48, right: 16, zIndex: 18,
+          pointerEvents: 'none', animation: 'uaFadeIn .8s ease .4s both',
+          display: 'flex', alignItems: 'center', gap: 5,
+          padding: '4px 10px', borderRadius: 99,
+          background: 'rgba(5,10,6,.55)', backdropFilter: 'blur(8px)',
+          border: '1px solid rgba(34,197,94,.12)',
+        }}>
+          <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 800, color: C.greenBright }}>
+            {driverCounts.online}
+          </span>
+          <span style={{ fontFamily: MONO, fontSize: 9, color: 'rgba(255,255,255,.22)' }}>/</span>
+          <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,.4)' }}>
+            {driverCounts.total}
+          </span>
+          <span style={{ fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.13em',
+            color: 'rgba(74,222,128,.5)', textTransform: 'uppercase' }}>
+            fleet
+          </span>
+        </div>
+
         {/* Bottom city label */}
         <div style={{
           position: 'absolute', bottom: 48, left: 0, right: 0,
           display: 'flex', justifyContent: 'center', zIndex: 18,
-          pointerEvents: 'none',
-          animation: 'uaFadeIn .8s ease .4s both',
+          pointerEvents: 'none', animation: 'uaFadeIn .8s ease .4s both',
         }}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 7,
@@ -589,10 +822,10 @@ export default function UaTob({
             border: '1px solid rgba(34,197,94,.12)',
           }}>
             <Icon name="pin" size={10} color={C.greenBright}/>
-            <span style={{
-              fontFamily: COND, fontSize: 10, fontWeight: 800, letterSpacing: '.18em',
-              color: 'rgba(255,255,255,.35)',
-            }}>ORLANDO · FL</span>
+            <span style={{ fontFamily: COND, fontSize: 10, fontWeight: 800,
+              letterSpacing: '.18em', color: 'rgba(255,255,255,.35)' }}>
+              ORLANDO · FL
+            </span>
           </div>
         </div>
 
