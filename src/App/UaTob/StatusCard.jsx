@@ -31,15 +31,19 @@ export default function StatusCard({
   const [bookingActive, setBookingActive] = useState(false);
   const cycleRef = useRef(null);
 
+  // Pause the cycle whenever the user is actively filling out a form
+  const authActive  = face === FACE_ACCOUNT && !uid;
+  const flowBlocked = bookingActive || authActive;
+
   const startCycle = useCallback(() => {
     clearInterval(cycleRef.current);
-    if (bookingActive) return;
+    if (flowBlocked) return;
     cycleRef.current = setInterval(() => {
       const idx  = FACE_ORDER.indexOf(face);
       const next = FACE_ORDER[(idx + 1) % FACE_ORDER.length];
       onFaceChange?.(next);
     }, FACE_CYCLE_MS);
-  }, [face, bookingActive, onFaceChange]);
+  }, [face, flowBlocked, onFaceChange]);
 
   useEffect(() => {
     startCycle();
@@ -63,10 +67,10 @@ export default function StatusCard({
         className="sc-face"
         key={face}
         style={{
-          cursor: !bookingActive && face !== FACE_BOOK ? 'pointer' : 'default',
+          cursor: !flowBlocked && face !== FACE_BOOK ? 'pointer' : 'default',
         }}
         onClick={(e) => {
-          if (bookingActive || face === FACE_BOOK) return;
+          if (flowBlocked || face === FACE_BOOK) return;
           if (['BUTTON', 'INPUT', 'A', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
           const idx = FACE_ORDER.indexOf(face);
           goFace(FACE_ORDER[(idx + 1) % FACE_ORDER.length]);
