@@ -6,9 +6,9 @@ const MONO = "'JetBrains Mono','SFMono-Regular',monospace";
 const COND = "'Barlow Condensed','Barlow',sans-serif";
 
 const BOOT_LINES = [
-  'Connecting to dispatch…',
+  'Connecting to Uatob…',
   'Scanning nearby drivers…',
-  'Loading fare engine…',
+  'Loading engine…',
   'Ready',
 ];
 
