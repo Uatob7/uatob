@@ -16,7 +16,7 @@ import { useCreateTrip } from '@/App/UaTob/useCreateTrip';
 
 export default function App({ uid }) {
 const { account } = useAccounts(uid);
-  const { rides }                  = useRides();
+  const { rides }                  = useRides(uid);
   const { createTrip } = useCreateTrip(uid);
   const { searches }               = useSearch();
   const { scheduledRides }         = useScheduledRides();

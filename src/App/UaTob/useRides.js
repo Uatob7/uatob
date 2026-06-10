@@ -23,12 +23,18 @@ const ACTIVE_STATUSES = [
   'timeout',
 ];
 
-export function useRides() {
+export function useRides(uid) {
   const [rides, setRides] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    if (!uid) {
+      setRides([]);
+      setLoading(false);
+      return;
+    }
+
     let isMounted = true;
 
     setLoading(true);
@@ -37,6 +43,7 @@ export function useRides() {
     try {
       const q = query(
         collection(db, 'Rides'),
+        where('uid', '==', uid),
         where('status', 'in', ACTIVE_STATUSES)
       );
 
@@ -77,7 +84,7 @@ export function useRides() {
       setRides([]);
       setLoading(false);
     }
-  }, []);
+  }, [uid]);
 
   return { rides, loading, error };
 }
