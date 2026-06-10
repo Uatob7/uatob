@@ -277,6 +277,17 @@ function buildPickupGeoJSON(searches = []) {
   return { type: 'FeatureCollection', features };
 }
 
+function buildRiderGeoJSON(accounts = []) {
+  const features = accounts
+    .filter(a => typeof a.lat === 'number' && typeof a.lng === 'number')
+    .map(a => ({
+      type: 'Feature',
+      properties: { id: a.id },
+      geometry: { type: 'Point', coordinates: [a.lng, a.lat] },
+    }));
+  return { type: 'FeatureCollection', features };
+}
+
 function buildScheduledGeoJSON(scheduledRides = []) {
   const features = scheduledRides
     .filter(hasCoords)
@@ -343,18 +354,28 @@ function nearestMi(driverLat, driverLng, items = []) {
   return isFinite(min) ? min : null;
 }
 
-function gatherContacts(driver, searches, scheduledRides) {
+function gatherContacts(driver, searches, scheduledRides, accounts = []) {
   const dLat = driver?.lat, dLng = driver?.lng;
   if (typeof dLat !== 'number' || typeof dLng !== 'number') return [];
   const out = [];
   searches.filter(hasCoords).forEach(s => {
     out.push({
       id:      `s_${s.id}`,
-      kind:    s.guest || !s.uid || s.uid === 'null' ? 'guest' : 'search',
+      kind:    'search',
       dist:    haversineMiles(dLat, dLng, s.pickupLat, s.pickupLng),
       bearing: bearingBetween(dLat, dLng, s.pickupLat, s.pickupLng),
     });
   });
+  accounts
+    .filter(a => typeof a.lat === 'number' && typeof a.lng === 'number')
+    .forEach(a => {
+      out.push({
+        id:      `a_${a.id}`,
+        kind:    'rider',
+        dist:    haversineMiles(dLat, dLng, a.lat, a.lng),
+        bearing: bearingBetween(dLat, dLng, a.lat, a.lng),
+      });
+    });
   scheduledRides.filter(hasCoords).forEach(r => {
     out.push({
       id:      `r_${r.id}`,
@@ -368,7 +389,8 @@ function gatherContacts(driver, searches, scheduledRides) {
 
 const KIND_COLOR = {
   search: C.greenBright,
-  guest:  C.amber,
+  guest:  C.greenBright,
+  rider:  C.amber,
   sched:  C.violet,
 };
 
@@ -1065,8 +1087,8 @@ function ContactAlert({ alert }) {
 
 function LegendKey() {
   const rows = [
-    { c: C.greenBright, label: 'Rider' },
-    { c: C.amber,       label: 'Guest' },
+    { c: C.greenBright, label: 'Search' },
+    { c: C.amber,       label: 'Rider' },
     { c: C.violet,      label: 'Scheduled' },
   ];
   return (
@@ -1967,6 +1989,7 @@ export default function HomeTab({
 
         map.addSource('ht-searches',  { type: 'geojson', data: buildPickupGeoJSON(searches)          });
         map.addSource('ht-scheduled', { type: 'geojson', data: buildScheduledGeoJSON(scheduledRides) });
+        map.addSource('ht-riders',    { type: 'geojson', data: buildRiderGeoJSON(accounts)            });
 
         map.addLayer({
           id: 'ht-demand', type: 'heatmap', source: 'ht-searches',
@@ -1995,11 +2018,26 @@ export default function HomeTab({
         }});
         map.addLayer({ id: 'ht-search-dot', type: 'circle', source: 'ht-searches', paint: {
           'circle-radius':       5,
-          'circle-color':        ['case', ['get', 'guest'], 'rgba(251,146,60,0.95)', 'rgba(52,211,153,0.95)'],
+          'circle-color':        'rgba(52,211,153,0.95)',
           'circle-stroke-color': '#fff',
           'circle-stroke-width': 1.5,
           'circle-blur':         0.1,
           'circle-opacity':      ['*', ['get', 'age'], 0.9],
+        }});
+
+        map.addLayer({ id: 'ht-rider-halo', type: 'circle', source: 'ht-riders', paint: {
+          'circle-radius':       16,
+          'circle-color':        'rgba(251,146,60,0)',
+          'circle-stroke-color': 'rgba(251,146,60,0.45)',
+          'circle-stroke-width': 1.5,
+          'circle-opacity':      0.7,
+        }});
+        map.addLayer({ id: 'ht-rider-dot', type: 'circle', source: 'ht-riders', paint: {
+          'circle-radius':       6,
+          'circle-color':        'rgba(251,146,60,0.95)',
+          'circle-stroke-color': '#fff',
+          'circle-stroke-width': 1.5,
+          'circle-blur':         0.1,
         }});
 
         map.addLayer({ id: 'ht-sched-halo', type: 'circle', source: 'ht-scheduled', paint: {
@@ -2131,10 +2169,11 @@ export default function HomeTab({
     const apply = () => {
       map.getSource('ht-searches') ?.setData(buildPickupGeoJSON(searches));
       map.getSource('ht-scheduled')?.setData(buildScheduledGeoJSON(scheduledRides));
+      map.getSource('ht-riders')   ?.setData(buildRiderGeoJSON(accounts));
     };
     if (map.isStyleLoaded()) apply();
     else map.once('styledata', apply);
-  }, [searches, scheduledRides, mapReady]);
+  }, [searches, scheduledRides, accounts, mapReady]);
 
   // ── Active trip route: fetch polyline + draw on map ───────────────────
   useEffect(() => {
@@ -2316,8 +2355,11 @@ export default function HomeTab({
       const r  = 10 + 10 * ((Math.sin(t) + 1) / 2);
       const rs = 16 + 12 * ((Math.sin(t + 1) + 1) / 2);
       try {
+        const rr = 12 + 8 * ((Math.sin(t + 0.5) + 1) / 2);
         map.setPaintProperty('ht-search-halo', 'circle-radius', r);
         map.setPaintProperty('ht-search-halo', 'circle-stroke-width', 1 + 1.5 * ((Math.sin(t) + 1) / 2));
+        map.setPaintProperty('ht-rider-halo',  'circle-radius', rr);
+        map.setPaintProperty('ht-rider-halo',  'circle-stroke-width', 1 + 1.5 * ((Math.sin(t + 0.5) + 1) / 2));
         map.setPaintProperty('ht-sched-halo',  'circle-radius', rs);
         map.setPaintProperty('ht-sched-halo',  'circle-stroke-width', 1.5 + 2 * ((Math.sin(t + 1) + 1) / 2));
       } catch (e) { /* layers gone */ }
@@ -2380,8 +2422,8 @@ export default function HomeTab({
     [liveLat, liveLng, searches]
   );
   const contacts = useMemo(
-    () => gatherContacts(liveDriver, searches, scheduledRides),
-    [liveLat, liveLng, searches, scheduledRides]
+    () => gatherContacts(liveDriver, searches, scheduledRides, accounts),
+    [liveLat, liveLng, searches, scheduledRides, accounts]
   );
 
   const lastSearchAt = useMemo(() => {
