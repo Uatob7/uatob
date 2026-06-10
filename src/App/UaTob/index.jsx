@@ -20,6 +20,8 @@ const { account } = useAccounts(uid);
   const { createTrip } = useCreateTrip(uid);
   const { searches }               = useSearch();
   const { scheduledRides }         = useScheduledRides();
+
+  console.log(scheduledRides)
   const { drivers }                = useDrivers();
 
 

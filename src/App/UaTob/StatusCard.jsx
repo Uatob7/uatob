@@ -82,7 +82,7 @@ export default function StatusCard({
             onBook={onBook}
           />
         )}
-        {face === FACE_SEARCHES  && <SearchesCard searches={searches} now={now} />}
+        {face === FACE_SEARCHES  && <SearchesCard searches={searches} now={now}  />}
         {face === FACE_SCHEDULED && <ScheduledCard scheduledRides={scheduledRides} now={now} />}
         {face === FACE_NOTIFS    && <NotificationsCard uid={uid} account={account} callSaveFcmToken={callSaveFcmToken} />}
         {face === FACE_ACCOUNT   && <AccountCard account={account} rides={rides} />}
