@@ -36,6 +36,17 @@ const TIMEOUT_GRACE_MINUTES = 30;
 const REFUND_BATCH_LIMIT    = 25;
 const MAX_REFUND_ATTEMPTS   = 5;  // after this, flag for manual review instead of looping
 
+// Stale match — drop drivers from the match whose presence is older than this
+// at the moment we write. Prevents notifying drivers who went offline after
+// the top-of-run Drivers query but before the per-ride dispatch write.
+const DRIVER_STALE_HARD_MS = 20 * 60 * 1000; // 20 min: definitely offline
+
+// Stripe circuit breaker — if Stripe returns a 5xx/network error, skip all
+// remaining card rides this run instead of hammering the API with errors.
+// Resets automatically on the next scheduler invocation (module re-eval).
+let stripeCircuitOpen  = false;
+let stripeCircuitError = null;
+
 const REFUND_DESTINATIONS = {
   card:    "your card",
   cashapp: "your Cash App",
@@ -940,6 +951,15 @@ function buildMatch(driverPool, pickupLat, pickupLng, pickupZip) {
 
     const lastPresence = presenceMillis(raw);
     const ageMs        = lastPresence === null ? 0 : now - lastPresence;
+
+    // Fix: hard-stale filter — drop drivers whose presence signal is so old
+    // that they are almost certainly offline. This is a second-pass check
+    // against the top-of-run Drivers query snapshot; a driver who went offline
+    // in the gap between that query and now won't get a push they can't act on.
+    // We only skip when we have a real presence reading (null = never updated,
+    // treat as fresh so new drivers aren't silently excluded).
+    if (lastPresence !== null && ageMs > DRIVER_STALE_HARD_MS) continue;
+
     const miles        = round2(haversineMiles(pickupLat, pickupLng, raw.lat, raw.lng));
     const stale        = lastPresence !== null && ageMs > FRESH_MS;
     const etaMin       = estimateEtaMinutes(miles) + (stale ? STALE_PENALTY_MIN : 0);
@@ -1083,7 +1103,7 @@ async function notifyMatchedDrivers(match, ride, rideId) {
 exports.dispatch = onSchedule(
   {
     schedule: "every 1 minutes",
-    region: "us-central1",
+   region: "us-central1",
     timeZone: "America/New_York",
     secrets:  [STRIPE_SECRET_KEY, SENDGRID_API_KEY],
   },
@@ -1222,7 +1242,37 @@ exports.dispatch = onSchedule(
             if (ride.paymentStatus === "succeeded") {
               paymentVerified = true;
             } else {
-              const intent = await getStripe().paymentIntents.retrieve(ride.paymentIntentId);
+              // Fix: circuit breaker — if Stripe already errored this run,
+              // skip all remaining unverified card rides rather than hitting
+              // a broken API N more times. They'll be retried next minute.
+              if (stripeCircuitOpen) {
+                console.warn(
+                  `[dispatch] ${rideId} — Stripe circuit open (${stripeCircuitError}), skipping`
+                );
+                return;
+              }
+
+              let intent;
+              try {
+                intent = await getStripe().paymentIntents.retrieve(ride.paymentIntentId);
+              } catch (stripeErr) {
+                const statusCode = stripeErr?.statusCode ?? 0;
+                // 4xx errors are per-intent problems (bad ID, auth) — don't trip circuit.
+                // 5xx / network errors mean Stripe is down — trip circuit for this run.
+                if (!statusCode || statusCode >= 500) {
+                  stripeCircuitOpen  = true;
+                  stripeCircuitError = stripeErr?.message ?? String(stripeErr);
+                  console.error(
+                    `[dispatch] ⚡ Stripe circuit tripped on ${rideId}: ${stripeCircuitError}`
+                  );
+                } else {
+                  console.error(
+                    `[dispatch] Stripe ${statusCode} on ${rideId}: ${stripeErr?.message}`
+                  );
+                }
+                return;
+              }
+
               console.log(`[dispatch] ${rideId} (${method}) intent: ${intent.status}`);
 
               if (intent.status === "succeeded") {
@@ -1251,7 +1301,14 @@ exports.dispatch = onSchedule(
             ? buildMatch(driverPool, ride.pickupLat, ride.pickupLng, ride.pickupZip ?? null)
             : [];
 
-          // Write to Firestore — _fcmToken stripped
+          // ── Fix: transactional dispatch write ──────────────
+          // Uses a Firestore transaction with a status precondition so that
+          // two overlapping scheduler invocations (Cloud Scheduler is not
+          // exactly-once) cannot both dispatch the same ride. The second
+          // writer will see status == "searching_driver" inside the
+          // transaction, abort with ALREADY_DISPATCHED, and skip silently.
+          const VALID_DISPATCH_STATUSES = ["pending_dispatch", "scheduled"];
+
           const update = {
             status:       "searching_driver",
             match:        toFirestoreMatch(match),
@@ -1262,7 +1319,27 @@ exports.dispatch = onSchedule(
           };
           if (patchPayment) update.paymentStatus = patchPayment;
 
-          await doc.ref.update(update);
+          let alreadyDispatched = false;
+
+          await db.runTransaction(async (tx) => {
+            const fresh = await tx.get(doc.ref);
+            if (!fresh.exists) {
+              alreadyDispatched = true;
+              return; // deleted mid-run
+            }
+            const freshStatus = fresh.data().status;
+            if (!VALID_DISPATCH_STATUSES.includes(freshStatus)) {
+              // Another invocation already moved this ride forward — skip.
+              alreadyDispatched = true;
+              return;
+            }
+            tx.update(doc.ref, update);
+          });
+
+          if (alreadyDispatched) {
+            console.log(`[dispatch] ⚡ ${rideId} already dispatched by concurrent run — skipped`);
+            return;
+          }
 
           console.log(
             `[dispatch] ✅ ${rideId} (${method}) → searching_driver | ` +

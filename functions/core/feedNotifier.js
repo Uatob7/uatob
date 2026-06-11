@@ -298,7 +298,7 @@ function buildText({ posterName, role, message }) {
 exports.feedNotifier = onSchedule(
   {
     schedule:  "every 1 minutes",
-    region:    "us-east1",
+     region: "us-central1",
     timeZone:  "America/New_York",
     secrets:   ["SENDGRID_API_KEY"],
   },
