@@ -10,7 +10,7 @@ const db = admin.firestore();
 exports.feedNotifier = onSchedule(
   {
     schedule: "every 1 minutes",
-    region:   "us-east1",
+    region: "us-central1",
   },
   async () => {
     const now = admin.firestore.Timestamp.now();

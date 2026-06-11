@@ -1,26 +1,13 @@
 // src/App/UaTob/usePromo.js
 import { useState, useCallback } from 'react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { firebase_app } from '@/firebase/config';
-
-const functions       = getFunctions(firebase_app, 'us-east1');
-const callValidatePromo = httpsCallable(functions, 'validatePromoCode');
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/firebase/config';
 
 /**
  * Manages promo-code entry, validation, and the resulting discount object.
+ * Reads directly from the PromoCodes Firestore collection.
  *
  * @param {number} originalTotal  The base fare before any discount.
- *
- * Returns:
- *   code        string
- *   setCode     (string) => void
- *   open        bool         Whether the input row is expanded
- *   setOpen     (bool) => void
- *   loading     bool
- *   error       string
- *   discount    { code, savings, newTotal, discountType, discountValue } | null
- *   handleApply () => Promise<void>
- *   handleRemove() => void
  */
 export function usePromo(originalTotal) {
   const [code,     setCode]     = useState('');
@@ -30,26 +17,54 @@ export function usePromo(originalTotal) {
   const [discount, setDiscount] = useState(null);
 
   const handleApply = useCallback(async () => {
-    if (!code.trim()) return;
+    const trimmed = code.trim().toUpperCase();
+    if (!trimmed) return;
+
     setError('');
     setLoading(true);
-    try {
-      const { data } = await callValidatePromo({ code: code.trim().toUpperCase() });
-      if (!data.valid) throw new Error(data.message || 'Invalid promo code.');
 
-      const savings = data.discountType === 'percent'
-        ? (originalTotal * data.discountValue) / 100
-        : Math.min(data.discountValue, originalTotal);
+    try {
+      const snap = await getDoc(doc(db, 'PromoCodes', trimmed));
+
+      if (!snap.exists()) {
+        throw new Error('Promo code not found.');
+      }
+
+      const promo = snap.data();
+      const now   = Date.now();
+
+      // ── Validity checks ───────────────────────────
+      if (promo.active === false) {
+        throw new Error('This promo code is no longer active.');
+      }
+      if (promo.expiresAt && promo.expiresAt.toMillis() < now) {
+        throw new Error('This promo code has expired.');
+      }
+      if (promo.startsAt && promo.startsAt.toMillis() > now) {
+        throw new Error('This promo code is not yet valid.');
+      }
+      if (typeof promo.usageLimit === 'number' && (promo.usageCount ?? 0) >= promo.usageLimit) {
+        throw new Error('This promo code has reached its usage limit.');
+      }
+      if (typeof promo.minFare === 'number' && originalTotal < promo.minFare) {
+        throw new Error(`Minimum fare of $${promo.minFare.toFixed(2)} required.`);
+      }
+
+      // ── Calculate savings ─────────────────────────
+      const savings = promo.discountType === 'percent'
+        ? (originalTotal * promo.discountValue) / 100
+        : Math.min(promo.discountValue, originalTotal);
 
       const newTotal = Math.max(0, originalTotal - savings).toFixed(2);
 
       setDiscount({
-        code:          code.trim().toUpperCase(),
+        code:          trimmed,
         savings:       savings.toFixed(2),
         newTotal,
-        discountType:  data.discountType,
-        discountValue: data.discountValue,
+        discountType:  promo.discountType,
+        discountValue: promo.discountValue,
       });
+
     } catch (err) {
       setError(err.message || 'Could not apply code.');
       setDiscount(null);
@@ -65,15 +80,5 @@ export function usePromo(originalTotal) {
     setOpen(false);
   }, []);
 
-  return {
-    code,
-    setCode,
-    open,
-    setOpen,
-    loading,
-    error,
-    discount,
-    handleApply,
-    handleRemove,
-  };
+  return { code, setCode, open, setOpen, loading, error, discount, handleApply, handleRemove };
 }
