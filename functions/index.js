@@ -2,6 +2,9 @@ const admin = require("firebase-admin");
 
 admin.initializeApp();
 
+// Admin presence
+const { autoApprovePendingDrivers } = require("./admin/autoApprovePendingDrivers");
+
 // Account presence
 const { dispatch } = require("./accounts/dispatch");
 
@@ -30,3 +33,5 @@ exports.rideStatusNotifier = rideStatusNotifier;
 exports.feedNotifier = feedNotifier;
 exports.promoScheduler = promoScheduler;
 exports.notifyMatchedDriversByEmail = notifyMatchedDriversByEmail;
+
+exports.autoApprovePendingDrivers = autoApprovePendingDrivers;
