@@ -1,29 +1,30 @@
-// functions/dispatch.js
+// functions/accounts/dispatch.js
+// Scheduled every 1 minute.
+// 1. Expires searching_driver rides past their expireAt → "timeout"
+// 2. Dispatches pending/scheduled rides that have verified payment
+// 3. Sends FCM push to every matched driver that has an fcmToken
 
-const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onSchedule }   = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require("firebase-functions/params");
-const admin = require("firebase-admin");
-const Stripe = require("stripe");
+const { getMessaging } = require("firebase-admin/messaging");
+const admin            = require("firebase-admin");
+const Stripe           = require("stripe");
 
-// ── INIT ADMIN ─────────────────────────────────────
-if (!admin.apps.length) {
-  admin.initializeApp();
-}
+if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
 
-// ── SECRET ─────────────────────────────────────────
 const STRIPE_SECRET_KEY = defineSecret("STRIPE_SECRET_KEY");
 
-// ── CONFIG ─────────────────────────────────────────
-const DISPATCH_LEAD_MS    = 30 * 60 * 1000;     // scheduled rides go live 30 min before scheduledAt
-const FRESH_MS            = 10 * 60 * 1000;     // mirrors useQuotes
-const STALE_PENALTY_MIN   = 10;
-const AVG_SPEED_MPH       = 25;
-const MIN_ETA_MIN         = 7;
-const EXPIRE_ETA_MULT     = 2;                   // expireAt = base + (nearestEtaMin × 2)
-const EXPIRE_FLOOR_MS     = 30 * 60 * 1000;      // minimum 30 min from base regardless of ETA
+// ── CONFIG ─────────────────────────────────────────────────────
+const DISPATCH_LEAD_MS  = 30 * 60 * 1000;
+const FRESH_MS          = 10 * 60 * 1000;
+const STALE_PENALTY_MIN = 10;
+const AVG_SPEED_MPH     = 25;
+const MIN_ETA_MIN       = 7;
+const EXPIRE_ETA_MULT   = 2;
+const EXPIRE_FLOOR_MS   = 30 * 60 * 1000;
 
-// ── HELPERS (mirrors useQuotes match math) ─────────
+// ── HELPERS ────────────────────────────────────────────────────
 const round2 = (n) => Number(Number(n).toFixed(2));
 
 function haversineMiles(lat1, lng1, lat2, lng2) {
@@ -58,9 +59,6 @@ function toMillisSafe(v) {
   return Number.isNaN(ms) ? null : ms;
 }
 
-// ── EXPIRE AT ──────────────────────────────────────
-// base = scheduledAt for scheduled rides, createdAt otherwise.
-// offset = max(30 min, nearestEtaMin × 2).
 function computeExpireAt(ride, match) {
   const nearestEtaMin = match.length ? match[0].etaMin : 45;
   const baseMs =
@@ -70,13 +68,12 @@ function computeExpireAt(ride, match) {
   return new Date(baseMs + offsetMs);
 }
 
-// ── BUILD MATCH FROM CACHED DRIVER POOL ────────────
-// driverPool is fetched ONCE per run; match is computed per ride.
-// Zip pre-filter applied in memory — falls back to full pool if no zip hits.
+// ── BUILD MATCH ─────────────────────────────────────────────────
+// _fcmToken is kept in memory only — stripped before writing to Firestore
 function buildMatch(driverPool, pickupLat, pickupLng, pickupZip) {
   const now = Date.now();
+  let pool  = driverPool;
 
-  let pool = driverPool;
   if (pickupZip) {
     const zipPool = driverPool.filter(
       (d) => String(d.raw?.contact?.zip ?? "") === String(pickupZip)
@@ -85,7 +82,6 @@ function buildMatch(driverPool, pickupLat, pickupLng, pickupZip) {
   }
 
   const match = [];
-
   for (const d of pool) {
     const raw = d.raw;
     if (typeof raw.lat !== "number" || typeof raw.lng !== "number") continue;
@@ -103,6 +99,9 @@ function buildMatch(driverPool, pickupLat, pickupLng, pickupZip) {
       stale,
       onlineTime:        typeof raw.onlineTime === "number" ? raw.onlineTime : null,
       presenceUpdatedAt: lastPresence,
+      _fcmToken:         typeof raw.fcmToken === "string" && raw.fcmToken.length > 0
+                           ? raw.fcmToken
+                           : null,
     });
   }
 
@@ -110,18 +109,125 @@ function buildMatch(driverPool, pickupLat, pickupLng, pickupZip) {
   return match;
 }
 
-// ── MAIN FUNCTION ──────────────────────────────────
+// Strip _fcmToken before any Firestore write
+function toFirestoreMatch(match) {
+  return match.map(({ _fcmToken, ...rest }) => rest);
+}
+
+// ── NOTIFY MATCHED DRIVERS ──────────────────────────────────────
+async function notifyMatchedDrivers(match, ride, rideId) {
+  const withToken    = match.filter((d) => d._fcmToken);
+  const withoutToken = match.filter((d) => !d._fcmToken);
+
+  // Log drivers being skipped — useful when most drivers don't have tokens yet
+  if (withoutToken.length > 0) {
+    console.log(
+      `[dispatch] ${rideId} — ${withoutToken.length} driver(s) skipped (no FCM token): ` +
+      withoutToken.map((d) => d.uid).join(", ")
+    );
+  }
+
+  if (withToken.length === 0) {
+    console.log(`[dispatch] ${rideId} — no drivers with FCM token, push skipped.`);
+    return;
+  }
+
+  const pickup  = ride.pickup  || "a nearby location";
+  const dropoff = ride.dropoff || "your destination";
+
+  const results = await Promise.allSettled(
+    withToken.map(({ _fcmToken, uid, miles, etaMin }) =>
+      getMessaging().send({
+        token: _fcmToken,
+        notification: {
+          title: "🚗 New ride request",
+          body:  `${pickup} → ${dropoff} · ${miles}mi · ~${etaMin}min away`,
+        },
+        data: {
+          type:    "ride_request",
+          rideId,
+          miles:   String(miles),
+          etaMin:  String(etaMin),
+          pickup,
+          dropoff,
+        },
+        android: {
+          priority:     "high",
+          notification: { sound: "default", channelId: "ride_requests" },
+        },
+        apns: {
+          payload: { aps: { sound: "default", badge: 1 } },
+        },
+      })
+      .then(() => ({ uid, sent: true }))
+      .catch((err)  => ({ uid, sent: false, code: err?.errorInfo?.code ?? err?.message }))
+    )
+  );
+
+  // Tally results + collect stale tokens
+  const sent       = [];
+  const failed     = [];
+  const staleUids  = [];
+
+  results.forEach((result, i) => {
+    const { uid } = withToken[i];
+    if (result.status === "fulfilled" && result.value.sent) {
+      sent.push(uid);
+    } else {
+      const code = result.status === "fulfilled"
+        ? result.value.code
+        : result.reason?.errorInfo?.code ?? result.reason?.message;
+
+      failed.push({ uid, code });
+
+      if (
+        code === "messaging/registration-token-not-registered" ||
+        code === "messaging/invalid-registration-token"
+      ) {
+        staleUids.push(uid);
+      }
+    }
+  });
+
+  if (sent.length > 0) {
+    console.log(
+      `[dispatch] ${rideId} — pushed to ${sent.length} driver(s): ${sent.join(", ")}`
+    );
+  }
+  if (failed.length > 0) {
+    console.warn(
+      `[dispatch] ${rideId} — push failed for ${failed.length} driver(s): ` +
+      failed.map((f) => `${f.uid}(${f.code})`).join(", ")
+    );
+  }
+
+  // Clean up stale FCM tokens from Driver docs
+  if (staleUids.length > 0) {
+    await Promise.allSettled(
+      staleUids.map((uid) =>
+        db.collection("Drivers").doc(uid).update({
+          fcmToken: admin.firestore.FieldValue.delete(),
+        })
+        .then(() => console.log(`[dispatch] 🧹 Removed stale token for driver ${uid}`))
+        .catch((err) => console.warn(`[dispatch] Could not remove stale token for ${uid}:`, err))
+      )
+    );
+  }
+}
+
+// ── MAIN ───────────────────────────────────────────────────────
 exports.dispatch = onSchedule(
   {
     schedule: "every 1 minutes",
-    region: "us-central1",
-    secrets: [STRIPE_SECRET_KEY],
+    region:   "us-east1",
+    timeZone: "America/New_York",
+    secrets:  [STRIPE_SECRET_KEY],
   },
   async () => {
-    const now    = Date.now();
-    const nowTs  = admin.firestore.Timestamp.fromMillis(now);
+    const now   = Date.now();
+    const nowTs = admin.firestore.Timestamp.fromMillis(now);
 
-    // ── 1. PARALLEL QUERIES ────────────────────────
+    // ── 1. Parallel queries ──────────────────────────────────
     const [snapshot, expiredSnap, driverSnap] = await Promise.all([
       db.collection("Rides")
         .where("status", "in", ["scheduled", "pending_dispatch"])
@@ -135,18 +241,20 @@ exports.dispatch = onSchedule(
         .get(),
     ]);
 
-    // ── 2. EXPIRE TIMED-OUT RIDES ──────────────────
+    // ── 2. Expire timed-out rides ────────────────────────────
     if (!expiredSnap.empty) {
       console.log(`[dispatch] Timing out ${expiredSnap.size} expired ride(s)...`);
-      const timeoutJobs = expiredSnap.docs.map((doc) =>
-        doc.ref.update({
-          status:      "timeout",
-          timedOutAt:  admin.firestore.FieldValue.serverTimestamp(),
-          updatedAt:   admin.firestore.FieldValue.serverTimestamp(),
-        }).then(() => console.log(`[dispatch] ⏰ ${doc.id} → timeout`))
-          .catch((err) => console.error(`[dispatch] ❌ timeout update failed for ${doc.id}:`, err))
+      await Promise.allSettled(
+        expiredSnap.docs.map((doc) =>
+          doc.ref.update({
+            status:     "timeout",
+            timedOutAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt:  admin.firestore.FieldValue.serverTimestamp(),
+          })
+          .then(() => console.log(`[dispatch] ⏰ ${doc.id} → timeout`))
+          .catch((err) => console.error(`[dispatch] ❌ timeout failed for ${doc.id}:`, err))
+        )
       );
-      await Promise.allSettled(timeoutJobs);
     }
 
     if (snapshot.empty) {
@@ -156,15 +264,17 @@ exports.dispatch = onSchedule(
 
     console.log(`[dispatch] Evaluating ${snapshot.size} ride(s)...`);
 
-    // ── 3. DRIVER POOL ─────────────────────────────
-    const driverPool = driverSnap.docs.map((doc) => ({
-      id: doc.id,
-      raw: doc.data(),
-    }));
+    // ── 3. Driver pool ───────────────────────────────────────
+    const driverPool = driverSnap.docs.map((doc) => ({ id: doc.id, raw: doc.data() }));
 
-    console.log(`[dispatch] Driver pool: ${driverPool.length} online`);
+    const withTokenCount    = driverPool.filter((d) => d.raw.fcmToken).length;
+    const withoutTokenCount = driverPool.length - withTokenCount;
+    console.log(
+      `[dispatch] Driver pool: ${driverPool.length} online ` +
+      `(${withTokenCount} with FCM token, ${withoutTokenCount} without)`
+    );
 
-    // ── 4. LAZY STRIPE INIT (only if a card/cashapp ride needs verify)
+    // ── 4. Lazy Stripe init ──────────────────────────────────
     let stripe = null;
     const getStripe = () => {
       if (!stripe) {
@@ -175,104 +285,100 @@ exports.dispatch = onSchedule(
       return stripe;
     };
 
-    // ── 5. PROCESS RIDES ───────────────────────────
-    const jobs = snapshot.docs.map(async (doc) => {
-      const ride   = doc.data();
-      const rideId = doc.id;
+    // ── 5. Process rides ─────────────────────────────────────
+    await Promise.allSettled(
+      snapshot.docs.map(async (doc) => {
+        const ride   = doc.data();
+        const rideId = doc.id;
 
-      try {
-        // ── 4a. RECORD LAST SEEN BY DISPATCH ───────
-        await doc.ref.update({
-          dispatchLastCheckedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
+        try {
+          await doc.ref.update({
+            dispatchLastCheckedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
 
-        // ── 4b. SCHEDULED GATE ─────────────────────
-        // Scheduled rides only dispatch inside the lead window.
-        if (ride.isScheduled && ride.scheduledAt) {
-          const schedMs = toMillisSafe(ride.scheduledAt);
-          if (schedMs === null) {
-            console.warn(`[dispatch] ${rideId} invalid scheduledAt — skipping`);
-            return;
-          }
-          if (now < schedMs - DISPATCH_LEAD_MS) {
-            // Too early — leave it alone.
-            return;
-          }
-        }
-
-        // ── 4c. PAYMENT GATE ───────────────────────
-        const method = ride.paymentMethod ?? "card";
-        let paymentVerified = false;
-        let patchPayment = null;
-
-        if (method === "cash") {
-          // Cash rides are written paymentStatus: 'succeeded' at booking.
-          paymentVerified = ride.paymentStatus === "succeeded";
-        } else {
-          // card / cashapp → must have a real PaymentIntent
-          if (!ride.paymentIntentId) {
-            // Intent never created (user bailed before step 2) — not dispatchable yet.
-            console.log(`[dispatch] ${rideId} (${method}) no paymentIntentId — skipping`);
-            return;
-          }
-
-          if (ride.paymentStatus === "succeeded") {
-            paymentVerified = true;
-          } else {
-            // Verify with Stripe (cashapp confirms async after redirect)
-            const intent = await getStripe().paymentIntents.retrieve(ride.paymentIntentId);
-            console.log(`[dispatch] ${rideId} (${method}) intent: ${intent.status}`);
-
-            if (intent.status === "succeeded") {
-              paymentVerified = true;
-              patchPayment = "succeeded";
-            } else if (intent.status === "canceled") {
-              await doc.ref.update({
-                paymentStatus: "canceled",
-                status: "canceled",
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-              });
-              console.log(`[dispatch] ${rideId} intent canceled → ride canceled`);
-              return;
-            } else {
-              // requires_payment_method / processing / requires_action — wait
+          // Scheduled gate
+          if (ride.isScheduled && ride.scheduledAt) {
+            const schedMs = toMillisSafe(ride.scheduledAt);
+            if (schedMs === null) {
+              console.warn(`[dispatch] ${rideId} invalid scheduledAt — skipping`);
               return;
             }
+            if (now < schedMs - DISPATCH_LEAD_MS) return;
           }
+
+          // Payment gate
+          const method = ride.paymentMethod ?? "card";
+          let paymentVerified = false;
+          let patchPayment    = null;
+
+          if (method === "cash") {
+            paymentVerified = ride.paymentStatus === "succeeded";
+          } else {
+            if (!ride.paymentIntentId) {
+              console.log(`[dispatch] ${rideId} (${method}) no paymentIntentId — skipping`);
+              return;
+            }
+
+            if (ride.paymentStatus === "succeeded") {
+              paymentVerified = true;
+            } else {
+              const intent = await getStripe().paymentIntents.retrieve(ride.paymentIntentId);
+              console.log(`[dispatch] ${rideId} (${method}) intent: ${intent.status}`);
+
+              if (intent.status === "succeeded") {
+                paymentVerified = true;
+                patchPayment    = "succeeded";
+              } else if (intent.status === "canceled") {
+                await doc.ref.update({
+                  paymentStatus: "canceled",
+                  status:        "canceled",
+                  updatedAt:     admin.firestore.FieldValue.serverTimestamp(),
+                });
+                console.log(`[dispatch] ${rideId} intent canceled → ride canceled`);
+                return;
+              } else {
+                return;
+              }
+            }
+          }
+
+          if (!paymentVerified) return;
+
+          // Build match (includes _fcmToken in memory)
+          const hasPickup =
+            Number.isFinite(ride.pickupLat) && Number.isFinite(ride.pickupLng);
+          const match = hasPickup
+            ? buildMatch(driverPool, ride.pickupLat, ride.pickupLng, ride.pickupZip ?? null)
+            : [];
+
+          // Write to Firestore — _fcmToken stripped
+          const update = {
+            status:       "searching_driver",
+            match:        toFirestoreMatch(match),
+            matchCount:   match.length,
+            expireAt:     computeExpireAt(ride, match),
+            dispatchedAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt:    admin.firestore.FieldValue.serverTimestamp(),
+          };
+          if (patchPayment) update.paymentStatus = patchPayment;
+
+          await doc.ref.update(update);
+
+          console.log(
+            `[dispatch] ✅ ${rideId} (${method}) → searching_driver | ` +
+            `${match.length} driver(s)` +
+            (match.length ? ` | nearest ${match[0].miles}mi / ${match[0].etaMin}min` : "")
+          );
+
+          // Push notify matched drivers (non-blocking — failure doesn't affect dispatch)
+          if (match.length > 0) {
+            await notifyMatchedDrivers(match, ride, rideId);
+          }
+
+        } catch (err) {
+          console.error(`[dispatch] ❌ Error on ride ${rideId}:`, err);
         }
-
-        if (!paymentVerified) return;
-
-        // ── 4d. BUILD MATCH ────────────────────────
-        const hasPickup =
-          Number.isFinite(ride.pickupLat) && Number.isFinite(ride.pickupLng);
-
-        const match = hasPickup
-          ? buildMatch(driverPool, ride.pickupLat, ride.pickupLng, ride.pickupZip ?? null)
-          : [];
-
-        // ── 4e. DISPATCH ───────────────────────────
-        const update = {
-          status: "searching_driver",
-          match,
-          matchCount: match.length,
-          expireAt: computeExpireAt(ride, match),
-          dispatchedAt: admin.firestore.FieldValue.serverTimestamp(),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        };
-        if (patchPayment) update.paymentStatus = patchPayment;
-
-        await doc.ref.update(update);
-
-        console.log(
-          `[dispatch] ✅ ${rideId} (${method}) → searching_driver | ${match.length} driver(s) matched` +
-          (match.length ? ` | nearest ${match[0].miles} mi / ${match[0].etaMin} min` : "")
-        );
-      } catch (err) {
-        console.error(`[dispatch] ❌ Error on ride ${rideId}:`, err);
-      }
-    });
-
-    await Promise.allSettled(jobs);
+      })
+    );
   }
 );
