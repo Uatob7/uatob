@@ -253,6 +253,8 @@ export default function StatusCard({
                 onlineLabel={onlineLabel}
                 nearbyCount={nearbyCount}
                 onToggle={onToggle}
+                driver={driver}
+                searches={searches}
               />
             )}
 
