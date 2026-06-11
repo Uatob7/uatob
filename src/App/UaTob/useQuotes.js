@@ -112,8 +112,8 @@ async function buildDriverMatch(pickupLat, pickupLng, pickupZip, signal) {
 
 // ── Search log ────────────────────────────────────────────────────────────────
 async function logSearch({ uid, tripData, miles, minutes, match, rides }) {
-  const pickupCity  = tripData.pickup?.split(',')[0]?.trim()  ?? null;
-  const dropoffCity = tripData.dropoff?.split(',')[0]?.trim() ?? null;
+  const pickupCity  = tripData.pickupCity  ?? null;
+  const dropoffCity = tripData.dropoffCity ?? null;
 
   return addDoc(collection(db, 'Search'), {
     uid:         uid ?? null,
@@ -136,6 +136,7 @@ async function logSearch({ uid, tripData, miles, minutes, match, rides }) {
     createdAt:    serverTimestamp(),
   }).catch((err) => { console.error('[useQuotes] search log failed:', err); return null; });
 }
+
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 export function useQuotes(tripData) {
