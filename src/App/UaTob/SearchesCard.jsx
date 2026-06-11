@@ -208,55 +208,95 @@ function Sparkline({ searches, now }) {
 }
 
 // ─── ticker row ─────────────────────────────────────────────────────────────
+const RIDE_COLOR = {
+  economy:  CYAN_BRIGHT,
+  standard: '#A78BFA',
+  premium:  AMBER,
+  xl:       '#34D399',
+};
+
 function TickerRow({ search, now, index }) {
-  const ts      = tsToMillis(search.createdAt);
-  const isGuest = !search.uid || search.uid === 'null';
-  const label   = stripStreetNumber(search.pickup) || (hasCoords(search)
-    ? `${search.pickupLat.toFixed(3)}, ${search.pickupLng.toFixed(3)}`
-    : 'Pickup');
+  const ts         = tsToMillis(search.createdAt);
+  const isGuest    = !search.uid || search.uid === 'null';
+  const fromCity   = search.pickupCity  || truncate(stripStreetNumber(search.pickup)  || '?', 16);
+  const toCity     = search.dropoffCity || truncate(stripStreetNumber(search.dropoff) || '?', 16);
+  const miles      = typeof search.miles   === 'number' ? search.miles   : null;
+  const minutes    = typeof search.minutes === 'number' ? search.minutes : null;
+  const selected   = search.selectedRide || null;
+  const rideColor  = selected ? (RIDE_COLOR[selected] || CYAN_BRIGHT) : null;
 
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 8,
-      padding: '5px 8px', borderRadius: 7,
+      padding: '6px 8px', borderRadius: 8,
       background: index === 0 ? 'rgba(6,182,212,.06)' : 'transparent',
       borderLeft: index === 0 ? `2px solid ${CYAN}` : '2px solid transparent',
       animation: 'scFadeIn .3s ease both',
       animationDelay: `${index * 40}ms`,
+      display: 'flex', flexDirection: 'column', gap: 4,
     }}>
-      <div style={{
-        width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
-        background: isGuest ? 'rgba(251,191,36,.14)' : 'rgba(6,182,212,.14)',
-        border: `1px solid ${isGuest ? 'rgba(251,191,36,.3)' : 'rgba(6,182,212,.3)'}`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
-        <Ico n={isGuest ? 'guest' : 'user'} size={9} color={isGuest ? AMBER : CYAN_BRIGHT} sw={1.8}/>
-      </div>
-      <span style={{
-        flex: 1, minWidth: 0,
-        fontFamily: MONO, fontSize: 9.5, fontWeight: 500,
-        color: 'rgba(255,255,255,.62)',
-        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-      }}>
-        {truncate(label, 32)}
-      </span>
-      {search.rideType && (
-        <span style={{
-          fontFamily: COND, fontSize: 7.5, fontWeight: 800,
-          letterSpacing: '.1em', color: 'rgba(255,255,255,.38)',
-          textTransform: 'uppercase',
-          padding: '1px 6px', borderRadius: 4,
-          background: 'rgba(255,255,255,.04)',
+
+      {/* top row: icon + route + time */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+        <div style={{
+          width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
+          background: isGuest ? 'rgba(251,191,36,.14)' : 'rgba(6,182,212,.14)',
+          border: `1px solid ${isGuest ? 'rgba(251,191,36,.3)' : 'rgba(6,182,212,.3)'}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          {search.rideType}
+          <Ico n={isGuest ? 'guest' : 'user'} size={9} color={isGuest ? AMBER : CYAN_BRIGHT} sw={1.8}/>
+        </div>
+
+        {/* pickupCity → dropoffCity */}
+        <div style={{
+          flex: 1, minWidth: 0,
+          display: 'flex', alignItems: 'center', gap: 4,
+          fontFamily: MONO, fontSize: 9.5, fontWeight: 600,
+          color: 'rgba(255,255,255,.72)',
+          whiteSpace: 'nowrap', overflow: 'hidden',
+        }}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{fromCity}</span>
+          <span style={{ color: 'rgba(255,255,255,.28)', flexShrink: 0 }}>→</span>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{toCity}</span>
+        </div>
+
+        <span style={{
+          fontFamily: MONO, fontSize: 9, fontWeight: 700, color: CYAN_SOFT,
+          flexShrink: 0,
+        }}>
+          {fmtAgo(ts, now)}
         </span>
-      )}
-      <span style={{
-        fontFamily: MONO, fontSize: 9, fontWeight: 700, color: CYAN_SOFT,
-        minWidth: 30, textAlign: 'right',
-      }}>
-        {fmtAgo(ts, now)}
-      </span>
+      </div>
+
+      {/* bottom row: miles · minutes · selectedRide chip */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 25 }}>
+        {miles !== null && (
+          <span style={{ fontFamily: MONO, fontSize: 8, color: 'rgba(255,255,255,.35)' }}>
+            {miles % 1 === 0 ? miles : miles.toFixed(1)} mi
+          </span>
+        )}
+        {miles !== null && minutes !== null && (
+          <span style={{ fontFamily: MONO, fontSize: 7, color: 'rgba(255,255,255,.18)' }}>·</span>
+        )}
+        {minutes !== null && (
+          <span style={{ fontFamily: MONO, fontSize: 8, color: 'rgba(255,255,255,.35)' }}>
+            {minutes} min
+          </span>
+        )}
+        <div style={{ flex: 1 }}/>
+        {selected && (
+          <span style={{
+            fontFamily: COND, fontSize: 7.5, fontWeight: 800,
+            letterSpacing: '.1em', textTransform: 'uppercase',
+            color: rideColor,
+            padding: '1px 6px', borderRadius: 4,
+            background: `${rideColor}18`,
+            border: `1px solid ${rideColor}44`,
+          }}>
+            {selected}
+          </span>
+        )}
+      </div>
+
     </div>
   );
 }

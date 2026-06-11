@@ -7,24 +7,34 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    match /Admin/{docId} {
-      allow read:  if true;
-      allow write: if false;
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
 
-      match /{subcollection=**} {
-        allow read:  if isSignedIn();
-        allow write: if false;
-      }
+    // ─────────────────────────────────────────
+    // ADMIN
+    // ─────────────────────────────────────────
+    match /Admin/{docId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /Admin/{docId}/{subcollection=**} {
+      allow read: if isSignedIn();
+      allow write: if false;
     }
 
     match /Admin/views/events/{eventId} {
-      allow read:   if isSignedIn();
-      allow create: if isSignedIn();
+      allow read:          if isSignedIn();
+      allow create:        if isSignedIn();
       allow update, delete: if false;
     }
 
+    // ─────────────────────────────────────────
+    // RIDES
+    // ─────────────────────────────────────────
     match /Rides/{rideId} {
-      allow read:   if isSignedIn();
+      allow read:   if true;
       allow create: if isSignedIn();
       allow update: if isSignedIn() && (
         request.auth.uid == resource.data.uid ||
@@ -42,108 +52,117 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ─────────────────────────────────────────
+    // DRIVERS
+    // ─────────────────────────────────────────
     match /Drivers/{driverId} {
-      allow read:  if isSignedIn();
-      allow write: if isSignedIn() && request.auth.uid == driverId;
+      allow read:  if true;
+      allow write: if isOwner(driverId);
     }
 
+    // ─────────────────────────────────────────
+    // USERS / RIDERS
+    // ─────────────────────────────────────────
     match /Riders/{userId} {
-      allow read:  if isSignedIn() && request.auth.uid == userId;
-      allow write: if isSignedIn() && request.auth.uid == userId;
+      allow read, write: if isOwner(userId);
     }
 
     match /users/{userId} {
-      allow read, write: if isSignedIn() && request.auth.uid == userId;
+      allow read, write: if isOwner(userId);
     }
 
     match /Accounts/{userId} {
       allow read:  if isSignedIn();
-      allow write: if isSignedIn() && request.auth.uid == userId;
+      allow write: if isOwner(userId);
     }
 
+    // ─────────────────────────────────────────
+    // SEARCH
+    // ─────────────────────────────────────────
     match /Search/{searchId} {
-      allow read:           if isSignedIn();
-      allow create:         if isSignedIn();
-      allow update, delete: if false;
+      allow read:   if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && request.auth.uid == resource.data.uid;
+      allow delete: if false;
     }
 
+    // ─────────────────────────────────────────
+    // REVIEWS
+    // ─────────────────────────────────────────
     match /Reviews/{reviewId} {
       allow read:   if isSignedIn();
       allow create: if isSignedIn();
       allow update: if isSignedIn() && request.auth.uid == resource.data.uid;
       allow delete: if false;
     }
-    
+
     // ─────────────────────────────────────────
-    // SUPPORT MESSAGES (driver + admin safe)
+    // SUPPORT
     // ─────────────────────────────────────────
     match /Support/{messageId} {
-
-      // driver sees own thread OR admin sees all
-      allow read: if isSignedIn() &&
-        (isAdmin() ||
-        resource.data.threadId == "driver_" + request.auth.uid);
-
-      allow create: if isSignedIn() &&
-        (isAdmin() ||
-        request.resource.data.threadId == "driver_" + request.auth.uid);
-
-      allow update, delete: if isAdmin();
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if false;
     }
 
-    // ─────────────────────────────────────────
-    // SUPPORT THREADS (FIXED FOR ADMIN CHAT)
-    // ─────────────────────────────────────────
     match /SupportThreads/{threadId} {
-
-      // GET single document
-      allow get: if isSignedIn() &&
-        (isAdmin() || resource.data.driverId == request.auth.uid);
-
-      // LIST / SUBSCRIBE (THIS FIXES YOUR ERROR)
-      allow list: if isSignedIn() &&
-        (isAdmin() || resource.data.driverId == request.auth.uid);
-
-      allow create: if isSignedIn() &&
-        (isAdmin() || request.resource.data.driverId == request.auth.uid);
-
-      allow update: if isSignedIn() &&
-        (isAdmin() || resource.data.driverId == request.auth.uid);
-
-      allow delete: if isAdmin();
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if false;
     }
 
     // ─────────────────────────────────────────
-    // 🔥 NEW: ADMIN CHAT / CONVERSATIONS
+    // CONVERSATIONS
     // ─────────────────────────────────────────
     match /Conversations/{convId} {
-
-      allow read: if isSignedIn();
-
-      allow create: if isSignedIn();
-
-      allow update: if isSignedIn() &&
-        (isAdmin() || request.auth.uid in resource.data.participants);
-
-      allow delete: if isAdmin();
+      allow read, write: if isSignedIn();
     }
 
     match /Conversations/{convId}/Messages/{messageId} {
-
-      allow read: if isSignedIn();
-
-      allow create: if isSignedIn() &&
-        (isAdmin() || request.auth.uid in get(/databases/$(database)/documents/Conversations/$(convId)).data.participants);
-
-      allow update: if isAdmin();
+      allow read, write: if isSignedIn();
     }
 
     // ─────────────────────────────────────────
     // COUNTS
     // ─────────────────────────────────────────
     match /counts/{docId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow read:  if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // ─────────────────────────────────────────
+    // FEED
+    // ─────────────────────────────────────────
+    match /Feed/{feedId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+                    && request.auth.uid == request.resource.data.uid
+                    && request.resource.data.status == 'pending'
+                    && request.resource.data.paymentStatus == 'pending';
+      allow update: if isSignedIn()
+                    && request.auth.uid == resource.data.uid
+                    && request.resource.data.uid == resource.data.uid;
+      allow delete: if false;
+    }
+
+    // ─────────────────────────────────────────
+    // PROMO CODES
+    // ─────────────────────────────────────────
+    match /PromoCodes/{code} {
+      allow read:  if isSignedIn();
+      allow write: if false;
+    }
+
+    // ─────────────────────────────────────────
+    // VIEWS
+    // ─────────────────────────────────────────
+    match /Views/{viewId} {
+      allow read:          if false;
+      allow create:        if true;
+      allow update:        if true;
+      allow delete:        if false;
     }
 
     // ─────────────────────────────────────────

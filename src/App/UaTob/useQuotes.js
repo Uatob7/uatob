@@ -148,6 +148,7 @@ export function useQuotes(tripData) {
 
   const reset = useCallback(() => {
     abortRef.current?.abort();
+    searchDocPromise.current = null;
     setQuotesData(null);
     setLoading(false);
     setError(null);
@@ -183,14 +184,14 @@ export function useQuotes(tripData) {
           ]),
         );
 
-        searchDocPromise.current = logSearch({
-          uid: getAuth(firebase_app).currentUser?.uid, tripData, miles, minutes, match, rides,
-        });
-
         if (ctrl.signal.aborted) return;
 
         setQuotesData({ rides, match, currency: 'USD', generatedAt: new Date().toISOString() });
         setError(null);
+
+        searchDocPromise.current = logSearch({
+          uid: getAuth(firebase_app).currentUser?.uid, tripData, miles, minutes, match, rides,
+        });
       } catch (err) {
         if (ctrl.signal.aborted) return;
         setError(err.message || 'Failed to calculate prices');
