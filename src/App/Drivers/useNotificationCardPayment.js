@@ -1,5 +1,5 @@
 // src/App/Drivers/useNotificationCardPayment.js
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useStripe, useElements, CardElement } from '@stripe/react-stripe-js';
 import {
   getFirestore, collection, doc, setDoc, serverTimestamp, Timestamp,
@@ -20,7 +20,11 @@ export function useNotificationCardPayment({ uid, message, driverName, firstName
   const [complete, setComplete] = useState(false);
   const [focused,  setFocused]  = useState(false);
 
+  const nameRef = useRef({ driverName, firstName, lastName });
+  useEffect(() => { nameRef.current = { driverName, firstName, lastName }; }, [driverName, firstName, lastName]);
+
   const handleSubmit = useCallback(async (e) => {
+      const { driverName, firstName, lastName } = nameRef.current;
     e?.preventDefault();
 
     if (!stripe || !elements) { setError('Stripe not ready'); return; }
@@ -107,7 +111,7 @@ export function useNotificationCardPayment({ uid, message, driverName, firstName
     } finally {
       setLoading(false);
     }
-  }, [uid, message, driverName, stripe, elements, onSuccess, onError]);
+  }, [uid, message, stripe, elements, onSuccess, onError]);
 
   return { loading, error, complete, focused, setComplete, setError, setFocused, handleSubmit };
 }

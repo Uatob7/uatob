@@ -1,5 +1,5 @@
 // src/App/Drivers/useNotificationCashAppPayment.js
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import {
   getFirestore, collection, doc, setDoc, serverTimestamp, Timestamp,
@@ -16,7 +16,11 @@ export function useNotificationCashAppPayment({ uid, message, driverName, firstN
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState('');
 
+  const nameRef = useRef({ driverName, firstName, lastName });
+  useEffect(() => { nameRef.current = { driverName, firstName, lastName }; }, [driverName, firstName, lastName]);
+
   const handleCashAppPay = useCallback(async () => {
+      const { driverName, firstName, lastName } = nameRef.current;
     setLoading(true);
     setError('');
 
@@ -94,7 +98,7 @@ export function useNotificationCashAppPayment({ uid, message, driverName, firstN
     } finally {
       setLoading(false);
     }
-  }, [uid, message, driverName, onSuccess, onError]);
+  }, [uid, message, onSuccess, onError]);
 
   return { loading, error, setError, handleCashAppPay };
 }

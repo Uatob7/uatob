@@ -94,7 +94,7 @@ export default function StatusCard({
         }}
         onClick={(e) => {
           if (flowBlocked || face === FACE_BOOK) return;
-          if (['BUTTON', 'INPUT', 'A', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+          if (e.target.closest('button, input, a, textarea, select')) return;
           const idx = FACE_ORDER.indexOf(face);
           goFace(FACE_ORDER[(idx + 1) % FACE_ORDER.length]);
         }}

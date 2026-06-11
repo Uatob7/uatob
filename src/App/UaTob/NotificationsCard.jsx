@@ -17,14 +17,14 @@ export default function NotificationsCard({ uid, account, onActiveChange }) {
   const [faceIdx,  setFaceIdx]  = useState(0);
   const [feedBusy, setFeedBusy] = useState(false);
 
-  useEffect(() => { onActiveChange?.(feedBusy || faceIdx === 1); }, [feedBusy, faceIdx, onActiveChange]);
+  useEffect(() => { onActiveChange?.(feedBusy); }, [feedBusy, onActiveChange]);
 
-  // Auto-advance to the feed face after 4s; once there, stay until the user leaves
+  // Auto-flip every 4s; pause while the user is composing/paying
   useEffect(() => {
-    if (!isOn || feedBusy || faceIdx === 1) return;
-    const id = setInterval(() => setFaceIdx(1), 4000);
+    if (!isOn || feedBusy) return;
+    const id = setInterval(() => setFaceIdx(i => (i + 1) % 2), 4000);
     return () => clearInterval(id);
-  }, [isOn, feedBusy, faceIdx]);
+  }, [isOn, feedBusy]);
 
   // Reset face when notifications turn off
   useEffect(() => { if (!isOn) setFaceIdx(0); }, [isOn]);
