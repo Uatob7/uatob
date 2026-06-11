@@ -437,6 +437,362 @@ function buildApologyEmail({ account, ride, wasRefunded, refundAmount, paymentMe
   };
 }
 
+// ── CONFIRMATION EMAIL (ride received + payment good) ─────────
+const PAYMENT_LABELS = {
+  card:    "your card",
+  cashapp: "Cash App",
+  cash:    "cash",
+};
+
+function formatScheduledTime(v) {
+  const ms = toMillisSafe(v);
+  if (ms === null) return null;
+  return new Date(ms).toLocaleString("en-US", {
+    timeZone: "America/New_York",
+    weekday:  "short",
+    month:    "short",
+    day:      "numeric",
+    hour:     "numeric",
+    minute:   "2-digit",
+  });
+}
+
+function buildConfirmationEmail({ account, ride, paymentMethod }) {
+  const esc = (s) =>
+    String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  const firstName  = esc((account.name || "").split(" ")[0] || "there");
+  const pickup     = esc(ride.pickup  || "your pickup");
+  const dropoff    = esc(ride.dropoff || "your destination");
+  const amount     = Number(ride.fareBreakdown?.fareTotal ?? 0).toFixed(2);
+  const payLabel   = PAYMENT_LABELS[paymentMethod] || "your account";
+  const isCash     = paymentMethod === "cash";
+  const isSched    = Boolean(ride.isScheduled && ride.scheduledAt);
+  const schedLabel = isSched ? esc(formatScheduledTime(ride.scheduledAt) || "") : null;
+  const year       = new Date().getFullYear();
+
+  const statusLine = isSched
+    ? `We&apos;ll start matching you with a driver about 30 minutes before your pickup time.`
+    : `We&apos;re finding you a driver right now &mdash; you&apos;ll be notified the moment one accepts.`;
+
+  const payHeroLine = isCash
+    ? `You&apos;ll pay $${amount} in cash at the end of your ride.`
+    : `$${amount} confirmed on ${payLabel}.`;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <title>We received your ride — UaTob</title>
+  <style type="text/css">
+    body, html {
+      -webkit-text-size-adjust: 100% !important;
+      -ms-text-size-adjust: 100% !important;
+      margin: 0 !important; padding: 0 !important;
+      background-color: #0a0a0a !important;
+    }
+    @media only screen and (max-width: 600px) {
+      .hero-title { font-size: 28px !important; }
+      .cta-btn    { font-size: 14px !important; padding: 16px 20px !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background-color:#0a0a0a;">
+
+<!-- Preheader -->
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;color:#0a0a0a;">
+  Thanks ${firstName} — we received your ride from ${pickup}. ${isCash ? `Pay $${amount} in cash.` : `$${amount} confirmed.`}
+</div>
+
+<table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+       style="background-color:#0a0a0a;padding:40px 20px;">
+  <tr>
+    <td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" role="presentation"
+             style="max-width:600px;width:100%;">
+
+        <!-- WORDMARK -->
+        <tr>
+          <td align="center" style="padding-bottom:28px;">
+            <table cellpadding="0" cellspacing="0" role="presentation">
+              <tr>
+                <td valign="middle" style="padding-right:10px;">${UATOB_ICON_SVG}</td>
+                <td valign="middle">
+                  <span style="font-family:Georgia,serif;font-style:italic;font-weight:300;
+                               font-size:28px;color:#ffffff;letter-spacing:-0.5px;">Ua</span><!--
+               -->${ARROW_SVG}<!--
+               --><span style="font-family:Arial,sans-serif;font-weight:800;font-size:28px;
+                               color:#4ADE80;letter-spacing:-0.5px;">Tob</span>
+                </td>
+                <td valign="middle" style="padding-left:10px;">
+                  <span style="font-family:'Courier New',monospace;font-size:9px;font-weight:700;
+                               color:#4ADE80;background-color:#052e16;padding:4px 9px;
+                               border-radius:100px;letter-spacing:1.5px;border:1px solid #166534;
+                               display:inline-block;">
+                    ${isSched ? "SCHEDULED" : "RIDE RECEIVED"}
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- MAIN CARD -->
+        <tr>
+          <td style="background-color:#111111;border-radius:20px;
+                     border:1px solid #1f1f1f;overflow:hidden;">
+
+            <!-- HERO -->
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+              <tr>
+                <td style="background:linear-gradient(135deg,#052e16 0%,#14532d 50%,#16A34A 100%);
+                           padding:40px 36px 32px;">
+                  <div style="display:inline-block;background-color:rgba(74,222,128,0.15);
+                              border:1.5px solid #4ADE80;border-radius:100px;
+                              padding:5px 14px;margin-bottom:20px;">
+                    <span style="font-family:'Courier New',monospace;font-size:10px;
+                                 font-weight:700;color:#4ADE80;letter-spacing:2px;">
+                      &#10003;&nbsp; WE GOT YOUR RIDE
+                    </span>
+                  </div>
+                  <h1 class="hero-title"
+                      style="margin:0 0 8px;font-family:Georgia,serif;font-size:36px;
+                             font-weight:700;color:#ffffff;line-height:1.15;letter-spacing:-1px;">
+                    Thank you, ${firstName} &mdash;<br/>
+                    <span style="color:#4ADE80;">ride received.</span>
+                  </h1>
+                  <p style="margin:0;font-family:'Courier New',monospace;font-size:13px;
+                             color:#bbf7d0;letter-spacing:0.3px;">
+                    ${payHeroLine}
+                  </p>
+                </td>
+              </tr>
+            </table>
+
+            <!-- PAYMENT BLOCK -->
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+              <tr>
+                <td align="center"
+                    style="padding:32px 36px 24px;border-bottom:1px solid #1f1f1f;">
+                  <p style="margin:0 0 6px;font-family:'Courier New',monospace;font-size:11px;
+                             font-weight:700;color:#4ADE80;letter-spacing:2.5px;">
+                    ${isCash ? "PAY IN CASH" : "PAYMENT CONFIRMED"}
+                  </p>
+                  <p style="margin:0;font-family:Georgia,serif;font-size:48px;font-weight:700;
+                             color:#ffffff;line-height:1;letter-spacing:-2px;">
+                    $${esc(amount)}
+                  </p>
+                  <p style="margin:8px 0 0;font-family:'Courier New',monospace;font-size:12px;
+                             color:#6B7280;letter-spacing:0.5px;">
+                    ${isCash
+                      ? `Due to your driver at drop-off`
+                      : `Charged to ${esc(payLabel)} &nbsp;&#183;&nbsp; <span style="color:#4ADE80;">&#10003; Confirmed</span>`}
+                  </p>
+                </td>
+              </tr>
+            </table>
+
+            <!-- ROUTE -->
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+              <tr>
+                <td style="padding:28px 36px;border-bottom:1px solid #1f1f1f;">
+                  <p style="margin:0 0 16px;font-family:'Courier New',monospace;font-size:11px;
+                             font-weight:700;color:#4ADE80;letter-spacing:2px;">
+                    YOUR TRIP
+                  </p>
+                  ${isSched ? `
+                  <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+                         style="margin-bottom:16px;">
+                    <tr>
+                      <td style="background-color:#0d1f12;border:1px solid #166534;
+                                 border-radius:10px;padding:10px 14px;">
+                        <span style="font-family:'Courier New',monospace;font-size:10px;
+                                     font-weight:700;color:#6B7280;letter-spacing:1.5px;">PICKUP TIME&nbsp;&nbsp;</span>
+                        <span style="font-family:'Courier New',monospace;font-size:12px;
+                                     font-weight:700;color:#4ADE80;letter-spacing:0.5px;">${schedLabel}</span>
+                      </td>
+                    </tr>
+                  </table>` : ``}
+                  <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+                         style="margin-bottom:8px;">
+                    <tr>
+                      <td width="32" valign="top" style="padding-top:3px;">
+                        <div style="width:24px;height:24px;border-radius:50%;
+                                    background-color:#4ADE80;text-align:center;line-height:24px;
+                                    font-size:11px;font-weight:900;color:#052e16;
+                                    font-family:'Courier New',monospace;">A</div>
+                      </td>
+                      <td valign="top">
+                        <p style="margin:0 0 2px;font-family:'Courier New',monospace;font-size:10px;
+                                   font-weight:700;color:#6B7280;letter-spacing:1.5px;">PICKUP</p>
+                        <p style="margin:0;font-family:Georgia,serif;font-size:15px;
+                                   font-weight:700;color:#ffffff;line-height:1.4;">${pickup}</p>
+                      </td>
+                    </tr>
+                  </table>
+                  <table cellpadding="0" cellspacing="0" role="presentation"
+                         style="margin:0 0 8px 12px;">
+                    <tr>
+                      <td style="border-left:2px dashed #374151;height:18px;width:1px;"></td>
+                    </tr>
+                  </table>
+                  <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                    <tr>
+                      <td width="32" valign="top" style="padding-top:3px;">
+                        <div style="width:24px;height:24px;border-radius:50%;
+                                    background-color:#1f1f1f;border:2px solid #4ADE80;
+                                    text-align:center;line-height:20px;font-size:11px;
+                                    font-weight:900;color:#4ADE80;
+                                    font-family:'Courier New',monospace;">B</div>
+                      </td>
+                      <td valign="top">
+                        <p style="margin:0 0 2px;font-family:'Courier New',monospace;font-size:10px;
+                                   font-weight:700;color:#6B7280;letter-spacing:1.5px;">DROPOFF</p>
+                        <p style="margin:0;font-family:Georgia,serif;font-size:15px;
+                                   font-weight:700;color:#ffffff;line-height:1.4;">${dropoff}</p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+
+            <!-- STATUS NOTE -->
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+              <tr>
+                <td align="center"
+                    style="padding:14px 36px;background-color:#0d0d0d;
+                           border-top:1px solid #1f1f1f;">
+                  <p style="margin:0;font-family:'Courier New',monospace;font-size:11px;
+                             color:#6B7280;letter-spacing:0.5px;line-height:1.6;">
+                    ${statusLine}
+                  </p>
+                </td>
+              </tr>
+            </table>
+
+            <!-- CTA -->
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+              <tr>
+                <td style="padding:8px 36px 36px;border-top:1px solid #1f1f1f;">
+                  <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+                         style="margin-top:24px;">
+                    <tr>
+                      <td align="center">
+                        <a href="https://uatob.com" class="cta-btn"
+                           style="display:block;background-color:#16A34A;color:#ffffff;
+                                  font-family:'Courier New',monospace;font-size:15px;
+                                  font-weight:700;text-decoration:none;padding:20px 32px;
+                                  border-radius:12px;letter-spacing:1px;text-align:center;
+                                  border:1px solid #4ADE80;">
+                          TRACK YOUR RIDE &#8594;
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
+                  <p style="margin:16px 0 0;font-family:'Courier New',monospace;font-size:11px;
+                             color:#374151;text-align:center;letter-spacing:0.5px;">
+                    Questions? Reply to this email — we read every message.
+                  </p>
+                </td>
+              </tr>
+            </table>
+
+          </td>
+        </tr>
+
+        <!-- FOOTER -->
+        <tr>
+          <td align="center" style="padding:28px 20px 0;">
+            <p style="margin:0 0 6px;font-family:'Courier New',monospace;font-size:11px;
+                       color:#374151;letter-spacing:0.5px;">
+              &#169; ${year} UaTob &nbsp;&#183;&nbsp; Orlando, FL
+            </p>
+            <p style="margin:0 0 10px;font-family:'Courier New',monospace;font-size:10px;
+                       color:#1f2937;letter-spacing:0.3px;">
+              You&apos;re receiving this because you have a UaTob rider account.
+            </p>
+            <p style="margin:0;">
+              <a href="https://uatob.com/privacy"
+                 style="color:#374151;text-decoration:none;font-size:10px;margin:0 8px;
+                        font-family:'Courier New',monospace;">Privacy</a>
+              <a href="https://uatob.com/terms"
+                 style="color:#374151;text-decoration:none;font-size:10px;margin:0 8px;
+                        font-family:'Courier New',monospace;">Terms</a>
+              <a href="https://uatob.com/unsubscribe"
+                 style="color:#374151;text-decoration:none;font-size:10px;margin:0 8px;
+                        font-family:'Courier New',monospace;">Unsubscribe</a>
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>`.trim();
+
+  const text =
+    `Hi ${(account.name || "").split(" ")[0] || "there"} — thank you, we received your ride!\n\n` +
+    `From: ${ride.pickup || "your pickup"}\n` +
+    `To:   ${ride.dropoff || "your destination"}\n` +
+    (isSched && schedLabel ? `Pickup time: ${schedLabel}\n` : ``) +
+    `\n` +
+    (isCash
+      ? `PAY IN CASH: $${amount} due to your driver at drop-off.\n\n`
+      : `PAYMENT CONFIRMED: $${amount} charged to ${payLabel}.\n\n`) +
+    (isSched
+      ? `We'll start matching you with a driver about 30 minutes before your pickup time.\n\n`
+      : `We're finding you a driver right now — you'll be notified the moment one accepts.\n\n`) +
+    `Track your ride: https://uatob.com\n\n` +
+    `Questions? Just reply to this email.\n\n` +
+    `© ${year} UaTob · Orlando, FL`;
+
+  const subject = isSched
+    ? `Ride received — scheduled for ${formatScheduledTime(ride.scheduledAt) || "later"} · UaTob`
+    : `Thank you — we received your ride · UaTob`;
+
+  return {
+    to:      account.email,
+    from:    "UaTob <support@uatob.com>",
+    replyTo: "support@uatob.com",
+    subject,
+    text,
+    html,
+  };
+}
+
+async function sendRideConfirmationEmail(doc, ride, rideId, paymentMethod) {
+  try {
+    const acctSnap = await db.collection("Accounts").doc(ride.uid).get();
+    const account  = acctSnap.exists ? acctSnap.data() : null;
+
+    if (!account?.email) {
+      console.warn(
+        `[dispatch:confirm] No email for rider ${ride.uid} on ride ${rideId} — skipping.`
+      );
+      return;
+    }
+
+    const msg = buildConfirmationEmail({ account, ride, paymentMethod });
+    await sgMail.send(msg);
+
+    await doc.ref.update({
+      confirmationEmailSent:   true,
+      confirmationEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    console.log(
+      `[dispatch:confirm] ✓ Confirmation email sent to ${account.email} for ride ${rideId}`
+    );
+  } catch (err) {
+    console.error(`[dispatch:confirm] Email failed for ${rideId}:`, err?.message || err);
+  }
+}
+
 // ── REFUND: PER-RIDE PROCESSOR ─────────────────────────────────
 async function processTimeoutRide(rideDoc, getStripe) {
   const ride          = { id: rideDoc.id, ...rideDoc.data() };
@@ -727,7 +1083,7 @@ async function notifyMatchedDrivers(match, ride, rideId) {
 exports.dispatch = onSchedule(
   {
     schedule: "every 1 minutes",
-    region:   "us-east1",
+    region: "us-central1",
     timeZone: "America/New_York",
     secrets:  [STRIPE_SECRET_KEY, SENDGRID_API_KEY],
   },
@@ -748,6 +1104,9 @@ exports.dispatch = onSchedule(
       }
       return stripe;
     };
+
+    // ── SendGrid init (refund apologies + ride confirmations) ─
+    sgMail.setApiKey(SENDGRID_API_KEY.value());
 
     // ── 1. Parallel queries ──────────────────────────────────
     const [snapshot, expiredSnap, refundSnap, driverSnap] = await Promise.all([
@@ -794,8 +1153,6 @@ exports.dispatch = onSchedule(
         `[dispatch:refund] ${refundEligible.length} timed-out ride(s) eligible ` +
         `(≥${TIMEOUT_GRACE_MINUTES}min old)`
       );
-
-      sgMail.setApiKey(SENDGRID_API_KEY.value());
 
       const refundResults = await Promise.allSettled(
         refundEligible.map((doc) => processTimeoutRide(doc, getStripe))
@@ -912,6 +1269,13 @@ exports.dispatch = onSchedule(
             `${match.length} driver(s)` +
             (match.length ? ` | nearest ${match[0].miles}mi / ${match[0].etaMin}min` : "")
           );
+
+          // Confirmation email — fires the first time payment is verified.
+          // Guarded by confirmationEmailSent so re-dispatched/reassigned rides
+          // never email the rider twice.
+          if (!ride.confirmationEmailSent) {
+            await sendRideConfirmationEmail(doc, ride, rideId, method);
+          }
 
           // Push notify matched drivers (non-blocking — failure doesn't affect dispatch)
           if (match.length > 0) {
