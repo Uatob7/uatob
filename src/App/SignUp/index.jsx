@@ -13,7 +13,7 @@ import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/
 import { firebase_app } from "@/firebase/config";
 import { useApplicationSubmitted } from "@/App/SignUp/useApplicationSubmitted";
 import { useCreateDriverProfile } from "@/App/SignUp/useCreateDriverProfile";
-
+import { useAutocomplete } from '@/App/UaTob/useAutocomplete';
 const storage = getStorage(firebase_app);
 
 /* ─── localStorage helpers ───────────────────────────────────────────── */
@@ -80,6 +80,23 @@ const VEHICLE_YEARS = (() => {
   for (let y = MAX_VEHICLE_YEAR; y >= 2005; y--) years.push({ value: String(y), label: String(y) });
   return years;
 })();
+
+/* ─── Models by make ─────────────────────────────────────────────────── */
+const MODELS_BY_MAKE = {
+  Toyota:     ["Camry","Corolla","RAV4","Highlander","Tacoma","Prius","Sienna","4Runner","Tundra","Venza","Sequoia","Avalon"],
+  Honda:      ["Accord","Civic","CR-V","Pilot","Odyssey","HR-V","Passport","Ridgeline","Fit","Insight"],
+  Ford:       ["F-150","Escape","Explorer","Mustang","Edge","Expedition","Ranger","Bronco","Maverick","Transit"],
+  Chevrolet:  ["Silverado","Equinox","Traverse","Malibu","Tahoe","Suburban","Colorado","Blazer","Trax","Impala"],
+  Tesla:      ["Model 3","Model Y","Model S","Model X","Cybertruck"],
+  BMW:        ["3 Series","5 Series","X3","X5","7 Series","X1","X7","4 Series","i4","iX"],
+  Mercedes:   ["C-Class","E-Class","GLE","GLC","S-Class","A-Class","CLA","GLA","G-Class","EQS"],
+  Hyundai:    ["Sonata","Elantra","Tucson","Santa Fe","Palisade","Ioniq 5","Ioniq 6","Kona","Venue"],
+  Kia:        ["Sorento","Sportage","Telluride","Forte","K5","Soul","Carnival","Stinger","EV6","Niro"],
+  Nissan:     ["Altima","Sentra","Rogue","Murano","Pathfinder","Maxima","Frontier","Armada","Leaf"],
+  Subaru:     ["Outback","Forester","Impreza","Crosstrek","Ascent","Legacy","BRZ","WRX","Solterra"],
+  Volkswagen: ["Jetta","Passat","Tiguan","Atlas","Golf","ID.4","Taos","Arteon"],
+  Jeep:       ["Grand Cherokee","Wrangler","Cherokee","Renegade","Compass","Gladiator","Wagoneer"],
+};
 
 /* ─── UaTob SVG Icon ─────────────────────────────────────────────────── */
 function UaTobIcon({ size = 38 }) {
@@ -366,6 +383,245 @@ function ColorPickerField({ label, value, onChange, error }) {
   );
 }
 
+function AutocompleteAddressField({ label, value, onChange, error }) {
+  const [focused,  setFocused]  = useState(false);
+  const [showList, setShowList] = useState(false);
+  const { predictions, fetch: acFetch, clear: acClear } = useAutocomplete();
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    if (!showList) return;
+    const h = e => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) { setShowList(false); acClear(); }
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [showList, acClear]);
+
+  return (
+    <div style={{ marginBottom: 16, position: "relative" }} ref={wrapRef}>
+      {label && (
+        <div style={{
+          fontSize: 11, fontWeight: 700,
+          color: focused ? C.accent : error ? C.red : C.textMid,
+          marginBottom: 7, letterSpacing: "1.5px", textTransform: "uppercase",
+          fontFamily: "'Barlow Condensed', sans-serif", transition: "color .2s",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <span>{label}</span>
+          {value && !error && <Check size={11} color={C.green} strokeWidth={2.6}/>}
+        </div>
+      )}
+      <div style={{ position: "relative" }}>
+        <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", zIndex: 1, pointerEvents: "none" }}>
+          <MapPin size={15} color={focused ? C.accent : error ? C.red : C.textDim} style={{ transition: "color .2s" }}/>
+        </div>
+        <input
+          type="text"
+          placeholder="123 Main Street, Apt 4B"
+          value={value}
+          autoComplete="off"
+          onChange={e => { const v = e.target.value; onChange(v); acFetch(v); setShowList(true); }}
+          onFocus={() => { setFocused(true); if (predictions.length > 0) setShowList(true); }}
+          onBlur={() => setFocused(false)}
+          style={{
+            width: "100%", background: C.surface,
+            border: `1.5px solid ${error ? C.red : focused ? C.accent : value && !error ? "rgba(22,163,74,.35)" : C.border}`,
+            borderRadius: showList && predictions.length > 0 ? "13px 13px 0 0" : 13,
+            padding: "13px 14px 13px 42px",
+            color: C.text, fontFamily: "'Barlow', sans-serif", fontSize: 14, fontWeight: 500,
+            outline: "none", transition: "border-color .2s, box-shadow .2s",
+            boxShadow: focused ? "0 0 0 4px rgba(22,163,74,.12)" : error ? "0 0 0 3px rgba(220,38,38,.07)" : "none",
+          }}
+        />
+      </div>
+
+      {showList && predictions.length > 0 && (
+        <div style={{
+          position: "absolute", left: 0, right: 0,
+          background: C.surface,
+          border: `1.5px solid ${C.accent}`, borderTop: "none",
+          borderRadius: "0 0 13px 13px",
+          maxHeight: 240, overflowY: "auto",
+          boxShadow: "0 12px 28px rgba(0,0,0,.12), 0 4px 10px rgba(0,0,0,.06)",
+          zIndex: 60,
+        }}>
+          {predictions.map((pred, i) => (
+            <button
+              key={pred.place_id || i}
+              type="button"
+              onMouseDown={e => {
+                e.preventDefault();
+                onChange(pred.description);
+                acClear();
+                setShowList(false);
+              }}
+              style={{
+                width: "100%", display: "flex", flexDirection: "column", gap: 2,
+                padding: "10px 14px", background: "transparent", border: "none",
+                borderBottom: i < predictions.length - 1 ? `1px solid ${C.border}` : "none",
+                cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = C.accentGlow; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <MapPin size={12} color={C.accent} strokeWidth={2.2}/>
+                <span style={{ fontSize: 13.5, fontWeight: 700, color: C.text }}>
+                  {pred.structured_formatting.main_text}
+                </span>
+              </div>
+              <span style={{ fontSize: 11.5, color: C.textDim, fontWeight: 500, paddingLeft: 20 }}>
+                {pred.structured_formatting.secondary_text}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {error && (
+        <div style={{ fontSize: 11.5, color: C.red, marginTop: 5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+          <AlertCircle size={11}/>{error}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ModelPickerField({ label, make, value, onChange, error }) {
+  const [open,   setOpen]   = useState(false);
+  const [search, setSearch] = useState("");
+  const wrapRef  = useRef(null);
+  const searchRef = useRef(null);
+
+  const models   = MODELS_BY_MAKE[make] ?? [];
+  const filtered = search.trim()
+    ? models.filter(m => m.toLowerCase().includes(search.toLowerCase()))
+    : models;
+
+  useEffect(() => {
+    if (!open) return;
+    searchRef.current?.focus();
+    const h = e => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [open]);
+
+  // Free-text fallback when make has no model list
+  if (!models.length) {
+    return (
+      <InputField
+        label={label}
+        placeholder="Camry, Civic, Model 3…"
+        value={value}
+        onChange={onChange}
+        error={error}
+      />
+    );
+  }
+
+  const selected = value;
+
+  return (
+    <div style={{ marginBottom: 16, position: "relative" }} ref={wrapRef}>
+      {label && (
+        <div style={{
+          fontSize: 11, fontWeight: 700,
+          color: open ? C.accent : error ? C.red : C.textMid,
+          marginBottom: 7, letterSpacing: "1.5px", textTransform: "uppercase",
+          fontFamily: "'Barlow Condensed', sans-serif", transition: "color .2s",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <span>{label}</span>
+          {selected && !error && <Check size={11} color={C.green} strokeWidth={2.6}/>}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: "100%", background: C.surface,
+          border: `1.5px solid ${error ? C.red : open ? C.accent : selected ? "rgba(22,163,74,.35)" : C.border}`,
+          borderRadius: 13, padding: "13px 36px 13px 14px",
+          fontFamily: "'Barlow', sans-serif", fontSize: 14, fontWeight: 500,
+          color: selected ? C.text : C.textDim,
+          outline: "none", cursor: "pointer", textAlign: "left",
+          transition: "border-color .2s, box-shadow .2s",
+          boxShadow: open ? "0 0 0 4px rgba(22,163,74,.12)" : error ? "0 0 0 3px rgba(220,38,38,.07)" : "none",
+        }}
+      >
+        {selected || "Select model…"}
+      </button>
+      <ChevronDown
+        size={14} color={C.textDim}
+        style={{ position: "absolute", right: 13, top: label ? "calc(50% + 12px)" : "50%", transform: `translateY(-50%) rotate(${open ? 180 : 0}deg)`, pointerEvents: "none", transition: "transform .2s" }}
+      />
+
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
+          background: C.surface, border: `1px solid ${C.border}`,
+          borderRadius: 14, zIndex: 60,
+          boxShadow: "0 12px 32px rgba(0,0,0,.12), 0 4px 12px rgba(0,0,0,.06)",
+          display: "flex", flexDirection: "column", maxHeight: 300,
+          animation: "dsFadeDown .18s cubic-bezier(.34,1.2,.64,1) both",
+        }}>
+          <div style={{ padding: "8px 8px 4px", flexShrink: 0 }}>
+            <input
+              ref={searchRef}
+              type="text"
+              placeholder={`Search ${make} models…`}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{
+                width: "100%", border: `1px solid ${C.border}`, borderRadius: 10,
+                padding: "8px 12px", fontSize: 13, outline: "none",
+                fontFamily: "'Barlow', sans-serif", background: C.surfaceBright,
+                color: C.text, boxSizing: "border-box",
+              }}
+            />
+          </div>
+          <div style={{ overflowY: "auto", padding: 6 }}>
+            {filtered.length === 0 ? (
+              <div style={{ padding: "10px 14px", fontSize: 12, color: C.textDim, textAlign: "center" }}>No models found</div>
+            ) : filtered.map(model => {
+              const isSel = model === selected;
+              return (
+                <button
+                  key={model}
+                  type="button"
+                  onClick={() => { onChange(model); setOpen(false); setSearch(""); }}
+                  style={{
+                    width: "100%", padding: "10px 12px", border: "none", borderRadius: 10,
+                    background: isSel ? C.accentGlow : "transparent",
+                    cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+                    fontSize: 14, fontWeight: isSel ? 700 : 600,
+                    color: isSel ? C.accent : C.text,
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    transition: "background .1s",
+                  }}
+                  onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = C.surfaceBright; }}
+                  onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = "transparent"; }}
+                >
+                  {model}
+                  {isSel && <Check size={14} color={C.accent} strokeWidth={2.6}/>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div style={{ fontSize: 11.5, color: C.red, marginTop: 5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+          <AlertCircle size={11}/>{error}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PasswordStrengthMeter({ password }) {
   const { score, label, color } = getPasswordStrength(password);
   if (!password) return null;
@@ -496,7 +752,7 @@ function StepContact({ data, setData, errors }) {
   return (
     <div>
       <InputField label="Mobile Number" placeholder="+1 (555) 000-0000" type="tel" icon={Phone} value={data.phone} onChange={v => setData(d => ({ ...d, phone: v }))} error={errors.phone} hint="We'll send a verification code to this number."/>
-      <InputField label="Street Address" placeholder="123 Main Street, Apt 4B" icon={MapPin} value={data.address} onChange={v => setData(d => ({ ...d, address: v }))} error={errors.address}/>
+      <AutocompleteAddressField label="Street Address" value={data.address} onChange={v => setData(d => ({ ...d, address: v }))} error={errors.address}/>
       <div style={{ display: "flex", gap: 12 }}>
         <div style={{ flex: 1.2 }}>
           <InputField label="City" placeholder="Orlando" value={data.city} onChange={v => setData(d => ({ ...d, city: v }))} error={errors.city}/>
@@ -539,7 +795,7 @@ function StepVehicle({ data, setData, errors }) {
           ]}/>
         </div>
         <div style={{ flex: 1 }}>
-          <InputField label="Model" placeholder="Camry, Civic…" value={data.model} onChange={v => setData(d => ({ ...d, model: v }))} error={errors.model}/>
+          <ModelPickerField label="Model" make={data.make} value={data.model} onChange={v => setData(d => ({ ...d, model: v }))} error={errors.model}/>
         </div>
       </div>
       <div style={{ display: "flex", gap: 12 }}>
