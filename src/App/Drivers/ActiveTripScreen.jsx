@@ -1853,6 +1853,18 @@ export default function ActiveTripScreen({
   const displayProgress = liveMetrics.progress || 0;
   const arrivalClock   = displayEta != null ? fmtArrivalClock(displayEta) : '—';
 
+  // When driver_assigned, use rider's live location if available, else pickup
+  const riderLiveLat = (status === 'driver_assigned' && typeof rider?.lat === 'number') ? rider.lat : null;
+  const riderLiveLng = (status === 'driver_assigned' && typeof rider?.lng === 'number') ? rider.lng : null;
+  const toRiderMi = (riderLiveLat && riderLiveLng && selfPos?.lat && selfPos?.lng)
+    ? haversineMi(selfPos.lat, selfPos.lng, riderLiveLat, riderLiveLng)
+    : null;
+  const etaDistMi       = (status === 'driver_assigned' && toRiderMi !== null) ? toRiderMi : displayDist;
+  const etaMin          = (status === 'driver_assigned' && toRiderMi !== null)
+    ? (toRiderMi / (renderedSpeedRef.current > SPEED_FLOOR_FOR_ETA ? renderedSpeedRef.current : FALLBACK_SPEED_MPH)) * 60
+    : displayEta;
+  const etaArrivalClock = etaMin != null ? fmtArrivalClock(etaMin) : '—';
+
   const targetWord   = phase === 'toDropoff' ? 'DROP-OFF' : 'PICKUP';
   const activeNavUrl = phase === 'toDropoff'
     ? navUrl(trip?.dropoffLat, trip?.dropoffLng, trip?.dropoff || trip?.dropoffLabel || trip?.dropoffAddress)
@@ -1900,10 +1912,10 @@ export default function ActiveTripScreen({
 
         {mapReady && status !== 'completed' && (
           <EtaCard
-            etaMin={status === 'arrived' ? 0 : displayEta}
-            distMi={status === 'arrived' ? 0 : displayDist}
+            etaMin={status === 'arrived' ? 0 : etaMin}
+            distMi={status === 'arrived' ? 0 : etaDistMi}
             status={status}
-            arrivalClock={status === 'arrived' ? 'NOW' : arrivalClock}
+            arrivalClock={status === 'arrived' ? 'NOW' : etaArrivalClock}
           />
         )}
 
