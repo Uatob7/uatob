@@ -186,7 +186,6 @@ export default function Loader() {
             animation: 'ldrBlink 1.6s ease-in-out infinite' }}/>
           <span style={{ fontFamily: MONO, fontSize: 8, fontWeight: 700,
             color: 'rgba(255,255,255,.28)', letterSpacing: '.1em', textTransform: 'uppercase' }}>
-            Orlando, FL · flat-rate · no surge
           </span>
         </div>
 
