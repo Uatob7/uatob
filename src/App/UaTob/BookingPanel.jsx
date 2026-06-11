@@ -190,23 +190,16 @@ function DriverBanner({ driverInfo }) {
     return (
       <div className="bp-driver-banner unavail">
         <div className="bp-driver-dot unavail"/>
-        <span className="bp-driver-text unavail">Drivers limited in your area</span>
+        <span className="bp-driver-text unavail">No drivers online</span>
         <span className="bp-driver-sub">we'll keep searching</span>
       </div>
     );
   }
-  const stale = driverInfo.stale;
   const count = driverInfo.driverCount ?? 1;
-  const miles = driverInfo.nearestMiles;
   return (
     <div className="bp-driver-banner">
-      <div className={`bp-driver-dot${stale ? ' stale' : ''}`}/>
-      <span className={`bp-driver-text${stale ? ' stale' : ''}`}>
-        {stale
-          ? `${count} driver nearby · estimated location`
-          : `${count} driver${count !== 1 ? 's' : ''} nearby`}
-      </span>
-      {miles != null && <span className="bp-driver-sub">{miles} mi away</span>}
+      <div className="bp-driver-dot"/>
+      <span className="bp-driver-text">{count} driver{count !== 1 ? 's' : ''} online</span>
     </div>
   );
 }
@@ -694,7 +687,6 @@ export default function BookingPanel({ onBookNow, onPayloadChange, onPriceReady,
                 <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'#fff', border:'1.5px solid #BBF7D0', borderRadius:100, padding:'5px 12px', fontSize:11, fontWeight:800, color:T.accent, letterSpacing:'.8px', textTransform:'uppercase', fontFamily:'Outfit,sans-serif' }}>
                   {selectedQuote.label}
                 </div>
-                <div style={{ fontSize:11, color:'#6B7280', fontWeight:500 }}>distance-based</div>
               </div>
             </div>
             {showBreakdown && <BreakdownLines quote={selectedQuote} tripData={tripData}/>}
