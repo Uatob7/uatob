@@ -1409,7 +1409,7 @@ function ScheduledDrawer({ open, onToggle, scheduledRides, driver, now }) {
 
   return (
     <div style={{
-      position: 'absolute', left: 0, right: 0, bottom: 76, zIndex: 28,
+      position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 28,
       pointerEvents: 'none',
     }}>
       <div style={{
