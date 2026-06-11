@@ -534,9 +534,6 @@ function CardHeader({ step, title, onBack, onReset, pickup, dropoff, rideLabel, 
           <div style={{ fontFamily:COND, fontSize:10.5, fontWeight:800, letterSpacing:'.16em', color:C.greenBright, textTransform:'uppercase', lineHeight:1 }}>
             {title}
           </div>
-          <div style={{ fontFamily:MONO, fontSize:8, color:C.fade, marginTop:2 }}>
-            Orlando, FL · flat-rate · no surge
-          </div>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
           <div style={{ display:'flex', alignItems:'center', gap:4 }}>
