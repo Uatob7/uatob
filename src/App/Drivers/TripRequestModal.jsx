@@ -741,8 +741,11 @@ function RiderCard({ rider, loading }) {
 
   return (
     <div style={cardWrap}>
-      <div style={{ ...avatar, background: 'linear-gradient(135deg,#8B5CF6 0%,#4C1D95 100%)', border: '2px solid rgba(255,255,255,.6)' }}>
-        <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 800, color: '#fff' }}>{getInitials(rider.name)}</span>
+      <div style={{ ...avatar, background: 'linear-gradient(135deg,#8B5CF6 0%,#4C1D95 100%)', border: '2px solid rgba(255,255,255,.6)', overflow: 'hidden', padding: 0 }}>
+        {rider.photoURL
+          ? <img src={rider.photoURL} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}/>
+          : <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 800, color: '#fff' }}>{getInitials(rider.name)}</span>
+        }
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontFamily: COND, fontSize: 15, fontWeight: 800, letterSpacing: '.03em', color: C.white, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -1329,8 +1332,8 @@ export default function TripRequestModal({
   const payMethod = tripRequest.paymentMethod ?? 'card';
   const payCfg    = PAY_CFG[payMethod] ?? PAY_CFG.card;
   const rideColor = TYPE_COLOR[tripRequest.rideType] ?? '#3B82F6';
-  const miles     = Number(tripRequest.tripDistanceMiles) || 0;
-  const mins      = Number(tripRequest.tripDurationMin) || 0;
+  const miles     = Number(tripRequest.tripDistanceMiles ?? tripRequest.miles) || 0;
+  const mins      = Number(tripRequest.tripDurationMin   ?? tripRequest.durationMin) || 0;
   const surge     = Number(tripRequest.surgeMultiplier) || 1;
   const isScheduled = !!tripRequest.isScheduled;
   const schedClock  = isScheduled ? fmtClock(tripRequest.scheduledAt) : null;
@@ -1549,25 +1552,6 @@ export default function TripRequestModal({
               <AddressRow label="Pickup"   raw={tripRequest.pickup}  accepted={accepted} dimmed={false}/>
               <AddressRow label="Drop-off" raw={tripRequest.dropoff} accepted={accepted} dimmed={true}/>
             </div>
-          </div>
-
-          {/* ── trip metrics row ── */}
-          <div style={{
-            display:'flex', alignItems:'stretch', gap:0, marginBottom:12,
-            background:'rgba(255,255,255,.025)', border:'1px solid rgba(255,255,255,.05)',
-            borderRadius:12, padding:'9px 4px',
-          }}>
-            <MetricTile label="TRIP DIST" value={miles > 0 ? `${miles.toFixed(1)} mi` : '—'}/>
-            <div style={{ width:1, background:'rgba(255,255,255,.07)', margin:'2px 0' }}/>
-            <MetricTile label="TRIP TIME" value={mins > 0 ? `${mins} min` : '—'}/>
-            <div style={{ width:1, background:'rgba(255,255,255,.07)', margin:'2px 0' }}/>
-            <MetricTile label="TO PICKUP" value={driverDist || '—'} accent={C.greenBright} loading={loadingGeo}/>
-            <div style={{ width:1, background:'rgba(255,255,255,.07)', margin:'2px 0' }}/>
-            <MetricTile
-              label="DEADHEAD"
-              value={deadheadRatio != null ? `${Math.round(deadheadRatio * 100)}%` : '—'}
-              accent={deadheadRatio != null && deadheadRatio > 0.5 ? C.amberBright : C.greenSoft}
-            />
           </div>
 
           {/* ── fare breakdown ── */}

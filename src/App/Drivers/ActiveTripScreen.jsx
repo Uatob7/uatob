@@ -552,9 +552,17 @@ function Speedometer({ mph, gpsLive }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // RIDER CARD
 // ═══════════════════════════════════════════════════════════════════════════════
-function RiderCard({ rider }) {
+function RiderCard({ rider, driverLat, driverLng, pickupLat, pickupLng }) {
   if (!rider) return null;
   const rating = typeof rider.rating === 'number' ? rider.rating.toFixed(1) : null;
+
+  const targetLat = (typeof rider.lat === 'number') ? rider.lat : pickupLat;
+  const targetLng = (typeof rider.lng === 'number') ? rider.lng : pickupLng;
+  const distMi = (typeof driverLat === 'number' && typeof driverLng === 'number' &&
+                  typeof targetLat === 'number' && typeof targetLng === 'number')
+    ? haversineMi(driverLat, driverLng, targetLat, targetLng)
+    : null;
+
   return (
     <div style={{
       position: 'absolute',
@@ -575,8 +583,12 @@ function RiderCard({ rider }) {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontFamily: MONO, fontSize: 12, fontWeight: 800, color: '#fff',
         boxShadow: '0 3px 14px rgba(139,92,246,.6)',
+        overflow: 'hidden',
       }}>
-        {getInitials(rider.name)}
+        {rider.photoURL
+          ? <img src={rider.photoURL} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}/>
+          : getInitials(rider.name)
+        }
       </div>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: COND, fontSize: 13, fontWeight: 800, letterSpacing: '.04em', color: C.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.1 }}>
@@ -592,6 +604,11 @@ function RiderCard({ rider }) {
             </span>
           )}
           <span style={{ fontFamily: COND, fontSize: 8, fontWeight: 700, letterSpacing: '.1em', color: C.inkDim }}>RIDER</span>
+          {distMi !== null && (
+            <span style={{ fontFamily: MONO, fontSize: 9, fontWeight: 700, color: C.violet }}>
+              · {fmtMi(distMi)}
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -1891,7 +1908,15 @@ export default function ActiveTripScreen({
         )}
 
         {mapReady && status !== 'completed' && <Speedometer mph={liveSpeedMph} gpsLive={gpsLive}/>}
-        {mapReady && status !== 'completed' && <RiderCard rider={rider}/>}
+        {mapReady && status !== 'completed' && (
+          <RiderCard
+            rider={rider}
+            driverLat={selfPos?.lat}
+            driverLng={selfPos?.lng}
+            pickupLat={activeTrip?.pickupLat}
+            pickupLng={activeTrip?.pickupLng}
+          />
+        )}
 
         {mapReady && (
           <ArrivalBanner visible={nearTarget} targetWord={targetWord} distMi={displayDist} accent={stage.statusColor}/>
