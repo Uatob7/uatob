@@ -22,7 +22,7 @@ import {
 } from 'react';
 import {
   collection, doc, onSnapshot, query, where,
-  updateDoc, serverTimestamp, getFirestore,
+  updateDoc, serverTimestamp, getFirestore, increment,
 } from 'firebase/firestore';
 import { firebase_app } from '@/firebase/config';
 
@@ -78,7 +78,7 @@ const ROUTE_REFETCH_MIN_MOVE_MI = 0.05;
 
 // Active ride statuses
 const ACTIVE_STATUSES = new Set([
-  'searching_driver', 'driver_assigned', 'arrived', 'in_progress',
+  'searching_driver', 'driver_assigned', 'arrived', 'in_progress', 'timeout',
 ]);
 
 // ─── Keyframes ────────────────────────────────────────────────────────────────
@@ -910,6 +910,74 @@ function NearestDriverChip({ riderLat, riderLng, onlineDrivers }) {
   );
 }
 
+// ─── Timeout HUD ─────────────────────────────────────────────────────────────
+function TimeoutHud({ ride, onCancel, onWait }) {
+  const [waiting, setWaiting] = useState(false);
+  const [canceling, setCanceling] = useState(false);
+
+  const handleWait = async () => {
+    setWaiting(true);
+    await onWait(ride);
+    setWaiting(false);
+  };
+
+  const handleCancel = async () => {
+    setCanceling(true);
+    await onCancel(ride);
+    setCanceling(false);
+  };
+
+  return (
+    <div style={{
+      position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 32,
+      padding: '0 12px 28px',
+      animation: 'uaSlideUp .5s cubic-bezier(.34,1.2,.64,1) both',
+    }}>
+      <div style={{
+        background: 'rgba(5,10,6,.95)', backdropFilter: 'blur(20px)',
+        border: '1.5px solid rgba(251,191,36,.3)',
+        borderRadius: 20, padding: '20px 18px',
+        boxShadow: '0 -6px 40px rgba(0,0,0,.7), 0 0 30px rgba(251,191,36,.1)',
+        textAlign: 'center',
+      }}>
+        <div style={{ fontSize: 32, marginBottom: 8 }}>⏱</div>
+        <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 18, fontWeight: 800, letterSpacing: '.06em', color: '#FBBF24', marginBottom: 6 }}>
+          No driver found yet
+        </div>
+        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: 'rgba(255,255,255,.42)', marginBottom: 20, lineHeight: 1.55 }}>
+          We couldn't match a driver in time.{'\n'}Keep waiting or cancel your ride.
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={handleCancel}
+            disabled={canceling || waiting}
+            style={{
+              flex: 1, padding: '13px 0', borderRadius: 13, cursor: canceling ? 'not-allowed' : 'pointer',
+              background: 'rgba(248,113,113,.1)', border: '1.5px solid rgba(248,113,113,.35)',
+              fontFamily: "'Barlow Condensed',sans-serif", fontSize: 14, fontWeight: 800,
+              letterSpacing: '.08em', color: '#F87171', opacity: canceling ? .5 : 1, transition: 'opacity .15s',
+            }}
+          >
+            {canceling ? 'Canceling…' : 'Cancel Ride'}
+          </button>
+          <button
+            onClick={handleWait}
+            disabled={waiting || canceling}
+            style={{
+              flex: 1, padding: '13px 0', borderRadius: 13, cursor: waiting ? 'not-allowed' : 'pointer',
+              background: 'rgba(251,191,36,.15)', border: '1.5px solid rgba(251,191,36,.45)',
+              fontFamily: "'Barlow Condensed',sans-serif", fontSize: 14, fontWeight: 800,
+              letterSpacing: '.08em', color: '#FBBF24', opacity: waiting ? .5 : 1, transition: 'opacity .15s',
+            }}
+          >
+            {waiting ? 'Extending…' : 'Keep Waiting'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Active ride HUD bottom card ──────────────────────────────────────────────
 function ActiveRideHud({ ride, driverDoc, routeInfo, now, onCancel, onContact, onRate }) {
   const status = ride.status;
@@ -960,16 +1028,21 @@ function ActiveRideHud({ ride, driverDoc, routeInfo, now, onCancel, onContact, o
               </div>
             )}
           </div>
-          {routeInfo && (
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontFamily: MONO, fontSize: 11, fontWeight: 800, color: C.greenBright }}>
-                {fmtEta(routeInfo.durationSecs)}
+          {(() => {
+            const distMi      = routeInfo?.distanceMi    ?? (Number(ride.tripDistanceMiles ?? ride.miles) || null);
+            const durationSecs = routeInfo?.durationSecs ?? ((Number(ride.tripDurationMin  ?? ride.durationMin) || null) * 60);
+            if (!distMi && !durationSecs) return null;
+            return (
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontFamily: MONO, fontSize: 11, fontWeight: 800, color: C.greenBright }}>
+                  {fmtEta(durationSecs)}
+                </div>
+                <div style={{ fontFamily: COND, fontSize: 9, color: C.inkDim, letterSpacing: '.1em' }}>
+                  {fmtDist(distMi)}
+                </div>
               </div>
-              <div style={{ fontFamily: COND, fontSize: 9, color: C.inkDim, letterSpacing: '.1em' }}>
-                {fmtDist(routeInfo.distanceMi)}
-              </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
 
         {/* Driver card */}
@@ -1528,6 +1601,42 @@ export default function UaTob({
     }
   }, [live, mapReady]);
 
+  // ── Cancel ride ──────────────────────────────────────────────────────────
+  const handleCancelRide = useCallback(async (ride) => {
+    const rideId = ride?.id;
+    if (!rideId || !uid) return;
+    try {
+      await updateDoc(doc(db, 'Rides', rideId), {
+        status:     'canceled',
+        canceledAt: serverTimestamp(),
+        canceledBy: uid,
+        updatedAt:  serverTimestamp(),
+      });
+    } catch (err) {
+      console.error('[UaTob] cancel ride failed:', err);
+    }
+    onCancelRide(ride);
+  }, [uid, onCancelRide]);
+
+  // ── Extend search (Wait) ──────────────────────────────────────────────────
+  const handleWaitRide = useCallback(async (ride) => {
+    const rideId = ride?.id;
+    if (!rideId || !uid) return;
+    const now = new Date();
+    const newExpiresAt = new Date(now.getTime() + 7 * 60 * 1000);
+    try {
+      await updateDoc(doc(db, 'Rides', rideId), {
+        status:         'searching_driver',
+        timedOutAt:     null,
+        searchExtended: increment(1),
+        updatedAt:      serverTimestamp(),
+        expiresAt:      newExpiresAt,
+      });
+    } catch (err) {
+      console.error('[UaTob] extend ride search failed:', err);
+    }
+  }, [uid]);
+
   // ── Route fetch for active ride ───────────────────────────────────────────
   useEffect(() => {
     if (!activeRide || !driverDoc) return;
@@ -1785,15 +1894,23 @@ export default function UaTob({
 
         {/* Bottom HUD — active ride or idle counters */}
         {activeRide ? (
-          <ActiveRideHud
-            ride={activeRide}
-            driverDoc={driverDoc}
-            routeInfo={routeInfo}
-            now={now}
-            onCancel={onCancelRide}
-            onContact={onContactDriver}
-            onRate={onRateRide}
-          />
+          activeRide.status === 'timeout' ? (
+            <TimeoutHud
+              ride={activeRide}
+              onCancel={handleCancelRide}
+              onWait={handleWaitRide}
+            />
+          ) : (
+            <ActiveRideHud
+              ride={activeRide}
+              driverDoc={driverDoc}
+              routeInfo={routeInfo}
+              now={now}
+              onCancel={handleCancelRide}
+              onContact={onContactDriver}
+              onRate={onRateRide}
+            />
+          )
         ) : (
           <>
             {/* Search count */}
