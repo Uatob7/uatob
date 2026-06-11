@@ -58,6 +58,7 @@ const FALLBACK_SPEED_MPH     = 24;
 const MIN_MOVE_FOR_BEARING_M = 4;
 const STALE_FIX_MS           = 30000;
 const ARRIVE_MAX_MILES       = 1.0;
+const COMPLETE_MAX_MILES     = 700 / 5280; // ~0.133 mi
 const SPEED_GAUGE_MAX_MPH    = 80;
 const SPEED_FLOOR_FOR_ETA    = 6;
 const SPEED_DERIVE_MIN_DT_S  = 0.4;
@@ -1801,6 +1802,21 @@ export default function ActiveTripScreen({
   const handleAction = useCallback(async (action, rideId) => {
     if (!action || !rideId) return;
 
+    if (action === 'complete') {
+      const tLat = trip?.dropoffLat;
+      const tLng = trip?.dropoffLng;
+      if (
+        typeof dLat === 'number' && typeof dLng === 'number' &&
+        typeof tLat === 'number' && typeof tLng === 'number'
+      ) {
+        const dist = haversineMi(dLat, dLng, tLat, tLng);
+        if (dist > COMPLETE_MAX_MILES) {
+          setError(`You're ${fmtMi(dist)} away — get within 700 ft of the drop-off to complete.`);
+          return;
+        }
+      }
+    }
+
     if (action === 'arrive') {
       const pLat = (typeof rider?.lat === 'number') ? rider.lat : trip?.pickupLat;
       const pLng = (typeof rider?.lng === 'number') ? rider.lng : trip?.pickupLng;
@@ -1832,7 +1848,7 @@ export default function ActiveTripScreen({
     } finally {
       if (mountedRef.current) setPending(false);
     }
-  }, [onTripComplete, trip?.pickupLat, trip?.pickupLng, dLat, dLng, driver?.uid, callUpdateTrip, rider?.lat, rider?.lng]);
+  }, [onTripComplete, trip?.pickupLat, trip?.pickupLng, trip?.dropoffLat, trip?.dropoffLng, dLat, dLng, driver?.uid, callUpdateTrip, rider?.lat, rider?.lng]);
 
   // ── cleanup ──────────────────────────────────────────────────────────────
   useEffect(() => () => {
