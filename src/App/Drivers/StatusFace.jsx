@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Power, Radar, Zap, ArrowRight } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Power, Radar, ArrowRight } from 'lucide-react';
 import { C } from '@/App/Drivers/constants.js';
 
 function getGreeting() {
@@ -17,10 +17,127 @@ function timeAgo(ts) {
   return `${Math.floor(min / 60)}h ago`;
 }
 
-export default function StatusFace({ mode, online, activeTrip, tripStage, sinceMs, onlineLabel, nearbyCount, onToggle, driver, searches }) {
-  const [showGreeting, setShowGreeting] = useState(true);
-  const [now, setNow] = useState(Date.now());
+// ── Flip headline ──────────────────────────────────────────
+function FlipHeadline({ front, back, showFront, heartbeat }) {
+  return (
+    <div style={{ position: 'relative', height: 28, overflow: 'hidden' }}>
+      {/* front — greeting */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        display: 'flex', alignItems: 'center',
+        transition: 'transform .45s cubic-bezier(.4,0,.2,1), opacity .45s',
+        transform: showFront ? 'translateY(0)' : 'translateY(-110%)',
+        opacity: showFront ? 1 : 0,
+        pointerEvents: 'none',
+      }}>
+        <span className="condensed" style={{
+          fontSize: 22, fontWeight: 900, letterSpacing: '-0.4px',
+          color: C.text, whiteSpace: 'nowrap',
+        }}>
+          {front}
+        </span>
+      </div>
 
+      {/* back — searching */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        display: 'flex', alignItems: 'center', gap: 7,
+        transition: 'transform .45s cubic-bezier(.4,0,.2,1), opacity .45s',
+        transform: showFront ? 'translateY(110%)' : 'translateY(0)',
+        opacity: showFront ? 0 : 1,
+        pointerEvents: 'none',
+      }}>
+        {/* heartbeat dot */}
+        <div style={{
+          width: 8, height: 8, borderRadius: '50%',
+          background: '#22C55E',
+          flexShrink: 0,
+          boxShadow: '0 0 0 0 rgba(34,197,94,.6)',
+          animation: heartbeat ? 'scHeartbeat 1.4s ease-in-out infinite' : 'none',
+        }}/>
+        <span className="condensed" style={{
+          fontSize: 22, fontWeight: 900, letterSpacing: '-0.4px',
+          color: C.text, whiteSpace: 'nowrap',
+        }}>
+          {back}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ── Route badge ─────────────────────────────────────────────
+function RouteBadge({ pickup, dropoff, miles, minutes, searchAge, sinceLabel, sinceMs, scanning }) {
+  const hasRoute = pickup && dropoff;
+
+  return (
+    <div style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5,
+      padding: '4px 10px', borderRadius: 100,
+      background: 'rgba(22,163,74,.10)',
+      border: '1px solid rgba(22,163,74,.22)',
+      fontSize: 11, fontWeight: 600, color: '#15803D',
+      maxWidth: '100%', overflow: 'hidden',
+      flexWrap: 'nowrap',
+    }}>
+      <Radar size={11} strokeWidth={2.2} style={{ flexShrink: 0 }}/>
+
+      {hasRoute ? (
+        <>
+          <span style={{ whiteSpace: 'nowrap' }}>{pickup}</span>
+          <ArrowRight size={9} strokeWidth={2.5} style={{ flexShrink: 0, opacity: .55 }}/>
+          <span style={{ whiteSpace: 'nowrap' }}>{dropoff}</span>
+
+          {miles && (
+            <>
+              <Dot/>
+              <span style={{ whiteSpace: 'nowrap' }}>{miles} mi</span>
+            </>
+          )}
+          {minutes && (
+            <>
+              <Dot/>
+              <span style={{ whiteSpace: 'nowrap' }}>{minutes} min</span>
+            </>
+          )}
+          {searchAge && (
+            <>
+              <Dot/>
+              <span style={{ whiteSpace: 'nowrap', opacity: .65 }}>{searchAge}</span>
+            </>
+          )}
+        </>
+      ) : (
+        <span style={{ whiteSpace: 'nowrap' }}>
+          {scanning ? 'Scanning area' : 'No activity'}
+        </span>
+      )}
+
+      {sinceMs && sinceLabel && (
+        <>
+          <Dot/>
+          <span style={{ whiteSpace: 'nowrap', opacity: .75 }}>{sinceLabel}</span>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Dot() {
+  return (
+    <span style={{ width: 2, height: 2, borderRadius: '50%', background: 'rgba(22,163,74,.55)', flexShrink: 0 }}/>
+  );
+}
+
+// ── Main component ───────────────────────────────────────────
+export default function StatusFace({
+  mode, online, activeTrip, tripStage,
+  sinceMs, onlineLabel, onToggle, driver, searches,
+}) {
+  const [showGreeting, setShowGreeting] = useState(true);
+  const [, setNow] = useState(Date.now());
+
+  // flip back after 2.8s
   useEffect(() => {
     if (mode !== 'waiting') { setShowGreeting(false); return; }
     setShowGreeting(true);
@@ -28,14 +145,14 @@ export default function StatusFace({ mode, online, activeTrip, tripStage, sinceM
     return () => clearTimeout(t);
   }, [mode, driver?.firstName]);
 
-  // tick every 5s to keep "Xs ago" fresh
+  // tick for "Xs ago"
   useEffect(() => {
     if (mode !== 'waiting') return;
     const id = setInterval(() => setNow(Date.now()), 5000);
     return () => clearInterval(id);
   }, [mode]);
 
-  // ── Latest search ──────────────────────────────────
+  // ── Latest search ─────────────────────────────────────────
   const latestSearch = searches?.length > 0
     ? [...searches].sort((a, b) => {
         const ta = a.createdAt?.toMillis?.() ?? (a.createdAt?.seconds * 1000) ?? 0;
@@ -44,139 +161,111 @@ export default function StatusFace({ mode, online, activeTrip, tripStage, sinceM
       })[0]
     : null;
 
-  const isLiveSearch   = !!latestSearch?.pickupCity;
-  const pickupCity     = latestSearch?.pickupCity  ?? latestSearch?.pickup?.split(',')[1]?.trim()  ?? null;
-  const dropoffCity    = latestSearch?.dropoffCity ?? latestSearch?.dropoff?.split(',')[1]?.trim() ?? null;
-  const searchMiles    = latestSearch?.miles    ?? null;
-  const searchMinutes  = latestSearch?.minutes  ?? null;
-  const searchAge      = latestSearch?.createdAt ? timeAgo(latestSearch.createdAt) : null;
+  const pickupCity   = latestSearch?.pickupCity  ?? latestSearch?.pickup?.split(',')[1]?.trim()  ?? null;
+  const dropoffCity  = latestSearch?.dropoffCity ?? latestSearch?.dropoff?.split(',')[1]?.trim() ?? null;
+  const searchMiles  = latestSearch?.miles   ?? null;
+  const searchMins   = latestSearch?.minutes ?? null;
+  const searchAge    = latestSearch?.createdAt ? timeAgo(latestSearch.createdAt) : null;
+  const isLiveSearch = !!pickupCity;
+
+  // ── Derived headline text ─────────────────────────────────
+  const greetingText = `${driver?.firstName ? `Hey, ${driver.firstName} 👋` : 'Hey there 👋'}`;
+  const backText = mode === 'trip'
+    ? `On trip · ${(tripStage ?? '').replace('_', ' ')}`
+    : isLiveSearch && pickupCity
+      ? `Rider near ${pickupCity}`
+      : 'Looking for riders';
 
   return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:14 }}>
-      <div style={{ flex:1, minWidth:0 }}>
+    <>
+      {/* inject heartbeat keyframe once */}
+      <style>{`
+        @keyframes scHeartbeat {
+          0%,100% { transform:scale(1);   box-shadow:0 0 0 0   rgba(34,197,94,.6); }
+          14%      { transform:scale(1.35); box-shadow:0 0 0 0   rgba(34,197,94,.4); }
+          28%      { transform:scale(1);   box-shadow:0 0 0 6px rgba(34,197,94,0);  }
+          42%      { transform:scale(1.2); box-shadow:0 0 0 0   rgba(34,197,94,.3); }
+          70%      { transform:scale(1);   box-shadow:0 0 0 8px rgba(34,197,94,0);  }
+        }
+        @keyframes scOnlinePulse {
+          0%,100% { box-shadow:0 8px 20px rgba(22,163,74,.35); }
+          50%     { box-shadow:0 8px 28px rgba(22,163,74,.55); }
+        }
+      `}</style>
 
-        {/* ── Status pill ── */}
-        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
-          <div style={{
-            display:'inline-flex', alignItems:'center', gap:6,
-            padding:'4px 10px', borderRadius:100,
-            background: mode==='trip' ? 'rgba(34,197,94,.18)' : mode==='waiting' ? 'rgba(22,163,74,.12)' : C.surfaceAlt,
-            border: mode==='trip' ? '1px solid rgba(34,197,94,.45)' : mode==='waiting' ? '1px solid rgba(22,163,74,.20)' : `1px solid ${C.border}`,
-          }}>
-            <div style={{
-              width:6, height:6, borderRadius:'50%',
-              background: mode==='offline' ? C.textDim : '#22C55E',
-              boxShadow: mode!=='offline' ? '0 0 8px rgba(34,197,94,0.7)' : 'none',
-              animation: mode!=='offline' ? 'scLiveDot 1.6s ease-in-out infinite' : 'none',
-            }}/>
-            <span className="mono" style={{ fontSize:10, fontWeight:800, letterSpacing:'.12em', textTransform:'uppercase', color: mode==='trip' ? '#4ADE80' : mode==='waiting' ? C.onlineGreen : C.textDim }}>
-              {mode==='trip' ? 'On trip' : mode==='waiting' ? 'Online · ready' : 'Offline'}
-            </span>
-          </div>
-        </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
 
-        {/* ── Flipping headline ── */}
-        <div className="condensed" style={{ fontSize:26, fontWeight:900, color: mode==='trip' ? '#fff' : C.text, letterSpacing:'-0.5px', lineHeight:1.1, marginBottom:4, opacity: mode==='offline' ? 0.65 : 1 }}>
-          {mode==='offline' && "You're offline"}
-          {mode==='trip'    && `Active trip · ${(tripStage ?? '').replace('_', ' ')}`}
-          {mode==='waiting' && (showGreeting
-            ? `${getGreeting()}, ${driver?.firstName || '...'} 👋`
-            : isLiveSearch && pickupCity
-              ? `Rider near ${pickupCity}`
-              : 'Looking for rides'
+        {/* ── Row 1: flip headline + toggle button ── */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+
+          <FlipHeadline
+            front={greetingText}
+            back={backText}
+            showFront={showGreeting}
+            heartbeat={mode === 'waiting' && !showGreeting}
+          />
+
+          {/* Toggle — hidden while on active trip */}
+          {!activeTrip && (
+            <button
+              onClick={e => { e.stopPropagation(); onToggle(); }}
+              style={{
+                flexShrink: 0,
+                background: online
+                  ? 'linear-gradient(135deg,#22C55E 0%,#16A34A 55%,#15803D 100%)'
+                  : 'linear-gradient(135deg,#0F172A,#1F2937 55%,#0F172A)',
+                border: 'none', borderRadius: 100,
+                padding: '9px 16px',
+                color: '#fff',
+                fontFamily: "'Barlow',sans-serif",
+                fontWeight: 800, fontSize: 13, letterSpacing: '.3px',
+                cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 6,
+                transition: 'filter .15s, transform .1s',
+                boxShadow: online
+                  ? '0 6px 16px rgba(22,163,74,.35)'
+                  : '0 6px 16px rgba(0,0,0,.18)',
+                animation: online ? 'scOnlinePulse 2.4s ease-in-out infinite' : 'none',
+                whiteSpace: 'nowrap',
+              }}
+              onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.08)'}
+              onMouseLeave={e => e.currentTarget.style.filter = ''}
+              onMouseDown={e  => e.currentTarget.style.transform = 'scale(.96)'}
+              onMouseUp={e    => e.currentTarget.style.transform = ''}
+            >
+              <Power size={13} strokeWidth={2.6} fill={online ? '#fff' : 'transparent'}/>
+              {online ? 'Online' : 'Go online'}
+            </button>
           )}
         </div>
 
-        {/* ── Subtext badge ── */}
-        <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-          {mode==='offline' && (
-            <span style={{ fontSize:12, fontWeight:600, color:C.textDim }}>Tap "Go online" to start earning</span>
-          )}
+        {/* ── Row 2: route / status badge ── */}
+        {mode === 'waiting' && (
+          <RouteBadge
+            pickup={pickupCity}
+            dropoff={dropoffCity}
+            miles={searchMiles}
+            minutes={searchMins}
+            searchAge={searchAge}
+            sinceMs={sinceMs}
+            sinceLabel={onlineLabel}
+            scanning={online}
+          />
+        )}
 
-          {mode==='waiting' && (
-            <div style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'4px 10px', borderRadius:100, background:'rgba(22,163,74,.10)', border:'1px solid rgba(22,163,74,.20)', fontSize:11, fontWeight:600, color:'#15803D', flexWrap:'nowrap', maxWidth:'100%', overflow:'hidden' }}>
-              <Radar size={11} strokeWidth={2.2} style={{ flexShrink:0 }}/>
+        {mode === 'offline' && (
+          <span style={{ fontSize: 11, fontWeight: 600, color: C.textDim }}>
+            Tap "Go online" to start earning
+          </span>
+        )}
 
-              {isLiveSearch && pickupCity && dropoffCity ? (
-                <>
-                  <span style={{ whiteSpace:'nowrap' }}>{pickupCity}</span>
-                  <ArrowRight size={9} strokeWidth={2.5} style={{ flexShrink:0, opacity:.6 }}/>
-                  <span style={{ whiteSpace:'nowrap' }}>{dropoffCity}</span>
-                  {searchMiles && (
-                    <>
-                      <span style={{ width:2, height:2, borderRadius:'50%', background:'rgba(22,163,74,.5)', flexShrink:0 }}/>
-                      <span style={{ whiteSpace:'nowrap' }}>{searchMiles} mi</span>
-                    </>
-                  )}
-                  {searchMinutes && (
-                    <>
-                      <span style={{ width:2, height:2, borderRadius:'50%', background:'rgba(22,163,74,.5)', flexShrink:0 }}/>
-                      <span style={{ whiteSpace:'nowrap' }}>{searchMinutes} min</span>
-                    </>
-                  )}
-                  {searchAge && (
-                    <>
-                      <span style={{ width:2, height:2, borderRadius:'50%', background:'rgba(22,163,74,.5)', flexShrink:0 }}/>
-                      <span style={{ whiteSpace:'nowrap', opacity:.7 }}>{searchAge}</span>
-                    </>
-                  )}
-                </>
-              ) : (
-                <span>Scanning area</span>
-              )}
-
-              {sinceMs && (
-                <>
-                  <span style={{ width:2, height:2, borderRadius:'50%', background:'rgba(22,163,74,.5)', flexShrink:0 }}/>
-                  <span style={{ whiteSpace:'nowrap' }}>{onlineLabel}</span>
-                </>
-              )}
-            </div>
-          )}
-
-          {mode==='trip' && (
-            <span style={{ display:'inline-flex', alignItems:'center', gap:5, fontSize:12, fontWeight:600, color:'rgba(74,222,128,.80)' }}>
-              <Zap size={12} fill="#22C55E" strokeWidth={0}/> Earning · stay focused
-            </span>
-          )}
-        </div>
+        {mode === 'trip' && (
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(74,222,128,.75)' }}>
+            ⚡ Earning · stay focused
+          </span>
+        )}
 
       </div>
-
-      {/* ── Toggle button ── */}
-      {!activeTrip && (
-        <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8, flexShrink:0 }}>
-          <button
-            onClick={e => { e.stopPropagation(); onToggle(); }}
-            style={{
-              background: online ? 'linear-gradient(135deg,#22C55E 0%,#16A34A 55%,#15803D 100%)' : 'linear-gradient(135deg,#0F172A,#1F2937 55%,#0F172A)',
-              border:'none', borderRadius:100,
-              padding: online ? '13px 18px' : '13px 22px',
-              color:'#fff', fontFamily:"'Barlow',sans-serif",
-              fontWeight:800, fontSize:14, letterSpacing:'.3px',
-              cursor:'pointer', display:'flex', alignItems:'center', gap:7,
-              transition:'filter .15s, transform .1s',
-              boxShadow: online ? '0 8px 20px rgba(22,163,74,.35)' : '0 8px 20px rgba(0,0,0,.18)',
-              animation: online ? 'scOnlinePulse 2.4s ease-in-out infinite' : 'none',
-            }}
-            onMouseEnter={e => e.currentTarget.style.filter='brightness(1.08)'}
-            onMouseLeave={e => e.currentTarget.style.filter=''}
-            onMouseDown={e  => e.currentTarget.style.transform='scale(.97)'}
-            onMouseUp={e    => e.currentTarget.style.transform=''}
-          >
-            <Power size={15} strokeWidth={2.6} fill={online ? '#fff' : 'transparent'}/>
-            {online ? 'Online' : 'Go online'}
-          </button>
-        </div>
-      )}
-
-      {/* ── Active trip icon ── */}
-      {activeTrip && (
-        <div style={{ flexShrink:0, width:48, height:48, borderRadius:14, background:'rgba(34,197,94,0.15)', border:'1.5px solid rgba(34,197,94,0.35)', display:'flex', alignItems:'center', justifyContent:'center', position:'relative' }}>
-          <Zap size={20} color="#4ADE80" fill="#4ADE80" strokeWidth={2}/>
-          <div style={{ position:'absolute', inset:-6, borderRadius:18, border:'2px solid rgba(34,197,94,0.4)', animation:'scRadar 2s ease-out infinite', pointerEvents:'none' }}/>
-        </div>
-      )}
-    </div>
+    </>
   );
 }
