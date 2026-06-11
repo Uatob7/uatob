@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Power, Radar, Zap, MapPin, Users } from 'lucide-react';
+import { Power, Radar, Zap } from 'lucide-react';
 import { C } from '@/App/Drivers/constants.js';
 
 function getGreeting() {
@@ -17,32 +17,32 @@ export default function StatusFace({ mode, online, activeTrip, tripStage, sinceM
     return () => clearTimeout(t);
   }, [mode, driver?.firstName]);
 
-  // ── Pull live data from most recent search ─────────
+  // ── Latest search for headline ─────────────────────
   const latestSearch = searches?.length > 0
     ? [...searches].sort((a, b) => {
-        const ta = a.createdAt?.toMillis?.() ?? a.createdAt?.seconds * 1000 ?? 0;
-        const tb = b.createdAt?.toMillis?.() ?? b.createdAt?.seconds * 1000 ?? 0;
+        const ta = a.createdAt?.toMillis?.() ?? (a.createdAt?.seconds * 1000) ?? 0;
+        const tb = b.createdAt?.toMillis?.() ?? (b.createdAt?.seconds * 1000) ?? 0;
         return tb - ta;
       })[0]
     : null;
 
-  const isLiveSearch = latestSearch && (() => {
-    const age = Date.now() - (latestSearch.createdAt?.toMillis?.() ?? latestSearch.createdAt?.seconds * 1000 ?? 0);
-    return age < 5 * 60 * 1000; // within last 5 minutes
-  })();
+  const pickupShort = latestSearch?.pickup?.split(',')[0]?.trim() ?? null;
+  const isLiveSearch = !!pickupShort;
 
-  const searchDriverCount = latestSearch?.driverCount ?? null;
-  const searchEta         = latestSearch?.nearestEta ?? null;
-  const searchPickup      = latestSearch?.pickup ?? null;
-
-  // Shorten pickup label — just city/neighborhood not full address
-  const pickupShort = searchPickup
-    ? searchPickup.split(',')[0].trim()
-    : null;
+  // ── Unique cities — no age filter, just needs a pickup ──
+  const searchCities = searches?.length > 0
+    ? [...new Set(
+        searches
+          .map(s => s.pickup?.split(',')[0]?.trim())
+          .filter(Boolean)
+      )].slice(0, 3)
+    : [];
 
   return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:14 }}>
       <div style={{ flex:1, minWidth:0 }}>
+
+        {/* ── Status pill ── */}
         <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
           <div style={{
             display:'inline-flex', alignItems:'center', gap:6,
@@ -60,14 +60,6 @@ export default function StatusFace({ mode, online, activeTrip, tripStage, sinceM
               {mode==='trip' ? 'On trip' : mode==='waiting' ? 'Online · ready' : 'Offline'}
             </span>
           </div>
-
-          {/* Live search pulse badge */}
-          {mode==='waiting' && isLiveSearch && (
-            <div style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'4px 8px', borderRadius:100, background:'rgba(251,191,36,.12)', border:'1px solid rgba(251,191,36,.30)' }}>
-              <div style={{ width:5, height:5, borderRadius:'50%', background:'#FBBF24', animation:'scLiveDot 1s ease-in-out infinite' }}/>
-              <span className="mono" style={{ fontSize:9, fontWeight:800, letterSpacing:'.1em', textTransform:'uppercase', color:'#FBBF24' }}>Live search</span>
-            </div>
-          )}
         </div>
 
         {/* ── Flipping headline ── */}
@@ -82,61 +74,38 @@ export default function StatusFace({ mode, online, activeTrip, tripStage, sinceM
           )}
         </div>
 
-        <div style={{ display:'flex', alignItems:'center', gap:10, fontSize:12, fontWeight:600, color: mode==='trip' ? 'rgba(74,222,128,.80)' : mode==='waiting' ? '#15803D' : C.textDim, flexWrap:'wrap' }}>
+        {/* ── Subtext ── */}
+        <div style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, fontWeight:600, color: mode==='trip' ? 'rgba(74,222,128,.80)' : mode==='waiting' ? '#15803D' : C.textDim, flexWrap:'wrap' }}>
           {mode==='offline' && <span>Tap "Go online" to start earning</span>}
+
           {mode==='waiting' && (
-            <>
-              {isLiveSearch ? (
+            <div style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'4px 10px', borderRadius:100, background:'rgba(22,163,74,.10)', border:'1px solid rgba(22,163,74,.20)' }}>
+              <Radar size={11} strokeWidth={2.2}/>
+              {searchCities.length > 0
+                ? searchCities.map((city, i, arr) => (
+                    <span key={city}>{city}{i < arr.length - 1 ? ' ·' : ''}</span>
+                  ))
+                : <span>Scanning area</span>
+              }
+              {sinceMs && (
                 <>
-                  <span style={{ display:'inline-flex', alignItems:'center', gap:4 }}>
-                    <Radar size={12} strokeWidth={2.2}/> Matching drivers
-                  </span>
-                  {searchEta && (
-                    <>
-                      <span style={{ width:3, height:3, borderRadius:'50%', background:'rgba(22,163,74,.35)' }}/>
-                      <span>~{searchEta} min away</span>
-                    </>
-                  )}
-                  {searchDriverCount > 0 && (
-                    <>
-                      <span style={{ width:3, height:3, borderRadius:'50%', background:'rgba(22,163,74,.35)' }}/>
-                      <span style={{ display:'inline-flex', alignItems:'center', gap:4 }}>
-                        <Users size={11} strokeWidth={2.2}/>{searchDriverCount} drivers found
-                      </span>
-                    </>
-                  )}
-                </>
-              ) : (
-                <>
-                  <span style={{ display:'inline-flex', alignItems:'center', gap:4 }}>
-                    <Radar size={12} strokeWidth={2.2}/> Scanning area
-                  </span>
-                  {sinceMs && (
-                    <>
-                      <span style={{ width:3, height:3, borderRadius:'50%', background:'rgba(22,163,74,.35)' }}/>
-                      <span>Online {onlineLabel}</span>
-                    </>
-                  )}
-                  {nearbyCount > 0 && (
-                    <>
-                      <span style={{ width:3, height:3, borderRadius:'50%', background:'rgba(22,163,74,.35)' }}/>
-                      <span style={{ display:'inline-flex', alignItems:'center', gap:4 }}>
-                        <MapPin size={11} strokeWidth={2.2}/>{nearbyCount} nearby
-                      </span>
-                    </>
-                  )}
+                  <span style={{ width:3, height:3, borderRadius:'50%', background:'rgba(22,163,74,.4)', flexShrink:0 }}/>
+                  <span>{onlineLabel}</span>
                 </>
               )}
-            </>
+            </div>
           )}
+
           {mode==='trip' && (
             <span style={{ display:'inline-flex', alignItems:'center', gap:5 }}>
               <Zap size={12} fill="#22C55E" strokeWidth={0}/> Earning · stay focused
             </span>
           )}
         </div>
+
       </div>
 
+      {/* ── Toggle button ── */}
       {!activeTrip && (
         <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8, flexShrink:0 }}>
           <button
@@ -163,6 +132,7 @@ export default function StatusFace({ mode, online, activeTrip, tripStage, sinceM
         </div>
       )}
 
+      {/* ── Active trip icon ── */}
       {activeTrip && (
         <div style={{ flexShrink:0, width:48, height:48, borderRadius:14, background:'rgba(34,197,94,0.15)', border:'1.5px solid rgba(34,197,94,0.35)', display:'flex', alignItems:'center', justifyContent:'center', position:'relative' }}>
           <Zap size={20} color="#4ADE80" fill="#4ADE80" strokeWidth={2}/>

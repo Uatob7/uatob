@@ -112,10 +112,15 @@ async function buildDriverMatch(pickupLat, pickupLng, pickupZip, signal) {
 
 // ── Search log ────────────────────────────────────────────────────────────────
 async function logSearch({ uid, tripData, miles, minutes, match, rides }) {
+  const pickupCity  = tripData.pickup?.split(',')[0]?.trim()  ?? null;
+  const dropoffCity = tripData.dropoff?.split(',')[0]?.trim() ?? null;
+
   return addDoc(collection(db, 'Search'), {
     uid:         uid ?? null,
     pickup:      tripData.pickup    ?? null,
     dropoff:     tripData.dropoff   ?? null,
+    pickupCity,
+    dropoffCity,
     miles,
     minutes,
     pickupLat:   tripData.pickupLat ?? null,
@@ -126,9 +131,9 @@ async function logSearch({ uid, tripData, miles, minutes, match, rides }) {
     nearestEta:  match[0]?.etaMin   ?? null,
     match,
     rides,
-    selectedRide:   null,
-    selectedAt:     null,
-    createdAt:   serverTimestamp(),
+    selectedRide: null,
+    selectedAt:   null,
+    createdAt:    serverTimestamp(),
   }).catch((err) => { console.error('[useQuotes] search log failed:', err); return null; });
 }
 
