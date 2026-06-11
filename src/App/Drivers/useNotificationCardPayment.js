@@ -11,7 +11,7 @@ const db = getFirestore(firebase_app);
 const NOTIFICATION_AMOUNT_CENTS = 100; // $1.00
 const EXPIRES_HOURS             = 24;
 
-export function useNotificationCardPayment({ uid, message, driverName, firstName, lastName, onSuccess, onError }) {
+export function useNotificationCardPayment({ uid, message, driverName, firstName, lastName, role = 'driver', onSuccess, onError }) {
   const stripe   = useStripe();
   const elements = useElements();
 
@@ -39,6 +39,7 @@ export function useNotificationCardPayment({ uid, message, driverName, firstName
 
       await setDoc(feedRef, {
         uid,
+        role,
         driverName:      driverName ?? null,
         firstName:       firstName  ?? null,
         lastName:        lastName   ?? null,

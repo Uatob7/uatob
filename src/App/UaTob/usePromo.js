@@ -1,7 +1,16 @@
-// src/App/UaTob/usePromo.js
-import { useState, useCallback } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/firebase/config';
+// src/App/UaTob/useRides.js
+
+import { useState, useEffect } from 'react';
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  getFirestore,
+} from 'firebase/firestore';
+import { firebase_app } from '@/firebase/config';
+
+const db = getFirestore(firebase_app);
 
 /**
  * Manages promo-code entry, validation, and the resulting discount object.

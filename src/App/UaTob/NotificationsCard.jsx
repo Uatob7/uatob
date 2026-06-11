@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Bell, BellRing, Check, Loader2, ShieldCheck } from 'lucide-react';
 import { useSaveRiderFcmToken } from '@/App/UaTob/useSaveRiderFcmToken';
+import RiderFeedFace from '@/App/UaTob/RiderFeedFace';
 
 const C = { green:'#22C55E', greenBright:'#4ADE80', greenSoft:'#34D399', red:'#F87171',
   text:'rgba(255,255,255,.92)', mid:'rgba(255,255,255,.55)', dim:'rgba(255,255,255,.32)' };
@@ -12,32 +13,66 @@ export default function NotificationsCard({ uid, account }) {
   const { requestAndSave, loading, error, permission } = useSaveRiderFcmToken();
   const isOn = account?.notifications === true && permission === 'granted';
 
-  const enable = async () => {
-    await requestAndSave(uid);
-  };
+  // 0 = "Notifications on" status face, 1 = live feed face
+  const [faceIdx,  setFaceIdx]  = useState(0);
+  const [feedBusy, setFeedBusy] = useState(false);
+
+  // Auto-flip every 4s; pause while the user is composing/paying
+  useEffect(() => {
+    if (!isOn || feedBusy) return;
+    const id = setInterval(() => setFaceIdx(i => (i + 1) % 2), 4000);
+    return () => clearInterval(id);
+  }, [isOn, feedBusy]);
+
+  // Reset face when notifications turn off
+  useEffect(() => { if (!isOn) setFaceIdx(0); }, [isOn]);
+
+  const enable = async () => { await requestAndSave(uid); };
 
   return (
     <div>
-      <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:10 }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:6, marginBottom:10 }}>
         <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'3px 9px', borderRadius:100, background:'rgba(52,211,153,.12)', border:'1px solid rgba(52,211,153,.25)' }}>
           <Bell size={10} color={C.greenSoft} strokeWidth={2.4}/>
           <span style={{ fontFamily:COND, fontSize:9.5, fontWeight:800, letterSpacing:'.12em', textTransform:'uppercase', color:'#6EE7B7' }}>Alerts</span>
         </span>
+        {isOn && (
+          <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+            {[0, 1].map(i => (
+              <button
+                key={i}
+                onClick={() => setFaceIdx(i)}
+                style={{
+                  width: faceIdx === i ? 14 : 5,
+                  height:5, borderRadius:100, border:'none', cursor:'pointer', padding:0,
+                  background: faceIdx === i ? '#34D399' : 'rgba(255,255,255,.18)',
+                  transition:'all .3s ease',
+                }}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {isOn ? (
-        <div style={{ minHeight:64, display:'flex', alignItems:'center', gap:12 }}>
-          <div style={{ width:46, height:46, borderRadius:14, flexShrink:0, background:'linear-gradient(135deg,#22C55E,#15803D)', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 6px 18px rgba(34,197,94,.4)' }}>
-            <BellRing size={20} color="#fff" strokeWidth={2.2}/>
-          </div>
-          <div style={{ flex:1 }}>
-            <div style={{ fontFamily:COND, fontSize:18, fontWeight:900, color:'#fff', letterSpacing:'-0.3px', display:'flex', alignItems:'center', gap:6 }}>
-              Notifications on <Check size={15} color={C.greenBright} strokeWidth={3}/>
+        <div key={faceIdx} style={{ animation:'faceIn .35s ease both' }}>
+          {faceIdx === 0 ? (
+            <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+              <div style={{ width:46, height:46, borderRadius:14, flexShrink:0, background:'linear-gradient(135deg,#22C55E,#15803D)', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 6px 18px rgba(34,197,94,.4)' }}>
+                <BellRing size={20} color="#fff" strokeWidth={2.2}/>
+              </div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontFamily:COND, fontSize:18, fontWeight:900, color:'#fff', letterSpacing:'-0.3px', display:'flex', alignItems:'center', gap:6 }}>
+                  Notifications on <Check size={15} color={C.greenBright} strokeWidth={3}/>
+                </div>
+                <div style={{ fontFamily:'Barlow,sans-serif', fontSize:11.5, color:C.mid, marginTop:2, lineHeight:1.4 }}>
+                  You'll know the moment a driver accepts your ride.
+                </div>
+              </div>
             </div>
-            <div style={{ fontFamily:'Barlow,sans-serif', fontSize:11.5, color:C.mid, marginTop:2, lineHeight:1.4 }}>
-              You'll know the moment a driver accepts your ride.
-            </div>
-          </div>
+          ) : (
+            <RiderFeedFace uid={uid} account={account} onBusy={setFeedBusy}/>
+          )}
         </div>
       ) : (
         <div style={{ minHeight:64 }}>
@@ -61,7 +96,10 @@ export default function NotificationsCard({ uid, account }) {
           </div>
         </div>
       )}
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <style>{`
+        @keyframes spin    { to { transform: rotate(360deg); } }
+        @keyframes faceIn  { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
+      `}</style>
     </div>
   );
 }

@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Share2, Edit3, X, CreditCard, Clock, ChevronLeft, Lock, Loader2, AlertCircle } from 'lucide-react';
+import {
+  Share2, Edit3, X, CreditCard, Clock,
+  ChevronLeft, Lock, Loader2, AlertCircle,
+} from 'lucide-react';
 import {
   collection, query, where, orderBy,
   onSnapshot, Timestamp, getFirestore,
@@ -13,8 +16,7 @@ import { useNotificationCashAppPayment } from '@/App/Drivers/useNotificationCash
 const db            = getFirestore(firebase_app);
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
 
-// ── Steps ──────────────────────────────────────────────
-// 0=feed  1=compose  2=pay-method  3=card-form  4=cashapp-processing  5=success
+// Steps: 0=feed  1=compose  2=pay-method  3=card-form  4=cashapp-processing  5=success
 
 const CARD_ELEMENT_OPTIONS = {
   style: {
@@ -29,19 +31,37 @@ const CARD_ELEMENT_OPTIONS = {
   hidePostalCode: true,
 };
 
-function NotificationFaceInner({ online, driver }) {
+function RoleBadge({ role }) {
+  const isDriver = role === 'driver';
+  return (
+    <span style={{
+      display:'inline-flex', alignItems:'center',
+      padding:'1px 5px', borderRadius:4, marginRight:4,
+      background: isDriver ? 'rgba(52,211,153,.15)' : 'rgba(96,165,250,.15)',
+      border: `1px solid ${isDriver ? 'rgba(52,211,153,.3)' : 'rgba(96,165,250,.3)'}`,
+      fontSize:8, fontWeight:800, letterSpacing:'.08em', textTransform:'uppercase',
+      color: isDriver ? '#6EE7B7' : '#93C5FD',
+      verticalAlign:'middle',
+    }}>
+      {isDriver ? 'Driver' : 'Rider'}
+    </span>
+  );
+}
+
+function RiderFeedFaceInner({ uid, account, onBusy }) {
   const [step,          setStep]          = useState(0);
   const [message,       setMessage]       = useState('');
   const [notifications, setNotifications] = useState([]);
   const [cashError,     setCashError]     = useState('');
   const [displayIdx,    setDisplayIdx]    = useState(0);
 
-  const uid        = driver?.uid;
-  const firstName  = driver?.firstName ?? null;
-  const lastName   = driver?.lastName  ?? null;
-  const driverName = driver?.displayName
-    ?? driver?.name
+  const firstName  = account?.firstName ?? null;
+  const lastName   = account?.lastName  ?? null;
+  const riderName  = account?.displayName
+    ?? account?.name
     ?? (firstName || lastName ? `${firstName ?? ''} ${lastName ?? ''}`.trim() : null);
+
+  useEffect(() => { onBusy?.(step > 0); return () => onBusy?.(false); }, [step, onBusy]);
 
   const {
     loading:     cardLoading,
@@ -55,10 +75,10 @@ function NotificationFaceInner({ online, driver }) {
   } = useNotificationCardPayment({
     uid,
     message,
-    driverName,
+    driverName: riderName,
     firstName,
     lastName,
-    role:      'driver',
+    role:      'rider',
     onSuccess: () => setStep(5),
     onError:   () => setStep(3),
   });
@@ -66,15 +86,15 @@ function NotificationFaceInner({ online, driver }) {
   const { loading: cashAppLoading, handleCashAppPay } = useNotificationCashAppPayment({
     uid,
     message,
-    driverName,
+    driverName: riderName,
     firstName,
     lastName,
-    role:      'driver',
+    role:      'rider',
     onSuccess: () => setStep(5),
     onError:   (msg) => { setCashError(msg); setStep(2); },
   });
 
-  // ── Live feed from Firestore ───────────────────────
+  // Live feed — all active posts (drivers + riders)
   useEffect(() => {
     const now = Timestamp.now();
     const q = query(
@@ -91,7 +111,7 @@ function NotificationFaceInner({ online, driver }) {
     return unsub;
   }, []);
 
-  // ── Rotate every 4s when multiple posts ───────────
+  // Rotate every 4s when multiple posts
   useEffect(() => {
     if (notifications.length < 2) return;
     const id = setInterval(() => {
@@ -128,9 +148,7 @@ function NotificationFaceInner({ online, driver }) {
     setCardError('');
   }
 
-  // ─────────────────────────────────────────────────────
-  // RENDER
-  // ─────────────────────────────────────────────────────
+  const nameColor = current?.role === 'driver' ? '#6EE7B7' : '#93C5FD';
 
   // ── STEP 0: Live feed ────────────────────────────────
   if (step === 0) return (
@@ -139,9 +157,9 @@ function NotificationFaceInner({ online, driver }) {
       {/* Icon */}
       <div style={{
         width:44, height:44, borderRadius:13, flexShrink:0,
-        background:'linear-gradient(135deg,#34D399,#10B981)',
+        background:'linear-gradient(135deg,#60A5FA,#3B82F6)',
         display:'flex', alignItems:'center', justifyContent:'center',
-        boxShadow:'0 6px 18px rgba(16,185,129,.4)',
+        boxShadow:'0 6px 18px rgba(59,130,246,.35)',
       }}>
         <Share2 size={18} color="#fff" strokeWidth={2.2}/>
       </div>
@@ -154,15 +172,15 @@ function NotificationFaceInner({ online, driver }) {
           <div style={{
             display:'inline-flex', alignItems:'center', gap:5,
             padding:'3px 9px', borderRadius:100,
-            background:'rgba(52,211,153,.12)', border:'1px solid rgba(52,211,153,.25)',
+            background:'rgba(96,165,250,.12)', border:'1px solid rgba(96,165,250,.25)',
           }}>
             <div style={{
               width:5, height:5, borderRadius:'50%',
-              background:'#34D399', boxShadow:'0 0 7px rgba(52,211,153,.8)',
+              background:'#60A5FA', boxShadow:'0 0 7px rgba(96,165,250,.8)',
               animation:'scLiveDot 1.6s ease-in-out infinite',
             }}/>
-            <span className="mono" style={{ fontSize:9, fontWeight:800, letterSpacing:'.12em', textTransform:'uppercase', color:'#6EE7B7' }}>
-              Driver Feed
+            <span className="mono" style={{ fontSize:9, fontWeight:800, letterSpacing:'.12em', textTransform:'uppercase', color:'#93C5FD' }}>
+              Live Feed
             </span>
           </div>
 
@@ -179,20 +197,20 @@ function NotificationFaceInner({ online, driver }) {
           </button>
         </div>
 
-        {/* Notification or fallback */}
         {current ? (
           <>
             <div style={{ fontSize:12, fontWeight:600, color:'rgba(255,255,255,.85)', lineHeight:1.5, marginBottom:5 }}>
-              <span style={{ color:'#6EE7B7', fontWeight:700 }}>{current.driverName}: </span>
+              <RoleBadge role={current.role}/>
+              <span style={{ color: nameColor, fontWeight:700 }}>{current.driverName}:</span>{' '}
               {current.message}
             </div>
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
               <div style={{ display:'flex', alignItems:'center', gap:4 }}>
-                <Clock size={9} color="#6EE7B7"/>
-                <span style={{ fontSize:9, color:'rgba(110,231,183,.6)', fontWeight:600 }}>{timeAgo(current.createdAt)}</span>
+                <Clock size={9} color="#93C5FD"/>
+                <span style={{ fontSize:9, color:'rgba(147,197,253,.6)', fontWeight:600 }}>{timeAgo(current.createdAt)}</span>
               </div>
               <span style={{ fontSize:9, color:'rgba(255,255,255,.2)' }}>·</span>
-              <span style={{ fontSize:9, color:'rgba(110,231,183,.45)', fontWeight:600 }}>{expiresIn(current.expiresAt)}</span>
+              <span style={{ fontSize:9, color:'rgba(147,197,253,.45)', fontWeight:600 }}>{expiresIn(current.expiresAt)}</span>
               {notifications.length > 1 && (
                 <>
                   <span style={{ fontSize:9, color:'rgba(255,255,255,.2)' }}>·</span>
@@ -203,10 +221,7 @@ function NotificationFaceInner({ online, driver }) {
           </>
         ) : (
           <div style={{ fontSize:12, fontWeight:600, color:'rgba(255,255,255,.45)', lineHeight:1.5 }}>
-            {online
-              ? <>No driver posts yet — be the <span style={{ color:'#6EE7B7' }}>first to post</span> for $1.</>
-              : <>Go online and post a message to the <span style={{ color:'#6EE7B7' }}>driver feed</span>.</>
-            }
+            No posts yet — be the <span style={{ color:'#93C5FD' }}>first to post</span> for $1.
           </div>
         )}
       </div>
@@ -217,7 +232,7 @@ function NotificationFaceInner({ online, driver }) {
   if (step === 1) return (
     <div>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
-        <span style={{ fontSize:11, fontWeight:800, color:'#6EE7B7', letterSpacing:'.06em', textTransform:'uppercase' }}>
+        <span style={{ fontSize:11, fontWeight:800, color:'#93C5FD', letterSpacing:'.06em', textTransform:'uppercase' }}>
           Your Message
         </span>
         <button onClick={reset} style={{ background:'none', border:'none', cursor:'pointer', padding:2 }}>
@@ -228,11 +243,11 @@ function NotificationFaceInner({ online, driver }) {
       <textarea
         value={message}
         onChange={e => setMessage(e.target.value.slice(0, 120))}
-        placeholder="Write something for all drivers to see…"
+        placeholder="Write something for everyone to see…"
         rows={3}
         style={{
           width:'100%', boxSizing:'border-box',
-          background:'rgba(255,255,255,.05)', border:'1px solid rgba(52,211,153,.25)',
+          background:'rgba(255,255,255,.05)', border:'1px solid rgba(96,165,250,.25)',
           borderRadius:10, padding:'9px 11px', resize:'none',
           fontSize:12, color:'rgba(255,255,255,.85)', lineHeight:1.5,
           outline:'none', fontFamily:'inherit',
@@ -247,7 +262,7 @@ function NotificationFaceInner({ online, driver }) {
           style={{
             padding:'6px 16px', borderRadius:100, border:'none',
             cursor: message.trim() ? 'pointer' : 'not-allowed',
-            background: message.trim() ? 'linear-gradient(135deg,#34D399,#10B981)' : 'rgba(255,255,255,.08)',
+            background: message.trim() ? 'linear-gradient(135deg,#60A5FA,#3B82F6)' : 'rgba(255,255,255,.08)',
             fontSize:11, fontWeight:800,
             color: message.trim() ? '#fff' : 'rgba(255,255,255,.3)',
             letterSpacing:'.06em', transition:'all .2s',
@@ -266,7 +281,7 @@ function NotificationFaceInner({ online, driver }) {
         <button onClick={() => setStep(1)} style={{ background:'none', border:'none', cursor:'pointer', padding:2 }}>
           <ChevronLeft size={14} color="rgba(255,255,255,.4)"/>
         </button>
-        <span style={{ fontSize:11, fontWeight:800, color:'#6EE7B7', letterSpacing:'.06em', textTransform:'uppercase' }}>
+        <span style={{ fontSize:11, fontWeight:800, color:'#93C5FD', letterSpacing:'.06em', textTransform:'uppercase' }}>
           Pay $1.00
         </span>
       </div>
@@ -334,13 +349,13 @@ function NotificationFaceInner({ online, driver }) {
         <button type="button" onClick={() => setStep(2)} style={{ background:'none', border:'none', cursor:'pointer', padding:2 }}>
           <ChevronLeft size={14} color="rgba(255,255,255,.4)"/>
         </button>
-        <span style={{ fontSize:11, fontWeight:800, color:'#6EE7B7', letterSpacing:'.06em', textTransform:'uppercase' }}>
+        <span style={{ fontSize:11, fontWeight:800, color:'#93C5FD', letterSpacing:'.06em', textTransform:'uppercase' }}>
           Card Details
         </span>
       </div>
 
       <div style={{
-        border: `1.5px solid ${cardError ? '#F87171' : cardFocused ? '#3B82F6' : 'rgba(255,255,255,.12)'}`,
+        border: `1.5px solid ${cardError ? '#F87171' : cardFocused ? '#60A5FA' : 'rgba(255,255,255,.12)'}`,
         borderRadius:10, padding:'10px 12px',
         background:'rgba(255,255,255,.04)', marginBottom:8,
         transition:'border-color .2s',
@@ -367,7 +382,7 @@ function NotificationFaceInner({ online, driver }) {
         disabled={!cardComplete || cardLoading}
         style={{
           width:'100%', padding:'10px', borderRadius:10, border:'none',
-          background: !cardComplete || cardLoading ? 'rgba(255,255,255,.08)' : 'linear-gradient(135deg,#3B82F6,#2563EB)',
+          background: !cardComplete || cardLoading ? 'rgba(255,255,255,.08)' : 'linear-gradient(135deg,#60A5FA,#3B82F6)',
           color: !cardComplete || cardLoading ? 'rgba(255,255,255,.3)' : '#fff',
           fontSize:12, fontWeight:800, cursor: !cardComplete || cardLoading ? 'not-allowed' : 'pointer',
           display:'flex', alignItems:'center', justifyContent:'center', gap:6,
@@ -402,20 +417,20 @@ function NotificationFaceInner({ online, driver }) {
     <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:78, gap:8 }}>
       <div style={{
         width:38, height:38, borderRadius:'50%',
-        background:'linear-gradient(135deg,#34D399,#10B981)',
+        background:'linear-gradient(135deg,#60A5FA,#3B82F6)',
         display:'flex', alignItems:'center', justifyContent:'center',
-        boxShadow:'0 0 20px rgba(52,211,153,.4)',
+        boxShadow:'0 0 20px rgba(96,165,250,.4)',
         fontSize:18,
       }}>✓</div>
       <div style={{ fontSize:12, fontWeight:700, color:'rgba(255,255,255,.85)', textAlign:'center' }}>
-        Notification posted!
+        Message posted!
       </div>
       <div style={{ fontSize:10, color:'rgba(255,255,255,.4)', textAlign:'center', lineHeight:1.5 }}>
-        Your message is live for <span style={{ color:'#6EE7B7' }}>24 hours</span>
+        Your message is live for <span style={{ color:'#93C5FD' }}>24 hours</span>
       </div>
       <button onClick={reset} style={{
         marginTop:4, padding:'5px 16px', borderRadius:100, border:'none', cursor:'pointer',
-        background:'rgba(52,211,153,.12)', fontSize:10, fontWeight:700, color:'#6EE7B7',
+        background:'rgba(96,165,250,.12)', fontSize:10, fontWeight:700, color:'#93C5FD',
       }}>
         Done
       </button>
@@ -425,10 +440,10 @@ function NotificationFaceInner({ online, driver }) {
   return null;
 }
 
-export default function NotificationFace(props) {
+export default function RiderFeedFace(props) {
   return (
     <Elements stripe={stripePromise}>
-      <NotificationFaceInner {...props}/>
+      <RiderFeedFaceInner {...props}/>
     </Elements>
   );
 }
