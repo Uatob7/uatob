@@ -33,6 +33,7 @@ import {
 import StatusCard from '@/App/UaTob/StatusCard';
 import RiderSupportOverlay from '@/App/UaTob/RiderSupportOverlay';
 import { useRiderSupportUnread } from '@/App/UaTob/useRiderSupportUnread';
+import CompanyOverlay from '@/App/UaTob/CompanyOverlay';
 
 const db = getFirestore(firebase_app);
 
@@ -875,8 +876,10 @@ function EdgeContact({ angle, label, color, icon }) {
   );
 }
 
-// ─── Nearest driver chip ──────────────────────────────────────────────────────
-function NearestDriverChip({ riderLat, riderLng, onlineDrivers }) {
+// ─── Fleet chip (flips: nearest driver ↔ fleet count) ────────────────────────
+function FleetChip({ riderLat, riderLng, onlineDrivers, driverCounts }) {
+  const [face, setFace] = useState(0);
+
   const nearest = useMemo(() => {
     if (!riderLat || !riderLng || !onlineDrivers.length) return null;
     let best = Infinity, bestD = null;
@@ -887,25 +890,57 @@ function NearestDriverChip({ riderLat, riderLng, onlineDrivers }) {
     return bestD ? { driver: bestD, mi: best } : null;
   }, [riderLat, riderLng, onlineDrivers]);
 
-  if (!nearest) return null;
+  useEffect(() => {
+    const id = setInterval(() => setFace(f => (f + 1) % 2), 3500);
+    return () => clearInterval(id);
+  }, []);
+
+  const faceStyle = (idx) => ({
+    position: 'absolute', inset: 0,
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+    padding: '0 10px',
+    opacity: face === idx ? 1 : 0,
+    transform: face === idx ? 'translateY(0)' : `translateY(${idx === 0 ? -8 : 8}px)`,
+    transition: 'opacity .32s ease, transform .32s ease',
+    whiteSpace: 'nowrap',
+  });
+
   return (
     <div style={{
       position: 'absolute', bottom: 48, right: 16, zIndex: 18,
       animation: 'uaFadeIn .8s ease .4s both',
-      display: 'flex', alignItems: 'center', gap: 5,
-      padding: '4px 10px', borderRadius: 99,
-      background: 'rgba(5,10,6,.55)', backdropFilter: 'blur(8px)',
-      border: `1px solid ${C.border}`,
       pointerEvents: 'none',
     }}>
-      <span style={{ fontSize: 11 }}>🚗</span>
-      <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 800, color: C.greenBright }}>
-        {fmtDist(nearest.mi)}
-      </span>
-      <span style={{ fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.13em',
-        color: 'rgba(74,222,128,.5)', textTransform: 'uppercase' }}>
-        away
-      </span>
+      <div style={{
+        position: 'relative', height: 26, minWidth: 90,
+        borderRadius: 99, overflow: 'hidden',
+        background: 'rgba(5,10,6,.55)', backdropFilter: 'blur(8px)',
+        border: `1px solid ${C.border}`,
+      }}>
+        {/* Face 0: nearest driver */}
+        <div style={faceStyle(0)}>
+          <span style={{ fontSize: 11 }}>🚗</span>
+          <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 800, color: C.greenBright }}>
+            {nearest ? fmtDist(nearest.mi) : '—'}
+          </span>
+          <span style={{ fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.13em',
+            color: 'rgba(74,222,128,.5)', textTransform: 'uppercase' }}>
+            away
+          </span>
+        </div>
+        {/* Face 1: fleet count */}
+        <div style={faceStyle(1)}>
+          <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 800, color: C.greenBright }}>
+            {driverCounts.online}
+          </span>
+          <span style={{ fontFamily: MONO, fontSize: 9, color: 'rgba(255,255,255,.22)' }}>/</span>
+          <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,.4)' }}>
+            {driverCounts.total}
+          </span>
+          <span style={{ fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.13em',
+            color: 'rgba(74,222,128,.5)', textTransform: 'uppercase' }}>fleet</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1274,6 +1309,7 @@ export default function UaTob({
   const [routeInfo,      setRouteInfo]      = useState(null);   // { distanceMi, durationSecs }
   const [completedRide,  setCompletedRide]  = useState(null);   // popup trigger
   const [showSupport,    setShowSupport]    = useState(false);
+  const [showCompany,    setShowCompany]    = useState(false);
 
   // ── Support unread ────────────────────────────────────────────────────────
   const supportUnread = useRiderSupportUnread(uid);
@@ -1934,56 +1970,41 @@ export default function UaTob({
                 color: 'rgba(74,222,128,.5)', textTransform: 'uppercase' }}>searches</span>
             </div>
 
-            {/* Nearest driver chip */}
-            <NearestDriverChip
+            {/* Fleet chip — flips between nearest driver and fleet count */}
+            <FleetChip
               riderLat={live?.lat}
               riderLng={live?.lng}
               onlineDrivers={onlineDrivers}
+              driverCounts={driverCounts}
             />
 
-            {/* City label center */}
+            {/* Company button center */}
             <div style={{
               position: 'absolute', bottom: 48, left: 0, right: 0,
               display: 'flex', justifyContent: 'center', zIndex: 18,
-              pointerEvents: 'none', animation: 'uaFadeIn .8s ease .4s both',
+              animation: 'uaFadeIn .8s ease .4s both',
             }}>
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 7,
-                padding: '4px 14px', borderRadius: 99,
-                background: 'rgba(5,10,6,.55)', backdropFilter: 'blur(8px)',
-                border: `1px solid ${C.border}`,
-              }}>
-                <Icon name="pin" size={10} color={C.greenBright}/>
-                <span style={{ fontFamily: COND, fontSize: 10, fontWeight: 800,
-                  letterSpacing: '.18em', color: 'rgba(255,255,255,.35)' }}>
-                  ORLANDO · FL
-                </span>
-              </div>
+              <button
+                onClick={() => setShowCompany(true)}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 34, height: 34, borderRadius: '50%',
+                  background: 'rgba(5,10,6,.55)', backdropFilter: 'blur(8px)',
+                  border: `1px solid ${C.borderBright}`,
+                  cursor: 'pointer',
+                  fontFamily: MONO, fontSize: 16, fontWeight: 800,
+                  color: C.greenBright,
+                  boxShadow: `0 0 12px rgba(74,222,128,.18)`,
+                  animation: 'uaGlowPulse 3s ease-in-out infinite',
+                }}
+                aria-label="About UaTob"
+              >
+                ?
+              </button>
             </div>
           </>
         )}
 
-        {/* Fleet label — only when no active ride */}
-        {!activeRide && (
-          <div style={{
-            position: 'absolute', bottom: 48, right: 16, zIndex: 17,
-            pointerEvents: 'none', animation: 'uaFadeIn .8s ease .4s both',
-            display: 'flex', alignItems: 'center', gap: 5,
-            padding: '4px 10px', borderRadius: 99,
-            background: 'rgba(5,10,6,.55)', backdropFilter: 'blur(8px)',
-            border: `1px solid ${C.border}`,
-          }}>
-            <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 800, color: C.greenBright }}>
-              {driverCounts.online}
-            </span>
-            <span style={{ fontFamily: MONO, fontSize: 9, color: 'rgba(255,255,255,.22)' }}>/</span>
-            <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,.4)' }}>
-              {driverCounts.total}
-            </span>
-            <span style={{ fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.13em',
-              color: 'rgba(74,222,128,.5)', textTransform: 'uppercase' }}>fleet</span>
-          </div>
-        )}
 
         {/* Completed ride popup */}
         {completedRide && (
@@ -1992,6 +2013,11 @@ export default function UaTob({
             onRate={r => { onRateRide(r); setCompletedRide(null); }}
             onDismiss={() => setCompletedRide(null)}
           />
+        )}
+
+        {/* Company overlay */}
+        {showCompany && (
+          <CompanyOverlay onClose={() => setShowCompany(false)}/>
         )}
 
       </div>
