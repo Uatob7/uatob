@@ -42,7 +42,7 @@ async function computeRoute(originLat, originLng, destLat, destLng, apiKey) {
 exports.onRideStatusChangedRefreshPolylines = onDocumentUpdated(
   {
     document:       "Rides/{rideId}",
-    region:         "us-east1",
+    region: "us-central1",
     secrets:        [GOOGLE_MAPS_KEY],
     timeoutSeconds: 60,
   },

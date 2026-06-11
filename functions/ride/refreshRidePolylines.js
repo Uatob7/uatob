@@ -42,7 +42,7 @@ async function computeRoute(originLat, originLng, destLat, destLng, apiKey) {
 exports.refreshRidePolylines = onSchedule(
   {
     schedule:       "every 2 minutes",
-    region:         "us-east1",
+   region: "us-central1",
     secrets:        [GOOGLE_MAPS_KEY],
     timeoutSeconds: 540,
     memory:         "512MiB",
