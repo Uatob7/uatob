@@ -2,11 +2,27 @@ const admin = require("firebase-admin");
 
 admin.initializeApp();
 
+// Core presence
+const { dispatch } = require("./core/dispatch");
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // Admin presence
 const { autoApprovePendingDrivers } = require("./admin/autoApprovePendingDrivers");
 
-// Account presence
-const { dispatch } = require("./accounts/dispatch");
 
 // Ride presence
 const { refreshRidePolylines } = require("./ride/refreshRidePolylines");
