@@ -1021,7 +1021,7 @@ function SupportFab({ onOpen, unread = 0 }) {
     <button
       onClick={onOpen}
       style={{
-        position: 'absolute', bottom: 156, right: 16, zIndex: 26,
+        position: 'absolute', bottom: 130, right: 16, zIndex: 26,
         width: 44, height: 44, borderRadius: 14, cursor: 'pointer',
         background: 'rgba(5,10,6,.72)', backdropFilter: 'blur(10px)',
         border: `1.5px solid ${unread > 0 ? 'rgba(248,113,113,.5)' : 'rgba(34,197,94,.3)'}`,
@@ -1060,7 +1060,7 @@ function SupportFab({ onOpen, unread = 0 }) {
 function OnlineDriverChip({ online, total }) {
   return (
     <div style={{
-      position: 'absolute', bottom: 110, right: 16, zIndex: 20,
+      position: 'absolute', bottom: 84, right: 16, zIndex: 20,
       animation: 'htSlideDown .4s ease both',
     }}>
       <div style={{
@@ -1143,7 +1143,7 @@ function LegendKey() {
   ];
   return (
     <div style={{
-      position: 'absolute', bottom: 152, left: 16, zIndex: 18, pointerEvents: 'none',
+      position: 'absolute', bottom: 128, left: 16, zIndex: 18, pointerEvents: 'none',
       display: 'flex', flexDirection: 'column', gap: 5,
       padding: '7px 10px', borderRadius: 11,
       background: 'rgba(5,10,6,.55)', backdropFilter: 'blur(8px)',
@@ -1197,7 +1197,7 @@ function ActiveTripHud({ activeTrip, driver, now }) {
 
   return (
     <div style={{
-      position: 'absolute', bottom: 110, left: 12, right: 12, zIndex: 22,
+      position: 'absolute', bottom: 84, left: 12, right: 12, zIndex: 22,
       animation: 'htSlideDown .4s cubic-bezier(.34,1.2,.64,1) both',
     }}>
       <div style={{
@@ -1349,7 +1349,7 @@ function RotatingBadge({
 
   return (
     <div style={{
-      position: 'absolute', bottom: 110, left: 16, zIndex: 20,
+      position: 'absolute', bottom: 84, left: 16, zIndex: 20,
       animation: 'htSlideDown .4s ease both',
     }}>
       <div key={active} style={{
@@ -1409,7 +1409,7 @@ function ScheduledDrawer({ open, onToggle, scheduledRides, driver, now }) {
 
   return (
     <div style={{
-      position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 28,
+      position: 'absolute', left: 0, right: 0, bottom: 76, zIndex: 28,
       pointerEvents: 'none',
     }}>
       <div style={{
@@ -2657,7 +2657,7 @@ export default function HomeTab({
         {/* Bottom stat strip */}
         {showRadar && !activeTrip && (
           <div style={{
-            position: 'absolute', bottom: 56, left: '50%', transform: 'translateX(-50%)',
+            position: 'absolute', bottom: 84, left: '50%', transform: 'translateX(-50%)',
             zIndex: 19, pointerEvents: 'none',
             display: 'flex', alignItems: 'center',
             background: C.panel, backdropFilter: 'blur(12px)',

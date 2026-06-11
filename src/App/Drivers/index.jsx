@@ -7,7 +7,6 @@ import CSS               from '@/App/Drivers/styles.js';
 import { C }             from '@/App/Drivers/constants.js';
 import UaTobIcon         from '@/App/Drivers/Icon.jsx';
 import TripRequestModal  from '@/App/Drivers/TripRequestModal.jsx';
-import BottomTabBar      from '@/App/Drivers/BottomTabBar.jsx';
 import HomeTab           from '@/App/Drivers/HomeTab.jsx';
 import ActiveTripScreen  from '@/App/Drivers/ActiveTripScreen.jsx';
 import EarningsTab       from '@/App/Drivers/EarningsTab.jsx';
@@ -490,7 +489,8 @@ function DriverAppInner({ uid }) {
 
   // ── Local state ───────────────────────────────────────────────────
   const [mounted,           setMounted]           = useState(false);
-  const [activeTab,         setActiveTab]         = useState("home");
+  const [menuOpen,          setMenuOpen]          = useState(false);
+  const [menuTab,           setMenuTab]           = useState("earnings");
   const [online,            setOnline]            = useState(false);
   const [activeTrip,        setActiveTrip]        = useState(null);
   const [requestTimer,      setRequestTimer]      = useState(60);
@@ -509,7 +509,6 @@ function DriverAppInner({ uid }) {
   const [pendingReview,     setPendingReview]     = useState(null);
   const [showSupport,       setShowSupport]       = useState(false);
   const [tripScreenTrip,    setTripScreenTrip]    = useState(null);
-  const [hideTabBar,        setHideTabBar]        = useState(false);
 
   const timerRef          = useRef(null);
   const prevRequestId     = useRef(null);
@@ -524,7 +523,7 @@ function DriverAppInner({ uid }) {
 
   // ── Effects ───────────────────────────────────────────────────────
   useEffect(() => { setMounted(true); }, []);
-  useEffect(() => { if (isRejected) setActiveTab("profile"); }, [isRejected]);
+  useEffect(() => { if (isRejected) setMenuTab("profile"); }, [isRejected]);
 
   useEffect(() => {
     if (!driver || onlineInitialized.current) return;
@@ -829,43 +828,122 @@ function DriverAppInner({ uid }) {
         <DriverReviewModal review={pendingReview} onClose={handleDismissReview}/>
       )}
 
-      <div style={{ maxWidth:680,margin:"0 auto",paddingBottom:90 }}>
-        <div style={{ padding:"20px 20px 0",display:"flex",justifyContent:"space-between",alignItems:"center",
-          animation:mounted?"slideUp .5s ease-out forwards":"none",opacity:0 }}>
-          <div style={{ display:"flex",alignItems:"center",gap:12 }}>
-            <UaTobIcon size={40} online={online}/>
-            <div>
-              <div className="condensed lbl">Driver Console</div>
-              <div style={{ fontSize:20,fontWeight:800 }}>{driver?.firstName ?? ""}</div>
-            </div>
-          </div>
-          <div style={{ display:"flex",gap:8,alignItems:"center" }}>
-            <div style={{ display:"flex",alignItems:"center",gap:5,background:C.surface,borderRadius:100,
-              padding:"6px 12px",border:`1px solid ${C.border}` }}>
-              <Star size={11} fill="#F59E0B" color="#F59E0B"/>
-              <span style={{ fontSize:13,fontWeight:700,color:C.text }}>
-                {driver?.averageRating != null ? driver.averageRating.toFixed(2) : "—"}
-              </span>
-            </div>
-            <SupportBtn/>
-          </div>
+      {/* Rejected banner — visible because HomeTab doesn't render for rejected drivers */}
+      {isRejected && (
+        <div style={{ padding:"20px 20px 0" }}>
+          <RejectedBanner/>
         </div>
+      )}
 
-        {isRejected && <RejectedBanner/>}
-
-        {activeTab === "home"     && !isRejected && <HomeTab driver={driver} accounts={accounts} searches={searches} online={online} rides={rides} activeTrip={activeTrip} tripStage={tripStage} tripStageColor={tripStageColor} tripBtnLabel={tripBtnLabel} onToggleOnline={handleToggleOnline} onAdvanceTrip={handleAdvanceTrip} advancePending={advancePending} scheduledRides={scheduledRides} onOpenSupport={() => setShowSupport(true)} supportUnread={supportUnread} onCompletedPopupChange={setHideTabBar}/>}
-        {activeTab === "earnings" && !isRejected && <EarningsTab driver={driver} online={online}/>}
-        {activeTab === "trips"    && !isRejected && <TripsTab    completedRides={completedRides} online={online}/>}
-        {activeTab === "profile"  &&                <ProfileTab  driver={driver} online={online}/>}
-      </div>
+      {/* Full-screen map — always rendered for active drivers */}
+      {!isRejected && (
+        <HomeTab
+          driver={driver} accounts={accounts} searches={searches} online={online}
+          activeTrip={activeTrip} tripStage={tripStage} tripStageColor={tripStageColor}
+          tripBtnLabel={tripBtnLabel}
+          onToggleOnline={handleToggleOnline} onAdvanceTrip={handleAdvanceTrip}
+          advancePending={advancePending} scheduledRides={scheduledRides}
+          onOpenSupport={() => setShowSupport(true)} supportUnread={supportUnread}
+        />
+      )}
 
       {tripScreenTrip && !isRejected && (
         <ActiveTripScreen driver={driver} activeTrip={tripScreenTrip} onTripComplete={handleTripComplete}/>
       )}
 
-      {!hideTabBar && (
-        <BottomTabBar activeTab={activeTab} setActiveTab={isRejected ? ()=>{} : setActiveTab}
-          online={online} activeTrip={activeTrip} isRejected={isRejected}/>
+      {/* ── ? Menu FAB ─────────────────────────────────────────────── */}
+      {!activeTrip && (
+        <button
+          onClick={() => { setMenuOpen(o => !o); if (isRejected) setMenuTab("profile"); }}
+          style={{
+            position:"fixed", bottom:20, left:"50%", transform:"translateX(-50%)",
+            zIndex:600, width:54, height:54, borderRadius:"50%",
+            background: menuOpen ? "rgba(30,30,30,.92)" : "rgba(5,10,6,.88)",
+            backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)",
+            border: menuOpen ? "1.5px solid rgba(255,255,255,.22)" : "1.5px solid rgba(34,197,94,.4)",
+            boxShadow:"0 8px 32px rgba(0,0,0,.65), 0 0 20px rgba(34,197,94,.15)",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            cursor:"pointer", transition:"border-color .18s, background .18s",
+          }}
+          aria-label={menuOpen ? "Close menu" : "Open menu"}
+        >
+          {menuOpen ? (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="rgba(255,255,255,.65)" strokeWidth="2.6" strokeLinecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          ) : (
+            <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:22, fontWeight:800, color:"#4ADE80", lineHeight:1, userSelect:"none" }}>?</span>
+          )}
+        </button>
+      )}
+
+      {/* ── Slide-up menu sheet ────────────────────────────────────── */}
+      {menuOpen && !activeTrip && (
+        <>
+          <style>{`@keyframes menuSlideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}`}</style>
+          {/* Backdrop */}
+          <div onClick={() => setMenuOpen(false)} style={{ position:"fixed", inset:0, zIndex:650, background:"rgba(0,0,0,.45)", backdropFilter:"blur(4px)" }}/>
+          {/* Sheet */}
+          <div style={{
+            position:"fixed", bottom:0, left:0, right:0, zIndex:660,
+            height:"85vh", background:"#0B0F0C",
+            borderRadius:"22px 22px 0 0",
+            border:"1px solid rgba(255,255,255,.07)", borderBottom:"none",
+            boxShadow:"0 -12px 50px rgba(0,0,0,.72)",
+            display:"flex", flexDirection:"column",
+            animation:"menuSlideUp .32s cubic-bezier(.34,1.2,.64,1) both",
+          }}>
+            {/* Drag handle */}
+            <div style={{ display:"flex", justifyContent:"center", padding:"12px 0 8px", flexShrink:0 }}>
+              <div style={{ width:38, height:4, borderRadius:2, background:"rgba(255,255,255,.13)" }}/>
+            </div>
+
+            {/* Driver info */}
+            <div style={{ display:"flex", alignItems:"center", gap:12, padding:"0 20px 14px", flexShrink:0, borderBottom:"1px solid rgba(255,255,255,.06)" }}>
+              <UaTobIcon size={36} online={online}/>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:16, fontWeight:800, color:"#fff", lineHeight:1.2 }}>
+                  {[driver?.firstName, driver?.lastName].filter(Boolean).join(" ") || "Driver"}
+                </div>
+                <div style={{ fontSize:12, color:"rgba(255,255,255,.38)", fontWeight:500, marginTop:2 }}>
+                  {online ? "Online" : "Offline"}
+                </div>
+              </div>
+              <div style={{ display:"flex", alignItems:"center", gap:5, background:"rgba(255,255,255,.06)", borderRadius:100, padding:"5px 12px", border:"1px solid rgba(255,255,255,.08)", flexShrink:0 }}>
+                <Star size={11} fill="#F59E0B" color="#F59E0B"/>
+                <span style={{ fontSize:13, fontWeight:700, color:"#fff" }}>
+                  {driver?.averageRating != null ? driver.averageRating.toFixed(2) : "—"}
+                </span>
+              </div>
+            </div>
+
+            {/* Mini tabs */}
+            <div style={{ display:"flex", borderBottom:"1px solid rgba(255,255,255,.06)", flexShrink:0 }}>
+              {(isRejected
+                ? [{ id:"profile", label:"Profile" }]
+                : [{ id:"earnings", label:"Earnings" }, { id:"trips", label:"Trips" }, { id:"profile", label:"Profile" }]
+              ).map(tab => (
+                <button key={tab.id} onClick={() => setMenuTab(tab.id)} style={{
+                  flex:1, padding:"13px 0", border:"none", background:"none", cursor:"pointer",
+                  fontFamily:'"Barlow",system-ui,sans-serif', fontSize:13, fontWeight:700,
+                  color: menuTab === tab.id ? "#22C55E" : "rgba(255,255,255,.38)",
+                  borderBottom: menuTab === tab.id ? "2px solid #22C55E" : "2px solid transparent",
+                  transition:"color .15s, border-color .15s",
+                }}>
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Tab content */}
+            <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch" }}>
+              {menuTab === "earnings" && !isRejected && <EarningsTab driver={driver} online={online}/>}
+              {menuTab === "trips"    && !isRejected && <TripsTab completedRides={completedRides} online={online}/>}
+              {menuTab === "profile"  && <ProfileTab driver={driver} online={online}/>}
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
