@@ -1264,7 +1264,7 @@ function BookRideCardInner({ uid, onRequest, onBookingComplete, onActiveChange }
           <div style={{ display:'flex', alignItems:'center', gap:5, marginTop:4 }}>
             <div style={{ width:5, height:5, borderRadius:'50%', background:C.greenBright,
               boxShadow:`0 0 5px ${C.greenBright}`, animation:'brBlink 1.6s ease-in-out infinite' }}/>
-            <span style={{ fontFamily:MONO, fontSize:8, color:C.dim }}>drivers nearby · flat-rate · no surge</span>
+            <span style={{ fontFamily:MONO, fontSize:8, color:C.dim }}>{driverInfo?.driverCount ? `${driverInfo.driverCount} drivers nearby` : 'drivers nearby'}</span>
           </div>
         </div>
       </div>
