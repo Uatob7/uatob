@@ -9,9 +9,10 @@ if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
 
 // ── HTML email builder ─────────────────────────────────────────────
-function buildEmail({ driverName, message, feedId, year }) {
+function buildEmail({ posterName, role, message, feedId, year }) {
   const esc = (s) => String(s ?? "")
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const feedLabel = role === "rider" ? "RIDER FEED" : "DRIVER FEED";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -20,7 +21,7 @@ function buildEmail({ driverName, message, feedId, year }) {
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <meta name="color-scheme" content="dark">
   <meta name="supported-color-schemes" content="dark">
-  <title>Driver Feed — UaTob</title>
+  <title>${feedLabel} — UaTob</title>
   <style type="text/css">
     :root { color-scheme: dark; supported-color-schemes: dark; }
     body, html {
@@ -42,7 +43,7 @@ function buildEmail({ driverName, message, feedId, year }) {
 
   <!-- Preview text -->
   <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;color:#000000;opacity:0;">
-    📢 ${esc(driverName)}: ${esc(message)}
+    📢 ${esc(posterName)}: ${esc(message)}
   </div>
 
   <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
@@ -82,7 +83,7 @@ function buildEmail({ driverName, message, feedId, year }) {
                                  font-weight:700;color:#22C55E;background-color:#0a1f10;
                                  padding:5px 10px;border-radius:100px;letter-spacing:1.5px;
                                  border:1px solid #22C55E;">
-                      &#9679;&nbsp; DRIVER FEED
+                      &#9679;&nbsp; ${feedLabel}
                     </span>
                   </td>
                 </tr>
@@ -115,7 +116,7 @@ function buildEmail({ driverName, message, feedId, year }) {
                          font-size:32px;font-weight:700;color:#ffffff;
                          line-height:1.15;letter-spacing:-0.8px;">
                 Message from<br/>
-                <span style="color:#FCD34D;font-style:italic;">${esc(driverName)}</span>
+                <span style="color:#FCD34D;font-style:italic;">${esc(posterName)}</span>
               </h1>
             </td>
           </tr>
@@ -148,7 +149,7 @@ function buildEmail({ driverName, message, feedId, year }) {
                                 border:1px solid #166534;border-radius:100px;padding:5px 12px;">
                       <span style="font-family:'SF Mono',Menlo,Consolas,monospace;font-size:10px;
                                    font-weight:700;color:#86EFAC;letter-spacing:1px;">
-                        — ${esc(driverName)}
+                        — ${esc(posterName)}
                       </span>
                     </div>
                   </td>
@@ -281,10 +282,11 @@ function buildEmail({ driverName, message, feedId, year }) {
 }
 
 // ── Plain text builder ─────────────────────────────────────────────
-function buildText({ driverName, message }) {
+function buildText({ posterName, role, message }) {
+  const feedLabel = role === "rider" ? "Rider Feed" : "Driver Feed";
   return (
-    `📢 Driver Feed — UaTob\n\n` +
-    `Message from ${driverName}:\n\n` +
+    `📢 ${feedLabel} — UaTob\n\n` +
+    `Message from ${posterName}:\n\n` +
     `"${message}"\n\n` +
     `Open the driver app to see more: https://uatob.com/driver/login\n\n` +
     `Questions? Email support@uatob.com\n\n` +
@@ -340,13 +342,19 @@ exports.feedNotifier = onSchedule(
         uid:      doc.id,
         fcmToken: d.fcmToken && typeof d.fcmToken === "string" ? d.fcmToken : null,
         email:    d.email    && typeof d.email    === "string" ? d.email    : null,
+        status:   typeof d.status === "string" ? d.status : null,
       });
     });
 
+    const eligibleDrivers = drivers.filter(
+      d => d.status === "online" || d.status === "offline"
+    );
+
     console.log(
       `[feedNotifier] ${feedSnap.size} active post(s), ` +
-      `${drivers.filter(d => d.fcmToken).length} push token(s), ` +
-      `${drivers.filter(d => d.email).length} email address(es)`
+      `${eligibleDrivers.filter(d => d.fcmToken).length} push token(s), ` +
+      `${eligibleDrivers.filter(d => d.email).length} email address(es) ` +
+      `(${eligibleDrivers.length} online/offline drivers)`
     );
 
     // ── 3. Process each Feed post ────────────────────────────────
@@ -364,11 +372,14 @@ exports.feedNotifier = onSchedule(
       const notifiedUids      = Array.isArray(feed.notifiedUids)      ? feed.notifiedUids      : [];
       const emailNotifiedUids = Array.isArray(feed.emailNotifiedUids) ? feed.emailNotifiedUids : [];
 
-      const driverName = feed.driverName || "A driver";
-      const message    = feed.message    || "";
+      const role       = feed.role || "driver";
+      const posterName = role === "rider"
+        ? [feed.firstName, feed.lastName].filter(Boolean).join(" ") || "A rider"
+        : feed.driverName || "A driver";
+      const message    = feed.message || "";
 
-      // ── 3b. PUSH — drivers not yet push-notified ───────────────
-      const pendingPush = drivers.filter(
+      // ── 3b. PUSH — eligible drivers not yet push-notified ──────
+      const pendingPush = eligibleDrivers.filter(
         (d) => d.fcmToken && !notifiedUids.includes(d.uid)
       );
 
@@ -378,7 +389,7 @@ exports.feedNotifier = onSchedule(
             getMessaging().send({
               token: fcmToken,
               notification: {
-                title: `📢 ${driverName}`,
+                title: `📢 ${posterName}`,
                 body:  message,
               },
               data: { type: "driver_feed", feedId },
@@ -437,14 +448,15 @@ exports.feedNotifier = onSchedule(
         console.log(`[feedNotifier] Push — Feed ${feedId} — all drivers already notified`);
       }
 
-      // ── 3c. EMAIL — drivers not yet email-notified ─────────────
-      const pendingEmail = drivers.filter(
+      // ── 3c. EMAIL — eligible drivers not yet email-notified ────
+      const pendingEmail = eligibleDrivers.filter(
         (d) => d.email && !emailNotifiedUids.includes(d.uid)
       );
 
       if (pendingEmail.length > 0) {
-        const html = buildEmail({ driverName, message, feedId, year });
-        const text = buildText({ driverName, message });
+        const html = buildEmail({ posterName, role, message, feedId, year });
+        const text = buildText({ posterName, role, message });
+        const feedLabel = role === "rider" ? "Rider Feed" : "Driver Feed";
 
         const emailResults = await Promise.allSettled(
           pendingEmail.map(({ email }) =>
@@ -452,7 +464,7 @@ exports.feedNotifier = onSchedule(
               to:      email,
               from:    "UaTob <noreply@uatob.com>",
               replyTo: "support@uatob.com",
-              subject: `📢 ${driverName} posted on the Driver Feed`,
+              subject: `📢 ${posterName} posted on the ${feedLabel}`,
               text,
               html,
             })

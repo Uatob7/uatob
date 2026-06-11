@@ -4,15 +4,7 @@ admin.initializeApp();
 
 // Core presence
 const { dispatch } = require("./core/dispatch");
-
-
-
-
-
-
-
-
-
+const { feedNotifier } = require("./core/feedNotifier");
 
 
 
@@ -37,9 +29,15 @@ const { rideStatusNotifier } = require("./ride/rideStatusNotifier");
 // Promo scheduler
 const { promoScheduler } = require("./promo/promoScheduler");
 
+
+
+
+/////
+
 exports.dispatch = dispatch;
+exports.feedNotifier = feedNotifier;
 
-
+//////
 
 
 exports.refreshRidePolylines = refreshRidePolylines;
