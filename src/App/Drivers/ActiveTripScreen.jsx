@@ -1802,15 +1802,15 @@ export default function ActiveTripScreen({
     if (!action || !rideId) return;
 
     if (action === 'arrive') {
-      const pLat = trip?.pickupLat;
-      const pLng = trip?.pickupLng;
+      const pLat = (typeof rider?.lat === 'number') ? rider.lat : trip?.pickupLat;
+      const pLng = (typeof rider?.lng === 'number') ? rider.lng : trip?.pickupLng;
       if (
         typeof dLat === 'number' && typeof dLng === 'number' &&
         typeof pLat === 'number' && typeof pLng === 'number'
       ) {
         const dist = haversineMi(dLat, dLng, pLat, pLng);
         if (dist > ARRIVE_MAX_MILES) {
-          setError(`You're ${fmtMi(dist)} away — get within 1 mile of the pickup to mark arrived.`);
+          setError(`You're ${fmtMi(dist)} away — get within 1 mile of the rider to mark arrived.`);
           return;
         }
       }
@@ -1832,7 +1832,7 @@ export default function ActiveTripScreen({
     } finally {
       if (mountedRef.current) setPending(false);
     }
-  }, [onTripComplete, trip?.pickupLat, trip?.pickupLng, dLat, dLng, driver?.uid, callUpdateTrip]);
+  }, [onTripComplete, trip?.pickupLat, trip?.pickupLng, dLat, dLng, driver?.uid, callUpdateTrip, rider?.lat, rider?.lng]);
 
   // ── cleanup ──────────────────────────────────────────────────────────────
   useEffect(() => () => {
