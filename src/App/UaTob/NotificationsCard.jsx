@@ -9,13 +9,15 @@ const MONO = "'JetBrains Mono','SFMono-Regular',monospace";
 const COND = "'Barlow Condensed','Barlow',sans-serif";
 
 // Push enable prompt + status.
-export default function NotificationsCard({ uid, account }) {
+export default function NotificationsCard({ uid, account, onActiveChange }) {
   const { requestAndSave, loading, error, permission } = useSaveRiderFcmToken();
   const isOn = account?.notifications === true && permission === 'granted';
 
   // 0 = "Notifications on" status face, 1 = live feed face
   const [faceIdx,  setFaceIdx]  = useState(0);
   const [feedBusy, setFeedBusy] = useState(false);
+
+  useEffect(() => { onActiveChange?.(feedBusy); }, [feedBusy, onActiveChange]);
 
   // Auto-flip every 4s; pause while the user is composing/paying
   useEffect(() => {
