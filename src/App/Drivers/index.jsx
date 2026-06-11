@@ -21,7 +21,6 @@ import { useDriverAccount }   from "@/App/Drivers/useDriverAccount";
 import { useDriverRides }     from '@/App/Drivers/useDriverRides';
 import { useSearch }          from "@/App/Drivers/useSearch";
 import { useActiveRides }     from "@/App/Drivers/useActiveRides";
-import { useDriverEarnings }  from "@/App/Drivers/useDriverEarnings";
 import { useCompletedRides }  from "@/App/Drivers/useCompletedRides";
 import { useIncomingRequest } from "@/App/Drivers/useIncomingRequest";
 import { useDriverReviews }   from "@/App/Drivers/useDriverReviews";
@@ -467,7 +466,6 @@ function DriverAppInner({ uid }) {
   // ── Data hooks ────────────────────────────────────────────────────
   const { driver }                        = useDriverAccount(uid);
   const { accounts }                      = useAccounts();
-  const { earnings, refetch }             = useDriverEarnings(uid);
   const { rides, loading: ridesLoading }  = useDriverRides(uid);
   const { requests, loading: reqLoading } = useIncomingRequest(uid);
   const { activeRides }                   = useActiveRides(uid);
@@ -729,7 +727,6 @@ function DriverAppInner({ uid }) {
     try {
       await callUpdateTrip({ rideId:activeTrip.id, driverUid:uid, action });
       if (action === "complete") {
-        await refetch();
         const driverCut = activeTrip.driverPayout ?? (activeTrip.fareTotal != null ? activeTrip.fareTotal * 0.75 : 0);
         showNotif("Trip complete",`+$${driverCut.toFixed(2)}`);
       } else {
@@ -741,8 +738,7 @@ function DriverAppInner({ uid }) {
 
   const handleTripComplete = useCallback(() => {
     setTripScreenTrip(null);
-    refetch();
-  }, [refetch]);
+  }, []);
 
   // ── Notifications ─────────────────────────────────────────────────
   const handleEnableNotifications = useCallback(async () => {
@@ -857,8 +853,8 @@ function DriverAppInner({ uid }) {
 
         {isRejected && <RejectedBanner/>}
 
-        {activeTab === "home"     && !isRejected && <HomeTab driver={driver} accounts={accounts} searches={searches} online={online} rides={rides} activeTrip={activeTrip} tripStage={tripStage} tripStageColor={tripStageColor} tripBtnLabel={tripBtnLabel} earnings={earnings} onToggleOnline={handleToggleOnline} onAdvanceTrip={handleAdvanceTrip} advancePending={advancePending} scheduledRides={scheduledRides} onOpenSupport={() => setShowSupport(true)} supportUnread={supportUnread} onCompletedPopupChange={setHideTabBar}/>}
-        {activeTab === "earnings" && !isRejected && <EarningsTab earnings={earnings} driver={driver} online={online}/>}
+        {activeTab === "home"     && !isRejected && <HomeTab driver={driver} accounts={accounts} searches={searches} online={online} rides={rides} activeTrip={activeTrip} tripStage={tripStage} tripStageColor={tripStageColor} tripBtnLabel={tripBtnLabel} onToggleOnline={handleToggleOnline} onAdvanceTrip={handleAdvanceTrip} advancePending={advancePending} scheduledRides={scheduledRides} onOpenSupport={() => setShowSupport(true)} supportUnread={supportUnread} onCompletedPopupChange={setHideTabBar}/>}
+        {activeTab === "earnings" && !isRejected && <EarningsTab driver={driver} online={online}/>}
         {activeTab === "trips"    && !isRejected && <TripsTab    completedRides={completedRides} online={online}/>}
         {activeTab === "profile"  &&                <ProfileTab  driver={driver} online={online}/>}
       </div>
