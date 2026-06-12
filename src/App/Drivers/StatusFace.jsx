@@ -1,5 +1,4 @@
 import { Power, Radar, Zap, MapPin } from 'lucide-react';
-import { C } from '@/App/Drivers/constants.js';
 
 
 export default function StatusFace({ mode, online, activeTrip, tripStage, sinceMs, onlineLabel, nearbyCount, onToggle, driver, searches }) {
@@ -10,8 +9,8 @@ export default function StatusFace({ mode, online, activeTrip, tripStage, sinceM
           <div style={{
             display:'inline-flex', alignItems:'center', gap:6,
             padding:'4px 10px', borderRadius:100,
-            background: mode==='trip' ? 'rgba(255,255,255,0.10)' : mode==='waiting' ? 'rgba(22,163,74,.12)' : C.surfaceAlt,
-            border: mode==='trip' ? '1px solid rgba(255,255,255,0.15)' : mode==='waiting' ? '1px solid rgba(22,163,74,.20)' : `1px solid ${C.border}`,
+            background: mode==='trip' ? 'rgba(255,255,255,.10)' : mode==='waiting' ? 'rgba(34,197,94,.10)' : 'rgba(255,255,255,.07)',
+            border: mode==='trip' ? '1px solid rgba(255,255,255,.15)' : mode==='waiting' ? '1px solid rgba(34,197,94,.25)' : '1px solid rgba(255,255,255,.12)',
           }}>
             <div style={{
               width:6, height:6, borderRadius:'50%',
@@ -19,19 +18,19 @@ export default function StatusFace({ mode, online, activeTrip, tripStage, sinceM
               boxShadow: mode!=='offline' ? '0 0 8px rgba(34,197,94,0.7)' : 'none',
               animation: mode!=='offline' ? 'scLiveDot 1.6s ease-in-out infinite' : 'none',
             }}/>
-            <span className="mono" style={{ fontSize:10, fontWeight:800, letterSpacing:'.12em', textTransform:'uppercase', color: mode==='trip' ? 'rgba(255,255,255,0.85)' : mode==='waiting' ? C.onlineGreen : C.textDim }}>
+            <span className="mono" style={{ fontSize:10, fontWeight:800, letterSpacing:'.12em', textTransform:'uppercase', color: mode==='trip' ? 'rgba(255,255,255,.85)' : mode==='waiting' ? '#4ADE80' : 'rgba(255,255,255,.45)' }}>
               {mode==='trip' ? 'On trip' : mode==='waiting' ? 'Online · ready' : 'Offline'}
             </span>
           </div>
         </div>
 
-        <div className="condensed" style={{ fontSize:26, fontWeight:900, color: mode==='trip' ? '#fff' : C.text, letterSpacing:'-0.5px', lineHeight:1.1, marginBottom:4, opacity: mode==='offline' ? 0.65 : 1 }}>
+        <div className="condensed" style={{ fontSize:26, fontWeight:900, color: '#fff', letterSpacing:'-0.5px', lineHeight:1.1, marginBottom:4, opacity: mode==='offline' ? 0.5 : 1 }}>
           {mode==='offline' && "You're offline"}
           {mode==='waiting' && 'Looking for rides'}
           {mode==='trip'    && `Active trip · ${(tripStage ?? '').replace('_', ' ')}`}
         </div>
 
-        <div style={{ display:'flex', alignItems:'center', gap:10, fontSize:12, fontWeight:600, color: mode==='trip' ? 'rgba(255,255,255,0.55)' : mode==='waiting' ? '#15803D' : C.textDim, flexWrap:'wrap' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10, fontSize:12, fontWeight:600, color: mode==='trip' ? 'rgba(255,255,255,.55)' : mode==='waiting' ? 'rgba(74,222,128,.75)' : 'rgba(255,255,255,.38)', flexWrap:'wrap' }}>
           {mode==='offline' && <span>Tap "Go online" to start earning</span>}
           {mode==='waiting' && (
             <>
