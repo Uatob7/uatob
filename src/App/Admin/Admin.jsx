@@ -9,26 +9,24 @@
  *   scheduledRides array   — scheduled rides
  */
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useDriverCounts } from '@/App/UaTob/useDriverCounts';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
   bg:           '#050A06',
-  bgCard:       'rgba(5,12,7,0.82)',
   green:        '#22C55E',
   greenBright:  '#4ADE80',
   greenSoft:    '#34D399',
   cyan:         '#22D3EE',
   amber:        '#FBBF24',
   red:          '#F87171',
+  blue:         '#60A5FA',
   purple:       '#C084FC',
   inkDim:       'rgba(255,255,255,.22)',
-  inkFade:      'rgba(255,255,255,.10)',
   inkMid:       'rgba(255,255,255,.45)',
   inkBright:    'rgba(255,255,255,.88)',
   border:       'rgba(34,197,94,.15)',
-  borderBright: 'rgba(74,222,128,.35)',
 };
 
 const MONO = "'JetBrains Mono','SFMono-Regular',monospace";
@@ -43,13 +41,20 @@ const ORL_LAT      =  28.5383;
 const KEYFRAMES = `
   @keyframes uaBlink     { 0%,100%{opacity:1} 50%{opacity:.22} }
   @keyframes uaFadeIn    { from{opacity:0} to{opacity:1} }
-  @keyframes uaRingPulse { 0%,100%{transform:scale(1);opacity:.18} 50%{transform:scale(1.48);opacity:0} }
   @keyframes uaScan      { from{top:-80px} to{top:100%} }
   @keyframes ua-driver-pulse { 0%{transform:translate(-50%,-50%) scale(.4);opacity:.7} 100%{transform:translate(-50%,-50%) scale(2.2);opacity:0} }
   @keyframes ua-ring-out { 0%{transform:translate(-50%,-50%) scale(.2);opacity:.9} 100%{transform:translate(-50%,-50%) scale(2.8);opacity:0} }
+  @keyframes adScan { 0%{transform:translateX(-100%)} 100%{transform:translateX(100%)} }
+  @keyframes adFaceIn { 0%{opacity:0;transform:translateY(6px) scale(.98)} 100%{opacity:1;transform:translateY(0) scale(1)} }
+  @keyframes adRadar { 0%{transform:scale(.6);opacity:.7} 100%{transform:scale(2.6);opacity:0} }
+  @keyframes adBracket { 0%,100%{opacity:.35} 50%{opacity:.7} }
 `;
 
-// ─── Utilities ────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function hasCoords(o) {
+  return typeof o?.pickupLat === 'number' && typeof o?.pickupLng === 'number';
+}
+
 function tsToMillis(ts) {
   if (!ts) return 0;
   if (typeof ts.toMillis === 'function') return ts.toMillis();
@@ -58,15 +63,6 @@ function tsToMillis(ts) {
   if (typeof ts === 'number') return ts;
   if (typeof ts === 'string') { const p = Date.parse(ts); return isNaN(p) ? 0 : p; }
   return 0;
-}
-function fmtClock(ms) {
-  const d = new Date(ms);
-  const p = n => String(n).padStart(2, '0');
-  const h = d.getHours(); const ap = h >= 12 ? 'PM' : 'AM';
-  return `${h % 12 || 12}:${p(d.getMinutes())}:${p(d.getSeconds())} ${ap}`;
-}
-function hasCoords(o) {
-  return typeof o?.pickupLat === 'number' && typeof o?.pickupLng === 'number';
 }
 
 // ─── GeoJSON builders ─────────────────────────────────────────────────────────
@@ -93,9 +89,7 @@ function buildScheduledGeoJSON(scheduledRides = []) {
     })),
   };
 }
-function emptyGeoJSON() {
-  return { type: 'FeatureCollection', features: [] };
-}
+function emptyGeoJSON() { return { type: 'FeatureCollection', features: [] }; }
 
 // ─── Marker factories ─────────────────────────────────────────────────────────
 function makeSearchRingEl(isGuest) {
@@ -224,72 +218,396 @@ function CornerBrackets() {
           borderBottom: c.bb ? `${th}px solid ${col}` : 'none',
           borderLeft:   c.bl ? `${th}px solid ${col}` : 'none',
           borderRight:  c.br ? `${th}px solid ${col}` : 'none',
-          animation: 'uaBlink 4s ease-in-out infinite',
+          animation: 'adBracket 4s ease-in-out infinite',
         }}/>
       ))}
     </div>
   );
 }
 
-// ─── Admin header ─────────────────────────────────────────────────────────────
-function StatPill({ value, label, color, blink }) {
+// ─── Admin Status Card ────────────────────────────────────────────────────────
+const FACES    = ['drivers', 'riders', 'scheduled', 'searches', 'views'];
+const FACE_MS  = 4500;
+
+const FACE_CFG = {
+  drivers:   { label: 'DRIVERS',   color: '#60A5FA', scan: 'rgba(96,165,250,.6)'  },
+  riders:    { label: 'RIDERS',    color: '#FBBF24', scan: 'rgba(251,191,36,.55)' },
+  scheduled: { label: 'SCHEDULED', color: '#C084FC', scan: 'rgba(192,132,252,.55)'},
+  searches:  { label: 'SEARCHES',  color: '#4ADE80', scan: 'rgba(74,222,128,.55)' },
+  views:     { label: 'VIEWS',     color: '#22D3EE', scan: 'rgba(34,211,238,.55)' },
+};
+
+function FaceDrivers({ onlineCount, total }) {
+  const offline = total - onlineCount;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-      <div style={{
-        width: 6, height: 6, borderRadius: '50%',
-        background: color, boxShadow: `0 0 6px ${color}`,
-        animation: blink ? 'uaBlink 1.8s ease-in-out infinite' : 'none',
-      }}/>
-      <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 800, color }}>{value}</span>
-      <span style={{ fontFamily: COND, fontSize: 9.5, fontWeight: 700,
-        letterSpacing: '.14em', color: C.inkDim }}>{label}</span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6,
+        padding: '3px 10px', borderRadius: 99, alignSelf: 'flex-start',
+        background: 'rgba(96,165,250,.12)', border: '1px solid rgba(96,165,250,.25)' }}>
+        <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#60A5FA',
+          boxShadow: '0 0 6px #60A5FA', animation: 'uaBlink 1.8s ease-in-out infinite' }}/>
+        <span style={{ fontFamily: COND, fontSize: 10, fontWeight: 800,
+          letterSpacing: '.14em', color: '#60A5FA' }}>DRIVERS</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14 }}>
+        <div>
+          <div style={{ fontFamily: MONO, fontSize: 44, fontWeight: 800,
+            color: '#60A5FA', lineHeight: 1,
+            textShadow: '0 0 30px rgba(96,165,250,.45)' }}>
+            {onlineCount}
+          </div>
+          <div style={{ fontFamily: COND, fontSize: 11, fontWeight: 700,
+            letterSpacing: '.18em', color: 'rgba(96,165,250,.6)', marginTop: 3 }}>
+            ONLINE
+          </div>
+        </div>
+        <div style={{ paddingBottom: 8 }}>
+          <div style={{ fontFamily: MONO, fontSize: 22, fontWeight: 700,
+            color: 'rgba(255,255,255,.38)', lineHeight: 1 }}>
+            {total}
+          </div>
+          <div style={{ fontFamily: COND, fontSize: 9.5, fontWeight: 700,
+            letterSpacing: '.14em', color: C.inkDim }}>
+            TOTAL
+          </div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ width: 7, height: 7, borderRadius: '50%',
+          background: 'rgba(255,255,255,.22)', flexShrink: 0 }}/>
+        <span style={{ fontFamily: MONO, fontSize: 11, color: C.inkMid }}>
+          {offline} offline
+        </span>
+      </div>
     </div>
   );
 }
 
-function AdminHeader({ now, mapReady, driverCounts, onlineCount, searches, accounts }) {
-  const ridersOnMap = accounts.filter(a => typeof a.lat === 'number').length;
+function FaceRiders({ ridersOnMap, total }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6,
+        padding: '3px 10px', borderRadius: 99, alignSelf: 'flex-start',
+        background: 'rgba(251,191,36,.12)', border: '1px solid rgba(251,191,36,.25)' }}>
+        <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#FBBF24',
+          boxShadow: '0 0 6px #FBBF24', animation: 'uaBlink 1.8s ease-in-out infinite' }}/>
+        <span style={{ fontFamily: COND, fontSize: 10, fontWeight: 800,
+          letterSpacing: '.14em', color: '#FBBF24' }}>RIDERS</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14 }}>
+        <div>
+          <div style={{ fontFamily: MONO, fontSize: 44, fontWeight: 800,
+            color: '#FBBF24', lineHeight: 1,
+            textShadow: '0 0 30px rgba(251,191,36,.45)' }}>
+            {ridersOnMap}
+          </div>
+          <div style={{ fontFamily: COND, fontSize: 11, fontWeight: 700,
+            letterSpacing: '.18em', color: 'rgba(251,191,36,.6)', marginTop: 3 }}>
+            ON MAP
+          </div>
+        </div>
+        <div style={{ paddingBottom: 8 }}>
+          <div style={{ fontFamily: MONO, fontSize: 22, fontWeight: 700,
+            color: 'rgba(255,255,255,.38)', lineHeight: 1 }}>
+            {total}
+          </div>
+          <div style={{ fontFamily: COND, fontSize: 9.5, fontWeight: 700,
+            letterSpacing: '.14em', color: C.inkDim }}>
+            ACCOUNTS
+          </div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ width: 7, height: 7, borderRadius: '50%',
+          background: '#FBBF24', boxShadow: '0 0 5px rgba(251,191,36,.6)', flexShrink: 0 }}/>
+        <span style={{ fontFamily: MONO, fontSize: 11, color: C.inkMid }}>
+          {total - ridersOnMap} without location
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function FaceScheduled({ count }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6,
+        padding: '3px 10px', borderRadius: 99, alignSelf: 'flex-start',
+        background: 'rgba(192,132,252,.12)', border: '1px solid rgba(192,132,252,.25)' }}>
+        <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#C084FC',
+          boxShadow: '0 0 6px #C084FC', animation: 'uaBlink 1.8s ease-in-out infinite' }}/>
+        <span style={{ fontFamily: COND, fontSize: 10, fontWeight: 800,
+          letterSpacing: '.14em', color: '#C084FC' }}>SCHEDULED</span>
+      </div>
+      <div>
+        <div style={{ fontFamily: MONO, fontSize: 44, fontWeight: 800,
+          color: '#C084FC', lineHeight: 1,
+          textShadow: '0 0 30px rgba(192,132,252,.45)' }}>
+          {count}
+        </div>
+        <div style={{ fontFamily: COND, fontSize: 11, fontWeight: 700,
+          letterSpacing: '.18em', color: 'rgba(192,132,252,.6)', marginTop: 3 }}>
+          UPCOMING {count === 1 ? 'RIDE' : 'RIDES'}
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ width: 7, height: 7, borderRadius: '50%',
+          background: '#C084FC', boxShadow: '0 0 5px rgba(192,132,252,.6)', flexShrink: 0,
+          animation: count > 0 ? 'uaBlink 2s ease-in-out infinite' : 'none' }}/>
+        <span style={{ fontFamily: MONO, fontSize: 11, color: C.inkMid }}>
+          {count > 0 ? 'pending dispatch' : 'queue clear'}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function FaceSearches({ count, guestCount }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6,
+        padding: '3px 10px', borderRadius: 99, alignSelf: 'flex-start',
+        background: 'rgba(74,222,128,.12)', border: '1px solid rgba(74,222,128,.25)' }}>
+        <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ADE80',
+          boxShadow: '0 0 6px #4ADE80', animation: 'uaBlink 1.8s ease-in-out infinite' }}/>
+        <span style={{ fontFamily: COND, fontSize: 10, fontWeight: 800,
+          letterSpacing: '.14em', color: '#4ADE80' }}>SEARCHES</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14 }}>
+        <div>
+          <div style={{ fontFamily: MONO, fontSize: 44, fontWeight: 800,
+            color: '#4ADE80', lineHeight: 1,
+            textShadow: '0 0 30px rgba(74,222,128,.45)' }}>
+            {count}
+          </div>
+          <div style={{ fontFamily: COND, fontSize: 11, fontWeight: 700,
+            letterSpacing: '.18em', color: 'rgba(74,222,128,.6)', marginTop: 3 }}>
+            ACTIVE
+          </div>
+        </div>
+        {guestCount > 0 && (
+          <div style={{ paddingBottom: 8 }}>
+            <div style={{ fontFamily: MONO, fontSize: 22, fontWeight: 700,
+              color: 'rgba(251,146,60,.7)', lineHeight: 1 }}>
+              {guestCount}
+            </div>
+            <div style={{ fontFamily: COND, fontSize: 9.5, fontWeight: 700,
+              letterSpacing: '.14em', color: 'rgba(251,146,60,.5)' }}>
+              GUEST
+            </div>
+          </div>
+        )}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ width: 7, height: 7, borderRadius: '50%',
+          background: '#4ADE80', boxShadow: '0 0 5px rgba(74,222,128,.6)', flexShrink: 0,
+          animation: count > 0 ? 'uaBlink 1.4s ease-in-out infinite' : 'none' }}/>
+        <span style={{ fontFamily: MONO, fontSize: 11, color: C.inkMid }}>
+          {count > 0 ? 'live demand' : 'no active searches'}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function fmtSec(sec) {
+  if (!sec || sec < 1) return '—';
+  if (sec < 60) return `${sec}s`;
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  if (m < 60) return s > 0 ? `${m}m ${s}s` : `${m}m`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+
+function deviceIcon(view) {
+  const w = view?.screen?.w;
+  if (!w) return '?';
+  return w < 768 ? '📱' : '🖥';
+}
+
+function FaceViews({ views }) {
+  const total  = views.length;
+  const live   = views.filter(v => !v.exited).length;
+  const recent = views.slice(0, 3);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6,
+        padding: '3px 10px', borderRadius: 99, alignSelf: 'flex-start',
+        background: 'rgba(34,211,238,.12)', border: '1px solid rgba(34,211,238,.25)' }}>
+        <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#22D3EE',
+          boxShadow: '0 0 6px #22D3EE', animation: 'uaBlink 1.8s ease-in-out infinite' }}/>
+        <span style={{ fontFamily: COND, fontSize: 10, fontWeight: 800,
+          letterSpacing: '.14em', color: '#22D3EE' }}>VIEWS</span>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14 }}>
+        <div>
+          <div style={{ fontFamily: MONO, fontSize: 44, fontWeight: 800,
+            color: '#22D3EE', lineHeight: 1,
+            textShadow: '0 0 30px rgba(34,211,238,.45)' }}>
+            {total}
+          </div>
+          <div style={{ fontFamily: COND, fontSize: 11, fontWeight: 700,
+            letterSpacing: '.18em', color: 'rgba(34,211,238,.6)', marginTop: 3 }}>
+            SESSIONS
+          </div>
+        </div>
+        {live > 0 && (
+          <div style={{ paddingBottom: 8 }}>
+            <div style={{ fontFamily: MONO, fontSize: 22, fontWeight: 700,
+              color: '#4ADE80', lineHeight: 1 }}>
+              {live}
+            </div>
+            <div style={{ fontFamily: COND, fontSize: 9.5, fontWeight: 700,
+              letterSpacing: '.14em', color: 'rgba(74,222,128,.5)' }}>
+              LIVE
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+        {recent.map((v, i) => (
+          <div key={v.id || i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 11, lineHeight: 1 }}>{deviceIcon(v)}</span>
+            <span style={{ fontFamily: MONO, fontSize: 10, color: 'rgba(255,255,255,.55)',
+              flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {v.path || '/'}
+            </span>
+            <span style={{ fontFamily: MONO, fontSize: 9, color: C.inkDim, flexShrink: 0 }}>
+              {fmtSec(v.timeOnPageSec)}
+            </span>
+            <div style={{ width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
+              background: !v.exited ? '#4ADE80' : 'rgba(255,255,255,.18)',
+              boxShadow: !v.exited ? '0 0 5px rgba(74,222,128,.7)' : 'none' }}/>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AdminStatusCard({ driverCounts, onlineCount, accounts, searches, scheduledRides, views }) {
+  const [faceIdx, setFaceIdx] = useState(0);
+  const cycleRef    = useRef(null);
+  const resumeRef   = useRef(null);
+  const pausedRef   = useRef(false);
+  const startRef    = useRef(null);
+
+  const ridersOnMap  = useMemo(() => accounts.filter(a => typeof a.lat === 'number').length, [accounts]);
+  const guestCount   = useMemo(() => searches.filter(s => !s.uid || s.uid === 'null').length, [searches]);
+
+  const startCycle = useCallback(() => {
+    clearInterval(cycleRef.current);
+    if (pausedRef.current) return;
+    cycleRef.current = setInterval(() => {
+      setFaceIdx(i => (i + 1) % FACES.length);
+    }, FACE_MS);
+  }, []);
+
+  useEffect(() => { startRef.current = startCycle; }, [startCycle]);
+
+  useEffect(() => {
+    startCycle();
+    return () => { clearInterval(cycleRef.current); clearTimeout(resumeRef.current); };
+  }, [startCycle]);
+
+  const goFace = useCallback((i) => {
+    clearInterval(cycleRef.current);
+    clearTimeout(resumeRef.current);
+    pausedRef.current = true;
+    setFaceIdx(i);
+    resumeRef.current = setTimeout(() => {
+      pausedRef.current = false;
+      startRef.current?.();
+    }, 7000);
+  }, []);
+
+  const face = FACES[faceIdx];
+  const cfg  = FACE_CFG[face];
+
   return (
     <div style={{
-      position: 'absolute', top: 0, left: 0, right: 0, zIndex: 24,
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '0 16px', height: 46,
-      background: 'linear-gradient(180deg, rgba(3,6,4,.94) 70%, transparent)',
+      position: 'absolute', top: 36, left: 0, right: 0, zIndex: 30,
+      display: 'flex', justifyContent: 'center', padding: '0 16px',
       pointerEvents: 'none',
     }}>
-      {/* Brand */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontFamily: COND, fontSize: 15, fontWeight: 900,
-          letterSpacing: '.22em', color: C.greenBright }}>UATOB</span>
-        <span style={{
-          fontFamily: COND, fontSize: 9.5, fontWeight: 700, letterSpacing: '.18em',
-          color: C.inkMid, borderLeft: `1px solid ${C.border}`, paddingLeft: 8,
-        }}>ADMIN</span>
-      </div>
-
-      {/* Stats */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-        <StatPill value={onlineCount}       label="ONLINE"    color={C.cyan}        blink={onlineCount > 0}/>
-        <StatPill value={driverCounts.total} label="DRIVERS"   color={C.inkMid}      blink={false}/>
-        <StatPill value={ridersOnMap}        label="RIDERS"    color={C.amber}       blink={ridersOnMap > 0}/>
-        <StatPill value={searches.length}    label="SEARCHES"  color={C.greenBright} blink={searches.length > 0}/>
-      </div>
-
-      {/* Clock + live */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      <div style={{
+        width: '100%', maxWidth: 340, pointerEvents: 'auto',
+        filter: 'drop-shadow(0 10px 32px rgba(0,0,0,.55))',
+      }}>
+        <div style={{ borderRadius: 22 }}>
           <div style={{
-            width: 6, height: 6, borderRadius: '50%', background: C.greenBright,
-            boxShadow: `0 0 7px ${C.greenBright}`,
-            animation: 'uaBlink 1.6s ease-in-out infinite',
-          }}/>
-          <span style={{ fontFamily: MONO, fontSize: 9.5, fontWeight: 800,
-            letterSpacing: '.08em', color: C.greenBright }}>
-            {mapReady ? 'LIVE' : 'SYNC'}
-          </span>
+            background:           'rgba(3,7,4,.96)',
+            backdropFilter:       'blur(24px)',
+            WebkitBackdropFilter: 'blur(24px)',
+            border:               '1.5px solid rgba(34,197,94,.18)',
+            borderRadius:         22,
+            padding:              '18px 20px 14px',
+            position:             'relative',
+            overflow:             'hidden',
+            boxShadow:            '0 20px 56px rgba(0,0,0,.55), 0 4px 14px rgba(0,0,0,.3)',
+          }}>
+
+            {/* Scan line — color identifies face */}
+            <div style={{
+              position: 'absolute', top: 0, left: 0, right: 0, height: 2,
+              background: `linear-gradient(90deg,transparent,${cfg.scan},transparent)`,
+              animation: 'adScan 3s linear infinite',
+              pointerEvents: 'none',
+            }}/>
+
+            {/* Radar rings — searches face only */}
+            {face === 'searches' && searches.length > 0 && (
+              <>
+                <div style={{ position: 'absolute', top: '50%', right: 60, width: 52, height: 52,
+                  borderRadius: '50%', background: 'rgba(74,222,128,.1)',
+                  transform: 'translateY(-50%)', animation: 'adRadar 2.4s ease-out infinite',
+                  pointerEvents: 'none' }}/>
+                <div style={{ position: 'absolute', top: '50%', right: 60, width: 52, height: 52,
+                  borderRadius: '50%', background: 'rgba(74,222,128,.07)',
+                  transform: 'translateY(-50%)', animation: 'adRadar 2.4s ease-out .8s infinite',
+                  pointerEvents: 'none' }}/>
+              </>
+            )}
+
+            {/* Face content */}
+            <div
+              key={face}
+              className="ad-face"
+              onClick={(e) => {
+                if (e.target.closest('button,input,a')) return;
+                goFace((faceIdx + 1) % FACES.length);
+              }}
+              style={{
+                minHeight: 130, display: 'flex', flexDirection: 'column',
+                justifyContent: 'center', cursor: 'pointer',
+                animation: 'adFaceIn .38s cubic-bezier(.34,1.2,.64,1) both',
+              }}
+            >
+              {face === 'drivers'   && <FaceDrivers   onlineCount={onlineCount} total={driverCounts.total}/>}
+              {face === 'riders'    && <FaceRiders    ridersOnMap={ridersOnMap} total={accounts.length}/>}
+              {face === 'scheduled' && <FaceScheduled count={scheduledRides.length}/>}
+              {face === 'searches'  && <FaceSearches  count={searches.length} guestCount={guestCount}/>}
+              {face === 'views'     && <FaceViews     views={views}/>}
+            </div>
+
+            {/* Dot pagination */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 14 }}>
+              {FACES.map((f, i) => (
+                <button key={f} onClick={() => goFace(i)} style={{
+                  width: i === faceIdx ? 20 : 6, height: 6, borderRadius: 3,
+                  border: 'none', padding: 0, cursor: 'pointer',
+                  background: i === faceIdx ? FACE_CFG[f].color : 'rgba(255,255,255,.18)',
+                  boxShadow: i === faceIdx ? `0 0 8px ${FACE_CFG[f].color}80` : 'none',
+                  transition: 'all .28s ease', flexShrink: 0,
+                }}/>
+              ))}
+            </div>
+
+          </div>
         </div>
-        <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700,
-          color: 'rgba(255,255,255,.4)' }}>{fmtClock(now)}</span>
       </div>
     </div>
   );
@@ -297,13 +615,6 @@ function AdminHeader({ now, mapReady, driverCounts, onlineCount, searches, accou
 
 // ─── Map legend ───────────────────────────────────────────────────────────────
 function AdminLegend() {
-  const items = [
-    { color: '#60A5FA',              label: 'Driver — online',  glow: true },
-    { color: 'rgba(255,255,255,.3)', label: 'Driver — offline', glow: false },
-    { color: '#FBBF24',              label: 'Rider',            glow: true },
-    { color: '#4ADE80',              label: 'Search',           glow: true },
-    { color: '#C084FC',              label: 'Scheduled ride',   glow: true },
-  ];
   return (
     <div style={{
       position: 'absolute', bottom: 20, left: 16, zIndex: 18,
@@ -313,13 +624,16 @@ function AdminLegend() {
       border: `1px solid ${C.border}`, pointerEvents: 'none',
       animation: 'uaFadeIn .8s ease both',
     }}>
-      {items.map(({ color, label, glow }) => (
+      {[
+        { color: '#60A5FA',              label: 'Driver — online',  glow: true  },
+        { color: 'rgba(255,255,255,.3)', label: 'Driver — offline', glow: false },
+        { color: '#FBBF24',              label: 'Rider',            glow: true  },
+        { color: '#4ADE80',              label: 'Search',           glow: true  },
+        { color: '#C084FC',              label: 'Scheduled ride',   glow: true  },
+      ].map(({ color, label, glow }) => (
         <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{
-            width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-            background: color,
-            boxShadow: glow ? `0 0 6px ${color}` : 'none',
-          }}/>
+          <div style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+            background: color, boxShadow: glow ? `0 0 6px ${color}` : 'none' }}/>
           <span style={{ fontFamily: COND, fontSize: 10.5, fontWeight: 600,
             letterSpacing: '.06em', color: C.inkMid }}>{label}</span>
         </div>
@@ -336,26 +650,19 @@ export default function Admin({
   accounts       = [],
   searches       = [],
   scheduledRides = [],
+  views          = [],
 }) {
   const mapContainerRef  = useRef(null);
   const mapRef           = useRef(null);
-
   const searchMarkersRef  = useRef(new Map());
   const driverMarkersRef  = useRef(new Map());
   const driverStatusRef   = useRef(new Map());
   const accountMarkersRef = useRef(new Map());
 
   const [mapReady, setMapReady] = useState(false);
-  const [now,      setNow]      = useState(Date.now());
 
   const onlineCount  = useMemo(() => drivers.filter(d => d.status === 'online').length, [drivers]);
   const driverCounts = useDriverCounts();
-
-  // 1 Hz clock
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
 
   // ── Init Mapbox ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -394,7 +701,6 @@ export default function Admin({
         map.addSource('ua-searches',  { type: 'geojson', data: emptyGeoJSON() });
         map.addSource('ua-scheduled', { type: 'geojson', data: emptyGeoJSON() });
 
-        // Demand heatmap
         map.addLayer({
           id: 'ua-demand', type: 'heatmap', source: 'ua-searches',
           paint: {
@@ -424,7 +730,6 @@ export default function Admin({
           'circle-color':        ['case', ['get', 'guest'], 'rgba(251,146,60,0.95)', 'rgba(52,211,153,0.95)'],
           'circle-stroke-color': '#fff',
           'circle-stroke-width': 1.5,
-          'circle-blur':         0.1,
           'circle-opacity':      ['*', ['get', 'age'], 0.9],
         }});
         map.addLayer({ id: 'ua-sched-dot', type: 'circle', source: 'ua-scheduled', paint: {
@@ -434,7 +739,6 @@ export default function Admin({
           'circle-stroke-width': 1.8,
         }});
 
-        // Ambient search pulse
         let t = 0;
         const pulse = setInterval(() => {
           if (!map.isStyleLoaded()) return;
@@ -467,7 +771,7 @@ export default function Admin({
     if (map.isStyleLoaded()) apply(); else map.once('styledata', apply);
   }, [searches, scheduledRides, mapReady]);
 
-  // ── Driver markers — online (blue pulse) + offline (dim dot) ────────────────
+  // ── Driver markers ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapReady || !mapRef.current || !window.mapboxgl) return;
     const store     = driverMarkersRef.current;
@@ -495,7 +799,7 @@ export default function Admin({
     });
   }, [drivers, mapReady]);
 
-  // ── Account (rider) markers ─────────────────────────────────────────────────
+  // ── Account markers ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapReady || !mapRef.current || !window.mapboxgl) return;
     const store = accountMarkersRef.current;
@@ -535,7 +839,7 @@ export default function Admin({
     });
   }, [searches, mapReady]);
 
-  // ── Cleanup markers when map unloads ────────────────────────────────────────
+  // ── Cleanup on map unload ───────────────────────────────────────────────────
   useEffect(() => {
     if (mapReady) return;
     [searchMarkersRef, driverMarkersRef, accountMarkersRef].forEach(ref => {
@@ -562,14 +866,14 @@ export default function Admin({
         <ScanlineOverlay/>
         <CornerBrackets/>
 
-        {/* Admin header */}
-        <AdminHeader
-          now={now}
-          mapReady={mapReady}
+        {/* Admin status card */}
+        <AdminStatusCard
           driverCounts={driverCounts}
           onlineCount={onlineCount}
-          searches={searches}
           accounts={accounts}
+          searches={searches}
+          scheduledRides={scheduledRides}
+          views={views}
         />
 
         {/* Map legend */}
