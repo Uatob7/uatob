@@ -51,19 +51,28 @@ export default function ScheduledFace({ hasScheduled, upcomingRides, currentRide
     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:14 }}>
       <div style={{ flex:1, minWidth:0 }}>
 
-        {/* Title line — live dot + heading + inline count tag (badge folded in here) */}
-        <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:hasScheduled && currentRide ? 5 : 3 }}>
-          <div style={{ width:6, height:6, borderRadius:'50%', flexShrink:0, background:'#818CF8', boxShadow:'0 0 8px rgba(129,140,248,0.8)', animation:'scLiveDot 1.6s ease-in-out infinite' }}/>
-          <span className="condensed" style={{ fontSize:20, fontWeight:900, color:'#fff', letterSpacing:'-0.4px', lineHeight:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', animation:'scCountGlow 3s ease-in-out infinite' }}>
-            {!hasScheduled
-              ? 'Schedule a ride'
-              : upcomingRides.length === 1 ? '1 ride scheduled' : `${upcomingRides.length} rides scheduled`}
-          </span>
+        {/* Chip + count pill */}
+        <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:8 }}>
+          <div style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'4px 10px', borderRadius:100, background:'rgba(129,140,248,.12)', border:'1px solid rgba(129,140,248,.28)' }}>
+            <Calendar size={10} color="#A5B4FC" strokeWidth={2.4}/>
+            <span className="mono" style={{ fontSize:10, fontWeight:800, letterSpacing:'.12em', textTransform:'uppercase', color:'#A5B4FC' }}>
+              Scheduled
+            </span>
+          </div>
           {multi && (
-            <span className="mono" style={{ flexShrink:0, fontSize:9, fontWeight:800, letterSpacing:'.06em', color:'#A5B4FC', background:'rgba(129,140,248,.16)', border:'1px solid rgba(129,140,248,.28)', padding:'1px 6px', borderRadius:99 }}>
+            <span className="mono" style={{ fontSize:9, fontWeight:800, letterSpacing:'.06em', color:'#A5B4FC', background:'rgba(129,140,248,.16)', border:'1px solid rgba(129,140,248,.28)', padding:'1px 7px', borderRadius:99 }}>
               {rideIdx + 1}/{upcomingRides.length}
             </span>
           )}
+        </div>
+
+        {/* Title */}
+        <div className="condensed" style={{ fontSize:26, fontWeight:900, color:'#fff', letterSpacing:'-0.5px', lineHeight:1, marginBottom: hasScheduled && currentRide ? 6 : 0, opacity: !hasScheduled ? 0.55 : 1 }}>
+          {!hasScheduled
+            ? "You're clear"
+            : upcomingRides.length === 1
+              ? 'Next ride'
+              : `${upcomingRides.length} coming up`}
         </div>
 
         {hasScheduled && currentRide ? (
@@ -127,7 +136,7 @@ export default function ScheduledFace({ hasScheduled, upcomingRides, currentRide
             </div>
           </>
         ) : (
-          <div style={{ fontSize:11.5, fontWeight:600, color:'rgba(165,180,252,.5)' }}>No rides coming up</div>
+          <div style={{ fontSize:12, fontWeight:600, color:'rgba(165,180,252,.45)' }}>No trips on the books</div>
         )}
       </div>
 
