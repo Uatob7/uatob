@@ -5,6 +5,7 @@ import { useCreateTrip }      from '@/App/UaTob/useCreateTrip';
 import { useDrivers }         from '@/App/Admin/useDrivers';
 import { useScheduledRides }  from '@/App/Admin/useScheduledRides';
 import { useViews }           from '@/App/Admin/useViews';
+import { useAdminRides }      from '@/App/Admin/useAdminRides';
 import Admin                  from '@/App/Admin/Admin';
 
 export default function App({ uid }) {
@@ -16,6 +17,7 @@ export default function App({ uid }) {
   const { drivers }        = useDrivers();
   const { scheduledRides } = useScheduledRides();
   const { views }          = useViews();
+  const { rides: allRides } = useAdminRides();
 
   return (
     <Admin
@@ -24,6 +26,7 @@ export default function App({ uid }) {
       accounts={accounts}
       createTrip={createTrip}
       rides={rides}
+      allRides={allRides}
       drivers={drivers}
       searches={searches}
       scheduledRides={scheduledRides}
