@@ -594,9 +594,6 @@ function TopRibbon({ now, mapReady, speed, activeRide }) {
 }
 
 // ─── Radar SVG overlay ────────────────────────────────────────────────────────
-const ECHO_N  = 10;
-const TRAIL_N = 5;
-
 function RadarOverlay({ svgRef }) {
   return (
     <svg ref={svgRef}
@@ -604,95 +601,47 @@ function RadarOverlay({ svgRef }) {
         pointerEvents: 'none', zIndex: 10 }}
       viewBox="0 0 100 100" preserveAspectRatio="none">
       <defs>
-        {/* Vignette */}
-        <radialGradient id="ua-vig" cx="50%" cy="50%" r="60%">
-          <stop offset="28%" stopColor="transparent"/>
-          <stop offset="100%" stopColor="rgba(0,0,0,0.65)"/>
+        <radialGradient id="ua-sweepGrad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%"   stopColor="rgba(34,197,94,0.45)"/>
+          <stop offset="45%"  stopColor="rgba(34,197,94,0.12)"/>
+          <stop offset="100%" stopColor="rgba(34,197,94,0)"/>
         </radialGradient>
-        {/* Core glow */}
-        <radialGradient id="ua-coreGlow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%"   stopColor="rgba(74,222,128,0.20)"/>
+        <radialGradient id="ua-sweepGrad2" cx="50%" cy="50%" r="50%">
+          <stop offset="0%"   stopColor="rgba(74,222,128,0.16)"/>
+          <stop offset="60%"  stopColor="rgba(74,222,128,0.04)"/>
           <stop offset="100%" stopColor="rgba(74,222,128,0)"/>
         </radialGradient>
-        {/* Diagonal micro-grid */}
-        <pattern id="ua-grid" x="0" y="0" width="6" height="6"
-          patternUnits="userSpaceOnUse" patternTransform="rotate(30 50 50)">
-          <line x1="0" y1="0" x2="0" y2="6" stroke="rgba(34,197,94,0.07)" strokeWidth="0.35"/>
-        </pattern>
-        {/* Clip to circle */}
-        <clipPath id="ua-rclip">
-          <circle cx="50" cy="50" r="47"/>
-        </clipPath>
+        <radialGradient id="ua-vig" cx="50%" cy="50%" r="60%">
+          <stop offset="30%" stopColor="transparent"/>
+          <stop offset="100%" stopColor="rgba(0,0,0,0.6)"/>
+        </radialGradient>
+        <linearGradient id="ua-trailGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%"   stopColor="rgba(74,222,128,0)"/>
+          <stop offset="100%" stopColor="rgba(74,222,128,0.6)"/>
+        </linearGradient>
       </defs>
-
-      {/* Vignette */}
       <rect width="100" height="100" fill="url(#ua-vig)"/>
-
-      {/* Micro-grid background */}
-      <rect width="100" height="100" fill="url(#ua-grid)" clipPath="url(#ua-rclip)"/>
-
-      {/* Core glow blob */}
-      <circle cx="50" cy="50" r="18" fill="url(#ua-coreGlow)"/>
-
-      {/* 2 oscillating wave rings — paths rewritten every frame */}
-      <path id="ua-wring0" fill="none" stroke="rgba(34,197,94,0.22)"  strokeWidth="0.35" strokeDasharray="1.2 1.8"/>
-      <path id="ua-wring1" fill="none" stroke="rgba(74,222,128,0.12)" strokeWidth="0.28" strokeDasharray="0.5 2.5"/>
-
-      {/* Outer edge ring */}
-      <circle cx="50" cy="50" r="47" fill="none" stroke="rgba(34,197,94,0.28)" strokeWidth="0.45"/>
-
-      {/* Faint crosshairs */}
-      <line x1="50" y1="4"  x2="50" y2="96" stroke="rgba(34,197,94,0.06)" strokeWidth="0.25"/>
-      <line x1="4"  y1="50" x2="96" y2="50" stroke="rgba(34,197,94,0.06)" strokeWidth="0.25"/>
-
-      {/* Ghost trails — TRAIL_N per arm × 3 arms */}
-      {[0,1,2].flatMap(arm =>
-        Array.from({length: TRAIL_N}, (_,t) => (
-          <line key={`t${arm}-${t}`} id={`ua-trail${arm}-${t}`}
-            x1="50" y1="50" x2="50" y2="4"
-            stroke="rgba(74,222,128,0)" strokeWidth="0.3" strokeLinecap="round"/>
-        ))
-      )}
-
-      {/* 3 sweep arms */}
-      {[0,1,2].map(i => (
-        <line key={i} id={`ua-arm${i}`} x1="50" y1="50" x2="50" y2="4"
-          stroke={i===0 ? 'rgba(74,222,128,0.9)' : 'rgba(52,211,153,0.5)'}
-          strokeWidth={i===0 ? 0.65 : 0.42} strokeLinecap="round"/>
+      {[14, 25, 36, 47].map((r, i) => (
+        <circle key={i} cx="50" cy="50" r={r} fill="none"
+          stroke="rgba(34,197,94,0.09)" strokeWidth="0.25" strokeDasharray="1.2 2.4"/>
       ))}
-
-      {/* Tip glow halo + bright dot per arm */}
-      {[0,1,2].map(i => (
-        <g key={i}>
-          <circle id={`ua-tipglow${i}`} cx="50" cy="4"
-            r={i===0 ? 2.8 : 1.6}
-            fill={i===0 ? 'rgba(74,222,128,0.38)' : 'rgba(52,211,153,0.22)'}/>
-          <circle id={`ua-tipdot${i}`} cx="50" cy="4"
-            r={i===0 ? 1.1 : 0.72}
-            fill={i===0 ? '#4ADE80' : 'rgba(74,222,128,0.75)'}/>
-        </g>
-      ))}
-
-      {/* Echo spark pool — each echo = expanding ring + fading dot */}
-      {Array.from({length: ECHO_N}, (_,i) => (
-        <g key={i}>
-          <circle id={`ua-echoR${i}`} cx="50" cy="50" r="0"
-            fill="none" stroke="rgba(74,222,128,0)" strokeWidth="0.4"/>
-          <circle id={`ua-echoD${i}`} cx="50" cy="50" r="0"
-            fill="rgba(74,222,128,0)"/>
-        </g>
-      ))}
-
-      {/* Counter-rotating dashed inner ring */}
-      <circle id="ua-cring" cx="50" cy="50" r="9" fill="none"
-        stroke="rgba(74,222,128,0.30)" strokeWidth="0.45" strokeDasharray="2 2.5"/>
-
-      {/* Center node */}
-      <circle cx="50" cy="50" r="1.3" fill="#4ADE80" opacity="0.95"/>
-
-      {/* Breathing pulse ring */}
-      <circle id="ua-pulse" cx="50" cy="50" r="3.2"
-        fill="none" stroke="rgba(74,222,128,0.5)" strokeWidth="0.5"/>
+      {Array.from({ length: 24 }).map((_, i) => {
+        const a = i * 15 * Math.PI / 180; const major = i % 6 === 0;
+        const r1 = major ? 45 : 46.4;
+        const x1 = 50 + r1 * Math.sin(a), y1 = 50 - r1 * Math.cos(a);
+        const x2 = 50 + 47.5 * Math.sin(a), y2 = 50 - 47.5 * Math.cos(a);
+        return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2}
+          stroke={major ? 'rgba(74,222,128,0.32)' : 'rgba(34,197,94,0.14)'}
+          strokeWidth={major ? 0.4 : 0.22}/>;
+      })}
+      <line x1="46.5" y1="50" x2="53.5" y2="50" stroke="rgba(34,197,94,0.28)" strokeWidth="0.22"/>
+      <line x1="50" y1="46.5" x2="50" y2="53.5" stroke="rgba(34,197,94,0.28)" strokeWidth="0.22"/>
+      <circle cx="50" cy="50" r="0.75" fill="rgba(74,222,128,0.65)"/>
+      <path id="ua-sweep2" d="M 50 50 L 50 0 A 55 55 0 0 1 50 0 Z" fill="url(#ua-sweepGrad2)" opacity="0.5"/>
+      <path id="ua-sweep"  d="M 50 50 L 50 0 A 55 55 0 0 1 50 0 Z" fill="url(#ua-sweepGrad)"  opacity="0.75"/>
+      <line id="ua-arm"    x1="50" y1="50" x2="50" y2="0" stroke="#4ADE80" strokeWidth="0.45" strokeLinecap="round" opacity="0.9"/>
+      <circle id="ua-tipglow" cx="50" cy="0" r="2.2" fill="rgba(74,222,128,0.22)"/>
+      <circle id="ua-tip"     cx="50" cy="0" r="1.1" fill="#4ADE80" opacity="0.95"/>
     </svg>
   );
 }
@@ -1874,144 +1823,36 @@ export default function UaTob({
   // ── Radar sweep RAF ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapReady) { cancelAnimationFrame(rafRef.current); return; }
-    const svg = svgRef.current;
-    if (!svg) return;
-
-    const R        = 46;
-    const ECHO_DEG = 38;   // degrees between echo spawns
-    const q        = id => svg.querySelector(`#${id}`);
-
-    // Cache every element reference once — zero querySelector calls per frame
-    const $ = {
-      arms:   [0,1,2].map(i => q(`ua-arm${i}`)),
-      glows:  [0,1,2].map(i => q(`ua-tipglow${i}`)),
-      dots:   [0,1,2].map(i => q(`ua-tipdot${i}`)),
-      trails: [0,1,2].map(a => Array.from({length: TRAIL_N}, (_,t) => q(`ua-trail${a}-${t}`))),
-      echoR:  Array.from({length: ECHO_N}, (_,i) => q(`ua-echoR${i}`)),
-      echoD:  Array.from({length: ECHO_N}, (_,i) => q(`ua-echoD${i}`)),
-      wring0: q('ua-wring0'),
-      wring1: q('ua-wring1'),
-      cring:  q('ua-cring'),
-      pulse:  q('ua-pulse'),
-    };
-
-    // Animation state (all in closure — no React state)
-    let lastTs     = 0;
-    let phase0     = 0;
-    let phase1     = 0;
-    let pulsePhase = 0;
-    let cringOff   = 0;
-    let prevAngle  = 0;
-    let echoSlot   = 0;
-    const trailBuf = [[],[],[]];
-    const echoes   = Array.from({length: ECHO_N}, () => ({ x: 50, y: 50, life: 0 }));
-
-    // Sine-distorted ring: base circle + two sine harmonics for organic wobble
-    const wavePath = (baseR, freq, amp, ph) => {
-      const N = 72;
-      let d = '';
-      for (let i = 0; i <= N; i++) {
-        const theta = (i / N) * Math.PI * 2;
-        const r = baseR
-          + amp       * Math.sin(freq     * theta + ph)
-          + amp * 0.4 * Math.sin(freq * 2 * theta - ph * 1.3);
-        d += `${i===0?'M':'L'}${(50 + r * Math.cos(theta)).toFixed(2)} ${(50 + r * Math.sin(theta)).toFixed(2)} `;
+    const animate = () => {
+      sweepRef.current = (sweepRef.current + 1.1) % 360;
+      if (svgRef.current) {
+        const angle = sweepRef.current;
+        const R = 55;
+        const leadA   = (angle + 80) % 360;
+        const trailX  = 50 + R * Math.cos(toRad(angle));
+        const trailY  = 50 + R * Math.sin(toRad(angle));
+        const leadX   = 50 + R * Math.cos(toRad(leadA));
+        const leadY   = 50 + R * Math.sin(toRad(leadA));
+        const tipX    = 50 + 52 * Math.cos(toRad(leadA));
+        const tipY    = 50 + 52 * Math.sin(toRad(leadA));
+        const cAngle  = (360 - angle * 0.6) % 360;
+        const cLead   = (cAngle + 60) % 360;
+        const cTrailX = 50 + R * Math.cos(toRad(cAngle));
+        const cTrailY = 50 + R * Math.sin(toRad(cAngle));
+        const cLeadX  = 50 + R * Math.cos(toRad(cLead));
+        const cLeadY  = 50 + R * Math.sin(toRad(cLead));
+        const q = svgRef.current.querySelector.bind(svgRef.current);
+        q('#ua-sweep') ?.setAttribute('d', `M 50 50 L ${trailX} ${trailY} A ${R} ${R} 0 0 1 ${leadX} ${leadY} Z`);
+        q('#ua-sweep2')?.setAttribute('d', `M 50 50 L ${cTrailX} ${cTrailY} A ${R} ${R} 0 0 1 ${cLeadX} ${cLeadY} Z`);
+        q('#ua-arm')   ?.setAttribute('x2', leadX);
+        q('#ua-arm')   ?.setAttribute('y2', leadY);
+        q('#ua-tip')   ?.setAttribute('cx', tipX);
+        q('#ua-tip')   ?.setAttribute('cy', tipY);
+        q('#ua-tipglow')?.setAttribute('cx', tipX);
+        q('#ua-tipglow')?.setAttribute('cy', tipY);
       }
-      return d + 'Z';
-    };
-
-    const animate = (ts) => {
-      const dt  = lastTs ? Math.min(ts - lastTs, 50) : 16.667;
-      lastTs    = ts;
-      const nrm = dt / 16.667;   // normalize all speeds to 60 fps
-
-      sweepRef.current = (sweepRef.current + 1.5 * nrm) % 360;
-      phase0     += 0.022 * nrm;
-      phase1     -= 0.016 * nrm;
-      pulsePhase += 0.07  * nrm;
-      cringOff   -= 1.1   * nrm;   // counter-rotate
-
-      const ang = sweepRef.current;
-
-      // ── 3 arms at 0° / 120° / 240° ──────────────────────────────────────
-      [0, 120, 240].forEach((off, i) => {
-        const a  = toRad(ang + off);
-        const x2 = 50 + R * Math.cos(a);
-        const y2 = 50 + R * Math.sin(a);
-        const xs = x2.toFixed(2), ys = y2.toFixed(2);
-
-        if ($.arms[i])  { $.arms[i].setAttribute('x2', xs);  $.arms[i].setAttribute('y2', ys);  }
-        if ($.glows[i]) { $.glows[i].setAttribute('cx', xs); $.glows[i].setAttribute('cy', ys); }
-        if ($.dots[i])  { $.dots[i].setAttribute('cx', xs);  $.dots[i].setAttribute('cy', ys);  }
-
-        // Comet trail — push current tip, keep last TRAIL_N positions
-        trailBuf[i].push({ x: x2, y: y2 });
-        if (trailBuf[i].length > TRAIL_N) trailBuf[i].shift();
-
-        for (let t = 0; t < TRAIL_N; t++) {
-          const el  = $.trails[i][t];
-          if (!el) continue;
-          const idx = trailBuf[i].length - 1 - t;
-          if (idx < 0) { el.setAttribute('stroke', 'rgba(74,222,128,0)'); continue; }
-          const { x: tx, y: ty } = trailBuf[i][idx];
-          const op = ((i === 0 ? 0.38 : 0.20) * (1 - t / TRAIL_N)).toFixed(2);
-          el.setAttribute('x2', tx.toFixed(2));
-          el.setAttribute('y2', ty.toFixed(2));
-          el.setAttribute('stroke', `rgba(74,222,128,${op})`);
-        }
-      });
-
-      // ── Oscillating breathing rings ──────────────────────────────────────
-      if ($.wring0) $.wring0.setAttribute('d', wavePath(26, 5, 1.7, phase0));
-      if ($.wring1) $.wring1.setAttribute('d', wavePath(38, 7, 1.1, phase1));
-
-      // ── Counter-rotating inner ring ──────────────────────────────────────
-      if ($.cring) $.cring.setAttribute('stroke-dashoffset', cringOff.toFixed(1));
-
-      // ── Breathing center pulse ring ──────────────────────────────────────
-      if ($.pulse) {
-        $.pulse.setAttribute('r',      (3.0 + 1.5 * Math.sin(pulsePhase)).toFixed(2));
-        $.pulse.setAttribute('stroke', `rgba(74,222,128,${(0.32 + 0.22 * Math.sin(pulsePhase)).toFixed(2)})`);
-      }
-
-      // ── Echo sparks — spawn on primary arm every ECHO_DEG° ──────────────
-      const prevSlot = Math.floor(prevAngle / ECHO_DEG);
-      const currSlot = Math.floor(ang       / ECHO_DEG);
-      if (currSlot !== prevSlot) {
-        const a    = toRad(ang);
-        const dist = 8 + Math.random() * 34;
-        echoes[echoSlot % ECHO_N] = {
-          x:    50 + dist * Math.cos(a),
-          y:    50 + dist * Math.sin(a),
-          life: 1.0,
-        };
-        echoSlot++;
-      }
-      prevAngle = ang;
-
-      // Update echo elements: ring expands outward, dot fades in place
-      echoes.forEach((e, i) => {
-        const er = $.echoR[i], ed = $.echoD[i];
-        if (!er || !ed) return;
-        if (e.life > 0) {
-          e.life      -= 0.017 * nrm;
-          const life   = Math.max(0, e.life);
-          const cx = e.x.toFixed(2), cy = e.y.toFixed(2);
-          er.setAttribute('cx', cx);       er.setAttribute('cy', cy);
-          er.setAttribute('r',  ((1 - life) * 5.5).toFixed(2));
-          er.setAttribute('stroke', `rgba(74,222,128,${(life * 0.75).toFixed(2)})`);
-          ed.setAttribute('cx', cx);       ed.setAttribute('cy', cy);
-          ed.setAttribute('r',  (0.5 + life * 0.5).toFixed(2));
-          ed.setAttribute('fill', `rgba(74,222,128,${(life * 0.85).toFixed(2)})`);
-        } else {
-          er.setAttribute('r', '0');
-          ed.setAttribute('r', '0');
-        }
-      });
-
       rafRef.current = requestAnimationFrame(animate);
     };
-
     rafRef.current = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(rafRef.current);
   }, [mapReady]);
