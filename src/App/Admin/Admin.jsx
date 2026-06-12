@@ -281,34 +281,6 @@ function useAssignedDriverLive(driverUid) {
   return driverDoc;
 }
 
-/** Fleet — online drivers with positions */
-function useOnlineDrivers() {
-  const [drivers, setDrivers]     = useState([]);
-  const [counts,  setCounts]      = useState({ online: 0, total: 0 });
-
-  useEffect(() => {
-    // Total count from full collection
-    const unsubAll = onSnapshot(collection(db, 'Drivers'), snap => {
-      setCounts(c => ({ ...c, total: snap.size }));
-    });
-    // Online positions
-    const q = query(collection(db, 'Drivers'), where('status', '==', 'online'));
-    const unsubOnline = onSnapshot(q, snap => {
-      const positions = [];
-      snap.forEach(d => {
-        const data = d.data();
-        if (typeof data.lat === 'number' && typeof data.lng === 'number') {
-          positions.push({ id: d.id, lat: data.lat, lng: data.lng, heading: data.heading ?? null });
-        }
-      });
-      setCounts(c => ({ ...c, online: snap.size }));
-      setDrivers(positions);
-    });
-    return () => { unsubAll(); unsubOnline(); };
-  }, []);
-
-  return { drivers, counts };
-}
 
 /** Mapbox Directions fetch — returns decoded coordinates array */
 async function fetchRoute(originLng, originLat, destLng, destLat, signal) {
@@ -406,6 +378,40 @@ function makeDriverDotEl() {
   dot.style.cssText = [
     'position:absolute','left:0','top:0','width:10px','height:10px','border-radius:50%',
     'background:#60A5FA','border:2px solid #fff','box-shadow:0 0 10px rgba(96,165,250,.9)',
+    'transform:translate(-50%,-50%)',
+  ].join(';');
+  wrap.appendChild(dot);
+  return wrap;
+}
+
+function makeAccountDotEl() {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:relative;width:0;height:0;pointer-events:none;';
+  const ring = document.createElement('div');
+  ring.style.cssText = [
+    'position:absolute','left:0','top:0','width:18px','height:18px','border-radius:50%',
+    'border:1.5px solid rgba(251,191,36,.5)',
+    'transform:translate(-50%,-50%) scale(.3)','opacity:0',
+    'animation:ua-driver-pulse 2.6s ease-out .3s infinite',
+  ].join(';');
+  const dot = document.createElement('div');
+  dot.style.cssText = [
+    'position:absolute','left:0','top:0','width:8px','height:8px','border-radius:50%',
+    'background:#FBBF24','border:1.5px solid #fff','box-shadow:0 0 8px rgba(251,191,36,.8)',
+    'transform:translate(-50%,-50%)',
+  ].join(';');
+  wrap.appendChild(ring);
+  wrap.appendChild(dot);
+  return wrap;
+}
+
+function makeOfflineDriverDotEl() {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:relative;width:0;height:0;pointer-events:none;';
+  const dot = document.createElement('div');
+  dot.style.cssText = [
+    'position:absolute','left:0','top:0','width:8px','height:8px','border-radius:50%',
+    'background:rgba(255,255,255,.18)','border:1.5px solid rgba(255,255,255,.32)',
     'transform:translate(-50%,-50%)',
   ].join(';');
   wrap.appendChild(dot);
@@ -1282,6 +1288,7 @@ export default function UaTob({
   trips           = [],
   scheduledRides  = [],
   drivers         = [],
+  accounts        = [],
   account         = null,
   activeRide:     explicitActiveRide = null,
   onCancelRide    = () => {},
@@ -1297,7 +1304,9 @@ export default function UaTob({
   const rafRef           = useRef(null);
   const followRafRef     = useRef(null);
   const searchMarkersRef = useRef(new Map());
-  const driverMarkersRef = useRef(new Map());
+  const driverMarkersRef  = useRef(new Map());
+  const driverStatusRef   = useRef(new Map());
+  const accountMarkersRef = useRef(new Map());
   const carMarkerRef     = useRef(null);
   const riderMarkerRef   = useRef(null);
   const pickupMarkerRef  = useRef(null);
@@ -1306,6 +1315,8 @@ export default function UaTob({
   const renderedCenterRef= useRef(null);
   const routeAbortRef    = useRef(null);
   const lastRouteFetchRef= useRef({ time: 0, lat: 0, lng: 0 });
+  const userInteractRef  = useRef(false);
+  const interactTimerRef = useRef(null);
   const lastCompletedIdRef = useRef(null);
   const mapBearingRef    = useRef(-20);
   const onlineSinceRef   = useRef(null);
@@ -1329,8 +1340,8 @@ export default function UaTob({
   const activeRide            = useActiveRide(rides, explicitActiveRide);
   const assignedDriverUid     = activeRide?.driverInfo?.uid ?? activeRide?.driverUid ?? null;
   const driverDoc             = useAssignedDriverLive(assignedDriverUid);
-  const { drivers: onlineDrivers } = useOnlineDrivers();
-  const driverCounts               = useDriverCounts();
+  const onlineDrivers = useMemo(() => drivers.filter(d => d.status === 'online'), [drivers]);
+  const driverCounts  = useDriverCounts();
 
   const lastSearchAt = useMemo(() => {
     const mine = searches.filter(s => s.uid === uid);
@@ -1410,7 +1421,7 @@ export default function UaTob({
         zoom:               13,
         pitch:              52,
         bearing:            -20,
-        interactive:        false,
+        interactive:        true,
         attributionControl: false,
         antialias:          true,
         fadeDuration:       400,
@@ -1516,6 +1527,29 @@ export default function UaTob({
     };
   }, []); // eslint-disable-line
 
+  // ── Pause auto-follow on user interaction, resume after 10 s ────────────
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    const map = mapRef.current;
+    const onInteract = () => {
+      userInteractRef.current = true;
+      clearTimeout(interactTimerRef.current);
+      interactTimerRef.current = setTimeout(() => {
+        userInteractRef.current = false;
+        renderedCenterRef.current = null; // snap back to live position
+      }, 10_000);
+    };
+    map.on('dragstart', onInteract);
+    map.on('wheel',     onInteract);
+    map.on('touchstart', onInteract);
+    return () => {
+      map.off('dragstart', onInteract);
+      map.off('wheel',     onInteract);
+      map.off('touchstart', onInteract);
+      clearTimeout(interactTimerRef.current);
+    };
+  }, [mapReady]);
+
   // ── Follow loop (smooth camera) ───────────────────────────────────────────
   useEffect(() => {
     cancelAnimationFrame(followRafRef.current);
@@ -1530,7 +1564,7 @@ export default function UaTob({
       const dt  = lastTs ? Math.min(ts - lastTs, 50) : 16.667;
       lastTs = ts;
 
-      if (!activeRide && live) {
+      if (!activeRide && live && !userInteractRef.current) {
         if (!renderedCenterRef.current) {
           renderedCenterRef.current = { lat: live.lat, lng: live.lng };
         }
@@ -1760,21 +1794,32 @@ export default function UaTob({
     mapReady,
   ]); // eslint-disable-line
 
-  // ── Ambient driver dot markers (hide during active ride) ──────────────────
+  // ── Ambient driver dot markers — online (blue pulse) + offline (dim) ────────
   useEffect(() => {
     if (!mapReady || !mapRef.current || !window.mapboxgl) return;
-    const store = driverMarkersRef.current;
-    const seen  = new Set();
+    const store     = driverMarkersRef.current;
+    const statusMap = driverStatusRef.current;
+    const seen      = new Set();
     if (!activeRide) {
-      onlineDrivers.forEach(({ id, lat, lng }) => {
+      drivers.forEach(({ id, lat, lng, status: dStatus }) => {
+        if (typeof lat !== 'number' || typeof lng !== 'number') return;
         seen.add(id);
         if (assignedDriverUid && id === assignedDriverUid) return;
+        const isOnline = dStatus === 'online';
+        // Recreate marker if online/offline status flipped
+        if (store.has(id) && statusMap.get(id) !== isOnline) {
+          try { store.get(id).remove(); } catch {}
+          store.delete(id);
+          statusMap.delete(id);
+        }
         if (store.has(id)) {
           try { store.get(id).setLngLat([lng, lat]); } catch {}
         } else {
-          const marker = new window.mapboxgl.Marker({ element: makeDriverDotEl(), anchor: 'center' })
+          const el = isOnline ? makeDriverDotEl() : makeOfflineDriverDotEl();
+          const marker = new window.mapboxgl.Marker({ element: el, anchor: 'center' })
             .setLngLat([lng, lat]).addTo(mapRef.current);
           store.set(id, marker);
+          statusMap.set(id, isOnline);
         }
       });
     }
@@ -1782,9 +1827,10 @@ export default function UaTob({
       if (!seen.has(id) || !!activeRide) {
         try { m.remove(); } catch {}
         store.delete(id);
+        statusMap.delete(id);
       }
     });
-  }, [onlineDrivers, mapReady, activeRide, assignedDriverUid]);
+  }, [drivers, mapReady, activeRide, assignedDriverUid]);
 
   // ── Search ring markers ───────────────────────────────────────────────────
   useEffect(() => {
@@ -1805,12 +1851,35 @@ export default function UaTob({
     });
   }, [searches, mapReady]);
 
+  // ── Account (rider) dot markers ───────────────────────────────────────────
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !window.mapboxgl) return;
+    const store = accountMarkersRef.current;
+    const seen  = new Set();
+    accounts.forEach(({ uid: aUid, lat, lng }) => {
+      if (typeof lat !== 'number' || typeof lng !== 'number') return;
+      seen.add(aUid);
+      if (store.has(aUid)) {
+        try { store.get(aUid).setLngLat([lng, lat]); } catch {}
+      } else {
+        const marker = new window.mapboxgl.Marker({ element: makeAccountDotEl(), anchor: 'center' })
+          .setLngLat([lng, lat]).addTo(mapRef.current);
+        store.set(aUid, marker);
+      }
+    });
+    store.forEach((m, id) => {
+      if (!seen.has(id)) { try { m.remove(); } catch {} store.delete(id); }
+    });
+  }, [accounts, mapReady]);
+
   useEffect(() => {
     if (mapReady) return;
     searchMarkersRef.current.forEach(m => { try { m.remove(); } catch {} });
     searchMarkersRef.current.clear();
     driverMarkersRef.current.forEach(m => { try { m.remove(); } catch {} });
     driverMarkersRef.current.clear();
+    accountMarkersRef.current.forEach(m => { try { m.remove(); } catch {} });
+    accountMarkersRef.current.clear();
   }, [mapReady]);
 
   // ── Boot screen — fade out then unmount after map is ready ────────────────
