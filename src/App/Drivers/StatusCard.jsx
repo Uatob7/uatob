@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo } from 'react';
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { Trophy, TrendingUp } from 'lucide-react';
 import StatTiles        from '@/App/Drivers/StatTiles.jsx';
 import Achievements     from '@/App/Drivers/Achievements.jsx';
@@ -37,9 +37,11 @@ export default function StatusCard({
   const [faceIdx,  setFaceIdx]  = useState(0);
   const [rideIdx,  setRideIdx]  = useState(0);
   const [badgeIdx, setBadgeIdx] = useState(0);
-  const onlineSinceRef          = useRef(null);
-  const cycleRef                = useRef(null);
-  const userPausedRef           = useRef(false); // ← tracks manual dot tap
+  const onlineSinceRef  = useRef(null);
+  const cycleRef        = useRef(null);
+  const resumeRef       = useRef(null);   // auto-resume timeout after user interaction
+  const startCycleRef   = useRef(null);   // stable ref so timeouts always call latest version
+  const userPausedRef   = useRef(false);
 
   // ── Online duration ────────────────────────────────
   useEffect(() => {
@@ -80,37 +82,44 @@ export default function StatusCard({
   const activeFaces = FACES;
 
   // ── Auto-cycle ─────────────────────────────────────
-  const startCycle = () => {
+  const startCycle = useCallback(() => {
     clearInterval(cycleRef.current);
-    if (activeTrip) return;
-    if (userPausedRef.current) return; // ← don't restart if user manually navigated
+    if (activeTrip || userPausedRef.current) return;
     cycleRef.current = setInterval(() => {
       setFaceIdx(i => {
-        const next = (i + 1) % activeFaces.length;
-        if (activeFaces[next] === 'scheduled') {
-          setRideIdx(Math.floor(Math.random() * Math.max(1, upcomingRides.length)));
-        }
-        if (activeFaces[next] === 'achievements') {
-          setBadgeIdx(bi => bi + 1);
-        }
+        const next = (i + 1) % FACES.length;
+        if (FACES[next] === 'scheduled') setRideIdx(Math.floor(Math.random() * Math.max(1, upcomingRides.length)));
+        if (FACES[next] === 'achievements') setBadgeIdx(bi => bi + 1);
         return next;
       });
     }, FACE_MS);
-  };
+  }, [activeTrip, upcomingRides.length]);
+
+  // Keep a stable ref so resume timeouts always call the latest version
+  useEffect(() => { startCycleRef.current = startCycle; }, [startCycle]);
 
   useEffect(() => {
+    userPausedRef.current = false;  // reset pause when trip state changes
     startCycle();
-    return () => clearInterval(cycleRef.current);
-  }, [activeTrip, upcomingRides.length]); // eslint-disable-line
+    return () => { clearInterval(cycleRef.current); clearTimeout(resumeRef.current); };
+  }, [startCycle]);
 
-  // ── Manual dot tap — stops auto-cycle permanently until trip state changes ──
-  const goFace = (i) => {
-    userPausedRef.current = true;    // ← user took control, kill auto-cycle
+  // ── Tap to flip — pauses, then smart-resumes after 7s idle ──────────────
+  const goFace = useCallback((i) => {
     clearInterval(cycleRef.current);
+    clearTimeout(resumeRef.current);
+    userPausedRef.current = true;
+
     setFaceIdx(i);
-    if (activeFaces[i] === 'scheduled') setRideIdx(Math.floor(Math.random() * Math.max(1, upcomingRides.length)));
-    if (activeFaces[i] === 'achievements') setBadgeIdx(bi => bi + 1);
-  };
+    if (FACES[i] === 'scheduled') setRideIdx(Math.floor(Math.random() * Math.max(1, upcomingRides.length)));
+    if (FACES[i] === 'achievements') setBadgeIdx(bi => bi + 1);
+
+    // Auto-resume cycle after 7s of no interaction
+    resumeRef.current = setTimeout(() => {
+      userPausedRef.current = false;
+      startCycleRef.current?.();
+    }, 7000);
+  }, [upcomingRides.length]);
 
   const face = activeFaces[faceIdx];
   const mode = !online ? 'offline' : activeTrip ? 'trip' : 'waiting';
@@ -197,14 +206,23 @@ export default function StatusCard({
             </>
           )}
 
-          {/* ── Face content — fixed height so the card never resizes between faces ── */}
-          <div className="sc-face" key={face + rideIdx + badgeIdx} style={{
-            position: 'relative',
-            minHeight: 168,
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-          }}>
+          {/* ── Face content — tap anywhere to flip, dots for direct nav ── */}
+          <div
+            className="sc-face"
+            key={face + rideIdx + badgeIdx}
+            onClick={(e) => {
+              if (e.target.closest('button, input, a, textarea, select')) return;
+              goFace((faceIdx + 1) % FACES.length);
+            }}
+            style={{
+              position: 'relative',
+              minHeight: 168,
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+          >
 
             {/* ════ FACE: STATUS ════ */}
             {face === 'status' && (
