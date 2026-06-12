@@ -30,6 +30,7 @@ import {
   FACE_BOOK, FACE_SEARCHES, FACE_SCHEDULED,
   FACE_NOTIFS, FACE_ACCOUNT, FACE_TRIPS, FACE_COUNT,
 } from '@/App/UaTob/Statuscardtokens';
+import { useDriverCounts } from '@/App/UaTob/useDriverCounts';
 import StatusCard from '@/App/UaTob/StatusCard';
 import RiderSupportOverlay from '@/App/UaTob/RiderSupportOverlay';
 import { useRiderSupportUnread } from '@/App/UaTob/useRiderSupportUnread';
@@ -876,7 +877,7 @@ function EdgeContact({ angle, label, color, icon }) {
   );
 }
 
-// ─── Fleet chip (flips: nearest driver ↔ fleet count) ────────────────────────
+// ─── Fleet chip (flips: nearest driver ↔ online/total fleet) ─────────────────
 function FleetChip({ riderLat, riderLng, onlineDrivers, driverCounts }) {
   const [face, setFace] = useState(0);
 
@@ -912,7 +913,7 @@ function FleetChip({ riderLat, riderLng, onlineDrivers, driverCounts }) {
       pointerEvents: 'none',
     }}>
       <div style={{
-        position: 'relative', height: 26, minWidth: 90,
+        position: 'relative', height: 26, minWidth: 110,
         borderRadius: 99, overflow: 'hidden',
         background: 'rgba(5,10,6,.55)', backdropFilter: 'blur(8px)',
         border: `1px solid ${C.border}`,
@@ -928,7 +929,7 @@ function FleetChip({ riderLat, riderLng, onlineDrivers, driverCounts }) {
             away
           </span>
         </div>
-        {/* Face 1: fleet count */}
+        {/* Face 1: online / total fleet */}
         <div style={faceStyle(1)}>
           <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 800, color: C.greenBright }}>
             {driverCounts.online}
@@ -938,7 +939,9 @@ function FleetChip({ riderLat, riderLng, onlineDrivers, driverCounts }) {
             {driverCounts.total}
           </span>
           <span style={{ fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.13em',
-            color: 'rgba(74,222,128,.5)', textTransform: 'uppercase' }}>fleet</span>
+            color: 'rgba(74,222,128,.5)', textTransform: 'uppercase' }}>
+            fleet
+          </span>
         </div>
       </div>
     </div>
@@ -1319,7 +1322,8 @@ export default function UaTob({
   const activeRide            = useActiveRide(rides, explicitActiveRide);
   const assignedDriverUid     = activeRide?.driverInfo?.uid ?? activeRide?.driverUid ?? null;
   const driverDoc             = useAssignedDriverLive(assignedDriverUid);
-  const { drivers: onlineDrivers, counts: driverCounts } = useOnlineDrivers();
+  const { drivers: onlineDrivers } = useOnlineDrivers();
+  const driverCounts               = useDriverCounts();
 
   const lastSearchAt = useMemo(() => {
     const mine = searches.filter(s => s.uid === uid);
