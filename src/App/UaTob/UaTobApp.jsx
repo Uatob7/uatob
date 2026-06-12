@@ -799,7 +799,7 @@ const BOOT_LINES = [
   { text: 'loading ride context…',       color: C.inkMid,    delay: 880 },
   { text: 'SYSTEM READY',                color: C.green,     delay: 1100 },
 ];
-function BootTerminal() {
+function BootTerminal({ exiting }) {
   const [visible, setVisible] = useState([]);
   useEffect(() => {
     BOOT_LINES.forEach((line, i) => {
@@ -808,9 +808,12 @@ function BootTerminal() {
   }, []);
   return (
     <div style={{
-      position: 'absolute', inset: 0, zIndex: 9,
+      position: 'fixed', inset: 0, zIndex: 9999,
+      background: C.bg,
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      gap: 2,
+      opacity: exiting ? 0 : 1,
+      transition: 'opacity .55s ease',
+      pointerEvents: exiting ? 'none' : 'all',
     }}>
       {[60, 110, 160].map((r, i) => (
         <div key={i} style={{
@@ -819,19 +822,22 @@ function BootTerminal() {
           animation: `uaRingPulse ${2.6 + i * 0.5}s ease-in-out ${i * 0.35}s infinite`,
         }}/>
       ))}
-      <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 4, minWidth: 240 }}>
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 6, minWidth: 260 }}>
+        <div style={{ fontFamily: MONO, fontSize: 9, fontWeight: 700, color: 'rgba(74,222,128,.28)', letterSpacing: '.18em', marginBottom: 8 }}>
+          UATOB · RIDER SYSTEM
+        </div>
         {BOOT_LINES.map((line, i) => visible.includes(i) && (
           <div key={i} style={{
-            fontFamily: MONO, fontSize: 10, fontWeight: 700,
-            color: line.color, letterSpacing: '.08em',
+            fontFamily: MONO, fontSize: 11, fontWeight: 700,
+            color: line.color, letterSpacing: '.06em',
             animation: 'uaTermLine .25s ease both',
-            display: 'flex', alignItems: 'center', gap: 8,
+            display: 'flex', alignItems: 'center', gap: 10,
           }}>
-            <span style={{ color: C.greenBright, opacity: .55 }}>{'>'}</span>
+            <span style={{ color: C.greenBright, opacity: .4, fontSize: 9 }}>{'›'}</span>
             <span>{line.text}</span>
             {i === visible.length - 1 && i < BOOT_LINES.length - 1 && (
-              <span style={{ width: 6, height: 12, background: C.greenBright,
-                display: 'inline-block', animation: 'uaCursor .7s step-end infinite' }}/>
+              <span style={{ width: 7, height: 13, background: C.greenBright,
+                display: 'inline-block', animation: 'uaCursor .7s step-end infinite', borderRadius: 1 }}/>
             )}
           </div>
         ))}
@@ -1306,6 +1312,7 @@ export default function UaTob({
 
   // ── State ─────────────────────────────────────────────────────────────────
   const [mapReady,       setMapReady]       = useState(false);
+  const [bootExited,     setBootExited]     = useState(false);
   const [now,            setNow]            = useState(Date.now());
   const [face,           setFace]           = useState(FACE_BOOK);
   const [mapBearing,     setMapBearing]     = useState(-20);
@@ -1793,6 +1800,13 @@ export default function UaTob({
     driverMarkersRef.current.clear();
   }, [mapReady]);
 
+  // ── Boot screen — fade out then unmount after map is ready ────────────────
+  useEffect(() => {
+    if (!mapReady) return;
+    const t = setTimeout(() => setBootExited(true), 600);
+    return () => clearTimeout(t);
+  }, [mapReady]);
+
   // ── Radar sweep RAF ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapReady) { cancelAnimationFrame(rafRef.current); return; }
@@ -1863,8 +1877,8 @@ export default function UaTob({
           opacity: mapReady ? 1 : 0, transition: 'opacity .7s ease',
         }}/>
 
-        {/* Boot terminal */}
-        {!mapReady && <BootTerminal/>}
+        {/* Boot terminal — full-screen until map ready, then fades out */}
+        {!bootExited && <BootTerminal exiting={mapReady}/>}
 
         {/* Layers */}
         <AtmosphereOverlay/>
