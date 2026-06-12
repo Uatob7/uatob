@@ -166,6 +166,32 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────
+    // DRIVER BALANCE LEDGER
+    // ─────────────────────────────────────────
+    match /DriverBalance/{driverId} {
+      allow read:          if isOwner(driverId);
+      allow write:         if isOwner(driverId);
+    }
+
+    // ─────────────────────────────────────────
+    // DRIVER SETTLEMENTS
+    // ─────────────────────────────────────────
+    match /DriverSettlements/{settlementId} {
+      allow read:          if isSignedIn() && resource.data.driverUid == request.auth.uid;
+      allow create:        if isSignedIn() && request.resource.data.driverUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // ─────────────────────────────────────────
+    // SETTLEMENT LOGS
+    // ─────────────────────────────────────────
+    match /SettlementLogs/{logId} {
+      allow read:          if isSignedIn() && resource.data.driverUid == request.auth.uid;
+      allow create:        if isSignedIn() && request.resource.data.driverUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // ─────────────────────────────────────────
     // DEFAULT DENY
     // ─────────────────────────────────────────
     match /{document=**} {

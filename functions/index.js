@@ -5,6 +5,10 @@ admin.initializeApp();
 // Core presence
 const { dispatch } = require("./core/dispatch");
 const { feedNotifier } = require("./core/feedNotifier");
+const { driverBalance }           = require("./core/driverBalance");
+const { settleDriverCashBalance } = require("./drivers/settleDriverCashBalance");
+
+
 
 
 
@@ -47,3 +51,5 @@ exports.rideStatusNotifier = rideStatusNotifier;
 exports.promoScheduler = promoScheduler;
 
 exports.autoApprovePendingDrivers = autoApprovePendingDrivers;
+exports.driverBalance             = driverBalance;
+exports.settleDriverCashBalance   = settleDriverCashBalance;

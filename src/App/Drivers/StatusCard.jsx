@@ -239,8 +239,14 @@ export default function StatusCard({
             </>
           )}
 
-          {/* ── Face content ── */}
-          <div className="sc-face" key={face + rideIdx + badgeIdx} style={{ position: 'relative', minHeight: 78 }}>
+          {/* ── Face content — fixed height so the card never resizes between faces ── */}
+          <div className="sc-face" key={face + rideIdx + badgeIdx} style={{
+            position: 'relative',
+            minHeight: 168,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+          }}>
 
             {/* ════ FACE: STATUS ════ */}
             {face === 'status' && (
@@ -277,7 +283,7 @@ export default function StatusCard({
                     <span className="mono" style={{ fontSize:10, fontWeight:800, letterSpacing:'.12em', textTransform:'uppercase', color:'#93C5FD' }}>Earnings</span>
                   </div>
                 </div>
-                <StatTiles earnings={earnings} online={online} />
+                <StatTiles earnings={earnings} online={online} driver={driver} />
               </div>
             )}
 
