@@ -9,9 +9,6 @@ import UaTobIcon         from '@/App/Drivers/Icon.jsx';
 import TripRequestModal  from '@/App/Drivers/TripRequestModal.jsx';
 import HomeTab           from '@/App/Drivers/HomeTab.jsx';
 import ActiveTripScreen  from '@/App/Drivers/ActiveTripScreen.jsx';
-import EarningsTab       from '@/App/Drivers/EarningsTab.jsx';
-import TripsTab          from '@/App/Drivers/TripsTab.jsx';
-import ProfileTab        from '@/App/Drivers/ProfileTab.jsx';
 import DriverReviewModal from '@/App/Drivers/DriverReviewModal.jsx';
 import SupportOverlay, { SupportIcon } from '@/App/Drivers/SupportOverlay.jsx';
 
@@ -490,7 +487,6 @@ function DriverAppInner({ uid }) {
   // ── Local state ───────────────────────────────────────────────────
   const [mounted,           setMounted]           = useState(false);
   const [menuOpen,          setMenuOpen]          = useState(false);
-  const [menuTab,           setMenuTab]           = useState("earnings");
   const [online,            setOnline]            = useState(false);
   const [activeTrip,        setActiveTrip]        = useState(null);
   const [requestTimer,      setRequestTimer]      = useState(60);
@@ -523,7 +519,6 @@ function DriverAppInner({ uid }) {
 
   // ── Effects ───────────────────────────────────────────────────────
   useEffect(() => { setMounted(true); }, []);
-  useEffect(() => { if (isRejected) setMenuTab("profile"); }, [isRejected]);
 
   useEffect(() => {
     if (!driver || onlineInitialized.current) return;
@@ -854,7 +849,7 @@ function DriverAppInner({ uid }) {
       {/* ── ? Menu FAB ─────────────────────────────────────────────── */}
       {!activeTrip && (
         <button
-          onClick={() => { setMenuOpen(o => !o); if (isRejected) setMenuTab("profile"); }}
+          onClick={() => setMenuOpen(o => !o)}
           style={{
             position:"fixed", bottom:20, left:"50%", transform:"translateX(-50%)",
             zIndex:600, width:54, height:54, borderRadius:"50%",
@@ -878,73 +873,204 @@ function DriverAppInner({ uid }) {
         </button>
       )}
 
-      {/* ── Slide-up menu sheet ────────────────────────────────────── */}
+      {/* ── Account overlay ───────────────────────────────────────── */}
       {menuOpen && !activeTrip && (
         <>
           <style>{`@keyframes menuSlideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}`}</style>
+
           {/* Backdrop */}
-          <div onClick={() => setMenuOpen(false)} style={{ position:"fixed", inset:0, zIndex:650, background:"rgba(0,0,0,.45)", backdropFilter:"blur(4px)" }}/>
+          <div
+            onClick={() => setMenuOpen(false)}
+            style={{ position:"fixed", inset:0, zIndex:650, background:"rgba(0,0,0,.55)", backdropFilter:"blur(6px)", WebkitBackdropFilter:"blur(6px)" }}
+          />
+
           {/* Sheet */}
           <div style={{
             position:"fixed", bottom:0, left:0, right:0, zIndex:660,
-            height:"85vh", background:"#0B0F0C",
-            borderRadius:"22px 22px 0 0",
-            border:"1px solid rgba(255,255,255,.07)", borderBottom:"none",
-            boxShadow:"0 -12px 50px rgba(0,0,0,.72)",
+            maxHeight:"90vh",
+            background:"rgba(5,10,7,.97)",
+            backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)",
+            borderRadius:"24px 24px 0 0",
+            border:"1.5px solid rgba(34,197,94,.12)", borderBottom:"none",
+            boxShadow:"0 -16px 60px rgba(0,0,0,.75), 0 0 0 1px rgba(34,197,94,.04)",
             display:"flex", flexDirection:"column",
             animation:"menuSlideUp .32s cubic-bezier(.34,1.2,.64,1) both",
           }}>
+
             {/* Drag handle */}
-            <div style={{ display:"flex", justifyContent:"center", padding:"12px 0 8px", flexShrink:0 }}>
-              <div style={{ width:38, height:4, borderRadius:2, background:"rgba(255,255,255,.13)" }}/>
+            <div style={{ display:"flex", justifyContent:"center", padding:"12px 0 0", flexShrink:0 }}>
+              <div style={{ width:36, height:4, borderRadius:2, background:"rgba(255,255,255,.12)" }}/>
             </div>
 
-            {/* Driver info */}
-            <div style={{ display:"flex", alignItems:"center", gap:12, padding:"0 20px 14px", flexShrink:0, borderBottom:"1px solid rgba(255,255,255,.06)" }}>
-              <UaTobIcon size={36} online={online}/>
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontSize:16, fontWeight:800, color:"#fff", lineHeight:1.2 }}>
-                  {[driver?.firstName, driver?.lastName].filter(Boolean).join(" ") || "Driver"}
+            {/* Scrollable body */}
+            <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", padding:"18px 20px 52px" }}>
+
+              {/* ── Identity header ── */}
+              <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:22, paddingBottom:18, borderBottom:"1px solid rgba(255,255,255,.07)" }}>
+                {/* Initials avatar */}
+                <div style={{ width:58, height:58, borderRadius:18, flexShrink:0, background:"rgba(34,197,94,.1)", border:"1.5px solid rgba(34,197,94,.28)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  <span className="condensed" style={{ fontSize:24, fontWeight:900, color:"#4ADE80", letterSpacing:"-0.5px", lineHeight:1 }}>
+                    {(driver?.firstName?.[0] ?? "")}{(driver?.lastName?.[0] ?? "")}
+                  </span>
                 </div>
-                <div style={{ fontSize:12, color:"rgba(255,255,255,.38)", fontWeight:500, marginTop:2 }}>
-                  {online ? "Online" : "Offline"}
+
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div className="condensed" style={{ fontSize:24, fontWeight:900, color:"#fff", letterSpacing:"-0.5px", lineHeight:1.1 }}>
+                    {[driver?.firstName, driver?.lastName].filter(Boolean).join(" ") || "Driver"}
+                  </div>
+                  <div style={{ display:"flex", alignItems:"center", gap:5, marginTop:7, flexWrap:"wrap" }}>
+                    <span style={{
+                      fontFamily:"'JetBrains Mono',monospace", fontSize:8.5, fontWeight:800, letterSpacing:".08em",
+                      padding:"2px 9px", borderRadius:99,
+                      background: online ? "rgba(34,197,94,.12)" : "rgba(255,255,255,.07)",
+                      border:`1px solid ${online ? "rgba(34,197,94,.28)" : "rgba(255,255,255,.12)"}`,
+                      color: online ? "#4ADE80" : "rgba(255,255,255,.38)",
+                    }}>
+                      {online ? "ONLINE" : "OFFLINE"}
+                    </span>
+                    {driver?.averageRating != null && (
+                      <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:8.5, fontWeight:800, padding:"2px 9px", borderRadius:99, background:"rgba(251,191,36,.1)", border:"1px solid rgba(251,191,36,.22)", color:"#FBBF24" }}>
+                        ★ {driver.averageRating.toFixed(2)}
+                      </span>
+                    )}
+                    {(driver?.totalRides ?? 0) > 0 && (
+                      <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:8.5, fontWeight:800, padding:"2px 9px", borderRadius:99, background:"rgba(96,165,250,.1)", border:"1px solid rgba(96,165,250,.2)", color:"#60A5FA" }}>
+                        {driver.totalRides} rides
+                      </span>
+                    )}
+                    {driver?.status === "rejected" && (
+                      <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:8.5, fontWeight:800, padding:"2px 9px", borderRadius:99, background:"rgba(251,113,133,.1)", border:"1px solid rgba(251,113,133,.22)", color:"#FB7185" }}>
+                        REJECTED
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-              <div style={{ display:"flex", alignItems:"center", gap:5, background:"rgba(255,255,255,.06)", borderRadius:100, padding:"5px 12px", border:"1px solid rgba(255,255,255,.08)", flexShrink:0 }}>
-                <Star size={11} fill="#F59E0B" color="#F59E0B"/>
-                <span style={{ fontSize:13, fontWeight:700, color:"#fff" }}>
-                  {driver?.averageRating != null ? driver.averageRating.toFixed(2) : "—"}
-                </span>
-              </div>
-            </div>
 
-            {/* Mini tabs */}
-            <div style={{ display:"flex", borderBottom:"1px solid rgba(255,255,255,.06)", flexShrink:0 }}>
-              {(isRejected
-                ? [{ id:"profile", label:"Profile" }]
-                : [{ id:"earnings", label:"Earnings" }, { id:"trips", label:"Trips" }, { id:"profile", label:"Profile" }]
-              ).map(tab => (
-                <button key={tab.id} onClick={() => setMenuTab(tab.id)} style={{
-                  flex:1, padding:"13px 0", border:"none", background:"none", cursor:"pointer",
-                  fontFamily:'"Barlow",system-ui,sans-serif', fontSize:13, fontWeight:700,
-                  color: menuTab === tab.id ? "#22C55E" : "rgba(255,255,255,.38)",
-                  borderBottom: menuTab === tab.id ? "2px solid #22C55E" : "2px solid transparent",
-                  transition:"color .15s, border-color .15s",
-                }}>
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+              {/* ── Account IDs ── */}
+              <AcctSection label="Account" />
+              <AcctRow label="Driver UID"     value={driver?.uid       ?? "—"} mono truncate />
+              <AcctRow label="Stripe Account" value={driver?.accountId ?? "—"} mono accent="#4ADE80" truncate />
 
-            {/* Tab content */}
-            <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch" }}>
-              {menuTab === "earnings" && !isRejected && <EarningsTab driver={driver} online={online}/>}
-              {menuTab === "trips"    && !isRejected && <TripsTab completedRides={completedRides} online={online}/>}
-              {menuTab === "profile"  && <ProfileTab driver={driver} online={online}/>}
+              {/* ── Vehicle ── */}
+              <AcctSection label="Vehicle" />
+              <AcctRow label="Year / Make / Model" value={[driver?.vehicle?.year, driver?.vehicle?.make, driver?.vehicle?.model].filter(Boolean).join(" ") || "—"} />
+              <AcctRow label="Color" value={driver?.vehicle?.color ?? "—"} />
+              <AcctRow label="Plate" value={driver?.vehicle?.plate ?? "—"} mono />
+              {(driver?.vehicle?.rideTypes ?? []).length > 0 && (
+                <div style={{ display:"flex", gap:5, flexWrap:"wrap", paddingBottom:10, marginBottom:2, borderBottom:"1px solid rgba(255,255,255,.04)" }}>
+                  {driver.vehicle.rideTypes.map(t => (
+                    <span key={t} style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:8.5, fontWeight:700, padding:"3px 10px", borderRadius:99, background:"rgba(129,140,248,.12)", border:"1px solid rgba(129,140,248,.25)", color:"#A5B4FC" }}>
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* ── Contact ── */}
+              <AcctSection label="Contact" />
+              <AcctRow label="Phone"   value={driver?.contact?.phone ?? "—"} />
+              <AcctRow label="Address" value={[driver?.contact?.address, driver?.contact?.city, driver?.contact?.state].filter(Boolean).join(", ") || "—"} />
+
+              {/* ── Balance ── */}
+              <AcctSection label="Balance" />
+              {(() => {
+                const cb  = driver?.cashBalance ?? {};
+                const po  = Number(cb.platformOwes ?? 0);
+                const co  = Number(cb.cashOwed     ?? 0);
+                const net = po - co;
+                return (
+                  <>
+                    <AcctRow label="Platform Owes"   value={`$${po.toFixed(2)}`}  accent={po > 0 ? "#34D399" : "rgba(255,255,255,.45)"} />
+                    <AcctRow label="Cash Owed"        value={`$${co.toFixed(2)}`}  accent={co > 0 ? "#FB7185" : "rgba(255,255,255,.45)"} />
+                    <AcctRow label="Net"              value={net >= 0 ? `+$${net.toFixed(2)}` : `-$${Math.abs(net).toFixed(2)}`} accent={net >= 0 ? "#34D399" : "#FB7185"} />
+                    <AcctRow label="Stripe Transfers" value={driver?.transferCapability ?? "—"} />
+                  </>
+                );
+              })()}
+
+              {/* ── Documents ── */}
+              {driver?.documents && Object.keys(driver.documents).length > 0 && (
+                <>
+                  <AcctSection label="Documents" />
+                  {Object.entries(driver.documents).map(([key, val]) => (
+                    <div key={key} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 0", borderBottom:"1px solid rgba(255,255,255,.04)" }}>
+                      <span style={{ fontSize:12, fontWeight:600, color:"rgba(255,255,255,.45)", textTransform:"capitalize" }}>
+                        {key.replace(/([A-Z])/g, " $1").trim()}
+                      </span>
+                      <span style={{
+                        fontFamily:"'JetBrains Mono',monospace", fontSize:8.5, fontWeight:800,
+                        padding:"2px 10px", borderRadius:99,
+                        background: val ? "rgba(34,197,94,.1)"      : "rgba(251,113,133,.09)",
+                        border:     val ? "1px solid rgba(34,197,94,.22)" : "1px solid rgba(251,113,133,.22)",
+                        color:      val ? "#4ADE80" : "#FB7185",
+                      }}>
+                        {val ? "Uploaded" : "Pending"}
+                      </span>
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {/* ── Achievements ── */}
+              {driver?.achievements && Object.keys(driver.achievements).length > 0 && (
+                <>
+                  <AcctSection label="Achievements" />
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                    {Object.entries(driver.achievements).map(([key, val]) => val && (
+                      <span key={key} style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:8.5, fontWeight:700, padding:"3px 10px", borderRadius:99, background:"rgba(251,146,60,.1)", border:"1px solid rgba(251,146,60,.25)", color:"#FCD34D" }}>
+                        {key.replace(/([A-Z])/g, " $1").trim()}
+                      </span>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* ── Stats ── */}
+              <AcctSection label="Stats" />
+              <AcctRow label="Total Rides"  value={driver?.totalRides != null ? String(driver.totalRides) : "—"} />
+              <AcctRow label="Online Time"  value={driver?.onlineTime != null ? `${Math.round(Number(driver.onlineTime) / 60)} hrs` : "—"} />
+              <AcctRow label="Status"       value={driver?.status ?? "—"} />
+
             </div>
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ── Account overlay helpers ────────────────────────────────────────────
+function AcctSection({ label }) {
+  return (
+    <div style={{
+      fontFamily:"'JetBrains Mono',monospace", fontSize:8.5, fontWeight:800,
+      letterSpacing:".1em", textTransform:"uppercase",
+      color:"rgba(74,222,128,.5)", margin:"20px 0 4px",
+    }}>
+      {label}
+    </div>
+  );
+}
+
+function AcctRow({ label, value, mono, accent, truncate }) {
+  return (
+    <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:12, padding:"8px 0", borderBottom:"1px solid rgba(255,255,255,.04)" }}>
+      <span style={{ fontSize:12, fontWeight:600, color:"rgba(255,255,255,.38)", flexShrink:0 }}>
+        {label}
+      </span>
+      <span style={{
+        fontFamily: mono ? "'JetBrains Mono',monospace" : "'Barlow',sans-serif",
+        fontSize:   mono ? 10 : 12,
+        fontWeight: 700,
+        color:      accent ?? "#fff",
+        textAlign:  "right",
+        wordBreak:  truncate ? "break-all" : "normal",
+        maxWidth:   "62%",
+        lineHeight: 1.4,
+      }}>
+        {value}
+      </span>
     </div>
   );
 }
