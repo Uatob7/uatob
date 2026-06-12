@@ -1408,10 +1408,12 @@ export default function UaTob({
         center:             [live?.lng ?? account?.lng ?? ORL_LNG,
                              live?.lat ?? account?.lat ?? ORL_LAT],
         zoom:               13,
-        pitch:              48,
+        pitch:              52,
         bearing:            -20,
         interactive:        false,
         attributionControl: false,
+        antialias:          true,
+        fadeDuration:       400,
       });
 
       map.on('load', () => {
@@ -1519,25 +1521,31 @@ export default function UaTob({
     cancelAnimationFrame(followRafRef.current);
     if (!mapReady || !mapRef.current) return;
 
-    const tick = () => {
+    let lastTs = 0;
+    const tick = (ts) => {
       const map = mapRef.current;
       if (!map) return;
-      const isActiveRide = !!activeRide;
 
-      if (!isActiveRide && live) {
-        // Idle: drift bearing + ease camera to rider position
+      // Time-based delta so smoothness is frame-rate independent
+      const dt  = lastTs ? Math.min(ts - lastTs, 50) : 16.667;
+      lastTs = ts;
+
+      if (!activeRide && live) {
         if (!renderedCenterRef.current) {
           renderedCenterRef.current = { lat: live.lat, lng: live.lng };
         }
         const rc = renderedCenterRef.current;
-        rc.lat = lerp(rc.lat, live.lat, FOLLOW_SMOOTH);
-        rc.lng = lerp(rc.lng, live.lng, FOLLOW_SMOOTH);
-        mapBearingRef.current += 0.03;
+        // Exponential ease: equivalent to FOLLOW_SMOOTH=0.14 at 60 fps
+        const k = 1 - Math.exp(-8 * dt / 1000);
+        rc.lat = lerp(rc.lat, live.lat, k);
+        rc.lng = lerp(rc.lng, live.lng, k);
+        // Normalize bearing drift to 60 fps
+        mapBearingRef.current += 0.03 * (dt / 16.667);
         try {
           map.jumpTo({ center: [rc.lng, rc.lat], bearing: mapBearingRef.current });
         } catch {}
       }
-      // Active-ride camera is handled by the fitBounds effect below
+
       followRafRef.current = requestAnimationFrame(tick);
     };
 
@@ -1739,7 +1747,12 @@ export default function UaTob({
     const sw = [Math.min(...lngs), Math.min(...lats)];
     const ne = [Math.max(...lngs), Math.max(...lats)];
     try {
-      map.fitBounds([sw, ne], { padding: { top: 90, bottom: 220, left: 40, right: 40 }, duration: 1800, maxZoom: 16 });
+      map.fitBounds([sw, ne], {
+        padding:  { top: 90, bottom: 220, left: 40, right: 40 },
+        duration: 2400,
+        easing:   t => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
+        maxZoom:  16,
+      });
     } catch {}
   }, [
     activeRide?.status,
