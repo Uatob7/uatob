@@ -79,7 +79,7 @@ export default function StatusCard({
     }
   };
 
-  const isClickable = !bookingActive && !cyclePaused && face !== FACE_BOOK;
+  const isClickable = !bookingActive && !cyclePaused;
 
   const handleCardClick = (e) => {
     if (!isClickable) return;
