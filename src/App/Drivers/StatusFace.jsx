@@ -14,7 +14,7 @@ export default function StatusFace({ mode, online, activeTrip, tripStage, sinceM
           }}>
             <div style={{
               width:6, height:6, borderRadius:'50%',
-              background: mode==='offline' ? C.textDim : '#22C55E',
+              background: mode==='offline' ? 'rgba(255,255,255,.28)' : '#22C55E',
               boxShadow: mode!=='offline' ? '0 0 8px rgba(34,197,94,0.7)' : 'none',
               animation: mode!=='offline' ? 'scLiveDot 1.6s ease-in-out infinite' : 'none',
             }}/>
