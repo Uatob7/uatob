@@ -179,7 +179,7 @@ export default function StatusCard({
 
       <div style={{ borderRadius: 22 }}>
         <div style={{
-          background:          'rgba(5,10,7,.88)',
+          background:          'rgba(3,7,4,.96)',
           backdropFilter:      'blur(24px)',
           WebkitBackdropFilter:'blur(24px)',
           border:              '1.5px solid rgba(34,197,94,.18)',

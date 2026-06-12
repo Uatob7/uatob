@@ -394,7 +394,6 @@ function BrandStrip() {
       </div>
       <div style={{ flex:1, minWidth:0 }}>
         <div style={{ fontFamily:COND, fontSize:13, fontWeight:900, letterSpacing:'.08em', color:'#fff', lineHeight:1 }}>UaTob</div>
-        <div style={{ fontFamily:MONO, fontSize:7.5, color:C.dim, marginTop:2 }}>Orlando, FL · flat-rate · no surge</div>
       </div>
       <div style={{ display:'flex', alignItems:'center', gap:4 }}>
         <div style={{ width:5, height:5, borderRadius:'50%', background:C.greenBright, boxShadow:`0 0 5px ${C.greenBright}`, animation:'acBlink 1.6s ease-in-out infinite' }}/>

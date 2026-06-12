@@ -1027,7 +1027,7 @@ const STEP_TITLES = {
   12:'Ride Requested',
 };
 
-function BookRideCardInner({ uid, onRequest, onBookingComplete, onActiveChange }) {
+function BookRideCardInner({ uid, onRequest, onBookingComplete, onActiveChange, onShowAccount }) {
   const [step, setStep] = useState(0);
 
   const [pickup,  setPickupVal]  = useState('');
@@ -1265,7 +1265,7 @@ function BookRideCardInner({ uid, onRequest, onBookingComplete, onActiveChange }
           </div>
         </div>
       </div>
-      <button onClick={() => { if (!uid) { setShowAuthNotice(true); return; } onActiveChange?.(true); setStep(1); }}
+      <button onClick={() => { if (!uid) { if (onShowAccount) { onShowAccount(); } else { setShowAuthNotice(true); } return; } onActiveChange?.(true); setStep(1); }}
         style={{ flexShrink:0, background:'linear-gradient(135deg,#22C55E,#16A34A)', color:'#fff',
           border:'none', borderRadius:10, padding:'10px 16px', cursor:'pointer',
           fontFamily:COND, fontSize:11.5, fontWeight:800, letterSpacing:'.14em', textTransform:'uppercase',
@@ -1638,7 +1638,7 @@ function BookRideCardInner({ uid, onRequest, onBookingComplete, onActiveChange }
   return (
     <>
       <style>{KF}</style>
-      <div style={{ background:'rgba(5,10,6,.85)', backdropFilter:'blur(16px)',
+      <div style={{ background:'rgba(2,6,3,.92)', backdropFilter:'blur(16px)',
         border:`1px solid ${C.border}`, borderRadius:17, padding:'13px 13px 15px',
         display:'flex', flexDirection:'column', gap:11,
         boxShadow:'0 8px 40px rgba(0,0,0,.55), 0 0 0 1px rgba(34,197,94,.06)', userSelect:'none' }}>
