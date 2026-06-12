@@ -2673,16 +2673,6 @@ export default function HomeTab({
         {/* New request alert toast */}
         {showRadar && !activeTrip && <ContactAlert alert={alert}/>}
 
-        {/* Scheduled rides drawer — hide during active trip */}
-        {showRadar && !activeTrip && scheduledRides.length > 0 && (
-          <ScheduledDrawer
-            open={drawerOpen}
-            onToggle={toggleDrawer}
-            scheduledRides={scheduledRides}
-            driver={liveDriver || driver}
-            now={now}
-          />
-        )}
 
         {/* Support FAB */}
         {onOpenSupport && (
