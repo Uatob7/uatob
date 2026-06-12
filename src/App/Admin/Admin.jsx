@@ -1,36 +1,14 @@
-/**
- * Admin.jsx — Full-screen admin map HUD
- *
- * Props:
- *   uid            string
- *   drivers        array   — all driver docs (status, lat, lng, …)
- *   accounts       array   — all account docs (lat, lng, …)
- *   searches       array   — live search pool
- *   scheduledRides array   — scheduled rides
- */
-
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { useDriverCounts } from '@/App/UaTob/useDriverCounts';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import AdminStatusCard from '@/App/Admin/Card';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
-  bg:           '#050A06',
-  green:        '#22C55E',
-  greenBright:  '#4ADE80',
-  greenSoft:    '#34D399',
-  cyan:         '#22D3EE',
-  amber:        '#FBBF24',
-  red:          '#F87171',
-  blue:         '#60A5FA',
-  purple:       '#C084FC',
-  inkDim:       'rgba(255,255,255,.22)',
-  inkMid:       'rgba(255,255,255,.45)',
-  inkBright:    'rgba(255,255,255,.88)',
-  border:       'rgba(34,197,94,.15)',
+  bg:     '#050A06',
+  inkMid: 'rgba(255,255,255,.45)',
+  border: 'rgba(34,197,94,.15)',
 };
-
-const MONO = "'JetBrains Mono','SFMono-Regular',monospace";
 const COND = "'Barlow Condensed','Barlow',sans-serif";
+const MONO = "'JetBrains Mono','SFMono-Regular',monospace";
 
 const MAPBOX_TOKEN = 'pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA';
 const MAP_STYLE    = 'mapbox://styles/mapbox/dark-v11';
@@ -44,10 +22,10 @@ const KEYFRAMES = `
   @keyframes uaScan      { from{top:-80px} to{top:100%} }
   @keyframes ua-driver-pulse { 0%{transform:translate(-50%,-50%) scale(.4);opacity:.7} 100%{transform:translate(-50%,-50%) scale(2.2);opacity:0} }
   @keyframes ua-ring-out { 0%{transform:translate(-50%,-50%) scale(.2);opacity:.9} 100%{transform:translate(-50%,-50%) scale(2.8);opacity:0} }
-  @keyframes adScan { 0%{transform:translateX(-100%)} 100%{transform:translateX(100%)} }
+  @keyframes adScan   { 0%{transform:translateX(-100%)} 100%{transform:translateX(100%)} }
   @keyframes adFaceIn { 0%{opacity:0;transform:translateY(6px) scale(.98)} 100%{opacity:1;transform:translateY(0) scale(1)} }
-  @keyframes adRadar { 0%{transform:scale(.6);opacity:.7} 100%{transform:scale(2.6);opacity:0} }
-  @keyframes adBracket { 0%,100%{opacity:.35} 50%{opacity:.7} }
+  @keyframes adRadar  { 0%{transform:scale(.6);opacity:.7} 100%{transform:scale(2.6);opacity:0} }
+  @keyframes adBracket{ 0%,100%{opacity:.35} 50%{opacity:.7} }
 `;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -79,6 +57,7 @@ function buildSearchGeoJSON(searches = []) {
     })),
   };
 }
+
 function buildScheduledGeoJSON(scheduledRides = []) {
   return {
     type: 'FeatureCollection',
@@ -89,6 +68,7 @@ function buildScheduledGeoJSON(scheduledRides = []) {
     })),
   };
 }
+
 function emptyGeoJSON() { return { type: 'FeatureCollection', features: [] }; }
 
 // ─── Marker factories ─────────────────────────────────────────────────────────
@@ -119,7 +99,7 @@ function makeSearchRingEl(isGuest) {
 
 function makeDriverDotEl() {
   const wrap = document.createElement('div');
-  wrap.style.cssText = 'position:relative;width:0;height:0;pointer-events:none;';
+  wrap.style.cssText = 'position:relative;width:0;height:0;pointer-events:auto;cursor:pointer;';
   [0, 0.9].forEach(delay => {
     const ring = document.createElement('div');
     ring.style.cssText = [
@@ -127,6 +107,7 @@ function makeDriverDotEl() {
       'border:1.5px solid rgba(96,165,250,.55)',
       'transform:translate(-50%,-50%) scale(.4)','opacity:0',
       `animation:ua-driver-pulse 2s ease-out ${delay}s infinite`,
+      'pointer-events:none',
     ].join(';');
     wrap.appendChild(ring);
   });
@@ -137,12 +118,16 @@ function makeDriverDotEl() {
     'transform:translate(-50%,-50%)',
   ].join(';');
   wrap.appendChild(dot);
+  // larger transparent hit zone for easier tap
+  const hit = document.createElement('div');
+  hit.style.cssText = 'position:absolute;left:0;top:0;width:24px;height:24px;border-radius:50%;transform:translate(-50%,-50%);';
+  wrap.appendChild(hit);
   return wrap;
 }
 
 function makeOfflineDriverDotEl() {
   const wrap = document.createElement('div');
-  wrap.style.cssText = 'position:relative;width:0;height:0;pointer-events:none;';
+  wrap.style.cssText = 'position:relative;width:0;height:0;pointer-events:auto;cursor:pointer;';
   const dot = document.createElement('div');
   dot.style.cssText = [
     'position:absolute','left:0','top:0','width:8px','height:8px','border-radius:50%',
@@ -150,6 +135,9 @@ function makeOfflineDriverDotEl() {
     'transform:translate(-50%,-50%)',
   ].join(';');
   wrap.appendChild(dot);
+  const hit = document.createElement('div');
+  hit.style.cssText = 'position:absolute;left:0;top:0;width:20px;height:20px;border-radius:50%;transform:translate(-50%,-50%);';
+  wrap.appendChild(hit);
   return wrap;
 }
 
@@ -225,419 +213,210 @@ function CornerBrackets() {
   );
 }
 
-// ─── Admin Status Card ────────────────────────────────────────────────────────
-const FACES    = ['drivers', 'riders', 'scheduled', 'searches', 'views'];
-const FACE_MS  = 4500;
+// ─── Rotating status chips ────────────────────────────────────────────────────
+const CHIPS = [
+  { color: '#60A5FA', sub: 'ONLINE',     pulse: true  },
+  { color: 'rgba(255,255,255,.45)', sub: 'FLEET',  pulse: false },
+  { color: '#4ADE80', sub: 'SEARCHES',   pulse: true  },
+  { color: '#C084FC', sub: 'SCHEDULED',  pulse: true  },
+];
 
-const FACE_CFG = {
-  drivers:   { label: 'DRIVERS',   color: '#60A5FA', scan: 'rgba(96,165,250,.6)'  },
-  riders:    { label: 'RIDERS',    color: '#FBBF24', scan: 'rgba(251,191,36,.55)' },
-  scheduled: { label: 'SCHEDULED', color: '#C084FC', scan: 'rgba(192,132,252,.55)'},
-  searches:  { label: 'SEARCHES',  color: '#4ADE80', scan: 'rgba(74,222,128,.55)' },
-  views:     { label: 'VIEWS',     color: '#22D3EE', scan: 'rgba(34,211,238,.55)' },
-};
-
-function FaceDrivers({ onlineCount, total }) {
-  const offline = total - onlineCount;
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6,
-        padding: '3px 10px', borderRadius: 99, alignSelf: 'flex-start',
-        background: 'rgba(96,165,250,.12)', border: '1px solid rgba(96,165,250,.25)' }}>
-        <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#60A5FA',
-          boxShadow: '0 0 6px #60A5FA', animation: 'uaBlink 1.8s ease-in-out infinite' }}/>
-        <span style={{ fontFamily: COND, fontSize: 10, fontWeight: 800,
-          letterSpacing: '.14em', color: '#60A5FA' }}>DRIVERS</span>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14 }}>
-        <div>
-          <div style={{ fontFamily: MONO, fontSize: 44, fontWeight: 800,
-            color: '#60A5FA', lineHeight: 1,
-            textShadow: '0 0 30px rgba(96,165,250,.45)' }}>
-            {onlineCount}
-          </div>
-          <div style={{ fontFamily: COND, fontSize: 11, fontWeight: 700,
-            letterSpacing: '.18em', color: 'rgba(96,165,250,.6)', marginTop: 3 }}>
-            ONLINE
-          </div>
-        </div>
-        <div style={{ paddingBottom: 8 }}>
-          <div style={{ fontFamily: MONO, fontSize: 22, fontWeight: 700,
-            color: 'rgba(255,255,255,.38)', lineHeight: 1 }}>
-            {total}
-          </div>
-          <div style={{ fontFamily: COND, fontSize: 9.5, fontWeight: 700,
-            letterSpacing: '.14em', color: C.inkDim }}>
-            TOTAL
-          </div>
-        </div>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ width: 7, height: 7, borderRadius: '50%',
-          background: 'rgba(255,255,255,.22)', flexShrink: 0 }}/>
-        <span style={{ fontFamily: MONO, fontSize: 11, color: C.inkMid }}>
-          {offline} offline
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function FaceRiders({ ridersOnMap, total }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6,
-        padding: '3px 10px', borderRadius: 99, alignSelf: 'flex-start',
-        background: 'rgba(251,191,36,.12)', border: '1px solid rgba(251,191,36,.25)' }}>
-        <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#FBBF24',
-          boxShadow: '0 0 6px #FBBF24', animation: 'uaBlink 1.8s ease-in-out infinite' }}/>
-        <span style={{ fontFamily: COND, fontSize: 10, fontWeight: 800,
-          letterSpacing: '.14em', color: '#FBBF24' }}>RIDERS</span>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14 }}>
-        <div>
-          <div style={{ fontFamily: MONO, fontSize: 44, fontWeight: 800,
-            color: '#FBBF24', lineHeight: 1,
-            textShadow: '0 0 30px rgba(251,191,36,.45)' }}>
-            {ridersOnMap}
-          </div>
-          <div style={{ fontFamily: COND, fontSize: 11, fontWeight: 700,
-            letterSpacing: '.18em', color: 'rgba(251,191,36,.6)', marginTop: 3 }}>
-            ON MAP
-          </div>
-        </div>
-        <div style={{ paddingBottom: 8 }}>
-          <div style={{ fontFamily: MONO, fontSize: 22, fontWeight: 700,
-            color: 'rgba(255,255,255,.38)', lineHeight: 1 }}>
-            {total}
-          </div>
-          <div style={{ fontFamily: COND, fontSize: 9.5, fontWeight: 700,
-            letterSpacing: '.14em', color: C.inkDim }}>
-            ACCOUNTS
-          </div>
-        </div>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ width: 7, height: 7, borderRadius: '50%',
-          background: '#FBBF24', boxShadow: '0 0 5px rgba(251,191,36,.6)', flexShrink: 0 }}/>
-        <span style={{ fontFamily: MONO, fontSize: 11, color: C.inkMid }}>
-          {total - ridersOnMap} without location
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function FaceScheduled({ count }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6,
-        padding: '3px 10px', borderRadius: 99, alignSelf: 'flex-start',
-        background: 'rgba(192,132,252,.12)', border: '1px solid rgba(192,132,252,.25)' }}>
-        <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#C084FC',
-          boxShadow: '0 0 6px #C084FC', animation: 'uaBlink 1.8s ease-in-out infinite' }}/>
-        <span style={{ fontFamily: COND, fontSize: 10, fontWeight: 800,
-          letterSpacing: '.14em', color: '#C084FC' }}>SCHEDULED</span>
-      </div>
-      <div>
-        <div style={{ fontFamily: MONO, fontSize: 44, fontWeight: 800,
-          color: '#C084FC', lineHeight: 1,
-          textShadow: '0 0 30px rgba(192,132,252,.45)' }}>
-          {count}
-        </div>
-        <div style={{ fontFamily: COND, fontSize: 11, fontWeight: 700,
-          letterSpacing: '.18em', color: 'rgba(192,132,252,.6)', marginTop: 3 }}>
-          UPCOMING {count === 1 ? 'RIDE' : 'RIDES'}
-        </div>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ width: 7, height: 7, borderRadius: '50%',
-          background: '#C084FC', boxShadow: '0 0 5px rgba(192,132,252,.6)', flexShrink: 0,
-          animation: count > 0 ? 'uaBlink 2s ease-in-out infinite' : 'none' }}/>
-        <span style={{ fontFamily: MONO, fontSize: 11, color: C.inkMid }}>
-          {count > 0 ? 'pending dispatch' : 'queue clear'}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function FaceSearches({ count, guestCount }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6,
-        padding: '3px 10px', borderRadius: 99, alignSelf: 'flex-start',
-        background: 'rgba(74,222,128,.12)', border: '1px solid rgba(74,222,128,.25)' }}>
-        <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ADE80',
-          boxShadow: '0 0 6px #4ADE80', animation: 'uaBlink 1.8s ease-in-out infinite' }}/>
-        <span style={{ fontFamily: COND, fontSize: 10, fontWeight: 800,
-          letterSpacing: '.14em', color: '#4ADE80' }}>SEARCHES</span>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14 }}>
-        <div>
-          <div style={{ fontFamily: MONO, fontSize: 44, fontWeight: 800,
-            color: '#4ADE80', lineHeight: 1,
-            textShadow: '0 0 30px rgba(74,222,128,.45)' }}>
-            {count}
-          </div>
-          <div style={{ fontFamily: COND, fontSize: 11, fontWeight: 700,
-            letterSpacing: '.18em', color: 'rgba(74,222,128,.6)', marginTop: 3 }}>
-            ACTIVE
-          </div>
-        </div>
-        {guestCount > 0 && (
-          <div style={{ paddingBottom: 8 }}>
-            <div style={{ fontFamily: MONO, fontSize: 22, fontWeight: 700,
-              color: 'rgba(251,146,60,.7)', lineHeight: 1 }}>
-              {guestCount}
-            </div>
-            <div style={{ fontFamily: COND, fontSize: 9.5, fontWeight: 700,
-              letterSpacing: '.14em', color: 'rgba(251,146,60,.5)' }}>
-              GUEST
-            </div>
-          </div>
-        )}
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ width: 7, height: 7, borderRadius: '50%',
-          background: '#4ADE80', boxShadow: '0 0 5px rgba(74,222,128,.6)', flexShrink: 0,
-          animation: count > 0 ? 'uaBlink 1.4s ease-in-out infinite' : 'none' }}/>
-        <span style={{ fontFamily: MONO, fontSize: 11, color: C.inkMid }}>
-          {count > 0 ? 'live demand' : 'no active searches'}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function fmtSec(sec) {
-  if (!sec || sec < 1) return '—';
-  if (sec < 60) return `${sec}s`;
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  if (m < 60) return s > 0 ? `${m}m ${s}s` : `${m}m`;
-  return `${Math.floor(m / 60)}h ${m % 60}m`;
-}
-
-function deviceIcon(view) {
-  const w = view?.screen?.w;
-  if (!w) return '?';
-  return w < 768 ? '📱' : '🖥';
-}
-
-function FaceViews({ views }) {
-  const total  = views.length;
-  const live   = views.filter(v => !v.exited).length;
-  const recent = views.slice(0, 3);
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6,
-        padding: '3px 10px', borderRadius: 99, alignSelf: 'flex-start',
-        background: 'rgba(34,211,238,.12)', border: '1px solid rgba(34,211,238,.25)' }}>
-        <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#22D3EE',
-          boxShadow: '0 0 6px #22D3EE', animation: 'uaBlink 1.8s ease-in-out infinite' }}/>
-        <span style={{ fontFamily: COND, fontSize: 10, fontWeight: 800,
-          letterSpacing: '.14em', color: '#22D3EE' }}>VIEWS</span>
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14 }}>
-        <div>
-          <div style={{ fontFamily: MONO, fontSize: 44, fontWeight: 800,
-            color: '#22D3EE', lineHeight: 1,
-            textShadow: '0 0 30px rgba(34,211,238,.45)' }}>
-            {total}
-          </div>
-          <div style={{ fontFamily: COND, fontSize: 11, fontWeight: 700,
-            letterSpacing: '.18em', color: 'rgba(34,211,238,.6)', marginTop: 3 }}>
-            SESSIONS
-          </div>
-        </div>
-        {live > 0 && (
-          <div style={{ paddingBottom: 8 }}>
-            <div style={{ fontFamily: MONO, fontSize: 22, fontWeight: 700,
-              color: '#4ADE80', lineHeight: 1 }}>
-              {live}
-            </div>
-            <div style={{ fontFamily: COND, fontSize: 9.5, fontWeight: 700,
-              letterSpacing: '.14em', color: 'rgba(74,222,128,.5)' }}>
-              LIVE
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-        {recent.map((v, i) => (
-          <div key={v.id || i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 11, lineHeight: 1 }}>{deviceIcon(v)}</span>
-            <span style={{ fontFamily: MONO, fontSize: 10, color: 'rgba(255,255,255,.55)',
-              flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {v.path || '/'}
-            </span>
-            <span style={{ fontFamily: MONO, fontSize: 9, color: C.inkDim, flexShrink: 0 }}>
-              {fmtSec(v.timeOnPageSec)}
-            </span>
-            <div style={{ width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
-              background: !v.exited ? '#4ADE80' : 'rgba(255,255,255,.18)',
-              boxShadow: !v.exited ? '0 0 5px rgba(74,222,128,.7)' : 'none' }}/>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function AdminStatusCard({ driverCounts, onlineCount, accounts, searches, scheduledRides, views }) {
-  const [faceIdx, setFaceIdx] = useState(0);
-  const cycleRef    = useRef(null);
-  const resumeRef   = useRef(null);
-  const pausedRef   = useRef(false);
-  const startRef    = useRef(null);
-
-  const ridersOnMap  = useMemo(() => accounts.filter(a => typeof a.lat === 'number').length, [accounts]);
-  const guestCount   = useMemo(() => searches.filter(s => !s.uid || s.uid === 'null').length, [searches]);
-
-  const startCycle = useCallback(() => {
-    clearInterval(cycleRef.current);
-    if (pausedRef.current) return;
-    cycleRef.current = setInterval(() => {
-      setFaceIdx(i => (i + 1) % FACES.length);
-    }, FACE_MS);
-  }, []);
-
-  useEffect(() => { startRef.current = startCycle; }, [startCycle]);
+function AdminBadge({ onlineCount, totalFleet, searchCount, scheduledCount }) {
+  const [active, setActive] = useState(0);
+  const values = [onlineCount, totalFleet, searchCount, scheduledCount];
 
   useEffect(() => {
-    startCycle();
-    return () => { clearInterval(cycleRef.current); clearTimeout(resumeRef.current); };
-  }, [startCycle]);
-
-  const goFace = useCallback((i) => {
-    clearInterval(cycleRef.current);
-    clearTimeout(resumeRef.current);
-    pausedRef.current = true;
-    setFaceIdx(i);
-    resumeRef.current = setTimeout(() => {
-      pausedRef.current = false;
-      startRef.current?.();
-    }, 7000);
+    const id = setInterval(() => setActive(i => (i + 1) % CHIPS.length), 2800);
+    return () => clearInterval(id);
   }, []);
 
-  const face = FACES[faceIdx];
-  const cfg  = FACE_CFG[face];
+  const chip = CHIPS[active];
 
-  return (
-    <div style={{
-      position: 'absolute', top: 36, left: 0, right: 0, zIndex: 30,
-      display: 'flex', justifyContent: 'center', padding: '0 16px',
-      pointerEvents: 'none',
-    }}>
-      <div style={{
-        width: '100%', maxWidth: 340, pointerEvents: 'auto',
-        filter: 'drop-shadow(0 10px 32px rgba(0,0,0,.55))',
-      }}>
-        <div style={{ borderRadius: 22 }}>
-          <div style={{
-            background:           'rgba(3,7,4,.96)',
-            backdropFilter:       'blur(24px)',
-            WebkitBackdropFilter: 'blur(24px)',
-            border:               '1.5px solid rgba(34,197,94,.18)',
-            borderRadius:         22,
-            padding:              '18px 20px 14px',
-            position:             'relative',
-            overflow:             'hidden',
-            boxShadow:            '0 20px 56px rgba(0,0,0,.55), 0 4px 14px rgba(0,0,0,.3)',
-          }}>
-
-            {/* Scan line — color identifies face */}
-            <div style={{
-              position: 'absolute', top: 0, left: 0, right: 0, height: 2,
-              background: `linear-gradient(90deg,transparent,${cfg.scan},transparent)`,
-              animation: 'adScan 3s linear infinite',
-              pointerEvents: 'none',
-            }}/>
-
-            {/* Radar rings — searches face only */}
-            {face === 'searches' && searches.length > 0 && (
-              <>
-                <div style={{ position: 'absolute', top: '50%', right: 60, width: 52, height: 52,
-                  borderRadius: '50%', background: 'rgba(74,222,128,.1)',
-                  transform: 'translateY(-50%)', animation: 'adRadar 2.4s ease-out infinite',
-                  pointerEvents: 'none' }}/>
-                <div style={{ position: 'absolute', top: '50%', right: 60, width: 52, height: 52,
-                  borderRadius: '50%', background: 'rgba(74,222,128,.07)',
-                  transform: 'translateY(-50%)', animation: 'adRadar 2.4s ease-out .8s infinite',
-                  pointerEvents: 'none' }}/>
-              </>
-            )}
-
-            {/* Face content */}
-            <div
-              key={face}
-              className="ad-face"
-              onClick={(e) => {
-                if (e.target.closest('button,input,a')) return;
-                goFace((faceIdx + 1) % FACES.length);
-              }}
-              style={{
-                minHeight: 130, display: 'flex', flexDirection: 'column',
-                justifyContent: 'center', cursor: 'pointer',
-                animation: 'adFaceIn .38s cubic-bezier(.34,1.2,.64,1) both',
-              }}
-            >
-              {face === 'drivers'   && <FaceDrivers   onlineCount={onlineCount} total={driverCounts.total}/>}
-              {face === 'riders'    && <FaceRiders    ridersOnMap={ridersOnMap} total={accounts.length}/>}
-              {face === 'scheduled' && <FaceScheduled count={scheduledRides.length}/>}
-              {face === 'searches'  && <FaceSearches  count={searches.length} guestCount={guestCount}/>}
-              {face === 'views'     && <FaceViews     views={views}/>}
-            </div>
-
-            {/* Dot pagination */}
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 14 }}>
-              {FACES.map((f, i) => (
-                <button key={f} onClick={() => goFace(i)} style={{
-                  width: i === faceIdx ? 20 : 6, height: 6, borderRadius: 3,
-                  border: 'none', padding: 0, cursor: 'pointer',
-                  background: i === faceIdx ? FACE_CFG[f].color : 'rgba(255,255,255,.18)',
-                  boxShadow: i === faceIdx ? `0 0 8px ${FACE_CFG[f].color}80` : 'none',
-                  transition: 'all .28s ease', flexShrink: 0,
-                }}/>
-              ))}
-            </div>
-
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Map legend ───────────────────────────────────────────────────────────────
-function AdminLegend() {
   return (
     <div style={{
       position: 'absolute', bottom: 20, left: 16, zIndex: 18,
-      display: 'flex', flexDirection: 'column', gap: 6,
-      padding: '10px 14px', borderRadius: 12,
-      background: 'rgba(5,10,6,.72)', backdropFilter: 'blur(10px)',
-      border: `1px solid ${C.border}`, pointerEvents: 'none',
       animation: 'uaFadeIn .8s ease both',
     }}>
-      {[
-        { color: '#60A5FA',              label: 'Driver — online',  glow: true  },
-        { color: 'rgba(255,255,255,.3)', label: 'Driver — offline', glow: false },
-        { color: '#FBBF24',              label: 'Rider',            glow: true  },
-        { color: '#4ADE80',              label: 'Search',           glow: true  },
-        { color: '#C084FC',              label: 'Scheduled ride',   glow: true  },
-      ].map(({ color, label, glow }) => (
-        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-            background: color, boxShadow: glow ? `0 0 6px ${color}` : 'none' }}/>
-          <span style={{ fontFamily: COND, fontSize: 10.5, fontWeight: 600,
-            letterSpacing: '.06em', color: C.inkMid }}>{label}</span>
+      <div
+        key={active}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          background: 'rgba(5,10,6,.72)', backdropFilter: 'blur(10px)',
+          border: `1px solid ${chip.color}44`,
+          borderRadius: 99, padding: '6px 14px 6px 10px',
+          boxShadow: '0 6px 20px rgba(0,0,0,.4)',
+          animation: 'adFaceIn .3s ease both',
+        }}
+      >
+        <div style={{
+          width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+          background: chip.color, boxShadow: `0 0 6px ${chip.color}`,
+          animation: chip.pulse && values[active] > 0 ? 'uaBlink 1.8s ease-in-out infinite' : 'none',
+        }}/>
+        <span style={{ fontFamily: MONO, fontSize: 16, fontWeight: 800,
+          color: chip.color, lineHeight: 1 }}>
+          {values[active]}
+        </span>
+        <span style={{ fontFamily: COND, fontSize: 10, fontWeight: 700,
+          letterSpacing: '.14em', color: 'rgba(255,255,255,.32)' }}>
+          {chip.sub}
+        </span>
+        <div style={{ display: 'flex', gap: 3, marginLeft: 2 }}>
+          {CHIPS.map((c, i) => (
+            <div key={i} style={{
+              width: i === active ? 10 : 3, height: 3, borderRadius: 2,
+              background: i === active ? chip.color : 'rgba(255,255,255,.18)',
+              transition: 'width .3s ease, background .3s ease',
+            }}/>
+          ))}
         </div>
-      ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Driver detail modal ──────────────────────────────────────────────────────
+function DriverModal({ driver, onClose }) {
+  if (!driver) return null;
+
+  const name = [driver.firstName, driver.lastName].filter(Boolean).join(' ')
+    || driver.name
+    || driver.email?.split('@')[0]
+    || `Driver ${(driver.id || '').slice(0, 6)}`;
+
+  const phone    = driver.phone || driver.phoneNumber;
+  const isOnline = driver.status === 'online';
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 50,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'rgba(0,0,0,.52)', backdropFilter: 'blur(4px)',
+      }}
+      onClick={onClose}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: 'rgba(3,7,4,.97)',
+          backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
+          border: '1.5px solid rgba(34,197,94,.18)', borderRadius: 22,
+          padding: '20px', width: 264, position: 'relative',
+          boxShadow: '0 24px 64px rgba(0,0,0,.7)',
+          animation: 'adFaceIn .3s cubic-bezier(.34,1.2,.64,1) both',
+        }}
+      >
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          style={{
+            position: 'absolute', top: 12, right: 12, width: 28, height: 28,
+            borderRadius: 9, border: '1px solid rgba(255,255,255,.1)',
+            background: 'rgba(255,255,255,.06)', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+            stroke="rgba(255,255,255,.5)" strokeWidth="2.5" strokeLinecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+
+        {/* Avatar + name */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, paddingRight: 34 }}>
+          <div style={{
+            width: 38, height: 38, borderRadius: 13, flexShrink: 0,
+            background: isOnline ? 'rgba(96,165,250,.14)' : 'rgba(255,255,255,.05)',
+            border: `1px solid ${isOnline ? 'rgba(96,165,250,.28)' : 'rgba(255,255,255,.1)'}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+              stroke={isOnline ? '#60A5FA' : 'rgba(255,255,255,.3)'}
+              strokeWidth="1.8" strokeLinecap="round">
+              <circle cx="12" cy="8" r="3.5"/>
+              <path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/>
+            </svg>
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: MONO, fontSize: 13, fontWeight: 800,
+              color: 'rgba(255,255,255,.9)',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {name}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3 }}>
+              <div style={{
+                width: 5, height: 5, borderRadius: '50%',
+                background: isOnline ? '#60A5FA' : 'rgba(255,255,255,.25)',
+                boxShadow: isOnline ? '0 0 5px rgba(96,165,250,.7)' : 'none',
+              }}/>
+              <span style={{ fontFamily: COND, fontSize: 9.5, fontWeight: 800,
+                letterSpacing: '.12em',
+                color: isOnline ? 'rgba(96,165,250,.7)' : 'rgba(255,255,255,.28)' }}>
+                {isOnline ? 'ONLINE' : 'OFFLINE'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* GPS coords */}
+        {typeof driver.lat === 'number' && (
+          <div style={{
+            fontFamily: MONO, fontSize: 9, color: 'rgba(255,255,255,.28)',
+            padding: '6px 10px', borderRadius: 8, marginBottom: 14,
+            background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.07)',
+          }}>
+            {driver.lat.toFixed(5)}, {driver.lng.toFixed(5)}
+          </div>
+        )}
+
+        <div style={{ height: 1, background: 'rgba(34,197,94,.1)', marginBottom: 14 }}/>
+
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <a
+            href={phone ? `tel:${phone}` : undefined}
+            onClick={!phone ? e => e.preventDefault() : undefined}
+            style={{
+              flex: 1, padding: '12px 0', borderRadius: 13, textDecoration: 'none',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+              background: phone ? 'rgba(74,222,128,.1)' : 'rgba(255,255,255,.04)',
+              border: `1px solid ${phone ? 'rgba(74,222,128,.28)' : 'rgba(255,255,255,.08)'}`,
+              cursor: phone ? 'pointer' : 'default',
+            }}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+              stroke={phone ? '#4ADE80' : 'rgba(255,255,255,.2)'}
+              strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 10.34 19.79 19.79 0 0 1 1.61 1.72 2 2 0 0 1 3.58 0h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 7.91a16 16 0 0 0 6.06 6.06l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92Z"/>
+            </svg>
+            <span style={{ fontFamily: COND, fontSize: 9.5, fontWeight: 800,
+              letterSpacing: '.12em', color: phone ? '#4ADE80' : 'rgba(255,255,255,.2)' }}>
+              {phone ? 'CALL' : 'NO PHONE'}
+            </span>
+          </a>
+
+          <button
+            style={{
+              flex: 1, padding: '12px 0', borderRadius: 13,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+              background: 'rgba(96,165,250,.1)', border: '1px solid rgba(96,165,250,.28)',
+              cursor: 'pointer',
+            }}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+              stroke="#60A5FA" strokeWidth="1.8" strokeLinecap="round">
+              <circle cx="12" cy="8" r="4"/>
+              <path d="M6 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/>
+            </svg>
+            <span style={{ fontFamily: COND, fontSize: 9.5, fontWeight: 800,
+              letterSpacing: '.12em', color: '#60A5FA' }}>
+              PROFILE
+            </span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -652,17 +431,18 @@ export default function Admin({
   scheduledRides = [],
   views          = [],
 }) {
-  const mapContainerRef  = useRef(null);
-  const mapRef           = useRef(null);
+  const mapContainerRef   = useRef(null);
+  const mapRef            = useRef(null);
   const searchMarkersRef  = useRef(new Map());
   const driverMarkersRef  = useRef(new Map());
   const driverStatusRef   = useRef(new Map());
   const accountMarkersRef = useRef(new Map());
+  const driverDataRef     = useRef(new Map()); // id → full driver object for modal
 
-  const [mapReady, setMapReady] = useState(false);
+  const [mapReady,       setMapReady]       = useState(false);
+  const [selectedDriver, setSelectedDriver] = useState(null);
 
-  const onlineCount  = useMemo(() => drivers.filter(d => d.status === 'online').length, [drivers]);
-  const driverCounts = useDriverCounts();
+  const onlineCount = useMemo(() => drivers.filter(d => d.status === 'online').length, [drivers]);
 
   // ── Init Mapbox ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -776,7 +556,12 @@ export default function Admin({
     if (!mapReady || !mapRef.current || !window.mapboxgl) return;
     const store     = driverMarkersRef.current;
     const statusMap = driverStatusRef.current;
+    const dataMap   = driverDataRef.current;
     const seen      = new Set();
+
+    // keep data map current for click handlers
+    drivers.forEach(d => { if (d.id) dataMap.set(d.id, d); });
+
     drivers.forEach(({ id, lat, lng, status: dStatus }) => {
       if (typeof lat !== 'number' || typeof lng !== 'number') return;
       seen.add(id);
@@ -789,6 +574,10 @@ export default function Admin({
         try { store.get(id).setLngLat([lng, lat]); } catch {}
       } else {
         const el = isOnline ? makeDriverDotEl() : makeOfflineDriverDotEl();
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          setSelectedDriver(dataMap.get(id) ?? null);
+        });
         const marker = new window.mapboxgl.Marker({ element: el, anchor: 'center' })
           .setLngLat([lng, lat]).addTo(mapRef.current);
         store.set(id, marker); statusMap.set(id, isOnline);
@@ -868,7 +657,6 @@ export default function Admin({
 
         {/* Admin status card */}
         <AdminStatusCard
-          driverCounts={driverCounts}
           onlineCount={onlineCount}
           accounts={accounts}
           searches={searches}
@@ -876,8 +664,23 @@ export default function Admin({
           views={views}
         />
 
-        {/* Map legend */}
-        {mapReady && <AdminLegend/>}
+        {/* Rotating status chips */}
+        {mapReady && (
+          <AdminBadge
+            onlineCount={onlineCount}
+            totalFleet={drivers.length}
+            searchCount={searches.length}
+            scheduledCount={scheduledRides.length}
+          />
+        )}
+
+        {/* Driver detail modal */}
+        {selectedDriver && (
+          <DriverModal
+            driver={selectedDriver}
+            onClose={() => setSelectedDriver(null)}
+          />
+        )}
 
       </div>
     </>
