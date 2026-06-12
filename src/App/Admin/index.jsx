@@ -1,9 +1,9 @@
 import { useRides }           from '@/App/UaTob/useRides';
-import { useSearch }          from "@/App/Drivers/useSearch";
-import { useAccounts }        from '@/App/UaTob/useAccounts';
+import { useSearch }          from "@/App/Admin/useSearch";
+import { useAccounts }        from '@/App/Admin/useAccounts';
 import { useCreateTrip }      from '@/App/UaTob/useCreateTrip';
-import { useDrivers }         from '@/App/UaTob/useDrivers';
-import { useScheduledRides }  from '@/App/UaTob/useScheduledRides';
+import { useDrivers }         from '@/App/Admin/useDrivers';
+import { useScheduledRides }  from '@/App/Admin/useScheduledRides';
 import Admin                  from '@/App/Admin/Admin';
 
 export default function App({ uid }) {
