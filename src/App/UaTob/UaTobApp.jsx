@@ -793,11 +793,11 @@ function RiderCompass({ bearing, onlineSinceMs, lastSearchAt, now }) {
 // ─── Boot terminal ────────────────────────────────────────────────────────────
 const BOOT_LINES = [
   { text: 'UATOB RIDER HUD v3.2.0', color: C.greenBright, delay: 0 },
-  { text: 'initializing mapbox engine…', color: C.inkMid,    delay: 220 },
-  { text: 'subscribing driver fleet…',   color: C.inkMid,    delay: 440 },
-  { text: 'acquiring gps fix…',          color: C.inkMid,    delay: 660 },
-  { text: 'loading ride context…',       color: C.inkMid,    delay: 880 },
-  { text: 'SYSTEM READY',                color: C.green,     delay: 1100 },
+  { text: 'initializing mapbox engine…', color: C.inkMid,    delay: 90 },
+  { text: 'subscribing driver fleet…',   color: C.inkMid,    delay: 180 },
+  { text: 'acquiring gps fix…',          color: C.inkMid,    delay: 270 },
+  { text: 'loading ride context…',       color: C.inkMid,    delay: 360 },
+  { text: 'SYSTEM READY',                color: C.green,     delay: 450 },
 ];
 function BootTerminal({ exiting }) {
   const [visible, setVisible] = useState([]);
@@ -812,7 +812,7 @@ function BootTerminal({ exiting }) {
       background: C.bg,
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       opacity: exiting ? 0 : 1,
-      transition: 'opacity .55s ease',
+      transition: 'opacity .3s ease',
       pointerEvents: exiting ? 'none' : 'all',
     }}>
       {[60, 110, 160].map((r, i) => (
@@ -1816,7 +1816,7 @@ export default function UaTob({
   // ── Boot screen — fade out then unmount after map is ready ────────────────
   useEffect(() => {
     if (!mapReady) return;
-    const t = setTimeout(() => setBootExited(true), 600);
+    const t = setTimeout(() => setBootExited(true), 350);
     return () => clearTimeout(t);
   }, [mapReady]);
 
