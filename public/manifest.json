@@ -1,0 +1,19 @@
+{
+  "name": "UaTob",
+  "short_name": "UaTob",
+  "description": "Orlando rideshare — pay cash, card, or Cash App. No surge pricing.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#030604",
+  "theme_color": "#22C55E",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

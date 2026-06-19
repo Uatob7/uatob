@@ -3,11 +3,13 @@ import { Html, Head, Main, NextScript } from "next/document";
 export default function Document() {
   return (
     <Html lang="en">
-      <Head />
-      <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
-      <link rel="icon" href="/favicon.ico" sizes="any"/>
-      <link rel="apple-touch-icon" href="/favicon.svg"/>
-      <meta name="theme-color" content="#030604"/>
+      <Head>
+        <link rel="manifest" href="/manifest.json"/>
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+        <link rel="icon" href="/favicon.ico" sizes="any"/>
+        <link rel="apple-touch-icon" href="/favicon.svg"/>
+        <meta name="theme-color" content="#22C55E"/>
+      </Head>
       <body className="antialiased">
         <Main />
         <NextScript />
