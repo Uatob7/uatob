@@ -1,5 +1,7 @@
 import Head from 'next/head';
-import UaTobApp from '@/App/UaTob';
+import dynamic from 'next/dynamic';
+
+const UaTobApp = dynamic(() => import('@/App/UaTob'), { ssr: false });
 
 const META = {
   title:       "UaTob — Rideshare | Cash, Card & Cash App",

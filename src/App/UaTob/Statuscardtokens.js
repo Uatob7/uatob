@@ -6,8 +6,9 @@ export const FACE_SCHEDULED = 2; // ScheduledCard — rider's upcoming scheduled
 export const FACE_NOTIFS    = 3; // NotificationsCard — push enable + alerts
 export const FACE_ACCOUNT   = 4; // AccountCard — profile / rewards
 export const FACE_TRIPS     = 5; // TripsCard — recent trip history
+export const FACE_DOWNLOAD  = 6; // DownloadAppCard — PWA install prompt
 
-export const FACE_COUNT = 6;
+export const FACE_COUNT = 7;
 
 // Order the cycle visits faces in.
 export const FACE_ORDER = [
@@ -17,6 +18,7 @@ export const FACE_ORDER = [
   FACE_NOTIFS,
   FACE_ACCOUNT,
   FACE_TRIPS,
+  FACE_DOWNLOAD,
 ];
 
 // Auto-advance interval (ms). Book face pauses cycling while a flow is active.
@@ -30,6 +32,7 @@ export const FACE_META = {
   [FACE_NOTIFS]:    { key: 'notifs',    label: 'Alerts',   color: '#34D399' },
   [FACE_ACCOUNT]:   { key: 'account',   label: 'Account',  color: '#FBBF24' },
   [FACE_TRIPS]:     { key: 'trips',     label: 'Trips',    color: '#F472B6' },
+  [FACE_DOWNLOAD]:  { key: 'download',  label: 'Install',  color: '#22D3EE' },
 };
 
 // ── Shared style tokens (imported by face components) ────────────────────

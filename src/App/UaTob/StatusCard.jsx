@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, Component } from 'react';
 import {
-  FACE_BOOK, FACE_SEARCHES, FACE_SCHEDULED, FACE_NOTIFS, FACE_ACCOUNT, FACE_TRIPS,
+  FACE_BOOK, FACE_SEARCHES, FACE_SCHEDULED, FACE_NOTIFS, FACE_ACCOUNT, FACE_TRIPS, FACE_DOWNLOAD,
   FACE_ORDER, FACE_CYCLE_MS, FACE_META,
 } from '@/App/UaTob/Statuscardtokens';
 
@@ -10,6 +10,7 @@ import ScheduledCard     from '@/App/UaTob/ScheduledCard';
 import NotificationsCard from '@/App/UaTob/NotificationsCard';
 import AccountCard       from '@/App/UaTob/AccountCard';
 import TripsCard         from '@/App/UaTob/TripsCard';
+import DownloadAppCard   from '@/App/UaTob/DownloadAppCard';
 
 class FaceBoundary extends Component {
   constructor(props) { super(props); this.state = { err: null }; }
@@ -83,6 +84,7 @@ export default function StatusCard({
 
   const handleCardClick = (e) => {
     if (!isClickable) return;
+    if (face === FACE_DOWNLOAD) return;
     if (e.target.closest('button, input, a, textarea, select')) return;
 
     // No uid → always open account; otherwise cycle normally
@@ -148,6 +150,7 @@ export default function StatusCard({
         {face === FACE_NOTIFS    && <NotificationsCard uid={uid} account={account} callSaveFcmToken={callSaveFcmToken} onActiveChange={setBookingActive} />}
         {face === FACE_ACCOUNT   && <AccountCard account={account} rides={rides} uid={uid} />}
         {face === FACE_TRIPS     && <TripsCard  uid={uid} now={now} />}
+        {face === FACE_DOWNLOAD  && <DownloadAppCard uid={uid} />}
       </div>
 
       {/* Dot pagination — hidden while a booking flow owns the card */}

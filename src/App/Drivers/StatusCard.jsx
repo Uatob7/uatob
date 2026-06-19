@@ -6,6 +6,7 @@ import RecentSearches   from '@/App/Drivers/RecentSearches.jsx';
 import ScheduledFace    from '@/App/Drivers/ScheduledFace.jsx';
 import StatusFace       from '@/App/Drivers/StatusFace.jsx';
 import NotificationFace from '@/App/Drivers/NotificationFace.jsx';
+import DownloadAppCard  from '@/App/UaTob/DownloadAppCard';
 
 // ── Helpers ────────────────────────────────────────────
 function tsToMillis(ts) {
@@ -17,8 +18,8 @@ function tsToMillis(ts) {
   return 0;
 }
 
-// Face order: 0=status, 1=scheduled, 2=stats, 3=achievements, 4=notification, 5=searches
-const FACES   = ['status', 'scheduled', 'stats', 'achievements', 'notification', 'searches'];
+// Face order: 0=status, 1=scheduled, 2=stats, 3=achievements, 4=notification, 5=searches, 6=download
+const FACES   = ['status', 'scheduled', 'stats', 'achievements', 'notification', 'searches', 'download'];
 const FACE_MS = 5500;
 
 export default function StatusCard({
@@ -131,6 +132,7 @@ export default function StatusCard({
     achievements: '#FB923C',
     notification: '#34D399',
     searches:     '#60A5FA',
+    download:     '#22D3EE',
   };
 
   // Scan-line accent — only color that changes per face
@@ -141,6 +143,7 @@ export default function StatusCard({
     achievements: 'rgba(251,146,60,.52)',
     notification: 'rgba(52,211,153,.52)',
     searches:     'rgba(96,165,250,.48)',
+    download:     'rgba(34,211,238,.52)',
   }[face];
 
   return (
@@ -211,6 +214,7 @@ export default function StatusCard({
             className="sc-face"
             key={face + rideIdx + badgeIdx}
             onClick={(e) => {
+              if (face === 'download') return;
               if (e.target.closest('button, input, a, textarea, select')) return;
               goFace((faceIdx + 1) % FACES.length);
             }}
@@ -288,6 +292,11 @@ export default function StatusCard({
                 loading={false}
                 limit={5}
               />
+            )}
+
+            {/* ════ FACE: DOWNLOAD ════ */}
+            {face === 'download' && (
+              <DownloadAppCard uid={driver?.uid ?? driver?.id} />
             )}
 
           </div>
