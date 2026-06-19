@@ -980,7 +980,7 @@ function OfflineStandby({ driver }) {
           fontFamily: MONO, fontSize: 10.5, color: 'rgba(255,255,255,.2)',
           maxWidth: 240, margin: '0 auto', lineHeight: 1.6,
         }}>
-          Flip your status to go live and start receiving ride requests across Orlando.
+          Flip your status to go live and start receiving ride requests in your area.
         </div>
       </div>
     </div>

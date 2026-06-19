@@ -38,7 +38,7 @@ function fmtCountdown(ts) {
 function parseCity(ride) {
   return ride.pickupCity
     || (ride.pickup ? ride.pickup.split(',').slice(-2, -1)[0]?.trim() : null)
-    || 'Orlando';
+    || 'Nearby';
 }
 
 const DOT = <span style={{ color:'rgba(165,180,252,.28)', fontSize:10, lineHeight:1 }}>·</span>;

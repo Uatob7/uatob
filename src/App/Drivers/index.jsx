@@ -31,6 +31,7 @@ import { useSaveFcmToken }    from "@/App/Drivers/useSaveFcmToken";
 import { getAuth, signOut } from 'firebase/auth';
 import { firebase_app } from "@/firebase/config";
 import DriverLoginModal from "@/App/Drivers/DriverLoginModal";
+import { useAuthContext } from '@/context/AuthContext';
 
 // ── Firestore ─────────────────────────────────────────────────────────
 const db = getFirestore(firebase_app);
@@ -436,7 +437,9 @@ function LocationPopup({ onAllow, onDeny, loading, error }) {
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────
 export default function UaTobDriverApp({ uid }) {
-  if (!uid) return <DriverLoginModal />;
+  const { authReady } = useAuthContext();
+  if (!authReady) return null;           // wait for Firebase auth to resolve
+  if (!uid)       return <DriverLoginModal />;
   return <DriverAppInner uid={uid} />;
 }
 

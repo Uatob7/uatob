@@ -65,7 +65,7 @@ function fmtCountdown(ts) {
 function parseCity(ride) {
   return ride.pickupCity
     || (ride.pickup ? ride.pickup.split(',').slice(-2, -1)[0]?.trim() : null)
-    || 'Orlando';
+    || 'Nearby';
 }
 
 // ── Scheduled Rides Drawer ────────────────────────────────────────────────────

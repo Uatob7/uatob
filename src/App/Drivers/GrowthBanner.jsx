@@ -37,7 +37,7 @@ export default function GrowthBanner({
 
   const share = async (e) => {
     e.stopPropagation();
-    const msg = `Drive with UaTob in Orlando — use my code ${referralCode} and we both get paid. ${shareUrl}`;
+    const msg = `Drive with UaTob — use my code ${referralCode} and we both get paid. ${shareUrl}`;
     try {
       if (navigator.share) await navigator.share({ title: "Drive with UaTob", text: msg, url: shareUrl });
       else { await navigator.clipboard.writeText(msg); flash(); }
@@ -90,7 +90,7 @@ export default function GrowthBanner({
             Bring a driver, earn ${driverBonus}
           </div>
           <div style={{ fontSize: 11.5, fontWeight: 600, color: C.textMid, lineHeight: 1.4, marginBottom: 11 }}>
-            They get ${refereeBonus} {trigger}. More drivers means shorter waits and more rides across Orlando.
+            They get ${refereeBonus} {trigger}. More drivers means shorter waits and more rides for everyone.
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>

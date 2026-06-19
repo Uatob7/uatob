@@ -9,18 +9,20 @@ export const AuthContext = createContext({});
 export const useAuthContext = () => useContext(AuthContext);
 
 export const AuthContextProvider = ({ children }) => {
-  const [uid, setUid] = useState(null);
+  const [uid,       setUid]       = useState(null);
+  const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUid(user ? user.uid : null);
+      setAuthReady(true);
     });
 
     return () => unsubscribe();
   }, []);
 
   return (
-    <AuthContext.Provider value={{ uid }}>
+    <AuthContext.Provider value={{ uid, authReady }}>
       {children}
     </AuthContext.Provider>
   );
