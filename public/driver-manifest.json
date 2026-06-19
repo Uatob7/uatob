@@ -7,7 +7,7 @@
   "background_color": "#030604",
   "theme_color": "#22C55E",
   "orientation": "portrait",
-  "scope": "/",
+  "scope": "/driver/",
   "icons": [
     {
       "src": "/icon-192.png",

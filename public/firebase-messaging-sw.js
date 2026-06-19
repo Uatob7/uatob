@@ -13,6 +13,14 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 // ─────────────────────────────────────────────
+// FETCH HANDLER — required for PWA installability
+// Pass-through: let the browser handle all requests normally.
+// ─────────────────────────────────────────────
+self.addEventListener("fetch", (event) => {
+  event.respondWith(fetch(event.request));
+});
+
+// ─────────────────────────────────────────────
 // BACKGROUND PUSH HANDLER
 // Intentionally empty — Firebase displays the
 // notification automatically from the FCM payload.

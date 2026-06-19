@@ -6,7 +6,7 @@ import RecentSearches   from '@/App/Drivers/RecentSearches.jsx';
 import ScheduledFace    from '@/App/Drivers/ScheduledFace.jsx';
 import StatusFace       from '@/App/Drivers/StatusFace.jsx';
 import NotificationFace from '@/App/Drivers/NotificationFace.jsx';
-import DownloadAppCard  from '@/App/UaTob/DownloadAppCard';
+import DriverDownloadCard from '@/App/Drivers/DriverDownloadCard';
 
 // ── Helpers ────────────────────────────────────────────
 function tsToMillis(ts) {
@@ -298,7 +298,7 @@ export default function StatusCard({
 
             {/* ════ FACE: DOWNLOAD ════ */}
             {face === 'download' && (
-              <DownloadAppCard uid={driver?.uid ?? driver?.id} collection="Drivers" />
+              <DriverDownloadCard uid={driver?.uid ?? driver?.id} />
             )}
 
           </div>
