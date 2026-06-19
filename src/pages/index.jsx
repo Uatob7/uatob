@@ -212,6 +212,9 @@ export default function Home({ uid }) {
         <meta name="twitter:image"       content={META.image} />
         <meta name="twitter:image:alt"   content="UaTob — Orlando Rideshare. Pay cash, card or Cash App." />
 
+        {/* ── PWA ── */}
+        <link rel="manifest" href="/manifest.json"/>
+
         {/* ── Icons ── */}
         <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
         <link rel="icon" href="/favicon.ico" sizes="any"/>
