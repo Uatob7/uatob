@@ -28,7 +28,9 @@ import { useDeclineRide }     from "@/App/Drivers/useDeclineRide";
 import { useUpdateTrip }      from "@/App/Drivers/useUpdateTrip";
 import { useSaveFcmToken }    from "@/App/Drivers/useSaveFcmToken";
 
+import { getAuth, signOut } from 'firebase/auth';
 import { firebase_app } from "@/firebase/config";
+import DriverLoginModal from "@/App/Drivers/DriverLoginModal";
 
 // ── Firestore ─────────────────────────────────────────────────────────
 const db = getFirestore(firebase_app);
@@ -434,14 +436,14 @@ function LocationPopup({ onAllow, onDeny, loading, error }) {
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────
 export default function UaTobDriverApp({ uid }) {
-  if (!uid) return null;
+  if (!uid) return <DriverLoginModal />;
   return <DriverAppInner uid={uid} />;
 }
 
 // ── DriverAppInner ────────────────────────────────────────────────────
 function DriverAppInner({ uid }) {
   // ── Data hooks ────────────────────────────────────────────────────
-  const { driver }                        = useDriverAccount(uid);
+  const { driver, loading: driverLoading } = useDriverAccount(uid);
   const { accounts }                      = useAccounts();
   const { rides, loading: ridesLoading }  = useDriverRides(uid);
   const { requests, loading: reqLoading } = useIncomingRequest(uid);
@@ -773,6 +775,12 @@ function DriverAppInner({ uid }) {
       </button>
     );
   };
+
+  // ── Not-a-driver guard ────────────────────────────────────────────
+  if (!driverLoading && !driver) {
+    signOut(getAuth(firebase_app)).catch(() => {});
+    return <DriverLoginModal systemError="This account is not registered as a UaTob driver." />;
+  }
 
   // ── Render ────────────────────────────────────────────────────────
   return (
