@@ -49,7 +49,8 @@ export default function DownloadAppCard({ uid, collection = 'Accounts' }) {
       if (accepted) setInstalled(true);
       setPrompt(null);
       setLoading(false);
-    } else if (isIos()) {
+    } else {
+      // iOS or browser hasn't fired beforeinstallprompt yet — show steps
       setShowSteps(true);
       await saveRecord(uid, collection, false);
     }
@@ -121,13 +122,17 @@ export default function DownloadAppCard({ uid, collection = 'Accounts' }) {
         {loading ? 'Installing…' : '⬇ Install App'}
       </button>
 
-      {/* iOS only — steps revealed after button tap */}
-      {showSteps && ios && (
+      {/* Steps revealed after button tap when native prompt isn't available */}
+      {showSteps && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 7, animation: 'uaSlideUp .3s ease both' }}>
           <p style={{ fontFamily: COND, fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,.35)', margin: 0, letterSpacing: '.08em', textTransform: 'uppercase' }}>
-            In Safari:
+            {ios ? 'In Safari:' : 'In your browser:'}
           </p>
-          {iosSteps.map(({ icon, text }, i) => (
+          {(ios ? iosSteps : [
+            { icon: '⋮',  text: 'Tap the three-dot menu in your browser' },
+            { icon: '➕', text: 'Tap "Add to Home Screen" or "Install App"' },
+            { icon: '✅', text: 'Tap "Add" to confirm' },
+          ]).map(({ icon, text }, i) => (
             <div key={i} style={{
               display: 'flex', alignItems: 'center', gap: 10,
               padding: '8px 10px', borderRadius: 10,

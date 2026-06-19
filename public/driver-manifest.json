@@ -1,0 +1,19 @@
+{
+  "name": "UaTob Driver",
+  "short_name": "UaTob Driver",
+  "description": "UaTob driver app — accept rides, track earnings, go online.",
+  "start_url": "/driver/app",
+  "display": "standalone",
+  "background_color": "#030604",
+  "theme_color": "#22C55E",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
