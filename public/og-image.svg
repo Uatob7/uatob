@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <!-- Background -->
+  <rect width="1200" height="630" fill="#030604"/>
+
+  <!-- Subtle grid -->
+  <defs>
+    <pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse">
+      <path d="M 60 0 L 0 0 0 60" fill="none" stroke="rgba(34,197,94,0.05)" stroke-width="1"/>
+    </pattern>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#22C55E" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#030604" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#grid)"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+
+  <!-- Corner brackets -->
+  <path d="M40 40 L40 90 M40 40 L90 40"   stroke="rgba(74,222,128,.35)" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M1160 40 L1160 90 M1160 40 L1110 40" stroke="rgba(74,222,128,.35)" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M40 590 L40 540 M40 590 L90 590"    stroke="rgba(74,222,128,.35)" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M1160 590 L1160 540 M1160 590 L1110 590" stroke="rgba(74,222,128,.35)" stroke-width="2" fill="none" stroke-linecap="round"/>
+
+  <!-- Icon mark -->
+  <rect x="440" y="140" width="130" height="130" rx="28" fill="#050A06"/>
+  <rect x="440" y="140" width="130" height="130" rx="28" fill="#22C55E" opacity="0.08" stroke="#22C55E" stroke-width="1.5" stroke-opacity="0.2"/>
+  <path d="M464 172 L464 228 Q464 255 505 255 Q546 255 546 228 L546 172"
+    stroke="#4ADE80" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <circle cx="505" cy="255" r="6" fill="#22C55E"/>
+
+  <!-- Wordmark -->
+  <text x="600" y="235"
+    font-family="'Barlow Condensed','Arial Narrow',Arial,sans-serif"
+    font-weight="800" font-size="96" letter-spacing="12"
+    fill="#FFFFFF">UATOB</text>
+
+  <!-- Tagline -->
+  <text x="600" y="290"
+    font-family="'Barlow Condensed','Arial Narrow',Arial,sans-serif"
+    font-weight="600" font-size="22" letter-spacing="6"
+    fill="#4ADE80" opacity="0.8">ORLANDO RIDESHARE</text>
+
+  <!-- Sub-line -->
+  <text x="600" y="330"
+    font-family="'JetBrains Mono','Courier New',monospace"
+    font-weight="400" font-size="14" letter-spacing="2"
+    fill="rgba(255,255,255,0.38)">Cash · Card · Cash App · No Surge</text>
+
+  <!-- Bottom bar -->
+  <rect x="0" y="610" width="1200" height="20" fill="rgba(34,197,94,0.06)"/>
+  <text x="600" y="624"
+    font-family="'Barlow Condensed','Arial Narrow',Arial,sans-serif"
+    font-weight="600" font-size="11" letter-spacing="3"
+    fill="rgba(74,222,128,0.45)" text-anchor="middle">UATOB.COM</text>
+</svg>

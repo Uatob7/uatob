@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="7" fill="#030604"/>
+  <rect width="32" height="32" rx="7" fill="#22C55E" opacity="0.07"/>
+  <!-- U shape -->
+  <path d="M8 7 L8 20 Q8 27 16 27 Q24 27 24 20 L24 7"
+    stroke="#4ADE80" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Road dot -->
+  <circle cx="16" cy="27" r="1.4" fill="#22C55E"/>
+</svg>

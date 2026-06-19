@@ -7,7 +7,7 @@ const META = {
   title:       "UaTob — Rideshare | Cash, Card & Cash App",
   description: "Book a ride in Orlando in under 30 seconds. Pay cash, card, or Cash App — no app download, no card required to see prices. No surge pricing. Serving MCO, Disney, Universal, I-Drive, UCF & downtown Orlando.",
   url:         "https://www.uatob.com",
-  image:       "https://www.uatob.com/og-image.png",
+  image:       "https://www.uatob.com/og-image.svg",
   siteName:    "UaTob",
   locale:      "en_US",
   twitter:     "@uatob",
@@ -213,8 +213,9 @@ export default function Home({ uid }) {
         <meta name="twitter:image:alt"   content="UaTob — Orlando Rideshare. Pay cash, card or Cash App." />
 
         {/* ── Icons ── */}
-        <link rel="icon"             href="/favicon.ico" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+        <link rel="icon" href="/favicon.ico" sizes="any"/>
+        <link rel="apple-touch-icon" href="/favicon.svg"/>
 
         {/* ── Geo SEO ── */}
         <meta name="geo.region"    content="US-FL" />
