@@ -55,15 +55,19 @@ export default function StatusCard({
   const authActive  = face === FACE_ACCOUNT && !uid;
   const flowBlocked = bookingActive || authActive || cyclePaused;
 
+  const activeOrder = account?.pwaDownloaded
+    ? FACE_ORDER.filter(f => f !== FACE_DOWNLOAD)
+    : FACE_ORDER;
+
   const startCycle = useCallback(() => {
     clearInterval(cycleRef.current);
     if (flowBlocked) return;
     cycleRef.current = setInterval(() => {
-      const idx  = FACE_ORDER.indexOf(face);
-      const next = FACE_ORDER[(idx + 1) % FACE_ORDER.length];
+      const idx  = activeOrder.indexOf(face);
+      const next = activeOrder[(idx + 1) % activeOrder.length];
       onFaceChange?.(next);
     }, FACE_CYCLE_MS);
-  }, [face, flowBlocked, onFaceChange]);
+  }, [face, flowBlocked, onFaceChange, activeOrder]);
 
   useEffect(() => {
     startCycle();
@@ -90,7 +94,7 @@ export default function StatusCard({
     // No uid → always open account; otherwise cycle normally
     const nextFace = !uid
       ? FACE_ACCOUNT
-      : FACE_ORDER[(FACE_ORDER.indexOf(face) + 1) % FACE_ORDER.length];
+      : activeOrder[(activeOrder.indexOf(face) + 1) % activeOrder.length];
 
     if (nextFace === face) return;
 
@@ -156,7 +160,7 @@ export default function StatusCard({
       {/* Dot pagination — hidden while a booking flow owns the card */}
       {!bookingActive && (
         <div style={{ display: 'flex', justifyContent: 'center', gap: 6, padding: '0 0 14px' }}>
-          {FACE_ORDER.map((f) => {
+          {activeOrder.map((f) => {
             const m = FACE_META[f];
             const isActive = f === face;
             return (

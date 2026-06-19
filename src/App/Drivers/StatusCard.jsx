@@ -80,7 +80,9 @@ export default function StatusCard({
   const hasScheduled = upcomingRides.length > 0;
   const currentRide  = upcomingRides[rideIdx] ?? null;
 
-  const activeFaces = FACES;
+  const activeFaces = driver?.pwaDownloaded
+    ? FACES.filter(f => f !== 'download')
+    : FACES;
 
   // ── Auto-cycle ─────────────────────────────────────
   const startCycle = useCallback(() => {
