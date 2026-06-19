@@ -1,6 +1,5 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { onAuthStateChanged, getAuth } from 'firebase/auth';
-import Loader from '@/App/UaTob/Loader';
 import { firebase_app } from '@/firebase/config'; // Ensure this path is correct
 
 const auth = getAuth(firebase_app);
@@ -11,16 +10,10 @@ export const useAuthContext = () => useContext(AuthContext);
 
 export const AuthContextProvider = ({ children }) => {
   const [uid, setUid] = useState(null);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setUid(user.uid);
-      } else {
-        setUid(null);
-      }
-      setLoading(false);
+      setUid(user ? user.uid : null);
     });
 
     return () => unsubscribe();
@@ -28,7 +21,7 @@ export const AuthContextProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider value={{ uid }}>
-      {loading ? <Loader /> : children}
+      {children}
     </AuthContext.Provider>
   );
 };

@@ -793,62 +793,6 @@ function RiderCompass({ bearing, onlineSinceMs, lastSearchAt, now }) {
   );
 }
 
-// ─── Boot terminal ────────────────────────────────────────────────────────────
-const BOOT_LINES = [
-  { text: 'UATOB RIDER HUD v3.2.0', color: C.greenBright, delay: 0 },
-  { text: 'initializing mapbox engine…', color: C.inkMid,    delay: 35 },
-  { text: 'subscribing driver fleet…',   color: C.inkMid,    delay: 70 },
-  { text: 'acquiring gps fix…',          color: C.inkMid,    delay: 105 },
-  { text: 'loading ride context…',       color: C.inkMid,    delay: 140 },
-  { text: 'SYSTEM READY',                color: C.green,     delay: 175 },
-];
-function BootTerminal({ exiting }) {
-  const [visible, setVisible] = useState([]);
-  useEffect(() => {
-    BOOT_LINES.forEach((line, i) => {
-      setTimeout(() => setVisible(v => [...v, i]), line.delay);
-    });
-  }, []);
-  return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 9999,
-      background: C.bg,
-      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      opacity: exiting ? 0 : 1,
-      transition: 'opacity .2s ease',
-      pointerEvents: exiting ? 'none' : 'all',
-    }}>
-      {[60, 110, 160].map((r, i) => (
-        <div key={i} style={{
-          position: 'absolute', width: r * 2, height: r * 2, borderRadius: '50%',
-          border: '1px solid rgba(34,197,94,.07)',
-          animation: `uaRingPulse ${2.6 + i * 0.5}s ease-in-out ${i * 0.35}s infinite`,
-        }}/>
-      ))}
-      <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 6, minWidth: 260 }}>
-        <div style={{ fontFamily: MONO, fontSize: 9, fontWeight: 700, color: 'rgba(74,222,128,.28)', letterSpacing: '.18em', marginBottom: 8 }}>
-          UATOB · RIDER SYSTEM
-        </div>
-        {BOOT_LINES.map((line, i) => visible.includes(i) && (
-          <div key={i} style={{
-            fontFamily: MONO, fontSize: 11, fontWeight: 700,
-            color: line.color, letterSpacing: '.06em',
-            animation: 'uaTermLine .25s ease both',
-            display: 'flex', alignItems: 'center', gap: 10,
-          }}>
-            <span style={{ color: C.greenBright, opacity: .4, fontSize: 9 }}>{'›'}</span>
-            <span>{line.text}</span>
-            {i === visible.length - 1 && i < BOOT_LINES.length - 1 && (
-              <span style={{ width: 7, height: 13, background: C.greenBright,
-                display: 'inline-block', animation: 'uaCursor .7s step-end infinite', borderRadius: 1 }}/>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ─── Edge contact chip (off-screen driver/search indicators) ─────────────────
 function EdgeContact({ angle, label, color, icon }) {
   const MARGIN = 24;
@@ -1315,7 +1259,6 @@ export default function UaTob({
 
   // ── State ─────────────────────────────────────────────────────────────────
   const [mapReady,       setMapReady]       = useState(false);
-  const [bootExited,     setBootExited]     = useState(false);
   const [now,            setNow]            = useState(Date.now());
   const [face,           setFace]           = useState(FACE_BOOK);
   const [mapBearing,     setMapBearing]     = useState(-20);
@@ -1816,13 +1759,6 @@ export default function UaTob({
     driverMarkersRef.current.clear();
   }, [mapReady]);
 
-  // ── Boot screen — fade out then unmount after map is ready ────────────────
-  useEffect(() => {
-    if (!mapReady) return;
-    const t = setTimeout(() => setBootExited(true), 220);
-    return () => clearTimeout(t);
-  }, [mapReady]);
-
   // ── Radar sweep RAF ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapReady) { cancelAnimationFrame(rafRef.current); return; }
@@ -1892,9 +1828,6 @@ export default function UaTob({
           position: 'absolute', inset: 0, pointerEvents: 'none',
           opacity: mapReady ? 1 : 0, transition: 'opacity .7s ease',
         }}/>
-
-        {/* Boot terminal — full-screen until map ready, then fades out */}
-        {!bootExited && <BootTerminal exiting={mapReady}/>}
 
         {/* Layers */}
         <AtmosphereOverlay/>
