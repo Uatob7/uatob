@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Star, LocateFixed, Loader2, X, AlertCircle, Bell } from "lucide-react";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
-import { getFirestore, doc, onSnapshot } from "firebase/firestore";
+import { getFirestore } from "firebase/firestore";
 
 import CSS               from '@/App/Drivers/styles.js';
 import { C }             from '@/App/Drivers/constants.js';
@@ -434,26 +434,7 @@ function LocationPopup({ onAllow, onDeny, loading, error }) {
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────
 export default function UaTobDriverApp({ uid }) {
-  const [driverExists, setDriverExists] = useState(null);
-
-  useEffect(() => {
-    if (!uid) { window.location.replace("https://uatob.com"); return; }
-    let unsub = null;
-    try {
-      const ref = doc(db, "Drivers", uid);
-      unsub = onSnapshot(
-        ref,
-        (snap) => {
-          if (!snap.exists()) { setDriverExists(false); window.location.replace("https://uatob.com"); }
-          else { setDriverExists(true); }
-        },
-        (err) => { console.error("[UaTob] Driver doc subscribe failed:", err); setDriverExists(false); window.location.replace("https://uatob.com"); }
-      );
-    } catch (err) { console.error("[UaTob] Failed to subscribe to driver doc:", err); setDriverExists(false); window.location.replace("https://uatob.com"); }
-    return () => { try { if (typeof unsub === "function") unsub(); } catch (err) { console.warn("[UaTob] unsub cleanup threw:", err); } };
-  }, [uid]);
-
-  if (driverExists !== true) return null;
+  if (!uid) return null;
   return <DriverAppInner uid={uid} />;
 }
 
