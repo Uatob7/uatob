@@ -296,7 +296,7 @@ export default function StatusCard({
 
             {/* ════ FACE: DOWNLOAD ════ */}
             {face === 'download' && (
-              <DownloadAppCard uid={driver?.uid ?? driver?.id} />
+              <DownloadAppCard uid={driver?.uid ?? driver?.id} collection="Drivers" />
             )}
 
           </div>

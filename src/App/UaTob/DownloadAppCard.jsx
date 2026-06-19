@@ -26,17 +26,17 @@ function isInStandaloneMode() {
     || window.navigator.standalone === true;
 }
 
-async function saveInstallRecord(uid, downloaded) {
+async function saveInstallRecord(uid, collection, downloaded) {
   if (!uid) return;
   try {
-    await updateDoc(doc(db, 'Accounts', uid), {
+    await updateDoc(doc(db, collection, uid), {
       pwaInstallPromptedAt: new Date().toUTCString(),
       pwaDownloaded: downloaded,
     });
   } catch {}
 }
 
-export default function DownloadAppCard({ uid }) {
+export default function DownloadAppCard({ uid, collection = 'Accounts' }) {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [installed,      setInstalled]      = useState(false);
   const [installing,     setInstalling]     = useState(false);
@@ -59,7 +59,7 @@ export default function DownloadAppCard({ uid }) {
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
     const downloaded = outcome === 'accepted';
-    await saveInstallRecord(uid, downloaded);
+    await saveInstallRecord(uid, collection, downloaded);
     if (downloaded) setInstalled(true);
     setDeferredPrompt(null);
     setInstalling(false);
