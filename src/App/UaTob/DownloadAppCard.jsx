@@ -23,27 +23,47 @@ async function saveRecord(uid, collection, downloaded) {
 }
 
 export default function DownloadAppCard({ uid, collection = 'Accounts' }) {
+  const [prompt,    setPrompt]    = useState(null);
   const [installed, setInstalled] = useState(false);
   const [loading,   setLoading]   = useState(false);
 
   useEffect(() => {
-    if (isStandalone()) { setInstalled(true); return; }
-    window.addEventListener('appinstalled', () => setInstalled(true));
+    // Pick up any prompt that already fired before this component mounted
+    if (window.__pwaInstallPrompt) {
+      setPrompt(window.__pwaInstallPrompt);
+    }
+
+    // Also listen for prompts that fire after mount
+    const handler = (e) => {
+      e.preventDefault();
+      window.__pwaInstallPrompt = e;
+      setPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+
+    // Already installed
+    if (isStandalone()) { setInstalled(true); }
+    const onInstalled = () => setInstalled(true);
+    window.addEventListener('appinstalled', onInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler);
+      window.removeEventListener('appinstalled', onInstalled);
+    };
   }, []);
 
   const handleClick = async () => {
-    const p = window.__pwaInstallPrompt;
-    if (!p) return;
+    if (!prompt) return;
     setLoading(true);
-    p.prompt();
-    const { outcome } = await p.userChoice;
+    prompt.prompt();
+    const { outcome } = await prompt.userChoice;
     const accepted = outcome === 'accepted';
     await saveRecord(uid, collection, accepted);
     if (accepted) {
       setInstalled(true);
+      setPrompt(null);
       window.__pwaInstallPrompt = null;
     }
-    // On dismiss: keep the prompt so the button works on next tap
     setLoading(false);
   };
 
@@ -64,6 +84,8 @@ export default function DownloadAppCard({ uid, collection = 'Accounts' }) {
       </div>
     );
   }
+
+  const ready = !!prompt;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -87,24 +109,31 @@ export default function DownloadAppCard({ uid, collection = 'Accounts' }) {
         Add UaTob to your home screen — no app store, one tap to book.
       </p>
 
-      {/* Install button — always visible */}
+      {/* Install button */}
       <button
         onClick={handleClick}
-        disabled={loading}
+        disabled={loading || !ready}
         style={{
           width: '100%', padding: '13px 0', borderRadius: 13,
-          background: loading ? 'rgba(34,197,94,.15)' : '#22C55E',
-          border: '1.5px solid #22C55E',
-          cursor: loading ? 'not-allowed' : 'pointer',
+          background: loading
+            ? 'rgba(34,197,94,.15)'
+            : ready
+              ? '#22C55E'
+              : 'rgba(255,255,255,.06)',
+          border: ready ? '1.5px solid #22C55E' : '1.5px solid rgba(255,255,255,.1)',
+          cursor: loading || !ready ? 'not-allowed' : 'pointer',
           fontFamily: COND, fontSize: 15, fontWeight: 800, letterSpacing: '.06em',
-          color: loading ? '#4ADE80' : '#030604',
+          color: loading
+            ? '#4ADE80'
+            : ready
+              ? '#030604'
+              : 'rgba(255,255,255,.3)',
           transition: 'all .18s',
-          boxShadow: loading ? 'none' : '0 0 18px rgba(34,197,94,.3)',
+          boxShadow: ready && !loading ? '0 0 18px rgba(34,197,94,.3)' : 'none',
         }}
       >
-        {loading ? 'Installing…' : '⬇ Install App'}
+        {loading ? 'Installing…' : ready ? '⬇ Install App' : 'Preparing install…'}
       </button>
-
 
     </div>
   );
