@@ -1,4 +1,12 @@
 import "@/styles/globals.css";
+
+// Capture beforeinstallprompt as early as possible — before any component mounts
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    window.__pwaInstallPrompt = e;
+  });
+}
 import Head from "next/head";
 import { Elements } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";

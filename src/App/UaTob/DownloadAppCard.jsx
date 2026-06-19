@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { doc, updateDoc, getFirestore } from 'firebase/firestore';
+import { doc, updateDoc, getFirestore, serverTimestamp } from 'firebase/firestore';
 import { firebase_app } from '@/firebase/config';
 
 const db = getFirestore(firebase_app);
@@ -7,9 +7,6 @@ const db = getFirestore(firebase_app);
 const MONO = "'JetBrains Mono','SFMono-Regular',monospace";
 const COND = "'Barlow Condensed','Barlow',sans-serif";
 
-function isIos() {
-  return /iphone|ipad|ipod/i.test(navigator.userAgent);
-}
 function isStandalone() {
   return window.matchMedia('(display-mode: standalone)').matches
     || window.navigator.standalone === true;
@@ -19,50 +16,36 @@ async function saveRecord(uid, collection, downloaded) {
   if (!uid) return;
   try {
     await updateDoc(doc(db, collection, uid), {
-      pwaInstallPromptedAt: new Date().toUTCString(),
+      pwaInstallPromptedAt: serverTimestamp(),
       pwaDownloaded: downloaded,
     });
   } catch {}
 }
 
 export default function DownloadAppCard({ uid, collection = 'Accounts' }) {
-  const [prompt,     setPrompt]     = useState(null);   // beforeinstallprompt event
-  const [installed,  setInstalled]  = useState(false);
-  const [loading,    setLoading]    = useState(false);
-  const [showSteps,  setShowSteps]  = useState(false);
+  const [installed, setInstalled] = useState(false);
+  const [loading,   setLoading]   = useState(false);
 
   useEffect(() => {
     if (isStandalone()) { setInstalled(true); return; }
-    const onPrompt = (e) => { e.preventDefault(); setPrompt(e); };
-    window.addEventListener('beforeinstallprompt', onPrompt);
     window.addEventListener('appinstalled', () => setInstalled(true));
-    return () => window.removeEventListener('beforeinstallprompt', onPrompt);
   }, []);
 
   const handleClick = async () => {
-    if (prompt) {
-      setLoading(true);
-      prompt.prompt();
-      const { outcome } = await prompt.userChoice;
-      const accepted = outcome === 'accepted';
-      await saveRecord(uid, collection, accepted);
-      if (accepted) setInstalled(true);
-      setPrompt(null);
-      setLoading(false);
-    } else {
-      // iOS or browser hasn't fired beforeinstallprompt yet — show steps
-      setShowSteps(true);
-      await saveRecord(uid, collection, false);
+    const p = window.__pwaInstallPrompt;
+    if (!p) return;
+    setLoading(true);
+    p.prompt();
+    const { outcome } = await p.userChoice;
+    const accepted = outcome === 'accepted';
+    await saveRecord(uid, collection, accepted);
+    if (accepted) {
+      setInstalled(true);
+      window.__pwaInstallPrompt = null;
     }
+    // On dismiss: keep the prompt so the button works on next tap
+    setLoading(false);
   };
-
-  const ios = isIos();
-
-  const iosSteps = [
-    { icon: '⬆️', text: 'Tap the Share button at the bottom of Safari' },
-    { icon: '➕', text: 'Tap "Add to Home Screen"' },
-    { icon: '✅', text: 'Tap "Add" to confirm' },
-  ];
 
   if (installed) {
     return (
@@ -122,30 +105,6 @@ export default function DownloadAppCard({ uid, collection = 'Accounts' }) {
         {loading ? 'Installing…' : '⬇ Install App'}
       </button>
 
-      {/* Steps revealed after button tap when native prompt isn't available */}
-      {showSteps && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 7, animation: 'uaSlideUp .3s ease both' }}>
-          <p style={{ fontFamily: COND, fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,.35)', margin: 0, letterSpacing: '.08em', textTransform: 'uppercase' }}>
-            {ios ? 'In Safari:' : 'In your browser:'}
-          </p>
-          {(ios ? iosSteps : [
-            { icon: '⋮',  text: 'Tap the three-dot menu in your browser' },
-            { icon: '➕', text: 'Tap "Add to Home Screen" or "Install App"' },
-            { icon: '✅', text: 'Tap "Add" to confirm' },
-          ]).map(({ icon, text }, i) => (
-            <div key={i} style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: '8px 10px', borderRadius: 10,
-              background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.08)',
-            }}>
-              <span style={{ fontSize: 15, flexShrink: 0 }}>{icon}</span>
-              <span style={{ fontFamily: COND, fontSize: 12, color: 'rgba(255,255,255,.55)', lineHeight: 1.4 }}>
-                {text}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
 
     </div>
   );
