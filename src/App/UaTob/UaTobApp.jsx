@@ -33,7 +33,6 @@ import {
   FACE_BOOK, FACE_SEARCHES, FACE_SCHEDULED,
   FACE_NOTIFS, FACE_ACCOUNT, FACE_TRIPS, FACE_COUNT,
 } from '@/App/UaTob/Statuscardtokens';
-import { useDriverCounts } from '@/App/UaTob/useDriverCounts';
 import StatusCard from '@/App/UaTob/StatusCard';
 import RiderSupportOverlay from '@/App/UaTob/RiderSupportOverlay';
 import { useRiderSupportUnread } from '@/App/UaTob/useRiderSupportUnread';
@@ -286,19 +285,31 @@ function useAssignedDriverLive(driverUid) {
   return driverDoc;
 }
 
-/** Fleet — online drivers with positions */
-function useOnlineDrivers() {
-  const [drivers, setDrivers]     = useState([]);
-  const [counts,  setCounts]      = useState({ online: 0, total: 0 });
+/** Fleet — a single source for online driver positions + fleet counts.
+ *  Replaces the old useOnlineDrivers + useDriverCounts (which together ran
+ *  a full-collection scan plus duplicate online queries). Two filtered
+ *  listeners only, and position updates are throttled so a fleet full of
+ *  drivers pinging GPS doesn't re-render the whole app on every tick. */
+const FLEET_THROTTLE_MS = 1500;
+
+function useFleet() {
+  const [drivers, setDrivers] = useState([]);
+  const [counts,  setCounts]  = useState({ online: 0, offline: 0, total: 0 });
+  const lastPushRef = useRef(0);
+  const pendingRef  = useRef(null);
+  const timerRef    = useRef(null);
 
   useEffect(() => {
-    // Total count from full collection
-    const unsubAll = onSnapshot(collection(db, 'Drivers'), snap => {
-      setCounts(c => ({ ...c, total: snap.size }));
-    });
-    // Online positions
-    const q = query(collection(db, 'Drivers'), where('status', '==', 'online'));
-    const unsubOnline = onSnapshot(q, snap => {
+    const onlineQ  = query(collection(db, 'Drivers'), where('status', '==', 'online'));
+    const offlineQ = query(collection(db, 'Drivers'), where('status', '==', 'offline'));
+
+    const flush = () => {
+      timerRef.current = null;
+      lastPushRef.current = Date.now();
+      if (pendingRef.current) { setDrivers(pendingRef.current); pendingRef.current = null; }
+    };
+
+    const unsubOnline = onSnapshot(onlineQ, snap => {
       const positions = [];
       snap.forEach(d => {
         const data = d.data();
@@ -306,10 +317,23 @@ function useOnlineDrivers() {
           positions.push({ id: d.id, lat: data.lat, lng: data.lng, heading: data.heading ?? null });
         }
       });
-      setCounts(c => ({ ...c, online: snap.size }));
-      setDrivers(positions);
+      setCounts(c => (c.online === snap.size ? c : { ...c, online: snap.size, total: snap.size + c.offline }));
+
+      // throttle the (frequent) position pushes
+      pendingRef.current = positions;
+      const elapsed = Date.now() - lastPushRef.current;
+      if (elapsed >= FLEET_THROTTLE_MS) { flush(); }
+      else if (!timerRef.current)      { timerRef.current = setTimeout(flush, FLEET_THROTTLE_MS - elapsed); }
     });
-    return () => { unsubAll(); unsubOnline(); };
+
+    const unsubOffline = onSnapshot(offlineQ, snap => {
+      setCounts(c => (c.offline === snap.size ? c : { ...c, offline: snap.size, total: c.online + snap.size }));
+    });
+
+    return () => {
+      unsubOnline(); unsubOffline();
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
   }, []);
 
   return { drivers, counts };
@@ -1230,7 +1254,6 @@ export default function UaTob({
   createTrip,
   trips           = [],
   scheduledRides  = [],
-  drivers         = [],
   account         = null,
   activeRide:     explicitActiveRide = null,
   onCancelRide    = () => {},
@@ -1281,8 +1304,7 @@ export default function UaTob({
   const { rider, fix, live } = useLiveRiderPosition(uid, account, trackLocation);
   const assignedDriverUid     = activeRide?.driverInfo?.uid ?? activeRide?.driverUid ?? null;
   const driverDoc             = useAssignedDriverLive(assignedDriverUid);
-  const { drivers: onlineDrivers } = useOnlineDrivers();
-  const driverCounts               = useDriverCounts();
+  const { drivers: onlineDrivers, counts: driverCounts } = useFleet();
 
   const lastSearchAt = useMemo(() => {
     const mine = searches.filter(s => s.uid === uid);
@@ -1880,7 +1902,6 @@ export default function UaTob({
               trips={trips}
               searches={searches}
               scheduledRides={scheduledRides}
-              drivers={drivers}
               now={now}
               onBook={handleBook}
               onRequestLocation={() => setLocRequested(true)}

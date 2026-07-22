@@ -38,7 +38,6 @@ export default function StatusCard({
   scheduledRides = [],
   trips = [],
   account = null,
-  drivers = [],
   now,
   uid,
   createTrip,
