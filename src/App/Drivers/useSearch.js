@@ -6,6 +6,7 @@ import {
   collection,
   onSnapshot,
   orderBy,
+  limit,
   query,
 } from "firebase/firestore";
 import { firebase_app } from "@/firebase/config";
@@ -18,9 +19,12 @@ export function useSearch() {
   const [error,    setError]    = useState(null);
 
   useEffect(() => {
+    // Only the most recent activity feeds the ambient heatmap (which decays
+    // over ~3h), so cap the stream instead of downloading the whole history.
     const q = query(
       collection(db, "Search"),
-      orderBy("createdAt", "desc")
+      orderBy("createdAt", "desc"),
+      limit(200)
     );
 
     const unsubscribe = onSnapshot(
