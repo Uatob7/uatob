@@ -49,8 +49,11 @@ export default function StatusCard({
   const [cyclePaused,   setCyclePaused]   = useState(false);
   const [pressing,      setPressing]      = useState(false);
   const [flipPhase,     setFlipPhase]     = useState(null); // null | 'out' | 'in'
+  const [navDir,        setNavDir]        = useState(1);    // 1 = next (left swipe), -1 = prev (right swipe)
   const cycleRef = useRef(null);
   const flipRef  = useRef(null);
+  const dragRef  = useRef(null);   // { x, y } pointer-down origin
+  const swipedRef = useRef(false); // set when a swipe consumed the gesture (suppresses the tap)
 
   const authActive  = face === FACE_ACCOUNT && !uid;
   const flowBlocked = bookingActive || authActive || cyclePaused;
@@ -86,18 +89,10 @@ export default function StatusCard({
 
   const isClickable = !bookingActive && !cyclePaused;
 
-  const handleCardClick = (e) => {
-    if (!isClickable) return;
-    if (face === FACE_DOWNLOAD) return;
-    if (e.target.closest('button, input, a, textarea, select')) return;
-
-    // No uid → always open account; otherwise cycle normally
-    const nextFace = !uid
-      ? FACE_ACCOUNT
-      : activeOrder[(activeOrder.indexOf(face) + 1) % activeOrder.length];
-
-    if (nextFace === face) return;
-
+  // Flip to a specific face with a directional animation (dir: 1 next, -1 prev).
+  const flipTo = (nextFace, dir) => {
+    if (nextFace == null || nextFace === face) return;
+    setNavDir(dir);
     clearTimeout(flipRef.current);
     setFlipPhase('out');
     flipRef.current = setTimeout(() => {
@@ -107,18 +102,78 @@ export default function StatusCard({
     }, 200);
   };
 
+  // Step through the face order. Blocked only while a booking flow owns the card.
+  const navigate = (dir) => {
+    if (bookingActive) return;
+    const len = activeOrder.length;
+    const idx = activeOrder.indexOf(face);
+    const nextFace = activeOrder[((idx + dir) % len + len) % len];
+    flipTo(nextFace, dir);
+  };
+
+  const handleCardClick = (e) => {
+    if (swipedRef.current) { swipedRef.current = false; return; } // swipe already handled it
+    if (!isClickable) return;
+    if (face === FACE_DOWNLOAD) return;
+    if (e.target.closest('button, input, a, textarea, select')) return;
+
+    // No uid → always open account; otherwise advance forward
+    const nextFace = !uid
+      ? FACE_ACCOUNT
+      : activeOrder[(activeOrder.indexOf(face) + 1) % activeOrder.length];
+
+    flipTo(nextFace, 1);
+  };
+
+  // ── Swipe / drag navigation (touch + mouse via pointer events) ────────────
+  const SWIPE_THRESHOLD = 45; // px of horizontal travel to commit a swipe
+
+  const onPointerDown = (e) => {
+    if (bookingActive) { dragRef.current = null; return; }
+    dragRef.current = { x: e.clientX, y: e.clientY };
+    swipedRef.current = false;
+    if (isClickable) setPressing(true);
+  };
+  const onPointerMove = (e) => {
+    const s = dragRef.current;
+    if (!s || s.captured) return;
+    const dx = e.clientX - s.x, dy = e.clientY - s.y;
+    // Once a clearly-horizontal drag begins, capture the pointer so the swipe
+    // still resolves if it drifts off the card. Deferring the capture until
+    // now keeps taps on inner buttons/inputs untouched.
+    if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
+      s.captured = true;
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+    }
+  };
+  const onPointerUp = (e) => {
+    setPressing(false);
+    const start = dragRef.current;
+    dragRef.current = null;
+    if (!start) return;
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
+    if (Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
+      swipedRef.current = true;      // suppress the click that follows
+      navigate(dx < 0 ? 1 : -1);     // drag left → next, drag right → prev
+    }
+  };
+  const onPointerCancel = () => { dragRef.current = null; setPressing(false); };
+
   const flipAnim = flipPhase === 'out'
-    ? 'scFlipOut .2s ease-in both'
+    ? (navDir >= 0 ? 'scFlipOut .2s ease-in both'  : 'scFlipOutR .2s ease-in both')
     : flipPhase === 'in'
-    ? 'scFlipIn .24s ease-out both'
+    ? (navDir >= 0 ? 'scFlipIn .24s ease-out both' : 'scFlipInR .24s ease-out both')
     : undefined;
 
   return (
     <div>
       <style>{`
         @keyframes scFaceIn  { from{opacity:0;transform:translateY(8px) scale(.985)} to{opacity:1;transform:translateY(0) scale(1)} }
-        @keyframes scFlipOut { from{transform:perspective(700px) rotateY(0deg)}   to{transform:perspective(700px) rotateY(90deg)}  }
-        @keyframes scFlipIn  { from{transform:perspective(700px) rotateY(-90deg)} to{transform:perspective(700px) rotateY(0deg)}   }
+        @keyframes scFlipOut  { from{transform:perspective(700px) rotateY(0deg)}   to{transform:perspective(700px) rotateY(90deg)}  }
+        @keyframes scFlipIn   { from{transform:perspective(700px) rotateY(-90deg)} to{transform:perspective(700px) rotateY(0deg)}   }
+        @keyframes scFlipOutR { from{transform:perspective(700px) rotateY(0deg)}   to{transform:perspective(700px) rotateY(-90deg)} }
+        @keyframes scFlipInR  { from{transform:perspective(700px) rotateY(90deg)}  to{transform:perspective(700px) rotateY(0deg)}   }
         .sc-face { animation: scFaceIn .42s cubic-bezier(.34,1.2,.64,1) both; }
       `}</style>
 
@@ -131,12 +186,12 @@ export default function StatusCard({
           animation: flipAnim,
           filter: pressing && isClickable ? 'brightness(0.75)' : undefined,
           transition: !pressing ? 'filter .12s' : undefined,
+          touchAction: 'pan-y', // let vertical scroll through, capture horizontal swipes
         }}
-        onMouseDown={() => isClickable && setPressing(true)}
-        onMouseUp={() => setPressing(false)}
-        onMouseLeave={() => setPressing(false)}
-        onTouchStart={() => isClickable && setPressing(true)}
-        onTouchEnd={() => setPressing(false)}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
         onClick={handleCardClick}
       >
         {face === FACE_BOOK && (
