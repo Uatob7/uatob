@@ -1266,7 +1266,15 @@ function BookRideCardInner({ uid, onRequest, onBookingComplete, onActiveChange, 
           </div>
         </div>
       </div>
-      <button onClick={() => { if (!uid) { if (onShowAccount) { onShowAccount(); } else { setShowAuthNotice(true); } return; } onActiveChange?.(true); setStep(1); }}
+      <button onClick={() => {
+          if (!uid) { if (onShowAccount) { onShowAccount(); } else { setShowAuthNotice(true); } return; }
+          onActiveChange?.(true);
+          setStep(1);
+          // Requesting a ride is the moment we ask for location — surface the
+          // "Use your current location?" prompt (its own UI) right here.
+          clearGeoErr();
+          setShowGeoAlert(true);
+        }}
         style={{ flexShrink:0, background:'linear-gradient(135deg,#22C55E,#16A34A)', color:'#fff',
           border:'none', borderRadius:10, padding:'10px 16px', cursor:'pointer',
           fontFamily:COND, fontSize:11.5, fontWeight:800, letterSpacing:'.14em', textTransform:'uppercase',
