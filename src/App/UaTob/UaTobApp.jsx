@@ -1890,7 +1890,8 @@ export default function UaTob({
           <div style={{
             width: '100%', maxWidth: 340, pointerEvents: 'auto',
             animation: 'uaSlideDown .5s cubic-bezier(.34,1.2,.64,1) both',
-            filter: 'drop-shadow(0 10px 32px rgba(0,0,0,.55))',
+            // layered elevation reads cleaner/more premium than one hard shadow
+            filter: 'drop-shadow(0 2px 6px rgba(0,0,0,.35)) drop-shadow(0 18px 44px rgba(0,0,0,.5))',
           }}>
             <StatusCard
               face={face}
