@@ -1,7 +1,19 @@
 // src/App/UaTob/useAutocomplete.js
 import { useState, useRef, useCallback } from 'react';
 
-const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+const MAPBOX_TOKEN =
+  process.env.NEXT_PUBLIC_MAPBOX_TOKEN ||
+  'pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA';
+
+const GEOCODE_TYPES = 'address,place,locality,neighborhood,poi,postcode';
+
+// Split a Mapbox `place_name` into main + secondary text for the dropdown.
+function splitPlaceName(feature) {
+  const parts = (feature.place_name || '').split(',').map((s) => s.trim());
+  const main  = feature.text || parts[0] || '';
+  const rest  = parts[0] === main ? parts.slice(1) : parts.filter((p) => p !== main);
+  return { main, secondary: rest.join(', ') };
+}
 
 export function useAutocomplete(debounceMs = 250) {
   const [predictions, setPredictions] = useState([]);
@@ -29,38 +41,32 @@ export function useAutocomplete(debounceMs = 250) {
       setLoading(true); setError('');
 
       try {
-        const res = await window.fetch(
-          'https://places.googleapis.com/v1/places:autocomplete',
-          {
-            method: 'POST',
-            signal: controllerRef.current.signal,
-            headers: {
-              'Content-Type':     'application/json',
-              'X-Goog-Api-Key':   API_KEY,
-              'X-Goog-FieldMask': 'suggestions.placePrediction.text,suggestions.placePrediction.placeId,suggestions.placePrediction.structuredFormat',
-            },
-            body: JSON.stringify({
-              input: val,
-              includedRegionCodes: ['us'],
-            }),
-          }
-        );
+        const url =
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(val)}.json` +
+          `?access_token=${MAPBOX_TOKEN}` +
+          `&autocomplete=true&country=us&limit=6&types=${GEOCODE_TYPES}`;
 
-        if (!res.ok) throw new Error(`Places API ${res.status}`);
+        const res = await window.fetch(url, { signal: controllerRef.current.signal });
+
+        if (!res.ok) throw new Error(`Mapbox Geocoding ${res.status}`);
         if (requestSeqRef.current !== seq) return;
 
-        const data        = await res.json();
-        const suggestions = data?.suggestions ?? [];
+        const data     = await res.json();
+        const features = data?.features ?? [];
 
         setPredictions(
-          suggestions.map((s) => ({
-            description: s?.placePrediction?.text?.text || '',
-            place_id:    s?.placePrediction?.placeId    || '',
-            structured_formatting: {
-              main_text:      s?.placePrediction?.structuredFormat?.mainText?.text      || '',
-              secondary_text: s?.placePrediction?.structuredFormat?.secondaryText?.text || '',
-            },
-          }))
+          features.map((f) => {
+            const { main, secondary } = splitPlaceName(f);
+            return {
+              description: f.place_name || main,
+              place_id:    f.id || f.place_name || main,
+              center:      Array.isArray(f.center) ? f.center : null, // [lng, lat]
+              structured_formatting: {
+                main_text:      main,
+                secondary_text: secondary,
+              },
+            };
+          })
         );
       } catch (err) {
         if (err.name === 'AbortError')            return;

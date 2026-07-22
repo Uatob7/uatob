@@ -1,7 +1,9 @@
 // src/App/UaTob/useGeo.js
 import { useState, useCallback } from 'react';
 
-const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+const MAPBOX_TOKEN =
+  process.env.NEXT_PUBLIC_MAPBOX_TOKEN ||
+  'pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA';
 
 export function useGeo() {
   const [loading, setLoading] = useState(false);
@@ -24,20 +26,17 @@ export function useGeo() {
 
       const { latitude: lat, longitude: lng } = position.coords;
 
-      // Step 2 — reverse geocode via Google Geocoding API directly
+      // Step 2 — reverse geocode via Mapbox Geocoding API
       const res = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${API_KEY}`
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json` +
+        `?access_token=${MAPBOX_TOKEN}&types=address&limit=1`
       );
 
       if (!res.ok) throw new Error(`Geocoding API ${res.status}`);
 
-      const data = await res.json();
-
-      if (data.status === 'ZERO_RESULTS') throw new Error('No address found for your location.');
-      if (data.status !== 'OK')           throw new Error(data.error_message || `Geocoding failed: ${data.status}`);
-
-      const address = data.results?.[0]?.formatted_address;
-      if (!address) throw new Error('Could not find your address.');
+      const data    = await res.json();
+      const address = data.features?.[0]?.place_name;
+      if (!address) throw new Error('No address found for your location.');
 
       return address;
 

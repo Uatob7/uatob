@@ -1,7 +1,9 @@
 // src/App/UaTob/useRoute.js
 import { useState, useEffect, useRef } from 'react';
 
-const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+const MAPBOX_TOKEN =
+  process.env.NEXT_PUBLIC_MAPBOX_TOKEN ||
+  'pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA';
 
 const DEBOUNCE_MS = 600;
 
@@ -12,65 +14,62 @@ function formatDuration(minutes) {
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
-async function geocodeAddress(address) {
+// Forward geocode an address via Mapbox → { city, zip, lat, lng }
+async function geocodeAddress(address, signal) {
   const res = await fetch(
-    `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${API_KEY}`
+    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json` +
+    `?access_token=${MAPBOX_TOKEN}&country=us&limit=1`,
+    { signal }
   );
-  const data = await res.json();
-  if (data.status !== 'OK' || !data.results?.length)
-    return { city: '', zip: '', lat: null, lng: null };
+  const data    = await res.json();
+  const feature = data.features?.[0];
+  if (!feature) return { city: '', zip: '', lat: null, lng: null };
 
-  const components = data.results[0].address_components || [];
   let city = '', zip = '';
-  for (const c of components) {
-    if (!city && c.types.includes('locality'))                    city = c.long_name;
-    if (!city && c.types.includes('administrative_area_level_2')) city = c.long_name;
-    if (!zip  && c.types.includes('postal_code'))                 zip  = c.long_name;
+  for (const c of feature.context || []) {
+    const id = c.id || '';
+    if (!city && (id.startsWith('place.') || id.startsWith('locality.'))) city = c.text;
+    if (!zip  && id.startsWith('postcode.'))                              zip  = c.text;
   }
-  return {
-    city, zip,
-    lat: data.results[0].geometry?.location?.lat ?? null,
-    lng: data.results[0].geometry?.location?.lng ?? null,
-  };
+  // A postcode/place result itself may carry the value in `text`.
+  if (!zip  && (feature.id || '').startsWith('postcode.')) zip  = feature.text;
+  if (!city && (feature.id || '').startsWith('place.'))    city = feature.text;
+
+  const [lng, lat] = Array.isArray(feature.center) ? feature.center : [null, null];
+  return { city, zip, lat, lng };
 }
 
 async function computeRoute(origin, destination, signal) {
-  const [routeRes, [pickupGeo, dropoffGeo]] = await Promise.all([
-    fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
-      method: 'POST',
-      signal,
-      headers: {
-        'Content-Type':     'application/json',
-        'X-Goog-Api-Key':   API_KEY,
-        'X-Goog-FieldMask': 'routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline',
-      },
-      body: JSON.stringify({
-        origin:            { address: origin },
-        destination:       { address: destination },
-        travelMode:        'DRIVE',
-        routingPreference: 'TRAFFIC_AWARE',
-      }),
-    }),
-    Promise.all([
-      geocodeAddress(origin),
-      geocodeAddress(destination),
-    ]),
+  // Mapbox Directions needs coordinates, so geocode both endpoints first.
+  const [pickupGeo, dropoffGeo] = await Promise.all([
+    geocodeAddress(origin, signal),
+    geocodeAddress(destination, signal),
   ]);
+
+  if (pickupGeo.lat == null || dropoffGeo.lat == null) {
+    throw new Error('Could not locate one of the addresses.');
+  }
+
+  // `geometries=polyline` returns a precision-5 encoded polyline, which is
+  // compatible with the existing Google-style decoder used on the maps.
+  const routeRes = await fetch(
+    `https://api.mapbox.com/directions/v5/mapbox/driving` +
+    `/${pickupGeo.lng},${pickupGeo.lat};${dropoffGeo.lng},${dropoffGeo.lat}` +
+    `?geometries=polyline&overview=full&access_token=${MAPBOX_TOKEN}`,
+    { signal }
+  );
 
   if (!routeRes.ok) {
     const err = await routeRes.json().catch(() => ({}));
-    throw new Error(err?.error?.message || `Routes API ${routeRes.status}`);
+    throw new Error(err?.message || `Directions API ${routeRes.status}`);
   }
 
   const data   = await routeRes.json();
-  const routes = data?.routes;
-  if (!routes?.length) throw new Error('Route not found');
+  const route  = data?.routes?.[0];
+  if (!route) throw new Error('Route not found');
 
-  const route          = routes[0];
-  const distanceMeters = route.distanceMeters ?? 0;
-  const miles          = Number((distanceMeters / 1609.34).toFixed(2));
-  const seconds        = parseInt(route.duration?.replace('s', '') || '0', 10);
-  const durationMin    = Math.ceil(seconds / 60);
+  const miles       = Number((route.distance / 1609.34).toFixed(2));
+  const durationMin  = Math.ceil((route.duration ?? 0) / 60);
 
   return {
     pickup:       origin,
@@ -78,7 +77,7 @@ async function computeRoute(origin, destination, signal) {
     miles,
     durationMin,
     durationText: formatDuration(durationMin),
-    polyline:     route.polyline?.encodedPolyline ?? null,
+    polyline:     typeof route.geometry === 'string' ? route.geometry : null,
     pickupCity:   pickupGeo.city,
     pickupZip:    pickupGeo.zip,
     pickupLat:    pickupGeo.lat,

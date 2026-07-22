@@ -1027,7 +1027,7 @@ const STEP_TITLES = {
   12:'Ride Requested',
 };
 
-function BookRideCardInner({ uid, onRequest, onBookingComplete, onActiveChange, onShowAccount }) {
+function BookRideCardInner({ uid, onRequest, onBookingComplete, onActiveChange, onShowAccount, onRequestLocation }) {
   const [step, setStep] = useState(0);
 
   const [pickup,  setPickupVal]  = useState('');
@@ -1205,9 +1205,10 @@ function BookRideCardInner({ uid, onRequest, onBookingComplete, onActiveChange, 
 
   // ── geo ────────────────────────────────────────────────────────────────────
   const handleGeoAllow = useCallback(async () => {
+    onRequestLocation?.(); // rider opted in → allow live position tracking
     try { const addr = await resolveGeo(); setPickupVal(addr); setShowGeoAlert(false); }
     catch { /* geoErr shown inline */ }
-  }, [resolveGeo]);
+  }, [resolveGeo, onRequestLocation]);
 
   // ── swap pickup / drop-off ─────────────────────────────────────────────────
   const handleSwap = useCallback(() => {

@@ -206,15 +206,17 @@ function offScreenBearing(map, lat, lng) {
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
-/** Live GPS position + heading + throttled Firestore write */
-function useLiveRiderPosition(uid, account) {
+/** Live GPS position + heading + throttled Firestore write.
+ *  Only starts watching once `enabled` is true — the browser permission
+ *  prompt is deferred until the rider actually requests a ride. */
+function useLiveRiderPosition(uid, account, enabled) {
   const [rider, setRider] = useState(null);   // { lat, lng, heading, accuracy }
   const [fix,   setFix]   = useState(null);   // last fix timestamp ms
   const lastWriteRef      = useRef(0);
   const prevRef           = useRef(null);
 
   useEffect(() => {
-    if (!navigator?.geolocation) return;
+    if (!enabled || !navigator?.geolocation) return;
     const id = navigator.geolocation.watchPosition(
       pos => {
         const { latitude: lat, longitude: lng, accuracy, speed: mps, heading } = pos.coords;
@@ -244,7 +246,7 @@ function useLiveRiderPosition(uid, account) {
       { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 },
     );
     return () => navigator.geolocation.clearWatch(id);
-  }, [uid]);
+  }, [uid, enabled]);
 
   // fallback to account coords if fix is stale
   const live = useMemo(() => {
@@ -1266,13 +1268,17 @@ export default function UaTob({
   const [completedRide,  setCompletedRide]  = useState(null);   // popup trigger
   const [showSupport,    setShowSupport]    = useState(false);
   const [showCompany,    setShowCompany]    = useState(false);
+  const [locRequested,   setLocRequested]   = useState(false); // GPS deferred until ride request
 
   // ── Support unread ────────────────────────────────────────────────────────
   const supportUnread = useRiderSupportUnread(uid);
 
   // ── Derived ───────────────────────────────────────────────────────────────
-  const { rider, fix, live } = useLiveRiderPosition(uid, account);
   const activeRide            = useActiveRide(rides, explicitActiveRide);
+  // Track once the rider asks for a ride, or when a ride is already in flight
+  // (e.g. page reloaded mid-trip, so consent was already given this session).
+  const trackLocation         = locRequested || !!activeRide;
+  const { rider, fix, live } = useLiveRiderPosition(uid, account, trackLocation);
   const assignedDriverUid     = activeRide?.driverInfo?.uid ?? activeRide?.driverUid ?? null;
   const driverDoc             = useAssignedDriverLive(assignedDriverUid);
   const { drivers: onlineDrivers } = useOnlineDrivers();
@@ -1877,6 +1883,7 @@ export default function UaTob({
               drivers={drivers}
               now={now}
               onBook={handleBook}
+              onRequestLocation={() => setLocRequested(true)}
             />
           </div>
         </div>

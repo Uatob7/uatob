@@ -44,6 +44,7 @@ export default function StatusCard({
   createTrip,
   callSaveFcmToken,
   onBook,
+  onRequestLocation,
 }) {
   const [bookingActive, setBookingActive] = useState(false);
   const [cyclePaused,   setCyclePaused]   = useState(false);
@@ -147,6 +148,7 @@ export default function StatusCard({
             searches={searches}
             onActiveChange={setBookingActive}
             onBook={onBook}
+            onRequestLocation={onRequestLocation}
           />
         )}
         {face === FACE_SEARCHES  && <SearchesCard searches={searches} now={now}  />}
