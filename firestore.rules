@@ -53,6 +53,38 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────
+    // REQUESTS  (open ride board — the marketplace)
+    // ─────────────────────────────────────────
+    match /Requests/{requestId} {
+      // Board is publicly visible (mirrors Rides). Anyone can read.
+      allow read: if true;
+
+      // Poster advertises their own trip, always as an OPEN request.
+      allow create: if isSignedIn()
+                    && request.auth.uid == request.resource.data.uid
+                    && request.resource.data.status == 'open'
+                    && request.resource.data.claimedBy == null;
+
+      allow update: if isSignedIn() && (
+        // Poster may edit/cancel their own request.
+        request.auth.uid == resource.data.uid
+        ||
+        // Any signed-in rider may CLAIM an open request: the transaction flips
+        // status open→claimed and stamps claimedBy with their own uid. The uid
+        // (poster) and price are immutable through a claim.
+        (
+          resource.data.status == 'open'
+          && request.resource.data.status == 'claimed'
+          && request.resource.data.claimedBy == request.auth.uid
+          && request.resource.data.uid == resource.data.uid
+          && request.resource.data.fareEstimate == resource.data.fareEstimate
+        )
+      );
+
+      allow delete: if false;
+    }
+
+    // ─────────────────────────────────────────
     // DRIVERS
     // ─────────────────────────────────────────
     match /Drivers/{driverId} {

@@ -28,7 +28,7 @@ export function useCreateTrip(uid) {
 
       try {
         const ref = await addDoc(collection(db, "Rides"), {
-          userId: uid,
+          uid,
 
           status: "searching_driver",
 
