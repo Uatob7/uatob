@@ -21,6 +21,7 @@ import { useRequests }      from '@/App/UaTob/useRequests';
 import { useCreateRequest } from '@/App/UaTob/useCreateRequest';
 import { useClaimRequest }  from '@/App/UaTob/useClaimRequest';
 import { useAddCredit }     from '@/App/UaTob/useAddCredit';
+import { useGeocode }       from '@/App/UaTob/useGeocode';
 import RiderMap             from '@/App/UaTob/RiderMap';
 import { calcFare }         from '@/App/UaTob/fare';
 import { RIDE_TYPES }       from '@/App/UaTob/pricing';
@@ -207,7 +208,7 @@ function StepDots({ step, total }) {
   );
 }
 
-function RequestPane({ uid, account, onPosted }) {
+function RequestPane({ uid, account, onPosted, onRoute }) {
   const geo = useGeo();
   const [step, setStep] = useState(0);              // 0 route · 1 when · 2 price
   const [pickup,  setPickup]  = useState(account?.pickup || account?.address || '');
@@ -220,6 +221,16 @@ function RequestPane({ uid, account, onPosted }) {
 
   const { tripData, loading: routing } = useRoute(pickup, dropoff);
   const { createRequest } = useCreateRequest(uid);
+
+  // Geocode the pickup on its own so the map can center on it before a
+  // destination exists, then report the live route up to the map.
+  const pickupPoint = useGeocode(pickup);
+  useEffect(() => {
+    if (!onRoute) return;
+    const pk = tripData?.pickupLat != null ? { lat: tripData.pickupLat, lng: tripData.pickupLng } : pickupPoint;
+    const dp = tripData?.dropoffLat != null ? { lat: tripData.dropoffLat, lng: tripData.dropoffLng } : null;
+    onRoute({ pickup: pk || null, dropoff: dp, polyline: tripData?.polyline || null });
+  }, [pickupPoint, tripData, onRoute]);
 
   const fares = useMemo(() => {
     const miles = tripData?.miles ?? 4.2;
@@ -934,6 +945,7 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
   const [sheet, setSheet] = useState(null);          // { req, method }
   const [booking, setBooking] = useState(false);
   const [topup, setTopup] = useState(false);         // add-credit sheet open
+  const [route, setRoute] = useState({ pickup: null, dropoff: null, polyline: null });
 
   const { requests, loading: loadingRequests } = useRequests();
   const { claimRequest } = useClaimRequest(uid);
@@ -994,7 +1006,13 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
         {tab === 'request' ? (
           /* Map-first home — live map backdrop + composer panel */
           <div style={{ position: 'relative', zIndex: 20, flex: 1, overflow: 'hidden' }}>
-            <RiderMap center={account?.lat != null ? { lat: account.lat, lng: account.lng } : undefined} drivers={drivers} />
+            <RiderMap
+              center={account?.lat != null ? { lat: account.lat, lng: account.lng } : undefined}
+              drivers={drivers}
+              pickup={route.pickup}
+              dropoff={route.dropoff}
+              polyline={route.polyline}
+            />
             <div className="ur-scroll" style={{
               position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '74%', overflowY: 'auto',
               background: 'linear-gradient(180deg, rgba(6,12,7,.82), rgba(4,8,5,.98))', backdropFilter: 'blur(16px)',
@@ -1002,7 +1020,7 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
               boxShadow: '0 -20px 50px rgba(0,0,0,.55)', padding: '10px 16px 20px', scrollbarWidth: 'none',
             }}>
               <div style={{ width: 38, height: 4, borderRadius: 2, background: C.inkFade, margin: '0 auto 12px' }} />
-              <RequestPane uid={uid} account={account} onPosted={() => setTab('rides')} />
+              <RequestPane uid={uid} account={account} onPosted={() => setTab('rides')} onRoute={setRoute} />
             </div>
           </div>
         ) : (
