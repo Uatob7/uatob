@@ -946,6 +946,7 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
   const [booking, setBooking] = useState(false);
   const [topup, setTopup] = useState(false);         // add-credit sheet open
   const [route, setRoute] = useState({ pickup: null, dropoff: null, polyline: null });
+  const [requestOpen, setRequestOpen] = useState(false); // composer collapsed → button only
 
   const { requests, loading: loadingRequests } = useRequests();
   const { claimRequest } = useClaimRequest(uid);
@@ -991,6 +992,16 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
     if (ok) setTopup(false);
   }, [addCredit]);
 
+  const collapseRequest = useCallback(() => {
+    setRequestOpen(false);
+    setRoute({ pickup: null, dropoff: null, polyline: null });
+  }, []);
+  const onPosted = useCallback(() => {
+    setTab('rides');
+    setRequestOpen(false);
+    setRoute({ pickup: null, dropoff: null, polyline: null });
+  }, []);
+
   const modeLabel = tab.toUpperCase();
 
   return (
@@ -1019,8 +1030,34 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
               borderTop: `1px solid ${C.border}`, borderRadius: '26px 26px 0 0',
               boxShadow: '0 -20px 50px rgba(0,0,0,.55)', padding: '10px 16px 20px', scrollbarWidth: 'none',
             }}>
-              <div style={{ width: 38, height: 4, borderRadius: 2, background: C.inkFade, margin: '0 auto 12px' }} />
-              <RequestPane uid={uid} account={account} onPosted={() => setTab('rides')} onRoute={setRoute} />
+              <button
+                onClick={requestOpen ? collapseRequest : undefined}
+                aria-label={requestOpen ? 'Collapse' : undefined}
+                style={{ display: 'block', width: '100%', border: 'none', background: 'none', padding: '2px 0 12px', cursor: requestOpen ? 'pointer' : 'default' }}
+              >
+                <span style={{ display: 'block', width: 38, height: 4, borderRadius: 2, background: C.inkFade, margin: '0 auto' }} />
+              </button>
+
+              {requestOpen ? (
+                <RequestPane uid={uid} account={account} onPosted={onPosted} onRoute={setRoute} />
+              ) : (
+                <div style={{ animation: 'urUp .3s cubic-bezier(.34,1.1,.64,1) both', paddingBottom: 6 }}>
+                  <div style={{ fontFamily: COND, fontSize: 24, fontWeight: 800, letterSpacing: '.01em', color: C.inkBright }}>
+                    Where to{account?.name ? `, ${String(account.name).split(' ')[0]}` : ''}?
+                  </div>
+                  <div style={{ fontFamily: MONO, fontSize: 10.5, color: C.inkMid, margin: '6px 0 16px', lineHeight: 1.5 }}>
+                    Set a pickup and destination, then post it to the board.
+                  </div>
+                  <button className="ur-tap" onClick={() => setRequestOpen(true)} style={{
+                    width: '100%', border: 'none', borderRadius: 16, padding: 17, cursor: 'pointer',
+                    fontFamily: COND, fontSize: 17, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#04150a',
+                    background: 'linear-gradient(135deg,#4ADE80,#22C55E 55%,#15803D)', boxShadow: '0 10px 30px rgba(34,197,94,.3)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                  }}>
+                    <span style={{ fontSize: 18 }}>🔍</span> Request a ride
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ) : (
