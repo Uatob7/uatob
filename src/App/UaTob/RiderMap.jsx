@@ -54,6 +54,29 @@ function decodePolyline(str, precision = 5) {
   return coords;
 }
 
+// A small glowing dot representing a moving driver.
+function makeDot() {
+  const el = document.createElement('div');
+  el.style.cssText = 'width:11px;height:11px;border-radius:50%;background:#4ADE80;border:1.5px solid rgba(5,10,6,.9);box-shadow:0 0 8px rgba(74,222,128,.9),0 0 0 4px rgba(74,222,128,.16);opacity:0;will-change:transform,opacity';
+  return el;
+}
+
+// Ambient (simulated) fleet — random driver dots that drift and fade in/out so
+// the map always feels live. Tuning constants:
+const AMBIENT_COUNT = 12;
+const AMBIENT_SPREAD = 0.045;                 // ~3mi box around center
+function spawnAmbient(origin) {
+  return {
+    lat: origin.lat + (Math.random() - 0.5) * AMBIENT_SPREAD,
+    lng: origin.lng + (Math.random() - 0.5) * AMBIENT_SPREAD * 1.4,
+    heading: Math.random() * Math.PI * 2,
+    turn: (Math.random() - 0.5) * 0.5,
+    speed: 0.00035 + Math.random() * 0.0006,  // deg / sec
+    ttl: 8 + Math.random() * 9,
+    age: 0,
+  };
+}
+
 function makePin(color, glyph) {
   const el = document.createElement('div');
   el.style.cssText = `position:relative;width:0;height:0`;
@@ -70,9 +93,13 @@ export default function RiderMap({ center, drivers = [], pickup, dropoff, polyli
   const driverMarkersRef = useRef([]);
   const pickupMarkerRef = useRef(null);
   const dropoffMarkerRef = useRef(null);
+  const ambientRef = useRef([]);   // [{ car, marker }]
+  const rafRef = useRef(null);
+  const centerRef = useRef(null);
   const [ready, setReady] = useState(false);
 
   const base = pickup || (center?.lat != null ? center : ORL);
+  centerRef.current = base;
 
   // ── init once ──
   useEffect(() => {
@@ -130,6 +157,52 @@ export default function RiderMap({ center, drivers = [], pickup, dropoff, polyli
       });
   }, [ready, drivers]);
 
+  // ── ambient fleet — random dots drifting + fading in/out ──
+  useEffect(() => {
+    if (!ready || !mapRef.current || !window.mapboxgl) return;
+    const map = mapRef.current;
+    const origin = centerRef.current || ORL;
+
+    ambientRef.current = Array.from({ length: AMBIENT_COUNT }, () => {
+      const car = spawnAmbient(origin);
+      car.age = Math.random() * car.ttl;                 // stagger so they don't blink together
+      const marker = new window.mapboxgl.Marker({ element: makeDot() }).setLngLat([car.lng, car.lat]).addTo(map);
+      return { car, marker };
+    });
+
+    let last = performance.now();
+    const tick = (now) => {
+      const dt = Math.min((now - last) / 1000, 0.05);
+      last = now;
+      const o = centerRef.current || ORL;
+      for (const a of ambientRef.current) {
+        const c = a.car;
+        c.age += dt;
+        c.heading += c.turn * dt;
+        if (Math.random() < 0.012) c.turn = (Math.random() - 0.5) * 0.6;
+        c.lat += Math.cos(c.heading) * c.speed * dt;
+        c.lng += Math.sin(c.heading) * c.speed * dt;
+
+        // fade in over first 1.5s, hold, fade out over last 1.5s → "come in / out"
+        let op = 0.85;
+        if (c.age < 1.5) op = (c.age / 1.5) * 0.85;
+        else if (c.age > c.ttl - 1.5) op = Math.max(0, (c.ttl - c.age) / 1.5) * 0.85;
+        a.marker.getElement().style.opacity = op.toFixed(2);
+        a.marker.setLngLat([c.lng, c.lat]);
+
+        if (c.age >= c.ttl) Object.assign(c, spawnAmbient(o)); // respawn elsewhere
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      ambientRef.current.forEach((a) => { try { a.marker.remove(); } catch {} });
+      ambientRef.current = [];
+    };
+  }, [ready]);
+
   // ── pickup / dropoff pins ──
   useEffect(() => {
     if (!ready || !mapRef.current || !window.mapboxgl) return;
@@ -174,43 +247,9 @@ export default function RiderMap({ center, drivers = [], pickup, dropoff, polyli
     } catch {}
   }, [ready, pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng, polyline]); // eslint-disable-line
 
-  const showRadar = !pickup?.lat;
-
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
-      <style>{`
-        @keyframes rmSweep { to { transform: translate(-50%,-50%) rotate(360deg) } }
-        @keyframes rmPing  { 0%{transform:translate(-50%,-50%) scale(.4);opacity:.7} 100%{transform:translate(-50%,-50%) scale(2.6);opacity:0} }
-      `}</style>
-
       <div ref={elRef} style={{ position: 'absolute', inset: 0, opacity: ready ? 1 : 0, transition: 'opacity .8s ease' }} />
-
-      {/* Radar sweep — shown until a pickup is chosen */}
-      {showRadar && ready && (
-        <div style={{ position: 'absolute', left: '50%', top: '34%', width: 300, height: 300, pointerEvents: 'none' }}>
-          {/* rings */}
-          {[300, 210, 120].map((d, i) => (
-            <div key={i} style={{ position: 'absolute', left: '50%', top: '50%', width: d, height: d, transform: 'translate(-50%,-50%)', borderRadius: '50%', border: '1px solid rgba(74,222,128,.14)' }} />
-          ))}
-          {/* ping */}
-          <div style={{ position: 'absolute', left: '50%', top: '50%', width: 60, height: 60, borderRadius: '50%', border: '1.5px solid rgba(74,222,128,.5)', animation: 'rmPing 2.4s ease-out infinite' }} />
-          {/* sweep wedge */}
-          <div style={{
-            position: 'absolute', left: '50%', top: '50%', width: 300, height: 300, borderRadius: '50%',
-            transform: 'translate(-50%,-50%)', transformOrigin: '50% 50%',
-            background: 'conic-gradient(from 0deg, rgba(74,222,128,.42), rgba(74,222,128,.06) 55deg, transparent 90deg)',
-            WebkitMaskImage: 'radial-gradient(circle, #000 0%, #000 49%, transparent 50%)',
-            maskImage: 'radial-gradient(circle, #000 0%, #000 49%, transparent 50%)',
-            animation: 'rmSweep 3s linear infinite',
-          }} />
-          {/* center dot */}
-          <div style={{ position: 'absolute', left: '50%', top: '50%', width: 12, height: 12, borderRadius: '50%', transform: 'translate(-50%,-50%)', background: '#4ADE80', boxShadow: '0 0 12px #4ADE80, 0 0 0 4px rgba(74,222,128,.2)' }} />
-          {/* caption */}
-          <div style={{ position: 'absolute', left: '50%', top: 'calc(50% + 88px)', transform: 'translateX(-50%)', whiteSpace: 'nowrap', fontFamily: "'JetBrains Mono',monospace", fontSize: 10, fontWeight: 700, letterSpacing: '.14em', color: 'rgba(74,222,128,.7)', textTransform: 'uppercase' }}>
-            Set your pickup
-          </div>
-        </div>
-      )}
 
       {/* scrims so chrome + panel blend into the map */}
       <div style={{
