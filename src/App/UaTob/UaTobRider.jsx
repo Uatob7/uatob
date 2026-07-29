@@ -623,26 +623,6 @@ function BrkRow({ label, val }) {
   );
 }
 
-// ── Toast ────────────────────────────────────────────────────────────────────
-function Toast({ show, title, body }) {
-  return (
-    <div style={{
-      position: 'absolute', left: 16, right: 16, bottom: 92, zIndex: 80,
-      padding: '13px 15px', borderRadius: 14, background: 'rgba(20,8,8,.95)',
-      border: '1.5px solid rgba(248,113,113,.4)', boxShadow: '0 12px 40px rgba(0,0,0,.6)',
-      display: 'flex', alignItems: 'center', gap: 10,
-      transform: show ? 'translateY(0)' : 'translateY(160%)',
-      transition: 'transform .34s cubic-bezier(.34,1.16,.64,1)', pointerEvents: 'none',
-    }}>
-      <span style={{ fontSize: 18 }}>⚡</span>
-      <div>
-        <div style={{ fontFamily: BODY, fontSize: 13, fontWeight: 700, color: C.red }}>{title}</div>
-        <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.inkMid, marginTop: 2 }}>{body}</div>
-      </div>
-    </div>
-  );
-}
-
 // ── Tab bar ──────────────────────────────────────────────────────────────────
 const TABS = [
   { id: 'request', label: 'Request', icon: (c) => <path d="M12 21s-7-5.2-7-11a7 7 0 0 1 14 0c0 5.8-7 11-7 11Z" stroke={c} /> },
@@ -688,7 +668,6 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
   const [tab, setTab] = useState('request');
   const [sheet, setSheet] = useState(null);          // { req, method }
   const [booking, setBooking] = useState(false);
-  const [toast, setToast] = useState(null);          // { title, body }
 
   const { requests, loading: loadingRequests } = useRequests();
   const { claimRequest } = useClaimRequest(uid);
@@ -696,11 +675,6 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
   // Hide a request locally the instant it's claimed, before the snapshot catches up.
   const [hiddenIds, setHiddenIds] = useState(() => new Set());
   const board = useMemo(() => requests.filter((r) => !hiddenIds.has(r.id)), [requests, hiddenIds]);
-
-  const showToast = useCallback((title, body) => {
-    setToast({ title, body });
-    setTimeout(() => setToast(null), 2800);
-  }, []);
 
   const openPay = useCallback((req, method) => setSheet({ req, method }), []);
 
@@ -715,16 +689,16 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
       setSheet(null);
     } catch (err) {
       setSheet(null);
+      // Lost the claim race — silently drop the request from the board.
       if (err?.code === 'already_claimed') {
         setHiddenIds((prev) => new Set(prev).add(sheet.req.id));
-        showToast('Just taken', `${sheet.req.posterName || 'That'} request was claimed first.`);
       } else {
-        showToast('Booking failed', err?.message || 'Please try again.');
+        console.warn('[UaTobRider] booking failed:', err?.message || err);
       }
     } finally {
       setBooking(false);
     }
-  }, [sheet, booking, claimRequest, showToast]);
+  }, [sheet, booking, claimRequest]);
 
   const modeLabel = tab.toUpperCase();
 
@@ -744,8 +718,6 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
           {tab === 'driver'  && <DriverPane drivers={drivers} />}
           {tab === 'you'     && <YouPane account={account} onSignOut={onSignOut} />}
         </div>
-
-        <Toast show={!!toast} title={toast?.title} body={toast?.body} />
 
         {sheet && <PaymentSheet req={sheet.req} method={sheet.method} onClose={() => setSheet(null)} onConfirm={confirmPay} busy={booking} />}
 
