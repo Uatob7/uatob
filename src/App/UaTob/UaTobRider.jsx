@@ -209,6 +209,10 @@ function fmtWhen(scheduledAt) {
   if (!scheduledAt) return 'Leave now';
   return new Date(scheduledAt).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
+function splitAddr(a) {
+  const parts = String(a || '').split(',').map((s) => s.trim()).filter(Boolean);
+  return { main: parts[0] || '—', sub: parts.slice(1, 3).join(', ') };
+}
 
 function StepDots({ step, total }) {
   return (
@@ -406,15 +410,24 @@ function RequestPane({ uid, account, onPosted, onRoute }) {
       {/* ── STEP 2 · PRICE ── */}
       {step === 2 && (
         <>
+          {/* Trip summary */}
           <div style={{ ...cardStyle, padding: '13px 15px', marginBottom: 14 }}>
             <div style={{ display: 'flex', gap: 11 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 4 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 5 }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.cyan, boxShadow: `0 0 7px ${C.cyan}` }} />
-                <span style={{ width: 1.5, flex: 1, minHeight: 14, background: 'linear-gradient(180deg,#22D3EE,#4ADE80)', opacity: .4, margin: '2px 0' }} />
+                <span style={{ width: 1.5, flex: 1, minHeight: 18, background: 'linear-gradient(180deg,#22D3EE,#4ADE80)', opacity: .4, margin: '3px 0' }} />
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.greenBright, boxShadow: `0 0 7px ${C.greenBright}` }} />
               </div>
-              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {[pickup, dropoff].map((a, i) => <div key={i} style={{ fontFamily: BODY, fontSize: 12.5, fontWeight: 600, color: C.inkBright, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a}</div>)}
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 11 }}>
+                {[pickup, dropoff].map((a, i) => {
+                  const { main, sub } = splitAddr(a);
+                  return (
+                    <div key={i} style={{ minWidth: 0 }}>
+                      <div style={{ fontFamily: BODY, fontSize: 13, fontWeight: 700, color: C.inkBright, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{main}</div>
+                      {sub && <div style={{ fontFamily: MONO, fontSize: 9, color: C.inkDim, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</div>}
+                    </div>
+                  );
+                })}
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, paddingTop: 11, borderTop: `1px solid ${C.inkFade}` }}>
@@ -424,34 +437,39 @@ function RequestPane({ uid, account, onPosted, onRoute }) {
             </div>
           </div>
 
+          {/* Ride selector — vertical list */}
           <Eyebrow style={{ letterSpacing: '.16em' }}>Choose your ride</Eyebrow>
-          <div style={{ display: 'flex', gap: 8, margin: '10px 0 4px' }}>
+          <div style={{ margin: '10px 0 4px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             {RIDE_TYPES.map((t) => {
               const sel = rideType === t.id;
               return (
                 <button key={t.id} className="ur-tap" onClick={() => setRideType(t.id)} style={{
-                  flex: 1, border: `1px solid ${sel ? C.borderBright : C.border}`, borderRadius: 14, padding: '11px 4px 10px', textAlign: 'center', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '10px 12px', cursor: 'pointer',
+                  border: `1.5px solid ${sel ? C.borderBright : C.border}`, borderRadius: 15,
                   background: sel ? 'rgba(34,197,94,.10)' : 'rgba(255,255,255,.015)', boxShadow: sel ? '0 0 22px rgba(34,197,94,.12)' : 'none',
                 }}>
-                  <div style={{ fontSize: 19, lineHeight: 1 }}>{RIDE_ICON[t.id]}</div>
-                  <div style={{ fontFamily: COND, fontSize: 11, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: C.inkBright, marginTop: 5 }}>{t.label}</div>
-                  <div style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: C.greenBright, marginTop: 2 }}>{fares[t.id] != null ? money(fares[t.id]) : '—'}</div>
+                  <div style={{ width: 42, height: 42, borderRadius: 12, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, background: sel ? 'rgba(34,197,94,.12)' : 'rgba(255,255,255,.03)', border: `1px solid ${sel ? C.borderBright : C.border}` }}>{RIDE_ICON[t.id]}</div>
+                  <div style={{ flex: 1, textAlign: 'left', minWidth: 0 }}>
+                    <div style={{ fontFamily: BODY, fontSize: 14, fontWeight: 700, color: C.inkBright }}>{t.label}</div>
+                    <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.inkDim, marginTop: 2 }}>{t.capacity} seats · {t.desc}</div>
+                  </div>
+                  <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 800, color: sel ? C.greenBright : C.inkBright }}>{fares[t.id] != null ? money(fares[t.id]) : '—'}</div>
+                  <span style={{
+                    width: 18, height: 18, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 11, color: '#04150a', fontWeight: 900,
+                    border: `1.5px solid ${sel ? C.greenBright : C.inkFade}`, background: sel ? C.greenBright : 'transparent',
+                  }}>{sel ? '✓' : ''}</span>
                 </button>
               );
             })}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', margin: '18px 2px 14px' }}>
-            <span style={{ fontFamily: COND, fontSize: 15, fontWeight: 800, letterSpacing: '.04em', textTransform: 'uppercase', color: C.inkBright }}>Ride price</span>
-            <span style={{ fontFamily: MONO, fontSize: 24, fontWeight: 800, color: C.greenBright }}>{fares[rideType] != null ? money(fares[rideType]) : '—'}</span>
-          </div>
-
+          <div style={{ height: 14 }} />
           <StepButton enabled={routeReady && !posting} onClick={handlePost}>
-            {posting ? 'Posting…' : 'Post request'}
-            <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 800, opacity: .65, textTransform: 'none' }}>→ to Rides</span>
+            {posting ? 'Posting…' : `Post request · ${fares[rideType] != null ? money(fares[rideType]) : ''}`}
           </StepButton>
           <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.inkDim, textAlign: 'center', marginTop: 11, lineHeight: 1.55 }}>
-            Posts a <b style={{ color: C.greenSoft }}>Request</b> to the board. Pay it with cash or ride credit from the Rides tab.
+            Posts a <b style={{ color: C.greenSoft }}>Request</b>. Pay it with cash or ride credit from the Rides tab.
           </div>
         </>
       )}
