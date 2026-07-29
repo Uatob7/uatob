@@ -69,13 +69,13 @@ function tsAgo(ts) {
 }
 
 // ── Small primitives ─────────────────────────────────────────────────────────
-function Ribbon({ mode }) {
+function Ribbon({ mode, credit = 0, onOpenWallet }) {
   const [clock, setClock] = useState('');
   useEffect(() => {
     const tick = () => {
       const d = new Date(), p = (n) => String(n).padStart(2, '0');
       const h = d.getHours(), ap = h >= 12 ? 'PM' : 'AM';
-      setClock(`${h % 12 || 12}:${p(d.getMinutes())}:${p(d.getSeconds())} ${ap}`);
+      setClock(`${h % 12 || 12}:${p(d.getMinutes())} ${ap}`);
     };
     tick();
     const id = setInterval(tick, 1000);
@@ -85,24 +85,30 @@ function Ribbon({ mode }) {
     <div style={{
       position: 'relative', zIndex: 40, height: 34, flexShrink: 0,
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '0 16px', background: 'linear-gradient(180deg,rgba(3,6,4,.9),rgba(3,6,4,0))',
+      padding: '0 14px', background: 'linear-gradient(180deg,rgba(3,6,4,.9),rgba(3,6,4,0))',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
         <span style={{ fontFamily: COND, fontSize: 12, fontWeight: 800, letterSpacing: '.24em', color: 'rgba(255,255,255,.55)' }}>UATOB</span>
         <span style={{ fontFamily: MONO, fontSize: 9, color: C.inkFade }}>·</span>
         <span style={{ fontFamily: COND, fontSize: 10, fontWeight: 800, letterSpacing: '.16em', color: C.greenBright, textShadow: `0 0 8px ${C.greenBright}88` }}>{mode}</span>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexShrink: 0 }}>
+        {/* Ride-credit balance — tap to top up */}
+        <button className="ur-tap" onClick={onOpenWallet} aria-label="Ride credit — add credit" style={{
+          display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer',
+          padding: '4px 9px 4px 8px', borderRadius: 99,
+          border: '1px solid rgba(251,191,36,.35)', background: 'rgba(251,191,36,.10)',
+          boxShadow: '0 0 12px rgba(251,191,36,.10)',
+        }}>
+          <span style={{ fontSize: 11, lineHeight: 1 }}>🪙</span>
+          <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 800, color: C.amber, fontVariantNumeric: 'tabular-nums' }}>{money(credit)}</span>
+          <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 800, color: C.amber, opacity: .8, marginLeft: 1 }}>+</span>
+        </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.greenBright, boxShadow: `0 0 7px ${C.greenBright}`, animation: 'urBlink 1.6s ease-in-out infinite' }} />
           <span style={{ fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '.08em', color: C.greenBright }}>LIVE</span>
         </div>
-        <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,.4)' }}>{clock}</span>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 13 }}>
-          {[5, 8, 11, 14].map((h, i) => (
-            <span key={i} style={{ width: 2.5, height: h, borderRadius: 1, background: C.greenBright, boxShadow: `0 0 4px ${C.greenBright}88`, display: 'block', animation: `urBar 1.6s ease-in-out ${i * 0.18}s infinite` }} />
-          ))}
-        </div>
+        <span style={{ fontFamily: MONO, fontSize: 9.5, fontWeight: 700, color: 'rgba(255,255,255,.4)' }}>{clock}</span>
       </div>
     </div>
   );
@@ -982,7 +988,7 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
         display: 'flex', flexDirection: 'column',
         backgroundImage: 'radial-gradient(900px 500px at 50% -10%, rgba(34,197,94,.08), transparent 60%)',
       }}>
-        <Ribbon mode={modeLabel} />
+        <Ribbon mode={modeLabel} credit={credit} onOpenWallet={openTopup} />
 
         <div className="ur-scroll" style={{ position: 'relative', zIndex: 20, flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '6px 16px 24px', scrollbarWidth: 'none' }}>
           {tab === 'request' && <RequestPane uid={uid} account={account} onPosted={() => setTab('rides')} />}
