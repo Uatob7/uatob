@@ -23,6 +23,7 @@ import { useClaimRequest }  from '@/App/UaTob/useClaimRequest';
 import { useAddCredit }     from '@/App/UaTob/useAddCredit';
 import { useGeocode }       from '@/App/UaTob/useGeocode';
 import RiderMap             from '@/App/UaTob/RiderMap';
+import InstallBanner        from '@/App/UaTob/InstallBanner';
 import { calcFare }         from '@/App/UaTob/fare';
 import { RIDE_TYPES }       from '@/App/UaTob/pricing';
 
@@ -1038,6 +1039,7 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
         backgroundImage: 'radial-gradient(900px 500px at 50% -10%, rgba(34,197,94,.08), transparent 60%)',
       }}>
         <Ribbon mode={modeLabel} credit={credit} onOpenWallet={openTopup} />
+        <InstallBanner />
 
         {tab === 'request' ? (
           /* Map-first home — live map backdrop + composer panel */
