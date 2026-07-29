@@ -127,15 +127,27 @@ function Sub({ children }) {
 }
 const cardStyle = { background: C.panel, backdropFilter: 'blur(12px)', border: `1px solid ${C.border}`, borderRadius: 18, boxShadow: '0 8px 30px rgba(0,0,0,.4)' };
 
+function Chip({ icon, children }) {
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 99,
+      border: `1px solid ${C.border}`, background: 'rgba(34,197,94,.06)',
+      fontFamily: MONO, fontSize: 11, fontWeight: 700, color: C.inkBright,
+    }}>
+      <span style={{ fontSize: 11 }}>{icon}</span>{children}
+    </span>
+  );
+}
+
 // ── Address input (autocomplete) ─────────────────────────────────────────────
-function AddressField({ label, node, value, onChange, placeholder, onLocate, locating }) {
+function AddressField({ label, node, value, onChange, placeholder, onLocate, locating, compact }) {
   const { predictions, fetch: fetchSug, clear } = useAutocomplete(250);
   const [focused, setFocused] = useState(false);
   return (
-    <div style={{ position: 'relative', padding: '14px 15px', display: 'flex', alignItems: 'center', gap: 12 }}>
-      <span style={{ width: 10, height: 10, borderRadius: '50%', flexShrink: 0, background: node, boxShadow: `0 0 10px ${node}` }} />
+    <div style={{ position: 'relative', padding: compact ? '12px 14px' : '14px 15px', display: 'flex', alignItems: 'center', gap: compact ? 11 : 12 }}>
+      <span style={{ width: compact ? 9 : 10, height: compact ? 9 : 10, borderRadius: '50%', flexShrink: 0, background: node, boxShadow: `0 0 10px ${node}` }} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.18em', color: C.inkDim, textTransform: 'uppercase' }}>{label}</div>
+        {!compact && <div style={{ fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.18em', color: C.inkDim, textTransform: 'uppercase' }}>{label}</div>}
         <input
           value={value}
           placeholder={placeholder}
@@ -145,8 +157,8 @@ function AddressField({ label, node, value, onChange, placeholder, onLocate, loc
           autoComplete="off"
           style={{
             width: '100%', background: 'none', border: 'none', outline: 'none',
-            fontFamily: BODY, fontSize: 14, fontWeight: 600, color: C.inkBright,
-            caretColor: C.greenBright, padding: '2px 0 0',
+            fontFamily: BODY, fontSize: compact ? 13.5 : 14, fontWeight: 600, color: C.inkBright,
+            caretColor: C.greenBright, padding: compact ? 0 : '2px 0 0',
           }}
         />
       </div>
@@ -289,11 +301,6 @@ function RequestPane({ uid, account, onPosted, onRoute }) {
   }, [routeReady, posting, rideType, fares, createRequest, account, pickup, dropoff, tripData, leaveNow, scheduledAt, onPosted]);
 
   const titles = ['Request a ride', 'When do you leave?', 'Confirm & price'];
-  const subs = [
-    'Set your pickup and destination.',
-    'Ride now, or schedule a pickup for later.',
-    'Pick your ride and post it to the open board.',
-  ];
 
   return (
     <div style={{ animation: 'urUp .38s cubic-bezier(.34,1.1,.64,1) both' }}>
@@ -303,29 +310,32 @@ function RequestPane({ uid, account, onPosted, onRoute }) {
           : <Eyebrow>Post a trip</Eyebrow>}
         <StepDots step={step} total={3} />
       </div>
-      <H1>{titles[step]}</H1>
-      <Sub>{subs[step]}</Sub>
+      <div style={{ fontFamily: COND, fontSize: 19, fontWeight: 800, letterSpacing: '.01em', color: C.inkBright, margin: '5px 0 12px' }}>{titles[step]}</div>
 
       {/* ── STEP 0 · ROUTE ── */}
       {step === 0 && (
         <>
-          <div style={cardStyle}>
-            <AddressField label="Pickup" node={C.cyan} value={pickup} onChange={setPickup} placeholder="Where from?" onLocate={handleLocate} locating={geo.loading} />
-            <div style={{ height: 1, background: C.inkFade }} />
-            <AddressField label="Destination" node={C.greenBright} value={dropoff} onChange={setDropoff} placeholder="Where to?" />
+          {/* connected pickup → destination card */}
+          <div style={{ ...cardStyle, position: 'relative' }}>
+            <AddressField compact node={C.cyan} value={pickup} onChange={setPickup} placeholder="Pickup location" onLocate={handleLocate} locating={geo.loading} />
+            <div style={{ height: 1, background: C.inkFade, marginLeft: 34 }} />
+            <AddressField compact node={C.greenBright} value={dropoff} onChange={setDropoff} placeholder="Where to?" />
+            {/* rail connecting the two dots */}
+            <div style={{ position: 'absolute', left: 18.5, top: 30, bottom: 30, width: 1.5, background: 'linear-gradient(180deg,#22D3EE,#4ADE80)', opacity: .35 }} />
           </div>
           {geo.error && <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.red, marginTop: 8 }}>{geo.error}</div>}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, margin: '16px 2px 14px' }}>
-            <div>
-              <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 800, color: C.inkBright }}>{tripData ? tripData.miles : '—'}<span style={{ fontSize: 10, color: C.inkMid }}> mi</span></div>
-              <div style={{ fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.14em', color: C.inkDim, textTransform: 'uppercase' }}>Distance</div>
-            </div>
-            <div>
-              <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 800, color: C.inkBright }}>{tripData ? tripData.durationMin : '—'}<span style={{ fontSize: 10, color: C.inkMid }}> min</span></div>
-              <div style={{ fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.14em', color: C.inkDim, textTransform: 'uppercase' }}>Est. time</div>
-            </div>
-            {routing && <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 9.5, color: C.amber }}>routing…</span>}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 22, margin: '12px 2px' }}>
+            {tripData ? (
+              <>
+                <Chip icon="📍">{tripData.miles} mi</Chip>
+                <Chip icon="⏱">{tripData.durationMin} min</Chip>
+              </>
+            ) : (
+              <span style={{ fontFamily: MONO, fontSize: 9.5, color: C.inkDim }}>
+                {routing ? 'Finding route…' : 'Enter both to see distance & time'}
+              </span>
+            )}
           </div>
 
           <StepButton enabled={routeReady} onClick={() => setStep(1)}>Continue</StepButton>
