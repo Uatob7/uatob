@@ -21,6 +21,7 @@ import { useRequests }      from '@/App/UaTob/useRequests';
 import { useCreateRequest } from '@/App/UaTob/useCreateRequest';
 import { useClaimRequest }  from '@/App/UaTob/useClaimRequest';
 import { useAddCredit }     from '@/App/UaTob/useAddCredit';
+import RiderMap             from '@/App/UaTob/RiderMap';
 import { calcFare }         from '@/App/UaTob/fare';
 import { RIDE_TYPES }       from '@/App/UaTob/pricing';
 
@@ -990,12 +991,27 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
       }}>
         <Ribbon mode={modeLabel} credit={credit} onOpenWallet={openTopup} />
 
-        <div className="ur-scroll" style={{ position: 'relative', zIndex: 20, flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '6px 16px 24px', scrollbarWidth: 'none' }}>
-          {tab === 'request' && <RequestPane uid={uid} account={account} onPosted={() => setTab('rides')} />}
-          {tab === 'rides'   && <RidesPane requests={board} loading={loadingRequests} onPay={openPay} credit={credit} />}
-          {tab === 'driver'  && <DriverPane drivers={drivers} />}
-          {tab === 'you'     && <YouPane account={account} onSignOut={onSignOut} onAddCredit={openTopup} />}
-        </div>
+        {tab === 'request' ? (
+          /* Map-first home — live map backdrop + composer panel */
+          <div style={{ position: 'relative', zIndex: 20, flex: 1, overflow: 'hidden' }}>
+            <RiderMap center={account?.lat != null ? { lat: account.lat, lng: account.lng } : undefined} drivers={drivers} />
+            <div className="ur-scroll" style={{
+              position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '74%', overflowY: 'auto',
+              background: 'linear-gradient(180deg, rgba(6,12,7,.82), rgba(4,8,5,.98))', backdropFilter: 'blur(16px)',
+              borderTop: `1px solid ${C.border}`, borderRadius: '26px 26px 0 0',
+              boxShadow: '0 -20px 50px rgba(0,0,0,.55)', padding: '10px 16px 20px', scrollbarWidth: 'none',
+            }}>
+              <div style={{ width: 38, height: 4, borderRadius: 2, background: C.inkFade, margin: '0 auto 12px' }} />
+              <RequestPane uid={uid} account={account} onPosted={() => setTab('rides')} />
+            </div>
+          </div>
+        ) : (
+          <div className="ur-scroll" style={{ position: 'relative', zIndex: 20, flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '6px 16px 24px', scrollbarWidth: 'none' }}>
+            {tab === 'rides'  && <RidesPane requests={board} loading={loadingRequests} onPay={openPay} credit={credit} />}
+            {tab === 'driver' && <DriverPane drivers={drivers} />}
+            {tab === 'you'    && <YouPane account={account} onSignOut={onSignOut} onAddCredit={openTopup} />}
+          </div>
+        )}
 
         {sheet && (
           <PaymentSheet
