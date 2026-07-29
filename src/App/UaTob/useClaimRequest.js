@@ -16,6 +16,7 @@ import {
   collection,
   runTransaction,
   serverTimestamp,
+  increment,
 } from 'firebase/firestore';
 import { firebase_app } from '@/firebase/config';
 
@@ -37,7 +38,9 @@ export function useClaimRequest(uid) {
   const [error,   setError]   = useState(null);
 
   // request: the board request object (must include .id)
-  // paymentMethod: 'cash' | 'card' | 'cashapp'
+  // paymentMethod: 'cash' | 'credit'
+  //   cash   → settled on arrival (like the legacy cash flow)
+  //   credit → PREPAID: deducts the rider's account balance atomically here
   const claimRequest = useCallback(
     async (request, paymentMethod = 'cash') => {
       if (!uid)          throw new ClaimError('missing', 'You must be signed in to book.');
@@ -51,6 +54,7 @@ export function useClaimRequest(uid) {
 
       try {
         await runTransaction(db, async (tx) => {
+          // ── Reads first (transaction rule) ───────────────────────────────
           const snap = await tx.get(requestRef);
           if (!snap.exists()) {
             throw new ClaimError('not_found', 'This request no longer exists.');
@@ -64,9 +68,26 @@ export function useClaimRequest(uid) {
           const platformFee  = +(fareTotal * PLATFORM_RATE).toFixed(2);
           const driverPayout = +(fareTotal * (1 - PLATFORM_RATE)).toFixed(2);
 
-          // Cash settles on arrival; card/cashapp are captured downstream by the
-          // existing payment pipeline against this Ride id.
-          const paymentStatus = paymentMethod === 'cash' ? 'succeeded' : 'pending';
+          // Ride credit is prepaid — verify the balance covers the fare before
+          // we commit anything, then debit it inside the same transaction.
+          let accountRef = null;
+          if (paymentMethod === 'credit') {
+            accountRef = doc(db, 'Accounts', uid);
+            const acc = await tx.get(accountRef);
+            const balance = Number(acc.exists() ? (acc.data().credit || 0) : 0);
+            if (balance < fareTotal) {
+              const err = new ClaimError('insufficient_credit', 'Not enough ride credit.');
+              err.needed = +(fareTotal - balance).toFixed(2);
+              err.balance = balance;
+              err.fare = fareTotal;
+              throw err;
+            }
+          }
+
+          // Scheduled ("leave later") requests become scheduled Rides.
+          const scheduled = r.isScheduled === true && !!r.scheduledAt;
+          const rideStatus    = scheduled ? 'scheduled' : 'searching_driver';
+          const paymentStatus = paymentMethod === 'credit' ? 'paid' : 'succeeded';
 
           // ── Canonical Ride (mirrors useCashPayment) ──────────────────────
           tx.set(rideRef, {
@@ -98,17 +119,18 @@ export function useClaimRequest(uid) {
             tripDurationMin:   r.tripDurationMin   ?? null,
             fareBreakdown:     r.fareBreakdown     ?? null,
 
-            isScheduled:    false,
-            scheduledAt:    null,
+            isScheduled:    scheduled,
+            scheduledAt:    scheduled ? r.scheduledAt : null,
             promoCode:      null,
             discountAmount: null,
             match:          [],
 
             paymentMethod,
             paymentStatus,
+            creditCharged:  paymentMethod === 'credit' ? fareTotal : null,
             paymentIntentId: null,
 
-            status:    'searching_driver',
+            status:    rideStatus,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           });
@@ -121,6 +143,14 @@ export function useClaimRequest(uid) {
             paymentMethod,
             updatedAt: serverTimestamp(),
           });
+
+          // ── Debit prepaid credit ─────────────────────────────────────────
+          if (accountRef) {
+            tx.update(accountRef, {
+              credit:    increment(-fareTotal),
+              updatedAt: serverTimestamp(),
+            });
+          }
         });
 
         return { rideId: rideRef.id };

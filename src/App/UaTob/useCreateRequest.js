@@ -61,6 +61,12 @@ export function useCreateRequest(uid) {
           fareBreakdown:     payload.fareBreakdown     ?? null,
           surge:             payload.surge             ?? 1,
 
+          // Scheduling — "leave now" or a future pickup the rider picked.
+          isScheduled: payload.isScheduled === true,
+          scheduledAt: payload.scheduledAt
+            ? Timestamp.fromDate(new Date(payload.scheduledAt))
+            : null,
+
           status:    'open',
           claimedBy: null,
           rideId:    null,

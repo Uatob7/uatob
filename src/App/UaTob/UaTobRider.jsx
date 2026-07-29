@@ -20,6 +20,7 @@ import { useRoute }         from '@/App/UaTob/useRoute';
 import { useRequests }      from '@/App/UaTob/useRequests';
 import { useCreateRequest } from '@/App/UaTob/useCreateRequest';
 import { useClaimRequest }  from '@/App/UaTob/useClaimRequest';
+import { useAddCredit }     from '@/App/UaTob/useAddCredit';
 import { calcFare }         from '@/App/UaTob/fare';
 import { RIDE_TYPES }       from '@/App/UaTob/pricing';
 
@@ -174,13 +175,40 @@ function AddressField({ label, node, value, onChange, placeholder, onLocate, loc
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// REQUEST TAB
+// REQUEST TAB — multi-step: route → when → price → post
 // ═══════════════════════════════════════════════════════════════════════════
+function fmtDayLabel(d) {
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  const diff = Math.round((new Date(d).setHours(0, 0, 0, 0) - t.getTime()) / 86400000);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Tmrw';
+  return new Date(d).toLocaleDateString('en-US', { weekday: 'short' });
+}
+const fmtDayNum = (d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+function fmtWhen(scheduledAt) {
+  if (!scheduledAt) return 'Leave now';
+  return new Date(scheduledAt).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function StepDots({ step, total }) {
+  return (
+    <div style={{ display: 'flex', gap: 4 }}>
+      {Array.from({ length: total }, (_, i) => (
+        <span key={i} style={{ width: i === step ? 18 : 6, height: 4, borderRadius: 2, background: i <= step ? C.greenBright : C.inkFade, boxShadow: i === step ? `0 0 8px ${C.greenBright}88` : 'none', transition: 'width .25s, background .25s' }} />
+      ))}
+    </div>
+  );
+}
+
 function RequestPane({ uid, account, onPosted }) {
   const geo = useGeo();
+  const [step, setStep] = useState(0);              // 0 route · 1 when · 2 price
   const [pickup,  setPickup]  = useState(account?.pickup || account?.address || '');
   const [dropoff, setDropoff] = useState('');
   const [rideType, setRideType] = useState('standard');
+  const [leaveNow, setLeaveNow] = useState(true);
+  const [schedDay, setSchedDay] = useState(null);   // Date @ local midnight
+  const [schedTime, setSchedTime] = useState('');   // 'HH:MM'
   const [posting, setPosting] = useState(false);
 
   const { tripData, loading: routing } = useRoute(pickup, dropoff);
@@ -196,17 +224,28 @@ function RequestPane({ uid, account, onPosted }) {
     return out;
   }, [tripData]);
 
-  const ready = pickup.trim() && dropoff.trim() && tripData && !routing;
+  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + i); return d;
+  }), []);
+
+  const scheduledAt = useMemo(() => {
+    if (leaveNow || !schedDay || !schedTime) return null;
+    const [h, m] = schedTime.split(':').map(Number);
+    const d = new Date(schedDay); d.setHours(h || 0, m || 0, 0, 0);
+    return d;
+  }, [leaveNow, schedDay, schedTime]);
+
+  const routeReady = !!(pickup.trim() && dropoff.trim() && tripData && !routing);
+  const whenReady  = leaveNow || (scheduledAt && scheduledAt.getTime() > Date.now() + 60_000);
 
   const handleLocate = useCallback(async () => {
     try { const addr = await geo.resolve(); setPickup(addr); } catch { /* surfaced in geo.error */ }
   }, [geo]);
 
   const handlePost = useCallback(async () => {
-    if (!ready || posting) return;
+    if (!routeReady || posting) return;
     setPosting(true);
     const label = RIDE_TYPES.find((t) => t.id === rideType)?.label ?? rideType;
-    const fareEstimate = fares[rideType];
     const id = await createRequest({
       posterName:   account?.name || account?.displayName || 'Rider',
       posterRating: account?.rating ?? null,
@@ -218,99 +257,202 @@ function RequestPane({ uid, account, onPosted }) {
       dropoffLat: tripData.dropoffLat, dropoffLng: tripData.dropoffLng,
       polyline: tripData.polyline,
       rideType, rideLabel: label,
-      fareEstimate,
+      fareEstimate: fares[rideType],
       tripDistanceMiles: tripData.miles,
       tripDurationMin: tripData.durationMin,
+      isScheduled: !leaveNow,
+      scheduledAt: scheduledAt ? scheduledAt.toISOString() : null,
     });
     setPosting(false);
-    if (id) { setDropoff(''); onPosted?.(); }
-  }, [ready, posting, rideType, fares, createRequest, account, pickup, dropoff, tripData, onPosted]);
+    if (id) {
+      setDropoff(''); setStep(0); setLeaveNow(true); setSchedDay(null); setSchedTime('');
+      onPosted?.();
+    }
+  }, [routeReady, posting, rideType, fares, createRequest, account, pickup, dropoff, tripData, leaveNow, scheduledAt, onPosted]);
+
+  const titles = ['Request a ride', 'When do you leave?', 'Confirm & price'];
+  const subs = [
+    'Set your pickup and destination.',
+    'Ride now, or schedule a pickup for later.',
+    'Pick your ride and post it to the open board.',
+  ];
 
   return (
     <div style={{ animation: 'urUp .38s cubic-bezier(.34,1.1,.64,1) both' }}>
-      <Eyebrow>Post a trip</Eyebrow>
-      <H1>Request a ride</H1>
-      <Sub>Drop your pickup + destination. Your trip posts to the open board — any driver nearby can claim it.</Sub>
-
-      <div style={cardStyle}>
-        <AddressField label="Pickup" node={C.cyan} value={pickup} onChange={setPickup} placeholder="Where from?" onLocate={handleLocate} locating={geo.loading} />
-        <div style={{ height: 1, background: C.inkFade }} />
-        <AddressField label="Destination" node={C.greenBright} value={dropoff} onChange={setDropoff} placeholder="Where to?" />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 18 }}>
+        {step > 0
+          ? <button className="ur-tap" onClick={() => setStep((s) => s - 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.inkMid, fontFamily: COND, fontSize: 11, fontWeight: 800, letterSpacing: '.16em', textTransform: 'uppercase', padding: 0, display: 'flex', alignItems: 'center', gap: 5 }}>‹ Back</button>
+          : <Eyebrow>Post a trip</Eyebrow>}
+        <StepDots step={step} total={3} />
       </div>
-      {geo.error && <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.red, marginTop: 8 }}>{geo.error}</div>}
+      <H1>{titles[step]}</H1>
+      <Sub>{subs[step]}</Sub>
 
-      {/* Ride types */}
-      <div style={{ display: 'flex', gap: 8, margin: '14px 0 4px' }}>
-        {RIDE_TYPES.map((t) => {
-          const sel = rideType === t.id;
-          return (
-            <button
-              key={t.id}
-              className="ur-tap"
-              onClick={() => setRideType(t.id)}
-              style={{
-                flex: 1, border: `1px solid ${sel ? C.borderBright : C.border}`, borderRadius: 14,
-                padding: '11px 4px 10px', textAlign: 'center', cursor: 'pointer',
-                background: sel ? 'rgba(34,197,94,.10)' : 'rgba(255,255,255,.015)',
-                boxShadow: sel ? '0 0 22px rgba(34,197,94,.12)' : 'none',
-              }}
-            >
-              <div style={{ fontSize: 19, lineHeight: 1 }}>{RIDE_ICON[t.id]}</div>
-              <div style={{ fontFamily: COND, fontSize: 11, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: C.inkBright, marginTop: 5 }}>{t.label}</div>
-              <div style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: C.greenBright, marginTop: 2 }}>
-                {fares[t.id] != null ? money(fares[t.id]) : '—'}
+      {/* ── STEP 0 · ROUTE ── */}
+      {step === 0 && (
+        <>
+          <div style={cardStyle}>
+            <AddressField label="Pickup" node={C.cyan} value={pickup} onChange={setPickup} placeholder="Where from?" onLocate={handleLocate} locating={geo.loading} />
+            <div style={{ height: 1, background: C.inkFade }} />
+            <AddressField label="Destination" node={C.greenBright} value={dropoff} onChange={setDropoff} placeholder="Where to?" />
+          </div>
+          {geo.error && <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.red, marginTop: 8 }}>{geo.error}</div>}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, margin: '16px 2px 14px' }}>
+            <div>
+              <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 800, color: C.inkBright }}>{tripData ? tripData.miles : '—'}<span style={{ fontSize: 10, color: C.inkMid }}> mi</span></div>
+              <div style={{ fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.14em', color: C.inkDim, textTransform: 'uppercase' }}>Distance</div>
+            </div>
+            <div>
+              <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 800, color: C.inkBright }}>{tripData ? tripData.durationMin : '—'}<span style={{ fontSize: 10, color: C.inkMid }}> min</span></div>
+              <div style={{ fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.14em', color: C.inkDim, textTransform: 'uppercase' }}>Est. time</div>
+            </div>
+            {routing && <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 9.5, color: C.amber }}>routing…</span>}
+          </div>
+
+          <StepButton enabled={routeReady} onClick={() => setStep(1)}>Continue</StepButton>
+        </>
+      )}
+
+      {/* ── STEP 1 · WHEN ── */}
+      {step === 1 && (
+        <>
+          <div style={{ display: 'flex', gap: 9, marginBottom: 14 }}>
+            {[{ v: true, ic: '⚡', t: 'Leave now', s: 'Post immediately' }, { v: false, ic: '🗓', t: 'Schedule', s: 'Pick a day & time' }].map((o) => {
+              const sel = leaveNow === o.v;
+              return (
+                <button key={String(o.v)} className="ur-tap" onClick={() => setLeaveNow(o.v)} style={{
+                  flex: 1, cursor: 'pointer', borderRadius: 16, padding: '16px 12px', textAlign: 'left',
+                  border: `1.5px solid ${sel ? C.borderBright : C.border}`,
+                  background: sel ? 'rgba(34,197,94,.10)' : 'rgba(255,255,255,.015)',
+                  boxShadow: sel ? '0 0 22px rgba(34,197,94,.12)' : 'none',
+                }}>
+                  <div style={{ fontSize: 20 }}>{o.ic}</div>
+                  <div style={{ fontFamily: COND, fontSize: 15, fontWeight: 800, letterSpacing: '.04em', color: C.inkBright, marginTop: 8 }}>{o.t}</div>
+                  <div style={{ fontFamily: MONO, fontSize: 9, color: C.inkDim, marginTop: 2 }}>{o.s}</div>
+                </button>
+              );
+            })}
+          </div>
+
+          {!leaveNow && (
+            <div style={{ ...cardStyle, padding: 14, marginBottom: 14, animation: 'urUp .25s ease both' }}>
+              <Eyebrow style={{ fontSize: 9, letterSpacing: '.16em' }}>Pick a day</Eyebrow>
+              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', margin: '9px 0 14px', paddingBottom: 2 }} className="ur-scroll">
+                {days.map((d) => {
+                  const sel = schedDay && d.getTime() === schedDay.getTime();
+                  return (
+                    <button key={d.getTime()} className="ur-tap" onClick={() => setSchedDay(d)} style={{
+                      flexShrink: 0, minWidth: 52, cursor: 'pointer', borderRadius: 12, padding: '9px 6px', textAlign: 'center',
+                      border: `1px solid ${sel ? C.borderBright : C.border}`, background: sel ? 'rgba(34,197,94,.12)' : 'rgba(255,255,255,.015)',
+                    }}>
+                      <div style={{ fontFamily: COND, fontSize: 11, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: sel ? C.greenBright : C.inkMid }}>{fmtDayLabel(d)}</div>
+                      <div style={{ fontFamily: MONO, fontSize: 9, color: C.inkDim, marginTop: 3 }}>{fmtDayNum(d)}</div>
+                    </button>
+                  );
+                })}
               </div>
-            </button>
-          );
-        })}
-      </div>
+              <Eyebrow style={{ fontSize: 9, letterSpacing: '.16em' }}>Pick a time</Eyebrow>
+              <input
+                type="time"
+                value={schedTime}
+                onChange={(e) => setSchedTime(e.target.value)}
+                style={{
+                  marginTop: 9, width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,.03)',
+                  border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 14px', outline: 'none',
+                  fontFamily: MONO, fontSize: 15, fontWeight: 700, color: C.inkBright, colorScheme: 'dark',
+                }}
+              />
+              {scheduledAt && (
+                <div style={{ fontFamily: MONO, fontSize: 10, color: C.greenSoft, marginTop: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  🗓 {fmtWhen(scheduledAt)}
+                </div>
+              )}
+            </div>
+          )}
 
-      {/* Estimate */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, margin: '16px 2px 12px' }}>
-        <div>
-          <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 800, color: C.inkBright }}>
-            {tripData ? tripData.miles : '—'}<span style={{ fontSize: 10, color: C.inkMid }}> mi</span>
-          </div>
-          <div style={{ fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.14em', color: C.inkDim, textTransform: 'uppercase' }}>Distance</div>
-        </div>
-        <div>
-          <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 800, color: C.inkBright }}>
-            {tripData ? tripData.durationMin : '—'}<span style={{ fontSize: 10, color: C.inkMid }}> min</span>
-          </div>
-          <div style={{ fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.14em', color: C.inkDim, textTransform: 'uppercase' }}>Est. time</div>
-        </div>
-        {routing && <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 9.5, color: C.amber }}>routing…</span>}
-      </div>
+          <StepButton enabled={!!whenReady} onClick={() => setStep(2)}>Continue</StepButton>
+        </>
+      )}
 
-      <button
-        className="ur-tap"
-        onClick={handlePost}
-        disabled={!ready || posting}
-        style={{
-          width: '100%', border: 'none', borderRadius: 16, padding: 16, cursor: ready ? 'pointer' : 'not-allowed',
-          fontFamily: COND, fontSize: 16, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase',
-          color: ready ? '#04150a' : C.inkDim,
-          background: ready ? 'linear-gradient(135deg,#4ADE80,#22C55E 55%,#15803D)' : 'rgba(255,255,255,.05)',
-          boxShadow: ready ? '0 10px 30px rgba(34,197,94,.3)' : 'none',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
-        }}
-      >
-        {posting ? 'Posting…' : 'Post request'}
-        <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 800, opacity: .65, textTransform: 'none' }}>→ Request DB</span>
-      </button>
-      <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.inkDim, textAlign: 'center', marginTop: 11, lineHeight: 1.55 }}>
-        Posting creates a <b style={{ color: C.greenSoft }}>Request</b> — visible to every driver on the board. No charge until it's claimed &amp; paid.
-      </div>
+      {/* ── STEP 2 · PRICE ── */}
+      {step === 2 && (
+        <>
+          <div style={{ ...cardStyle, padding: '13px 15px', marginBottom: 14 }}>
+            <div style={{ display: 'flex', gap: 11 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 4 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.cyan, boxShadow: `0 0 7px ${C.cyan}` }} />
+                <span style={{ width: 1.5, flex: 1, minHeight: 14, background: 'linear-gradient(180deg,#22D3EE,#4ADE80)', opacity: .4, margin: '2px 0' }} />
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.greenBright, boxShadow: `0 0 7px ${C.greenBright}` }} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {[pickup, dropoff].map((a, i) => <div key={i} style={{ fontFamily: BODY, fontSize: 12.5, fontWeight: 600, color: C.inkBright, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a}</div>)}
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, paddingTop: 11, borderTop: `1px solid ${C.inkFade}` }}>
+              <span style={{ fontSize: 13 }}>{leaveNow ? '⚡' : '🗓'}</span>
+              <span style={{ fontFamily: MONO, fontSize: 10.5, color: leaveNow ? C.greenSoft : C.cyan }}>{fmtWhen(scheduledAt)}</span>
+              <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10, color: C.inkMid }}>{tripData?.miles} mi · {tripData?.durationMin} min</span>
+            </div>
+          </div>
+
+          <Eyebrow style={{ letterSpacing: '.16em' }}>Choose your ride</Eyebrow>
+          <div style={{ display: 'flex', gap: 8, margin: '10px 0 4px' }}>
+            {RIDE_TYPES.map((t) => {
+              const sel = rideType === t.id;
+              return (
+                <button key={t.id} className="ur-tap" onClick={() => setRideType(t.id)} style={{
+                  flex: 1, border: `1px solid ${sel ? C.borderBright : C.border}`, borderRadius: 14, padding: '11px 4px 10px', textAlign: 'center', cursor: 'pointer',
+                  background: sel ? 'rgba(34,197,94,.10)' : 'rgba(255,255,255,.015)', boxShadow: sel ? '0 0 22px rgba(34,197,94,.12)' : 'none',
+                }}>
+                  <div style={{ fontSize: 19, lineHeight: 1 }}>{RIDE_ICON[t.id]}</div>
+                  <div style={{ fontFamily: COND, fontSize: 11, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: C.inkBright, marginTop: 5 }}>{t.label}</div>
+                  <div style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: C.greenBright, marginTop: 2 }}>{fares[t.id] != null ? money(fares[t.id]) : '—'}</div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', margin: '18px 2px 14px' }}>
+            <span style={{ fontFamily: COND, fontSize: 15, fontWeight: 800, letterSpacing: '.04em', textTransform: 'uppercase', color: C.inkBright }}>Ride price</span>
+            <span style={{ fontFamily: MONO, fontSize: 24, fontWeight: 800, color: C.greenBright }}>{fares[rideType] != null ? money(fares[rideType]) : '—'}</span>
+          </div>
+
+          <StepButton enabled={routeReady && !posting} onClick={handlePost}>
+            {posting ? 'Posting…' : 'Post request'}
+            <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 800, opacity: .65, textTransform: 'none' }}>→ to Rides</span>
+          </StepButton>
+          <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.inkDim, textAlign: 'center', marginTop: 11, lineHeight: 1.55 }}>
+            Posts a <b style={{ color: C.greenSoft }}>Request</b> to the board. Pay it with cash or ride credit from the Rides tab.
+          </div>
+        </>
+      )}
     </div>
+  );
+}
+
+function StepButton({ enabled, onClick, children }) {
+  return (
+    <button className="ur-tap" onClick={enabled ? onClick : undefined} disabled={!enabled} style={{
+      width: '100%', border: 'none', borderRadius: 16, padding: 16, cursor: enabled ? 'pointer' : 'not-allowed',
+      fontFamily: COND, fontSize: 16, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase',
+      color: enabled ? '#04150a' : C.inkDim,
+      background: enabled ? 'linear-gradient(135deg,#4ADE80,#22C55E 55%,#15803D)' : 'rgba(255,255,255,.05)',
+      boxShadow: enabled ? '0 10px 30px rgba(34,197,94,.3)' : 'none',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
+    }}>
+      {children}
+    </button>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // RIDES TAB (open board)
 // ═══════════════════════════════════════════════════════════════════════════
-function RequestCard({ req, onPay }) {
+function RequestCard({ req, onPay, credit }) {
   const tagColor = TAG_COLOR[req.rideType] || C.greenBright;
   const initial = (req.posterName || 'Rider').trim().charAt(0).toUpperCase();
+  const scheduledMs = req.scheduledAt?.toMillis ? req.scheduledAt.toMillis() : (req.scheduledAt?.seconds ? req.scheduledAt.seconds * 1000 : null);
   return (
     <div style={{ ...cardStyle, padding: '14px 15px 13px', marginBottom: 11, position: 'relative', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 2.5, background: 'linear-gradient(180deg,#4ADE80,transparent)' }} />
@@ -324,7 +466,14 @@ function RequestCard({ req, onPay }) {
             </div>
           </div>
         </div>
-        <span style={{ fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', padding: '4px 8px', borderRadius: 7, color: tagColor, background: `${tagColor}18`, border: `1px solid ${tagColor}40` }}>{req.rideLabel || req.rideType}</span>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+          <span style={{ fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', padding: '4px 8px', borderRadius: 7, color: tagColor, background: `${tagColor}18`, border: `1px solid ${tagColor}40` }}>{req.rideLabel || req.rideType}</span>
+          {scheduledMs && (
+            <span style={{ fontFamily: MONO, fontSize: 8.5, fontWeight: 700, color: C.cyan, padding: '2px 7px', borderRadius: 6, background: 'rgba(34,211,238,.08)', border: '1px solid rgba(34,211,238,.25)' }}>
+              🗓 {new Date(scheduledMs).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+            </span>
+          )}
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: 11, marginBottom: 12 }}>
@@ -348,7 +497,7 @@ function RequestCard({ req, onPay }) {
 
       <div style={{ display: 'flex', gap: 9 }}>
         <PayBtn kind="cash" onClick={() => onPay(req, 'cash')} sub={req.fareEstimate != null ? `${money(req.fareEstimate)} on arrival` : 'on arrival'} />
-        <PayBtn kind="card" onClick={() => onPay(req, 'card')} sub="•••• 4821" />
+        <PayBtn kind="credit" onClick={() => onPay(req, 'credit')} sub={`${money(credit || 0)} avail`} />
       </div>
     </div>
   );
@@ -365,26 +514,26 @@ function Stat({ n, unit, label, hi }) {
 }
 function PayBtn({ kind, sub, onClick }) {
   const cash = kind === 'cash';
-  const col = cash ? C.greenSoft : C.cyan;
+  const col = cash ? C.greenSoft : C.amber;
   return (
     <button className="ur-tap" onClick={onClick} style={{
       flex: 1, cursor: 'pointer', borderRadius: 12, padding: '12px 8px',
       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
       border: `1.5px solid ${col}59`, background: `${col}12`, color: col,
     }}>
-      <span style={{ fontSize: 16, lineHeight: 1 }}>{cash ? '💵' : '💳'}</span>
-      <span style={{ fontFamily: COND, fontSize: 12, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase' }}>{cash ? 'Pay cash' : 'Pay card'}</span>
+      <span style={{ fontSize: 16, lineHeight: 1 }}>{cash ? '💵' : '🪙'}</span>
+      <span style={{ fontFamily: COND, fontSize: 12, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase' }}>{cash ? 'Pay cash' : 'Ride credit'}</span>
       <span style={{ fontFamily: MONO, fontSize: 9, opacity: .7 }}>{sub}</span>
     </button>
   );
 }
 
-function RidesPane({ requests, loading, onPay }) {
+function RidesPane({ requests, loading, onPay, credit }) {
   return (
     <div style={{ animation: 'urUp .38s cubic-bezier(.34,1.1,.64,1) both' }}>
       <Eyebrow>Open board</Eyebrow>
       <H1>Rides</H1>
-      <Sub>Live requests posted around you. Pick one and choose how to pay — that books it as a <b style={{ color: C.greenSoft }}>Ride</b>.</Sub>
+      <Sub>Live requests posted around you. Pay one with <b style={{ color: C.greenSoft }}>cash</b> or <b style={{ color: C.amber }}>ride credit</b> — that books it as a <b style={{ color: C.greenSoft }}>Ride</b>.</Sub>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '2px 2px 12px' }}>
         <Eyebrow style={{ letterSpacing: '.16em' }}>Open requests</Eyebrow>
@@ -393,7 +542,7 @@ function RidesPane({ requests, loading, onPay }) {
 
       {loading && <Empty icon="📡" title="Scanning the board" body="Loading open requests near you…" />}
       {!loading && requests.length === 0 && <Empty icon="🌙" title="Board is quiet" body="No open requests right now. Post one from the Request tab and it'll appear here for every rider." />}
-      {requests.map((req) => <RequestCard key={req.id} req={req} onPay={onPay} />)}
+      {requests.map((req) => <RequestCard key={req.id} req={req} onPay={onPay} credit={credit} />)}
     </div>
   );
 }
@@ -484,10 +633,11 @@ function DriverRow({ d }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // YOU TAB
 // ═══════════════════════════════════════════════════════════════════════════
-function YouPane({ account, onSignOut }) {
+function YouPane({ account, onSignOut, onAddCredit }) {
   const name = account?.name || account?.displayName || 'Rider';
   const email = account?.email || '';
   const initial = name.trim().charAt(0).toUpperCase();
+  const credit = Number(account?.credit || 0);
   return (
     <div style={{ animation: 'urUp .38s cubic-bezier(.34,1.1,.64,1) both' }}>
       <Eyebrow>Account</Eyebrow>
@@ -505,6 +655,23 @@ function YouPane({ account, onSignOut }) {
         </div>
       </div>
 
+      {/* Ride credit wallet */}
+      <div style={{ ...cardStyle, padding: '16px 16px 15px', marginBottom: 14, position: 'relative', overflow: 'hidden', borderColor: 'rgba(251,191,36,.22)' }}>
+        <div style={{ position: 'absolute', right: -20, top: -20, width: 90, height: 90, borderRadius: '50%', background: 'radial-gradient(circle,rgba(251,191,36,.12),transparent 70%)' }} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontFamily: COND, fontSize: 10, fontWeight: 800, letterSpacing: '.16em', textTransform: 'uppercase', color: C.amber, display: 'flex', alignItems: 'center', gap: 6 }}>🪙 Ride credit</div>
+            <div style={{ fontFamily: MONO, fontSize: 30, fontWeight: 800, color: C.inkBright, marginTop: 6, lineHeight: 1 }}>{money(credit)}</div>
+            <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.inkDim, marginTop: 5 }}>Prepaid — pay for rides on the board</div>
+          </div>
+          <button className="ur-tap" onClick={onAddCredit} style={{
+            border: 'none', cursor: 'pointer', borderRadius: 13, padding: '12px 16px',
+            fontFamily: COND, fontSize: 13, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#150e02',
+            background: 'linear-gradient(135deg,#FCD34D,#FBBF24 55%,#D97706)', boxShadow: '0 8px 22px rgba(251,191,36,.28)',
+          }}>+ Add</button>
+        </div>
+      </div>
+
       <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
         <FleetStat n={account?.ridesCount ?? account?.totalRides ?? 0} label="Rides" color={C.greenBright} />
         <FleetStat n={account?.rating != null ? `★ ${Number(account.rating).toFixed(1)}` : '★ 5.0'} label="Rating" color={C.inkBright} />
@@ -514,7 +681,7 @@ function YouPane({ account, onSignOut }) {
       <div style={{ ...cardStyle, overflow: 'hidden' }}>
         <Row icon="💳" title="Payment methods" sub={account?.defaultCard ? `•••• ${account.defaultCard} · default` : 'Add a card or use cash'} />
         <Row icon="🕓" title="Ride history" sub={`${account?.ridesCount ?? account?.totalRides ?? 0} completed trips`} border />
-        <Row icon="🎟️" title="Promos & credit" sub={account?.credit != null ? `${money(account.credit)} available` : 'Enter a promo code'} border />
+        <Row icon="🪙" title="Add ride credit" sub={`${money(credit)} balance`} border onClick={onAddCredit} />
         <Row icon="🛡️" title="Safety & sharing" sub="Trusted contacts, live share" border />
       </div>
       <div style={{ height: 12 }} />
@@ -542,13 +709,14 @@ function Row({ icon, title, sub, border, danger, onClick }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // PAYMENT SHEET
 // ═══════════════════════════════════════════════════════════════════════════
-function PaymentSheet({ req, method, onClose, onConfirm, busy }) {
+function PaymentSheet({ req, method, credit = 0, onClose, onConfirm, onAddCredit, busy }) {
   if (!req) return null;
   const fare = Number(req.fareEstimate || 0);
   const bd = fare > 0
     ? { base: fare * 0.15, dist: fare * 0.5, time: fare * 0.21, fee: fare * 0.14 }
     : { base: 0, dist: 0, time: 0, fee: 0 };
   const cash = method === 'cash';
+  const insufficient = !cash && Number(credit) < fare;
   return (
     <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{
       position: 'absolute', inset: 0, zIndex: 70, background: 'rgba(2,5,3,.6)', backdropFilter: 'blur(4px)',
@@ -561,7 +729,7 @@ function PaymentSheet({ req, method, onClose, onConfirm, busy }) {
         animation: 'urSheet .34s cubic-bezier(.34,1.16,.64,1) both',
       }}>
         <div style={{ width: 38, height: 4, borderRadius: 2, background: C.inkFade, margin: '0 auto 16px' }} />
-        <Eyebrow style={{ letterSpacing: '.2em', fontSize: 10 }}>{cash ? 'Cash payment' : 'Card payment'}</Eyebrow>
+        <Eyebrow style={{ letterSpacing: '.2em', fontSize: 10 }}>{cash ? 'Cash payment' : 'Ride credit'}</Eyebrow>
         <div style={{ fontFamily: COND, fontSize: 22, fontWeight: 800, lineHeight: 1, margin: '4px 0 14px' }}>
           Book {(req.posterName || 'this').split(' ')[0]}'s ride
         </div>
@@ -590,25 +758,49 @@ function PaymentSheet({ req, method, onClose, onConfirm, busy }) {
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '13px 14px', marginBottom: 16, borderRadius: 14, border: `1.5px solid ${C.borderBright}`, background: 'rgba(34,197,94,.06)' }}>
-          <span style={{ fontSize: 20 }}>{cash ? '💵' : '💳'}</span>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 11, padding: '13px 14px', marginBottom: 16, borderRadius: 14,
+          border: `1.5px solid ${insufficient ? 'rgba(248,113,113,.5)' : cash ? C.borderBright : 'rgba(251,191,36,.45)'}`,
+          background: insufficient ? 'rgba(248,113,113,.06)' : cash ? 'rgba(34,197,94,.06)' : 'rgba(251,191,36,.06)',
+        }}>
+          <span style={{ fontSize: 20 }}>{cash ? '💵' : '🪙'}</span>
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: BODY, fontSize: 13, fontWeight: 700 }}>{cash ? 'Cash to driver' : 'Visa •••• 4821'}</div>
-            <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.inkMid, marginTop: 2 }}>{cash ? `Pay ${money(fare)} in cash on arrival` : `Charged ${money(fare)} when the trip ends`}</div>
+            <div style={{ fontFamily: BODY, fontSize: 13, fontWeight: 700 }}>{cash ? 'Cash to driver' : 'Ride credit'}</div>
+            <div style={{ fontFamily: MONO, fontSize: 9.5, color: insufficient ? C.red : C.inkMid, marginTop: 2 }}>
+              {cash
+                ? `Pay ${money(fare)} in cash on arrival`
+                : insufficient
+                  ? `Balance ${money(credit)} · ${money(fare - credit)} short`
+                  : `Balance ${money(credit)} → ${money(credit - fare)} after`}
+            </div>
           </div>
         </div>
 
-        <button className="ur-tap" onClick={onConfirm} disabled={busy} style={{
-          width: '100%', border: 'none', borderRadius: 16, padding: 16, cursor: busy ? 'wait' : 'pointer',
-          fontFamily: COND, fontSize: 16, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#04150a',
-          background: 'linear-gradient(135deg,#4ADE80,#22C55E 55%,#15803D)', boxShadow: '0 10px 30px rgba(34,197,94,.3)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, opacity: busy ? .7 : 1,
-        }}>
-          {busy ? 'Booking…' : 'Confirm & book'}
-          <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 800, opacity: .65, textTransform: 'none' }}>→ Ride DB</span>
-        </button>
+        {insufficient ? (
+          <button className="ur-tap" onClick={onAddCredit} style={{
+            width: '100%', border: 'none', borderRadius: 16, padding: 16, cursor: 'pointer',
+            fontFamily: COND, fontSize: 16, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#150e02',
+            background: 'linear-gradient(135deg,#FCD34D,#FBBF24 55%,#D97706)', boxShadow: '0 10px 30px rgba(251,191,36,.28)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
+          }}>
+            Add ride credit
+            <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 800, opacity: .65, textTransform: 'none' }}>→ Wallet</span>
+          </button>
+        ) : (
+          <button className="ur-tap" onClick={onConfirm} disabled={busy} style={{
+            width: '100%', border: 'none', borderRadius: 16, padding: 16, cursor: busy ? 'wait' : 'pointer',
+            fontFamily: COND, fontSize: 16, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#04150a',
+            background: 'linear-gradient(135deg,#4ADE80,#22C55E 55%,#15803D)', boxShadow: '0 10px 30px rgba(34,197,94,.3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, opacity: busy ? .7 : 1,
+          }}>
+            {busy ? 'Booking…' : `Confirm & ${cash ? 'book' : 'pay'}`}
+            <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 800, opacity: .65, textTransform: 'none' }}>→ Ride DB</span>
+          </button>
+        )}
         <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.inkDim, textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
-          Locks this Request atomically, then writes a <b style={{ color: C.greenSoft }}>Ride</b>. If another rider beat you, we'll say so.
+          {cash
+            ? <>Locks this Request atomically, then writes a <b style={{ color: C.greenSoft }}>Ride</b>. If another rider beat you, it just closes.</>
+            : <>Ride credit is <b style={{ color: C.amber }}>prepaid</b> — {money(fare)} comes off your balance the moment it's booked.</>}
         </div>
       </div>
     </div>
@@ -619,6 +811,72 @@ function BrkRow({ label, val }) {
     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 2px', fontFamily: MONO, fontSize: 12, color: C.inkMid }}>
       <span>{label}</span>
       <span style={{ color: C.inkBright, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{money(val)}</span>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ADD-CREDIT (WALLET TOP-UP) SHEET
+// ═══════════════════════════════════════════════════════════════════════════
+const TOPUP_AMOUNTS = [10, 25, 50, 100];
+
+function TopUpSheet({ balance = 0, onClose, onConfirm, busy }) {
+  const [amount, setAmount] = useState(25);
+  const [custom, setCustom] = useState('');
+  const value = custom ? Number(custom) : amount;
+  const valid = Number.isFinite(value) && value > 0;
+  return (
+    <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{
+      position: 'absolute', inset: 0, zIndex: 72, background: 'rgba(2,5,3,.6)', backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'flex-end', animation: 'urFade .2s ease',
+    }}>
+      <div style={{
+        width: '100%', background: 'linear-gradient(180deg,rgba(16,12,4,.98),rgba(6,5,2,.99))',
+        borderTop: '1.5px solid rgba(251,191,36,.4)', borderRadius: '26px 26px 34px 34px',
+        padding: '10px 18px 26px', boxShadow: '0 -20px 60px rgba(0,0,0,.7),0 0 40px rgba(251,191,36,.08)',
+        animation: 'urSheet .34s cubic-bezier(.34,1.16,.64,1) both',
+      }}>
+        <div style={{ width: 38, height: 4, borderRadius: 2, background: C.inkFade, margin: '0 auto 16px' }} />
+        <Eyebrow style={{ letterSpacing: '.2em', fontSize: 10, color: C.amber }}>🪙 Add ride credit</Eyebrow>
+        <div style={{ fontFamily: COND, fontSize: 22, fontWeight: 800, lineHeight: 1, margin: '4px 0 4px' }}>Top up your wallet</div>
+        <div style={{ fontFamily: MONO, fontSize: 10, color: C.inkMid, marginBottom: 16 }}>Balance {money(balance)} → <b style={{ color: C.amber }}>{money(balance + (valid ? value : 0))}</b></div>
+
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          {TOPUP_AMOUNTS.map((a) => {
+            const sel = !custom && amount === a;
+            return (
+              <button key={a} className="ur-tap" onClick={() => { setAmount(a); setCustom(''); }} style={{
+                flex: 1, cursor: 'pointer', borderRadius: 13, padding: '14px 4px', fontFamily: MONO, fontSize: 15, fontWeight: 800,
+                border: `1.5px solid ${sel ? 'rgba(251,191,36,.5)' : C.border}`, background: sel ? 'rgba(251,191,36,.12)' : 'rgba(255,255,255,.015)',
+                color: sel ? C.amber : C.inkBright,
+              }}>${a}</button>
+            );
+          })}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', marginBottom: 16, borderRadius: 13, border: `1px solid ${custom ? 'rgba(251,191,36,.4)' : C.border}`, background: 'rgba(255,255,255,.02)' }}>
+          <span style={{ fontFamily: MONO, fontSize: 16, fontWeight: 800, color: C.inkMid }}>$</span>
+          <input
+            type="number" min="1" inputMode="decimal" placeholder="Custom amount"
+            value={custom} onChange={(e) => setCustom(e.target.value)}
+            style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontFamily: MONO, fontSize: 15, fontWeight: 700, color: C.inkBright, colorScheme: 'dark' }}
+          />
+        </div>
+
+        <button className="ur-tap" onClick={() => valid && onConfirm(value)} disabled={!valid || busy} style={{
+          width: '100%', border: 'none', borderRadius: 16, padding: 16, cursor: valid && !busy ? 'pointer' : 'not-allowed',
+          fontFamily: COND, fontSize: 16, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase',
+          color: valid ? '#150e02' : C.inkDim,
+          background: valid ? 'linear-gradient(135deg,#FCD34D,#FBBF24 55%,#D97706)' : 'rgba(255,255,255,.05)',
+          boxShadow: valid ? '0 10px 30px rgba(251,191,36,.28)' : 'none',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, opacity: busy ? .7 : 1,
+        }}>
+          {busy ? 'Adding…' : `Add ${valid ? money(value) : 'credit'}`}
+        </button>
+        <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.inkDim, textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
+          Credit is stored on your account and spent on the board. Card charging via Stripe is wired at checkout.
+        </div>
+      </div>
     </div>
   );
 }
@@ -668,15 +926,20 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
   const [tab, setTab] = useState('request');
   const [sheet, setSheet] = useState(null);          // { req, method }
   const [booking, setBooking] = useState(false);
+  const [topup, setTopup] = useState(false);         // add-credit sheet open
 
   const { requests, loading: loadingRequests } = useRequests();
   const { claimRequest } = useClaimRequest(uid);
+  const { addCredit, loading: addingCredit } = useAddCredit(uid);
+
+  const credit = Number(account?.credit || 0);
 
   // Hide a request locally the instant it's claimed, before the snapshot catches up.
   const [hiddenIds, setHiddenIds] = useState(() => new Set());
   const board = useMemo(() => requests.filter((r) => !hiddenIds.has(r.id)), [requests, hiddenIds]);
 
   const openPay = useCallback((req, method) => setSheet({ req, method }), []);
+  const openTopup = useCallback(() => { setSheet(null); setTopup(true); }, []);
 
   const confirmPay = useCallback(async () => {
     if (!sheet || booking) return;
@@ -688,17 +951,26 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
       setHiddenIds((prev) => new Set(prev).add(sheet.req.id));
       setSheet(null);
     } catch (err) {
-      setSheet(null);
-      // Lost the claim race — silently drop the request from the board.
-      if (err?.code === 'already_claimed') {
+      if (err?.code === 'insufficient_credit') {
+        // Not enough balance — keep the request, send them to top up.
+        openTopup();
+      } else if (err?.code === 'already_claimed') {
+        // Lost the claim race — silently drop the request from the board.
+        setSheet(null);
         setHiddenIds((prev) => new Set(prev).add(sheet.req.id));
       } else {
+        setSheet(null);
         console.warn('[UaTobRider] booking failed:', err?.message || err);
       }
     } finally {
       setBooking(false);
     }
-  }, [sheet, booking, claimRequest]);
+  }, [sheet, booking, claimRequest, openTopup]);
+
+  const handleAddCredit = useCallback(async (amount) => {
+    const ok = await addCredit(amount);
+    if (ok) setTopup(false);
+  }, [addCredit]);
 
   const modeLabel = tab.toUpperCase();
 
@@ -714,12 +986,31 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
 
         <div className="ur-scroll" style={{ position: 'relative', zIndex: 20, flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '6px 16px 24px', scrollbarWidth: 'none' }}>
           {tab === 'request' && <RequestPane uid={uid} account={account} onPosted={() => setTab('rides')} />}
-          {tab === 'rides'   && <RidesPane requests={board} loading={loadingRequests} onPay={openPay} />}
+          {tab === 'rides'   && <RidesPane requests={board} loading={loadingRequests} onPay={openPay} credit={credit} />}
           {tab === 'driver'  && <DriverPane drivers={drivers} />}
-          {tab === 'you'     && <YouPane account={account} onSignOut={onSignOut} />}
+          {tab === 'you'     && <YouPane account={account} onSignOut={onSignOut} onAddCredit={openTopup} />}
         </div>
 
-        {sheet && <PaymentSheet req={sheet.req} method={sheet.method} onClose={() => setSheet(null)} onConfirm={confirmPay} busy={booking} />}
+        {sheet && (
+          <PaymentSheet
+            req={sheet.req}
+            method={sheet.method}
+            credit={credit}
+            onClose={() => setSheet(null)}
+            onConfirm={confirmPay}
+            onAddCredit={openTopup}
+            busy={booking}
+          />
+        )}
+
+        {topup && (
+          <TopUpSheet
+            balance={credit}
+            onClose={() => setTopup(false)}
+            onConfirm={handleAddCredit}
+            busy={addingCredit}
+          />
+        )}
 
         <TabBar tab={tab} setTab={setTab} rideCount={board.length} />
       </div>
