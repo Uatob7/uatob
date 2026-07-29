@@ -476,12 +476,10 @@ function RequestCard({ req, onPay, credit }) {
       <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 2.5, background: 'linear-gradient(180deg,#4ADE80,transparent)' }} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 11 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-          <div style={{ width: 34, height: 34, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: COND, fontSize: 15, fontWeight: 800, color: C.greenBright, background: 'rgba(34,197,94,.12)', border: `1.5px solid ${C.borderBright}` }}>{initial}</div>
+          <div style={{ width: 34, height: 34, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, background: 'rgba(251,191,36,.12)', border: '1.5px solid rgba(251,191,36,.35)' }}>⏳</div>
           <div>
-            <div style={{ fontFamily: BODY, fontSize: 13, fontWeight: 700, color: C.inkBright, lineHeight: 1.1 }}>{req.posterName || 'Rider'}</div>
-            <div style={{ fontFamily: MONO, fontSize: 9, color: C.inkDim, marginTop: 2 }}>
-              Posted {tsAgo(req.createdAt)}{req.posterRating ? ` · ★ ${Number(req.posterRating).toFixed(1)}` : ''}
-            </div>
+            <div style={{ fontFamily: BODY, fontSize: 13, fontWeight: 700, color: C.inkBright, lineHeight: 1.1 }}>Awaiting payment</div>
+            <div style={{ fontFamily: MONO, fontSize: 9, color: C.inkDim, marginTop: 2 }}>Posted {tsAgo(req.createdAt)}</div>
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
@@ -549,17 +547,17 @@ function PayBtn({ kind, sub, onClick }) {
 function RidesPane({ requests, loading, onPay, credit }) {
   return (
     <div style={{ animation: 'urUp .38s cubic-bezier(.34,1.1,.64,1) both' }}>
-      <Eyebrow>Open board</Eyebrow>
+      <Eyebrow>Awaiting payment</Eyebrow>
       <H1>Rides</H1>
-      <Sub>Live requests posted around you. Pay one with <b style={{ color: C.greenSoft }}>cash</b> or <b style={{ color: C.amber }}>ride credit</b> — that books it as a <b style={{ color: C.greenSoft }}>Ride</b>.</Sub>
+      <Sub>Your ride requests waiting to be paid. Pay one with <b style={{ color: C.greenSoft }}>cash</b> or <b style={{ color: C.amber }}>ride credit</b> to book it.</Sub>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '2px 2px 12px' }}>
-        <Eyebrow style={{ letterSpacing: '.16em' }}>Open requests</Eyebrow>
-        <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 800, color: C.greenBright, border: `1px solid ${C.border}`, background: 'rgba(34,197,94,.06)', padding: '3px 9px', borderRadius: 99 }}>{requests.length} LIVE</span>
+        <Eyebrow style={{ letterSpacing: '.16em' }}>Your requests</Eyebrow>
+        <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 800, color: C.greenBright, border: `1px solid ${C.border}`, background: 'rgba(34,197,94,.06)', padding: '3px 9px', borderRadius: 99 }}>{requests.length} PENDING</span>
       </div>
 
-      {loading && <Empty icon="📡" title="Scanning the board" body="Loading open requests near you…" />}
-      {!loading && requests.length === 0 && <Empty icon="🌙" title="Board is quiet" body="No open requests right now. Post one from the Request tab and it'll appear here for every rider." />}
+      {loading && <Empty icon="⏳" title="Loading" body="Fetching your requests…" />}
+      {!loading && requests.length === 0 && <Empty icon="✅" title="All caught up" body="You have no rides waiting for payment. Post a request and it'll show up here to pay." />}
       {requests.map((req) => <RequestCard key={req.id} req={req} onPay={onPay} credit={credit} />)}
     </div>
   );
@@ -948,7 +946,7 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
   const [route, setRoute] = useState({ pickup: null, dropoff: null, polyline: null });
   const [requestOpen, setRequestOpen] = useState(false); // composer collapsed → button only
 
-  const { requests, loading: loadingRequests } = useRequests();
+  const { requests, loading: loadingRequests } = useRequests(uid);
   const { claimRequest } = useClaimRequest(uid);
   const { addCredit, loading: addingCredit } = useAddCredit(uid);
 

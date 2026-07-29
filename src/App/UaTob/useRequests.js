@@ -16,19 +16,23 @@ import { firebase_app } from '@/firebase/config';
 
 const db = getFirestore(firebase_app);
 
-export function useRequests() {
+export function useRequests(uid) {
   const [requests, setRequests] = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState(null);
 
   useEffect(() => {
+    if (!uid) { setRequests([]); setLoading(false); return; }
     let isMounted = true;
+    setLoading(true);
 
-    // Open requests only, newest first. Requires a composite index on
-    // (status ASC, createdAt DESC) — Firestore will surface a one-click
-    // create link the first time this runs.
+    // The rider's OWN open requests, awaiting payment, newest first. Only the
+    // person who posted a request sees it on their board. Requires a composite
+    // index on (uid ASC, status ASC, createdAt DESC) — Firestore surfaces a
+    // one-click create link the first time this runs.
     const q = query(
       collection(db, 'Requests'),
+      where('uid', '==', uid),
       where('status', '==', 'open'),
       orderBy('createdAt', 'desc'),
     );
@@ -44,7 +48,7 @@ export function useRequests() {
         console.error('[useRequests]', err);
         setError(
           err.code === 'failed-precondition'
-            ? 'Missing Firestore index for Requests (status + createdAt)'
+            ? 'Missing Firestore index for Requests (uid + status + createdAt)'
             : err.message || 'Failed to load requests',
         );
         setRequests([]);
@@ -53,7 +57,7 @@ export function useRequests() {
     );
 
     return () => { isMounted = false; unsub(); };
-  }, []);
+  }, [uid]);
 
   return { requests, loading, error };
 }
