@@ -469,7 +469,6 @@ function StepButton({ enabled, onClick, children }) {
 // ═══════════════════════════════════════════════════════════════════════════
 function RequestCard({ req, onPay, credit }) {
   const tagColor = TAG_COLOR[req.rideType] || C.greenBright;
-  const initial = (req.posterName || 'Rider').trim().charAt(0).toUpperCase();
   const scheduledMs = req.scheduledAt?.toMillis ? req.scheduledAt.toMillis() : (req.scheduledAt?.seconds ? req.scheduledAt.seconds * 1000 : null);
   return (
     <div style={{ ...cardStyle, padding: '14px 15px 13px', marginBottom: 11, position: 'relative', overflow: 'hidden' }}>
