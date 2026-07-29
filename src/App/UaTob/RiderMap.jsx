@@ -235,9 +235,14 @@ export default function RiderMap({ center, drivers = [], pickup, dropoff, polyli
 
     try {
       if (pickup?.lat != null && dropoff?.lat != null) {
-        const lngs = [pickup.lng, dropoff.lng], lats = [pickup.lat, dropoff.lat];
+        // Fit the FULL route (every bend), not just the two endpoints, so the
+        // whole polyline is always shown and centered in the visible map area.
+        const pts = coords.length >= 2 ? coords.slice() : [];
+        pts.push([pickup.lng, pickup.lat], [dropoff.lng, dropoff.lat]);
+        const lngs = pts.map((p) => p[0]);
+        const lats = pts.map((p) => p[1]);
         map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], {
-          padding: { top: 70, bottom: Math.round(h * 0.55), left: 55, right: 55 }, duration: 1000, maxZoom: 15,
+          padding: { top: 70, bottom: Math.round(h * 0.46), left: 55, right: 55 }, duration: 1000, maxZoom: 15,
         });
       } else if (pickup?.lat != null) {
         map.easeTo({ center: [pickup.lng, pickup.lat], zoom: 14, padding: { bottom: Math.round(h * 0.5), top: 0, left: 0, right: 0 }, duration: 900 });
