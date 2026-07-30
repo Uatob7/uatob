@@ -28,19 +28,7 @@ import SignUpPane           from '@/App/UaTob/SignUpPane';
 import SupportOverlay       from '@/App/UaTob/SupportOverlay';
 import { calcFare }         from '@/App/UaTob/fare';
 import { RIDE_TYPES }       from '@/App/UaTob/pricing';
-
-// ── Design tokens (UaTob tactical HUD) ───────────────────────────────────────
-const C = {
-  bg: '#050A06', bgDeep: '#030604', panel: 'rgba(5,12,7,0.82)',
-  green: '#22C55E', greenBright: '#4ADE80', greenSoft: '#34D399',
-  cyan: '#22D3EE', amber: '#FBBF24', red: '#F87171', purple: '#C084FC', blue: '#60A5FA',
-  inkDim: 'rgba(255,255,255,.22)', inkFade: 'rgba(255,255,255,.10)',
-  inkMid: 'rgba(255,255,255,.45)', inkBright: 'rgba(255,255,255,.88)',
-  border: 'rgba(34,197,94,.15)', borderBright: 'rgba(74,222,128,.35)',
-};
-const MONO = "'JetBrains Mono','SFMono-Regular',monospace";
-const COND = "'Barlow Condensed','Barlow',sans-serif";
-const BODY = "'Syne','Inter',sans-serif";
+import { C, MONO, COND, BODY } from '@/App/UaTob/theme';
 
 const RIDE_ICON = { economy: '🚗', standard: '🚙', premium: '✨', xl: '🚐' };
 const TAG_COLOR = {
@@ -48,7 +36,6 @@ const TAG_COLOR = {
 };
 
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&family=JetBrains+Mono:wght@400;500;700;800&family=Syne:wght@600;700;800&display=swap');
   @keyframes urFade   { from{opacity:0} to{opacity:1} }
   @keyframes urUp     { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
   @keyframes urSheet  { from{opacity:0;transform:translateY(60px)} to{opacity:1;transform:translateY(0)} }
@@ -331,7 +318,7 @@ function RequestPane({ uid, account, onPosted, onRoute }) {
             <div style={{ height: 1, background: C.inkFade, marginLeft: 34 }} />
             <AddressField compact node={C.greenBright} value={dropoff} onChange={setDropoff} placeholder="Where to?" />
             {/* rail connecting the two dots */}
-            <div style={{ position: 'absolute', left: 18.5, top: 30, bottom: 30, width: 1.5, background: 'linear-gradient(180deg,#22D3EE,#4ADE80)', opacity: .35 }} />
+            <div style={{ position: 'absolute', left: 18.5, top: 30, bottom: 30, width: 1.5, background: 'linear-gradient(180deg,#3FD0EE,#2FE08A)', opacity: .35 }} />
           </div>
           {geo.error && <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.red, marginTop: 8 }}>{geo.error}</div>}
 
@@ -421,7 +408,7 @@ function RequestPane({ uid, account, onPosted, onRoute }) {
             <div style={{ display: 'flex', gap: 11 }}>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 5 }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.cyan, boxShadow: `0 0 7px ${C.cyan}` }} />
-                <span style={{ width: 1.5, flex: 1, minHeight: 18, background: 'linear-gradient(180deg,#22D3EE,#4ADE80)', opacity: .4, margin: '3px 0' }} />
+                <span style={{ width: 1.5, flex: 1, minHeight: 18, background: 'linear-gradient(180deg,#3FD0EE,#2FE08A)', opacity: .4, margin: '3px 0' }} />
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.greenBright, boxShadow: `0 0 7px ${C.greenBright}` }} />
               </div>
               <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 11 }}>
@@ -489,7 +476,7 @@ function StepButton({ enabled, onClick, children }) {
       width: '100%', border: 'none', borderRadius: 16, padding: 16, cursor: enabled ? 'pointer' : 'not-allowed',
       fontFamily: COND, fontSize: 16, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase',
       color: enabled ? '#04150a' : C.inkDim,
-      background: enabled ? 'linear-gradient(135deg,#4ADE80,#22C55E 55%,#15803D)' : 'rgba(255,255,255,.05)',
+      background: enabled ? 'linear-gradient(135deg,#2FE08A,#17B673 55%,#15803D)' : 'rgba(255,255,255,.05)',
       boxShadow: enabled ? '0 10px 30px rgba(34,197,94,.3)' : 'none',
       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
     }}>
@@ -506,7 +493,7 @@ function RequestCard({ req, onPay, credit }) {
   const scheduledMs = req.scheduledAt?.toMillis ? req.scheduledAt.toMillis() : (req.scheduledAt?.seconds ? req.scheduledAt.seconds * 1000 : null);
   return (
     <div style={{ ...cardStyle, padding: '14px 15px 13px', marginBottom: 11, position: 'relative', overflow: 'hidden' }}>
-      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 2.5, background: 'linear-gradient(180deg,#4ADE80,transparent)' }} />
+      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 2.5, background: 'linear-gradient(180deg,#2FE08A,transparent)' }} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 11 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
           <div style={{ width: 34, height: 34, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, background: 'rgba(251,191,36,.12)', border: '1.5px solid rgba(251,191,36,.35)' }}>⏳</div>
@@ -528,7 +515,7 @@ function RequestCard({ req, onPay, credit }) {
       <div style={{ display: 'flex', gap: 11, marginBottom: 12 }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 4 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.cyan, boxShadow: `0 0 7px ${C.cyan}` }} />
-          <span style={{ width: 1.5, flex: 1, minHeight: 16, background: 'linear-gradient(180deg,#22D3EE,#4ADE80)', opacity: .4, margin: '2px 0' }} />
+          <span style={{ width: 1.5, flex: 1, minHeight: 16, background: 'linear-gradient(180deg,#3FD0EE,#2FE08A)', opacity: .4, margin: '2px 0' }} />
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.greenBright, boxShadow: `0 0 7px ${C.greenBright}` }} />
         </div>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 9 }}>
@@ -721,7 +708,7 @@ function PaymentSheet({ req, method, credit = 0, onClose, onConfirm, onAddCredit
         <div style={{ display: 'flex', gap: 10, padding: '12px 13px', marginBottom: 14, borderRadius: 14, background: 'rgba(255,255,255,.02)', border: `1px solid ${C.inkFade}` }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 4 }}>
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.cyan }} />
-            <span style={{ width: 1.5, flex: 1, minHeight: 14, background: 'linear-gradient(180deg,#22D3EE,#4ADE80)', opacity: .4, margin: '2px 0' }} />
+            <span style={{ width: 1.5, flex: 1, minHeight: 14, background: 'linear-gradient(180deg,#3FD0EE,#2FE08A)', opacity: .4, margin: '2px 0' }} />
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.greenBright }} />
           </div>
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -774,7 +761,7 @@ function PaymentSheet({ req, method, credit = 0, onClose, onConfirm, onAddCredit
           <button className="ur-tap" onClick={onConfirm} disabled={busy} style={{
             width: '100%', border: 'none', borderRadius: 16, padding: 16, cursor: busy ? 'wait' : 'pointer',
             fontFamily: COND, fontSize: 16, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#04150a',
-            background: 'linear-gradient(135deg,#4ADE80,#22C55E 55%,#15803D)', boxShadow: '0 10px 30px rgba(34,197,94,.3)',
+            background: 'linear-gradient(135deg,#2FE08A,#17B673 55%,#15803D)', boxShadow: '0 10px 30px rgba(34,197,94,.3)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, opacity: busy ? .7 : 1,
           }}>
             {busy ? 'Booking…' : `Confirm & ${cash ? 'book' : 'pay'}`}
@@ -1019,7 +1006,7 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
                   <button className="ur-tap" onClick={() => (uid ? setRequestOpen(true) : setTab('you'))} style={{
                     width: '100%', border: 'none', borderRadius: 16, padding: 17, cursor: 'pointer',
                     fontFamily: COND, fontSize: 17, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#04150a',
-                    background: 'linear-gradient(135deg,#4ADE80,#22C55E 55%,#15803D)', boxShadow: '0 10px 30px rgba(34,197,94,.3)',
+                    background: 'linear-gradient(135deg,#2FE08A,#17B673 55%,#15803D)', boxShadow: '0 10px 30px rgba(34,197,94,.3)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
                   }}>
                     <span style={{ fontSize: 18 }}>{uid ? '🔍' : '👤'}</span> {uid ? 'Rides' : 'Sign up to ride'}

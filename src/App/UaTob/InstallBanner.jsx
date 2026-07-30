@@ -4,9 +4,7 @@
 // Hides itself once installed, dismissed, or running standalone.
 
 import { useEffect, useState } from 'react';
-
-const COND = "'Barlow Condensed','Barlow',sans-serif";
-const MONO = "'JetBrains Mono','SFMono-Regular',monospace";
+import { MONO, COND } from '@/App/UaTob/theme';
 
 export default function InstallBanner() {
   const [prompt, setPrompt] = useState(null);
@@ -54,7 +52,7 @@ export default function InstallBanner() {
       }}>
         <span style={{
           width: 26, height: 26, borderRadius: 8, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 14, background: 'rgba(74,222,128,.14)', border: '1px solid rgba(74,222,128,.3)', color: '#4ADE80',
+          fontSize: 14, background: 'rgba(74,222,128,.14)', border: '1px solid rgba(74,222,128,.3)', color: '#2FE08A',
         }}>⤓</span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: COND, fontSize: 12.5, fontWeight: 800, letterSpacing: '.05em', color: 'rgba(232,255,239,.92)' }}>Install UaTob</div>
@@ -66,7 +64,7 @@ export default function InstallBanner() {
           <button onClick={install} style={{
             border: 'none', cursor: 'pointer', borderRadius: 9, padding: '7px 13px',
             fontFamily: COND, fontSize: 11.5, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', color: '#04150a',
-            background: 'linear-gradient(135deg,#4ADE80,#22C55E)', boxShadow: '0 4px 14px rgba(34,197,94,.3)',
+            background: 'linear-gradient(135deg,#2FE08A,#17B673)', boxShadow: '0 4px 14px rgba(34,197,94,.3)',
           }}>Install</button>
         )}
         <button onClick={() => setDismissed(true)} aria-label="Dismiss" style={{

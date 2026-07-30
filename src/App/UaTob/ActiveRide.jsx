@@ -7,19 +7,9 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { getFirestore, doc, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { firebase_app } from '@/firebase/config';
 import TrackMap from '@/App/UaTob/TrackMap';
+import { C, MONO, COND, BODY } from '@/App/UaTob/theme';
 
 const db = getFirestore(firebase_app);
-
-const C = {
-  bg: '#050A06', green: '#22C55E', greenBright: '#4ADE80', greenSoft: '#34D399',
-  cyan: '#22D3EE', amber: '#FBBF24', red: '#F87171',
-  inkDim: 'rgba(255,255,255,.22)', inkFade: 'rgba(255,255,255,.10)',
-  inkMid: 'rgba(255,255,255,.45)', inkBright: 'rgba(255,255,255,.88)',
-  border: 'rgba(34,197,94,.15)', borderBright: 'rgba(74,222,128,.35)',
-};
-const MONO = "'JetBrains Mono','SFMono-Regular',monospace";
-const COND = "'Barlow Condensed','Barlow',sans-serif";
-const BODY = "'Syne','Inter',sans-serif";
 
 const STATUS = {
   searching_driver: { icon: '🔍', label: 'Finding your driver', color: C.amber, sub: 'Broadcasting to drivers nearby', phase: 'search' },
@@ -105,7 +95,6 @@ export default function ActiveRide({ ride, uid, onContactDriver }) {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&family=JetBrains+Mono:wght@400;500;700;800&family=Syne:wght@600;700;800&display=swap');
         @keyframes arBlink{0%,100%{opacity:1}50%{opacity:.25}}
         @keyframes arUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
         @keyframes arDots{0%,100%{opacity:1}50%{opacity:.3}}
@@ -177,7 +166,7 @@ export default function ActiveRide({ ride, uid, onContactDriver }) {
                 <div style={{ display: 'flex', gap: 10, padding: '10px 12px', borderRadius: 12, background: 'rgba(255,255,255,.02)', border: `1px solid ${C.inkFade}`, marginBottom: canCancel ? 11 : 0 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 4 }}>
                     <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.cyan }} />
-                    <span style={{ width: 1.5, flex: 1, minHeight: 12, background: 'linear-gradient(180deg,#22D3EE,#4ADE80)', opacity: .4, margin: '2px 0' }} />
+                    <span style={{ width: 1.5, flex: 1, minHeight: 12, background: 'linear-gradient(180deg,#3FD0EE,#2FE08A)', opacity: .4, margin: '2px 0' }} />
                     <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.greenBright }} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 7 }}>

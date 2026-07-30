@@ -24,7 +24,7 @@ function makeCar(heading) {
   const pulse = document.createElement('div');
   pulse.style.cssText = 'position:absolute;left:0;top:0;width:34px;height:34px;border-radius:50%;border:2px solid rgba(34,197,94,.5);transform:translate(-50%,-50%) scale(.5);opacity:0;animation:tmPulse 1.8s ease-out infinite';
   const car = document.createElement('div');
-  car.style.cssText = 'position:absolute;left:0;top:0;transform:translate(-50%,-50%);width:26px;height:26px;border-radius:50%;background:rgba(5,10,6,.92);border:2.5px solid #22C55E;box-shadow:0 0 14px rgba(34,197,94,.9);display:flex;align-items:center;justify-content:center;font-size:14px';
+  car.style.cssText = 'position:absolute;left:0;top:0;transform:translate(-50%,-50%);width:26px;height:26px;border-radius:50%;background:rgba(5,10,6,.92);border:2.5px solid #17B673;box-shadow:0 0 14px rgba(34,197,94,.9);display:flex;align-items:center;justify-content:center;font-size:14px';
   car.textContent = '🚗';
   wrap.appendChild(pulse);
   wrap.appendChild(car);
@@ -58,8 +58,8 @@ export default function TrackMap({ pickup, dropoff, driver, polyline, phase }) {
       map.on('load', () => {
         if (cancelled) return;
         map.addSource(SRC, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-        map.addLayer({ id: `${SRC}-glow`, type: 'line', source: SRC, layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#4ADE80', 'line-width': 9, 'line-opacity': 0.16, 'line-blur': 3 } });
-        map.addLayer({ id: `${SRC}-line`, type: 'line', source: SRC, layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#4ADE80', 'line-width': 3.5, 'line-opacity': 0.9 } });
+        map.addLayer({ id: `${SRC}-glow`, type: 'line', source: SRC, layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#2FE08A', 'line-width': 9, 'line-opacity': 0.16, 'line-blur': 3 } });
+        map.addLayer({ id: `${SRC}-line`, type: 'line', source: SRC, layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#2FE08A', 'line-width': 3.5, 'line-opacity': 0.9 } });
         mapRef.current = map;
         setReady(true);
       });
@@ -80,11 +80,11 @@ export default function TrackMap({ pickup, dropoff, driver, polyline, phase }) {
       map.getSource(SRC)?.setData({ type: 'FeatureCollection', features: coords.length >= 2 ? [{ type: 'Feature', geometry: { type: 'LineString', coordinates: coords } }] : [] });
     } catch {}
     if (pickup?.lat != null) {
-      if (!pickupRef.current) pickupRef.current = new window.mapboxgl.Marker({ element: makePin('#22D3EE', '📍'), anchor: 'center' }).setLngLat([pickup.lng, pickup.lat]).addTo(map);
+      if (!pickupRef.current) pickupRef.current = new window.mapboxgl.Marker({ element: makePin('#3FD0EE', '📍'), anchor: 'center' }).setLngLat([pickup.lng, pickup.lat]).addTo(map);
       else pickupRef.current.setLngLat([pickup.lng, pickup.lat]);
     }
     if (dropoff?.lat != null) {
-      if (!dropoffRef.current) dropoffRef.current = new window.mapboxgl.Marker({ element: makePin('#4ADE80', '🏁'), anchor: 'center' }).setLngLat([dropoff.lng, dropoff.lat]).addTo(map);
+      if (!dropoffRef.current) dropoffRef.current = new window.mapboxgl.Marker({ element: makePin('#2FE08A', '🏁'), anchor: 'center' }).setLngLat([dropoff.lng, dropoff.lat]).addTo(map);
       else dropoffRef.current.setLngLat([dropoff.lng, dropoff.lat]);
     }
   }, [ready, polyline, pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng]);

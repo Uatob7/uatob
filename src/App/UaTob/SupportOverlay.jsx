@@ -7,17 +7,9 @@ import { useState } from 'react';
 import { getFirestore, collection, addDoc, doc, setDoc, serverTimestamp, increment } from 'firebase/firestore';
 import { firebase_app } from '@/firebase/config';
 
-const db = getFirestore(firebase_app);
+import { C, MONO, COND, BODY } from '@/App/UaTob/theme';
 
-const C = {
-  green: '#22C55E', greenBright: '#4ADE80', greenSoft: '#34D399', cyan: '#22D3EE', red: '#F87171',
-  inkDim: 'rgba(255,255,255,.22)', inkFade: 'rgba(255,255,255,.10)',
-  inkMid: 'rgba(255,255,255,.45)', inkBright: 'rgba(255,255,255,.88)',
-  border: 'rgba(34,197,94,.15)', borderBright: 'rgba(74,222,128,.35)',
-};
-const MONO = "'JetBrains Mono','SFMono-Regular',monospace";
-const COND = "'Barlow Condensed','Barlow',sans-serif";
-const BODY = "'Syne','Inter',sans-serif";
+const db = getFirestore(firebase_app);
 
 const inputStyle = {
   width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,.03)',
@@ -91,7 +83,7 @@ export default function SupportOverlay({ uid, account, onClose }) {
             <div style={{ fontFamily: MONO, fontSize: 11, color: C.inkMid, lineHeight: 1.6, maxWidth: 260, margin: '0 auto 26px' }}>
               Thanks for reaching out{name ? `, ${String(name).split(' ')[0]}` : ''}. Our team will get back to you{email ? ` at ${email}` : ''}.
             </div>
-            <button onClick={onClose} style={{ border: 'none', cursor: 'pointer', borderRadius: 14, padding: '13px 26px', fontFamily: COND, fontSize: 14, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', color: '#04150a', background: 'linear-gradient(135deg,#4ADE80,#22C55E)', boxShadow: '0 8px 24px rgba(34,197,94,.3)' }}>Done</button>
+            <button onClick={onClose} style={{ border: 'none', cursor: 'pointer', borderRadius: 14, padding: '13px 26px', fontFamily: COND, fontSize: 14, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', color: '#04150a', background: 'linear-gradient(135deg,#2FE08A,#17B673)', boxShadow: '0 8px 24px rgba(34,197,94,.3)' }}>Done</button>
           </div>
         ) : (
           <>
@@ -119,7 +111,7 @@ export default function SupportOverlay({ uid, account, onClose }) {
                 width: '100%', border: 'none', borderRadius: 16, padding: 16, marginTop: 2, cursor: valid && !busy ? 'pointer' : 'not-allowed',
                 fontFamily: COND, fontSize: 16, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase',
                 color: valid ? '#04150a' : C.inkDim,
-                background: valid ? 'linear-gradient(135deg,#4ADE80,#22C55E 55%,#15803D)' : 'rgba(255,255,255,.05)',
+                background: valid ? 'linear-gradient(135deg,#2FE08A,#17B673 55%,#15803D)' : 'rgba(255,255,255,.05)',
                 boxShadow: valid ? '0 10px 30px rgba(34,197,94,.3)' : 'none',
               }}>{busy ? 'Sending…' : 'Send message'}</button>
             </div>

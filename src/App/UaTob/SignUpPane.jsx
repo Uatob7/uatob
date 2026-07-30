@@ -8,17 +8,7 @@ import { useState } from 'react';
 import signUp from '@/firebase/auth/signup';
 import signIn from '@/firebase/auth/signin';
 import { useCreateAccount } from '@/App/UaTob/useCreateAccount';
-
-const C = {
-  green: '#22C55E', greenBright: '#4ADE80', greenSoft: '#34D399', red: '#F87171',
-  inkDim: 'rgba(255,255,255,.22)', inkFade: 'rgba(255,255,255,.10)',
-  inkMid: 'rgba(255,255,255,.45)', inkBright: 'rgba(255,255,255,.88)',
-  border: 'rgba(34,197,94,.15)', borderBright: 'rgba(74,222,128,.35)',
-  panel: 'rgba(5,12,7,0.82)',
-};
-const MONO = "'JetBrains Mono','SFMono-Regular',monospace";
-const COND = "'Barlow Condensed','Barlow',sans-serif";
-const BODY = "'Syne','Inter',sans-serif";
+import { C, MONO, COND, BODY } from '@/App/UaTob/theme';
 
 function Field({ label, ...props }) {
   return (
@@ -128,7 +118,7 @@ export default function SignUpPane() {
           width: '100%', border: 'none', borderRadius: 16, padding: 16, marginTop: 4, cursor: valid && !busy ? 'pointer' : 'not-allowed',
           fontFamily: COND, fontSize: 16, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase',
           color: valid ? '#04150a' : C.inkDim,
-          background: valid ? 'linear-gradient(135deg,#4ADE80,#22C55E 55%,#15803D)' : 'rgba(255,255,255,.05)',
+          background: valid ? 'linear-gradient(135deg,#2FE08A,#17B673 55%,#15803D)' : 'rgba(255,255,255,.05)',
           boxShadow: valid ? '0 10px 30px rgba(34,197,94,.3)' : 'none',
         }}>
           {busy ? 'Please wait…' : isSignup ? 'Create account' : 'Log in'}

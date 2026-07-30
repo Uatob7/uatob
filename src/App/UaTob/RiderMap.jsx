@@ -18,7 +18,7 @@ const ROUTE_SRC = 'rm-route';
 // A small glowing dot representing a moving driver.
 function makeDot() {
   const el = document.createElement('div');
-  el.style.cssText = 'width:11px;height:11px;border-radius:50%;background:#4ADE80;border:1.5px solid rgba(5,10,6,.9);box-shadow:0 0 8px rgba(74,222,128,.9),0 0 0 4px rgba(74,222,128,.16);opacity:0;will-change:transform,opacity';
+  el.style.cssText = 'width:11px;height:11px;border-radius:50%;background:#2FE08A;border:1.5px solid rgba(5,10,6,.9);box-shadow:0 0 8px rgba(74,222,128,.9),0 0 0 4px rgba(74,222,128,.16);opacity:0;will-change:transform,opacity';
   return el;
 }
 
@@ -82,12 +82,12 @@ export default function RiderMap({ center, drivers = [], pickup, dropoff, polyli
         map.addLayer({
           id: `${ROUTE_SRC}-glow`, type: 'line', source: ROUTE_SRC,
           layout: { 'line-join': 'round', 'line-cap': 'round' },
-          paint: { 'line-color': '#4ADE80', 'line-width': 9, 'line-opacity': 0.18, 'line-blur': 3 },
+          paint: { 'line-color': '#2FE08A', 'line-width': 9, 'line-opacity': 0.18, 'line-blur': 3 },
         });
         map.addLayer({
           id: `${ROUTE_SRC}-line`, type: 'line', source: ROUTE_SRC,
           layout: { 'line-join': 'round', 'line-cap': 'round' },
-          paint: { 'line-color': '#4ADE80', 'line-width': 3.5, 'line-opacity': 0.95 },
+          paint: { 'line-color': '#2FE08A', 'line-width': 3.5, 'line-opacity': 0.95 },
         });
         mapRef.current = map;
         setReady(true);
@@ -171,12 +171,12 @@ export default function RiderMap({ center, drivers = [], pickup, dropoff, polyli
     const map = mapRef.current;
     // pickup
     if (pickup?.lat != null) {
-      if (!pickupMarkerRef.current) pickupMarkerRef.current = new window.mapboxgl.Marker({ element: makePin('#22D3EE', '📍'), anchor: 'center' }).setLngLat([pickup.lng, pickup.lat]).addTo(map);
+      if (!pickupMarkerRef.current) pickupMarkerRef.current = new window.mapboxgl.Marker({ element: makePin('#3FD0EE', '📍'), anchor: 'center' }).setLngLat([pickup.lng, pickup.lat]).addTo(map);
       else pickupMarkerRef.current.setLngLat([pickup.lng, pickup.lat]);
     } else if (pickupMarkerRef.current) { try { pickupMarkerRef.current.remove(); } catch {} pickupMarkerRef.current = null; }
     // dropoff
     if (dropoff?.lat != null) {
-      if (!dropoffMarkerRef.current) dropoffMarkerRef.current = new window.mapboxgl.Marker({ element: makePin('#4ADE80', '🏁'), anchor: 'center' }).setLngLat([dropoff.lng, dropoff.lat]).addTo(map);
+      if (!dropoffMarkerRef.current) dropoffMarkerRef.current = new window.mapboxgl.Marker({ element: makePin('#2FE08A', '🏁'), anchor: 'center' }).setLngLat([dropoff.lng, dropoff.lat]).addTo(map);
       else dropoffMarkerRef.current.setLngLat([dropoff.lng, dropoff.lat]);
     } else if (dropoffMarkerRef.current) { try { dropoffMarkerRef.current.remove(); } catch {} dropoffMarkerRef.current = null; }
   }, [ready, pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng]);
