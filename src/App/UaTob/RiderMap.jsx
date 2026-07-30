@@ -10,7 +10,7 @@
 // from useRoute, and cleans up on unmount.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 
 const MAPBOX_TOKEN = 'pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA';
 const MAP_STYLE = 'mapbox://styles/mapbox/dark-v11';
@@ -96,6 +96,7 @@ export default function RiderMap({ center, drivers = [], pickup, dropoff, polyli
   const ambientRef = useRef([]);   // [{ car, marker }]
   const rafRef = useRef(null);
   const centerRef = useRef(null);
+  const viewRef = useRef(null);    // current camera target
   const [ready, setReady] = useState(false);
 
   const base = pickup || (center?.lat != null ? center : ORL);
@@ -219,11 +220,31 @@ export default function RiderMap({ center, drivers = [], pickup, dropoff, polyli
     } else if (dropoffMarkerRef.current) { try { dropoffMarkerRef.current.remove(); } catch {} dropoffMarkerRef.current = null; }
   }, [ready, pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng]);
 
-  // ── route polyline + camera ──
+  // Single source of truth for the camera. Reads viewRef (latest target) and
+  // always resizes first so it centers correctly even mid-layout.
+  const applyView = useCallback((animated) => {
+    const map = mapRef.current;
+    const v = viewRef.current;
+    if (!map || !v) return;
+    const h = elRef.current?.clientHeight || 600;
+    const duration = animated ? 1000 : 0;
+    try {
+      if (v.type === 'bounds') {
+        map.fitBounds([[v.minLng, v.minLat], [v.maxLng, v.maxLat]], {
+          padding: { top: 70, bottom: Math.round(h * 0.46), left: 55, right: 55 }, duration, maxZoom: 15,
+        });
+      } else if (v.type === 'pickup') {
+        map.easeTo({ center: [v.lng, v.lat], zoom: 14, padding: { top: 0, bottom: Math.round(h * 0.5), left: 0, right: 0 }, duration });
+      } else {
+        map.easeTo({ center: [v.lng, v.lat], zoom: 12.6, padding: { top: 0, bottom: 0, left: 0, right: 0 }, duration });
+      }
+    } catch {}
+  }, []);
+
+  // ── route polyline + camera target ──
   useEffect(() => {
     if (!ready || !mapRef.current) return;
     const map = mapRef.current;
-    const h = elRef.current?.clientHeight || 600;
     const coords = decodePolyline(polyline);
 
     try {
@@ -233,24 +254,38 @@ export default function RiderMap({ center, drivers = [], pickup, dropoff, polyli
       });
     } catch {}
 
-    try {
-      if (pickup?.lat != null && dropoff?.lat != null) {
-        // Fit the FULL route (every bend), not just the two endpoints, so the
-        // whole polyline is always shown and centered in the visible map area.
-        const pts = coords.length >= 2 ? coords.slice() : [];
-        pts.push([pickup.lng, pickup.lat], [dropoff.lng, dropoff.lat]);
-        const lngs = pts.map((p) => p[0]);
-        const lats = pts.map((p) => p[1]);
-        map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], {
-          padding: { top: 70, bottom: Math.round(h * 0.46), left: 55, right: 55 }, duration: 1000, maxZoom: 15,
-        });
-      } else if (pickup?.lat != null) {
-        map.easeTo({ center: [pickup.lng, pickup.lat], zoom: 14, padding: { bottom: Math.round(h * 0.5), top: 0, left: 0, right: 0 }, duration: 900 });
-      } else {
-        map.easeTo({ center: [base.lng, base.lat], zoom: 12.6, padding: { top: 0, bottom: 0, left: 0, right: 0 }, duration: 900 });
-      }
-    } catch {}
-  }, [ready, pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng, polyline]); // eslint-disable-line
+    if (pickup?.lat != null && dropoff?.lat != null) {
+      // Fit the FULL route (every bend), not just the two endpoints.
+      const pts = coords.length >= 2 ? coords.slice() : [];
+      pts.push([pickup.lng, pickup.lat], [dropoff.lng, dropoff.lat]);
+      const lngs = pts.map((p) => p[0]);
+      const lats = pts.map((p) => p[1]);
+      viewRef.current = { type: 'bounds', minLng: Math.min(...lngs), minLat: Math.min(...lats), maxLng: Math.max(...lngs), maxLat: Math.max(...lats) };
+    } else if (pickup?.lat != null) {
+      viewRef.current = { type: 'pickup', lng: pickup.lng, lat: pickup.lat };
+    } else {
+      viewRef.current = { type: 'base', lng: base.lng, lat: base.lat };
+    }
+
+    try { map.resize(); } catch {}
+    applyView(true);
+  }, [ready, pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng, polyline, center?.lat, center?.lng, applyView]); // eslint-disable-line
+
+  // ── keep the view centered across ANY container-size change ──
+  useEffect(() => {
+    if (!ready || !elRef.current || typeof ResizeObserver === 'undefined') return;
+    let raf = 0;
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        if (!mapRef.current) return;
+        try { mapRef.current.resize(); } catch {}
+        applyView(false);   // snap back to centered
+      });
+    });
+    ro.observe(elRef.current);
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
+  }, [ready, applyView]);
 
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
