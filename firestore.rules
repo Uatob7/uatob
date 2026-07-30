@@ -75,6 +75,16 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────
+    // CREDIT TOP-UPS  (Stripe checkout sessions)
+    // ─────────────────────────────────────────
+    match /CreditTopups/{sessionId} {
+      // Rider can watch their own top-up status; only the server (Admin SDK,
+      // which bypasses rules) ever writes — credit is added after Stripe confirms.
+      allow read:  if isSignedIn() && request.auth.uid == resource.data.uid;
+      allow write: if false;
+    }
+
+    // ─────────────────────────────────────────
     // DRIVERS
     // ─────────────────────────────────────────
     match /Drivers/{driverId} {

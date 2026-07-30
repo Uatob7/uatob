@@ -20,11 +20,12 @@ import { useRoute }         from '@/App/UaTob/useRoute';
 import { useRequests }      from '@/App/UaTob/useRequests';
 import { useCreateRequest } from '@/App/UaTob/useCreateRequest';
 import { useClaimRequest }  from '@/App/UaTob/useClaimRequest';
-import { useAddCredit }     from '@/App/UaTob/useAddCredit';
+import { useCreditCheckout } from '@/App/UaTob/useCreditCheckout';
 import { useGeocode }       from '@/App/UaTob/useGeocode';
 import RiderMap             from '@/App/UaTob/RiderMap';
 import InstallBanner        from '@/App/UaTob/InstallBanner';
 import SignUpPane           from '@/App/UaTob/SignUpPane';
+import SupportOverlay       from '@/App/UaTob/SupportOverlay';
 import { calcFare }         from '@/App/UaTob/fare';
 import { RIDE_TYPES }       from '@/App/UaTob/pricing';
 
@@ -73,7 +74,7 @@ function tsAgo(ts) {
 }
 
 // ── Small primitives ─────────────────────────────────────────────────────────
-function Ribbon({ mode, credit = 0, onOpenWallet }) {
+function Ribbon({ mode, credit = 0, onOpenWallet, onOpenSupport }) {
   const [clock, setClock] = useState('');
   useEffect(() => {
     const tick = () => {
@@ -108,10 +109,13 @@ function Ribbon({ mode, credit = 0, onOpenWallet }) {
           <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 800, color: C.amber, fontVariantNumeric: 'tabular-nums' }}>{money(credit)}</span>
           <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 800, color: C.amber, opacity: .8, marginLeft: 1 }}>+</span>
         </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.greenBright, boxShadow: `0 0 7px ${C.greenBright}`, animation: 'urBlink 1.6s ease-in-out infinite' }} />
-          <span style={{ fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '.08em', color: C.greenBright }}>LIVE</span>
-        </div>
+        <button className="ur-tap" onClick={onOpenSupport} aria-label="Support" style={{
+          display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer',
+          padding: '4px 9px', borderRadius: 99, border: `1px solid ${C.border}`, background: 'rgba(34,197,94,.07)', color: C.greenBright,
+        }}>
+          <span style={{ fontSize: 11, lineHeight: 1 }}>💬</span>
+          <span style={{ fontFamily: COND, fontSize: 10, fontWeight: 800, letterSpacing: '.1em', textTransform: 'uppercase' }}>Support</span>
+        </button>
         <span style={{ fontFamily: MONO, fontSize: 9.5, fontWeight: 700, color: 'rgba(255,255,255,.4)' }}>{clock}</span>
       </div>
     </div>
@@ -851,10 +855,10 @@ function TopUpSheet({ balance = 0, onClose, onConfirm, busy }) {
           boxShadow: valid ? '0 10px 30px rgba(251,191,36,.28)' : 'none',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, opacity: busy ? .7 : 1,
         }}>
-          {busy ? 'Adding…' : `Add ${valid ? money(value) : 'credit'}`}
+          {busy ? 'Redirecting…' : `Continue · ${valid ? money(value) : ''}`}
         </button>
         <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.inkDim, textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
-          Credit is stored on your account and spent on the board. Card charging via Stripe is wired at checkout.
+          You'll pay securely with <b style={{ color: C.greenSoft }}>Stripe</b>. Credit lands on your account once the payment clears.
         </div>
       </div>
     </div>
@@ -906,12 +910,13 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
   const [sheet, setSheet] = useState(null);          // { req, method }
   const [booking, setBooking] = useState(false);
   const [topup, setTopup] = useState(false);         // add-credit sheet open
+  const [support, setSupport] = useState(false);     // support overlay open
   const [route, setRoute] = useState({ pickup: null, dropoff: null, polyline: null });
   const [requestOpen, setRequestOpen] = useState(false); // composer collapsed → button only
 
   const { requests, loading: loadingRequests } = useRequests(uid);
   const { claimRequest } = useClaimRequest(uid);
-  const { addCredit, loading: addingCredit } = useAddCredit(uid);
+  const { startCheckout, loading: addingCredit } = useCreditCheckout(uid);
 
   const credit = Number(account?.credit || 0);
 
@@ -948,10 +953,11 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
     }
   }, [sheet, booking, claimRequest, openTopup]);
 
-  const handleAddCredit = useCallback(async (amount) => {
-    const ok = await addCredit(amount);
-    if (ok) setTopup(false);
-  }, [addCredit]);
+  const handleAddCredit = useCallback((amount) => {
+    // Redirects to Stripe Checkout; credit is applied by the cron reconcile
+    // once payment is confirmed (never on the client).
+    startCheckout(amount);
+  }, [startCheckout]);
 
   const collapseRequest = useCallback(() => {
     setRequestOpen(false);
@@ -973,7 +979,7 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
         display: 'flex', flexDirection: 'column',
         backgroundImage: 'radial-gradient(900px 500px at 50% -10%, rgba(34,197,94,.08), transparent 60%)',
       }}>
-        <Ribbon mode={modeLabel} credit={credit} onOpenWallet={openTopup} />
+        <Ribbon mode={modeLabel} credit={credit} onOpenWallet={openTopup} onOpenSupport={() => setSupport(true)} />
         <InstallBanner />
 
         {tab === 'request' ? (
@@ -1016,7 +1022,7 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
                     background: 'linear-gradient(135deg,#4ADE80,#22C55E 55%,#15803D)', boxShadow: '0 10px 30px rgba(34,197,94,.3)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
                   }}>
-                    <span style={{ fontSize: 18 }}>{uid ? '🔍' : '👤'}</span> {uid ? 'Request a ride' : 'Sign up to ride'}
+                    <span style={{ fontSize: 18 }}>{uid ? '🔍' : '👤'}</span> {uid ? 'Rides' : 'Sign up to ride'}
                   </button>
                 </div>
               )}
@@ -1040,6 +1046,8 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
             busy={booking}
           />
         )}
+
+        {support && <SupportOverlay uid={uid} account={account} onClose={() => setSupport(false)} />}
 
         {topup && (
           <TopUpSheet
