@@ -15,7 +15,7 @@ export function useCreateAccount() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const createAccount = useCallback(async ({ uid, email, name }) => {
+  const createAccount = useCallback(async ({ uid, email, name, firstName, lastName, phone }) => {
     if (!uid || typeof uid !== "string") {
       throw new Error("Missing or invalid uid");
     }
@@ -28,8 +28,11 @@ export function useCreateAccount() {
         doc(db, "Accounts", uid),
         {
           uid,
-          email: email ?? null,
-          name: name ?? null,
+          email:     email ?? null,
+          name:      name ?? null,
+          firstName: firstName ?? null,
+          lastName:  lastName ?? null,
+          phone:     phone ?? null,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         },

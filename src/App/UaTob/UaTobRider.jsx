@@ -24,6 +24,7 @@ import { useAddCredit }     from '@/App/UaTob/useAddCredit';
 import { useGeocode }       from '@/App/UaTob/useGeocode';
 import RiderMap             from '@/App/UaTob/RiderMap';
 import InstallBanner        from '@/App/UaTob/InstallBanner';
+import SignUpPane           from '@/App/UaTob/SignUpPane';
 import { calcFare }         from '@/App/UaTob/fare';
 import { RIDE_TYPES }       from '@/App/UaTob/pricing';
 
@@ -1024,7 +1025,7 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
         ) : (
           <div className="ur-scroll" style={{ position: 'relative', zIndex: 20, flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '6px 16px 24px', scrollbarWidth: 'none' }}>
             {tab === 'rides'  && <RidesPane requests={board} loading={loadingRequests} onPay={openPay} credit={credit} />}
-            {tab === 'you'    && <YouPane account={account} onSignOut={onSignOut} onAddCredit={openTopup} />}
+            {tab === 'you'    && (uid ? <YouPane account={account} onSignOut={onSignOut} onAddCredit={openTopup} /> : <SignUpPane />)}
           </div>
         )}
 
