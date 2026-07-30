@@ -1010,13 +1010,13 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
                   <div style={{ fontFamily: MONO, fontSize: 10.5, color: C.inkMid, margin: '6px 0 16px', lineHeight: 1.5 }}>
                     Set a pickup and destination, then post it to the board.
                   </div>
-                  <button className="ur-tap" onClick={() => setRequestOpen(true)} style={{
+                  <button className="ur-tap" onClick={() => (uid ? setRequestOpen(true) : setTab('you'))} style={{
                     width: '100%', border: 'none', borderRadius: 16, padding: 17, cursor: 'pointer',
                     fontFamily: COND, fontSize: 17, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#04150a',
                     background: 'linear-gradient(135deg,#4ADE80,#22C55E 55%,#15803D)', boxShadow: '0 10px 30px rgba(34,197,94,.3)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
                   }}>
-                    <span style={{ fontSize: 18 }}>🔍</span> Request a ride
+                    <span style={{ fontSize: 18 }}>{uid ? '🔍' : '👤'}</span> {uid ? 'Request a ride' : 'Sign up to ride'}
                   </button>
                 </div>
               )}
