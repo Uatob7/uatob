@@ -19,7 +19,7 @@ import { useGeo }           from '@/App/UaTob/useGeo';
 import { useRoute }         from '@/App/UaTob/useRoute';
 import { useRequests }      from '@/App/UaTob/useRequests';
 import { useCreateRequest } from '@/App/UaTob/useCreateRequest';
-import { useClaimRequest }  from '@/App/UaTob/useClaimRequest';
+import { useMarkPayment }   from '@/App/UaTob/useMarkPayment';
 import { useCreditCheckout } from '@/App/UaTob/useCreditCheckout';
 import { useGeocode }       from '@/App/UaTob/useGeocode';
 import RiderMap             from '@/App/UaTob/RiderMap';
@@ -903,7 +903,7 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
   const [requestOpen, setRequestOpen] = useState(false); // composer collapsed → button only
 
   const { requests, loading: loadingRequests } = useRequests(uid);
-  const { claimRequest } = useClaimRequest(uid);
+  const { markPayment } = useMarkPayment(uid);
   const { startCheckout, loading: addingCredit } = useCreditCheckout(uid);
 
   const credit = Number(account?.credit || 0);
@@ -919,27 +919,25 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
     if (!sheet || booking) return;
     setBooking(true);
     try {
-      await claimRequest(sheet.req, sheet.method);
-      // Success — the new Ride goes active; index.jsx will swap to the map HUD
-      // on the next Rides snapshot. Hide the claimed request immediately.
+      await markPayment(sheet.req, sheet.method);
+      // Marked for settlement — the /api/requests/settle cron (every minute)
+      // writes the canonical Ride and debits credit. Once that Ride lands,
+      // index.jsx swaps to the map HUD on the next Rides snapshot. Hide the
+      // request from the board immediately.
       setHiddenIds((prev) => new Set(prev).add(sheet.req.id));
       setSheet(null);
     } catch (err) {
       if (err?.code === 'insufficient_credit') {
         // Not enough balance — keep the request, send them to top up.
         openTopup();
-      } else if (err?.code === 'already_claimed') {
-        // Lost the claim race — silently drop the request from the board.
-        setSheet(null);
-        setHiddenIds((prev) => new Set(prev).add(sheet.req.id));
       } else {
         setSheet(null);
-        console.warn('[UaTobRider] booking failed:', err?.message || err);
+        console.warn('[UaTobRider] payment failed:', err?.message || err);
       }
     } finally {
       setBooking(false);
     }
-  }, [sheet, booking, claimRequest, openTopup]);
+  }, [sheet, booking, markPayment, openTopup]);
 
   const handleAddCredit = useCallback((amount) => {
     // Redirects to Stripe Checkout; credit is applied by the cron reconcile
