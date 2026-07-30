@@ -43,6 +43,7 @@ const CSS = `
   @keyframes urBar    { 0%,100%{transform:scaleY(.5);opacity:.45} 50%{transform:scaleY(1);opacity:1} }
   @keyframes urSpin   { to{transform:rotate(360deg)} }
   .ur-scroll::-webkit-scrollbar{display:none}
+  .mapboxgl-ctrl-logo,.mapboxgl-ctrl-bottom-left,.mapboxgl-ctrl-bottom-right{display:none!important}
   .ur-tap{transition:transform .1s,background .15s,border-color .15s}
   .ur-tap:active{transform:scale(.97)}
   @media(prefers-reduced-motion:reduce){*{animation:none!important}}

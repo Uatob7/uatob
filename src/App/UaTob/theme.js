@@ -27,9 +27,9 @@ export const C = {
   blue:        '#5AA9F0',
 
   // ink — high contrast, never faint
-  inkBright:   '#ECF7F1',
-  inkMid:      '#93A79E',
-  inkDim:      '#7E938A',
+  inkBright:   '#FFFFFF',
+  inkMid:      '#FFFFFF',
+  inkDim:      '#FFFFFF',
   inkFade:     'rgba(126,186,162,.14)',
 
   // lines
