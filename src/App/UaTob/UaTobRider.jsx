@@ -600,46 +600,7 @@ function Empty({ icon, title, body }) {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// DRIVER TAB
-// ═══════════════════════════════════════════════════════════════════════════
-function DriverPane({ drivers }) {
-  const counts = useMemo(() => {
-    let online = 0, busy = 0;
-    for (const d of drivers) {
-      if (d.status === 'online') online += 1;
-      else if (d.status === 'on_trip' || d.status === 'busy') busy += 1;
-    }
-    return { online, busy, total: drivers.length };
-  }, [drivers]);
-
-  const sorted = useMemo(() => {
-    const rank = (d) => (d.status === 'online' ? 0 : (d.status === 'on_trip' || d.status === 'busy') ? 1 : 2);
-    return [...drivers].sort((a, b) => rank(a) - rank(b)).slice(0, 30);
-  }, [drivers]);
-
-  return (
-    <div style={{ animation: 'urUp .38s cubic-bezier(.34,1.1,.64,1) both' }}>
-      <Eyebrow>Live fleet</Eyebrow>
-      <H1>Drivers</H1>
-      <Sub>Everyone online around Orlando right now. Watch the fleet before you post.</Sub>
-
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-        <FleetStat n={counts.online} label="Online" color={C.greenBright} glow />
-        <FleetStat n={counts.busy} label="On trip" color={C.cyan} />
-        <FleetStat n={counts.total} label="Total" color={C.inkBright} />
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '2px 2px 12px' }}>
-        <Eyebrow style={{ letterSpacing: '.16em' }}>Fleet roster</Eyebrow>
-        <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 800, color: C.greenBright, border: `1px solid ${C.border}`, background: 'rgba(34,197,94,.06)', padding: '3px 9px', borderRadius: 99 }}>BY STATUS</span>
-      </div>
-
-      {sorted.length === 0 && <Empty icon="🚦" title="No drivers yet" body="No drivers have come online. Check back shortly." />}
-      {sorted.map((d) => <DriverRow key={d.id} d={d} />)}
-    </div>
-  );
-}
+// Shared stat tile (used by the wallet + account stats).
 function FleetStat({ n, label, color, glow }) {
   return (
     <div style={{ ...cardStyle, flex: 1, padding: '13px 12px', textAlign: 'center' }}>
@@ -648,32 +609,6 @@ function FleetStat({ n, label, color, glow }) {
     </div>
   );
 }
-function DriverRow({ d }) {
-  const st = d.status === 'online' ? C.greenBright : (d.status === 'on_trip' || d.status === 'busy') ? C.amber : C.inkDim;
-  const stLabel = d.status === 'online' ? 'Online' : (d.status === 'on_trip' || d.status === 'busy') ? 'On trip' : 'Offline';
-  const name = d.name || d.displayName || 'Driver';
-  const vehicle = [d.vehicle, d.vehicleColor].filter(Boolean).join(' · ') || d.carModel || '';
-  return (
-    <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 12, padding: '13px 14px', marginBottom: 10 }}>
-      <div style={{ position: 'relative', width: 46, height: 46, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 21, background: 'rgba(34,197,94,.1)', border: `2px solid ${C.borderBright}`, overflow: 'hidden' }}>
-        {d.photoURL ? <img src={d.photoURL} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '🧑‍✈️'}
-        <span style={{ position: 'absolute', right: -1, bottom: -1, width: 12, height: 12, borderRadius: '50%', background: st, border: '2.5px solid #071009', boxShadow: d.status === 'online' ? `0 0 7px ${st}` : 'none' }} />
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: BODY, fontSize: 14, fontWeight: 700, color: C.inkBright }}>{name}</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
-          {d.rating != null && <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: C.amber }}>★ {Number(d.rating).toFixed(2)}</span>}
-          {vehicle && <span style={{ fontFamily: COND, fontSize: 10.5, fontWeight: 600, letterSpacing: '.03em', color: C.inkMid }}>{vehicle}</span>}
-          {d.licensePlate && <span style={{ fontFamily: MONO, fontSize: 9, color: C.inkMid, padding: '2px 6px', borderRadius: 5, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.09)' }}>{d.licensePlate}</span>}
-        </div>
-      </div>
-      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-        <div style={{ fontFamily: MONO, fontSize: 12, fontWeight: 800, color: st }}>{stLabel}</div>
-      </div>
-    </div>
-  );
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // YOU TAB
 // ═══════════════════════════════════════════════════════════════════════════
@@ -929,14 +864,13 @@ function TopUpSheet({ balance = 0, onClose, onConfirm, busy }) {
 const TABS = [
   { id: 'request', label: 'Request', icon: (c) => <path d="M12 21s-7-5.2-7-11a7 7 0 0 1 14 0c0 5.8-7 11-7 11Z" stroke={c} /> },
   { id: 'rides',   label: 'Rides',   icon: (c) => <><path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h13l4 4v4a2 2 0 0 1-2 2h-2" stroke={c} /><circle cx="7.5" cy="17.5" r="2.5" stroke={c} /><circle cx="17.5" cy="17.5" r="2.5" stroke={c} /></> },
-  { id: 'driver',  label: 'Driver',  icon: (c) => <><circle cx="12" cy="8" r="4" stroke={c} /><path d="M4 21v-1a7 7 0 0 1 14 0v1" stroke={c} /></> },
   { id: 'you',     label: 'You',     icon: (c) => <><circle cx="12" cy="7" r="4.2" stroke={c} /><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" stroke={c} /></> },
 ];
 function TabBar({ tab, setTab, rideCount }) {
   return (
     <nav style={{
       position: 'relative', zIndex: 50, flexShrink: 0, height: 76,
-      display: 'grid', gridTemplateColumns: 'repeat(4,1fr)',
+      display: 'grid', gridTemplateColumns: 'repeat(3,1fr)',
       background: 'linear-gradient(0deg,rgba(3,6,4,.97),rgba(3,6,4,.72))',
       borderTop: `1px solid ${C.border}`, backdropFilter: 'blur(14px)',
     }}>
@@ -1090,7 +1024,6 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
         ) : (
           <div className="ur-scroll" style={{ position: 'relative', zIndex: 20, flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '6px 16px 24px', scrollbarWidth: 'none' }}>
             {tab === 'rides'  && <RidesPane requests={board} loading={loadingRequests} onPay={openPay} credit={credit} />}
-            {tab === 'driver' && <DriverPane drivers={drivers} />}
             {tab === 'you'    && <YouPane account={account} onSignOut={onSignOut} onAddCredit={openTopup} />}
           </div>
         )}
