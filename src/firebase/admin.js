@@ -1,12 +1,19 @@
 // src/firebase/admin.js
 // Server-side Firebase Admin — used only in API routes to write privileged data
-// (credit top-ups) that Firestore security rules block for clients.
+// (credit top-ups, request settlement) that Firestore security rules block for
+// clients.
+//
+// firebase-admin v14 dropped the legacy namespaced default export
+// (`import admin from 'firebase-admin'` → admin.credential / admin.firestore are
+// now undefined), so this uses the modular subpath API. A small `admin` shim is
+// re-exported so existing call sites can keep using `admin.firestore.FieldValue`.
 //
 // Requires env FIREBASE_SERVICE_ACCOUNT: the service-account JSON, either as raw
 // JSON or base64-encoded. Create one in Firebase console → Project settings →
 // Service accounts → Generate new private key.
 
-import admin from 'firebase-admin';
+import { cert, getApps, initializeApp } from 'firebase-admin/app';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
 function loadServiceAccount() {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
@@ -24,15 +31,19 @@ function loadServiceAccount() {
 }
 
 export function getAdminApp() {
-  if (admin.apps.length) return admin.apps[0];
+  const existing = getApps();
+  if (existing.length) return existing[0];
   const sa = loadServiceAccount();
   if (!sa) throw new Error('FIREBASE_SERVICE_ACCOUNT is not configured');
-  return admin.initializeApp({ credential: admin.credential.cert(sa) });
+  return initializeApp({ credential: cert(sa) });
 }
 
 export function adminDb() {
-  getAdminApp();
-  return admin.firestore();
+  return getFirestore(getAdminApp());
 }
 
-export { admin };
+// Back-compat shim: existing routes call `admin.firestore.FieldValue.increment`
+// / `.serverTimestamp()`. Keep that surface working on top of the modular API.
+export const admin = { firestore: { FieldValue } };
+
+export { FieldValue };
