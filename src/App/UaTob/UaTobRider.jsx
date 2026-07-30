@@ -1009,7 +1009,7 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
                     background: 'linear-gradient(135deg,#2FE08A,#17B673 55%,#15803D)', boxShadow: '0 10px 30px rgba(34,197,94,.3)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
                   }}>
-                    <span style={{ fontSize: 18 }}>{uid ? '🔍' : '👤'}</span> {uid ? 'Rides' : 'Sign up to ride'}
+                    <span style={{ fontSize: 18 }}>{uid ? '🔍' : '👤'}</span> {uid ? 'Request' : 'Sign up to ride'}
                   </button>
                 </div>
               )}
