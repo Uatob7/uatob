@@ -3,15 +3,12 @@ import { getAuth, signOut } from 'firebase/auth';
 import { firebase_app } from '@/firebase/config';
 
 import { useRides }           from '@/App/UaTob/useRides';
-import { useSearch }          from '@/App/Drivers/useSearch';
 import { useAccounts }        from '@/App/UaTob/useAccounts';
-import { useCreateTrip }      from '@/App/UaTob/useCreateTrip';
-import { useScheduledRides }  from '@/App/UaTob/useScheduledRides';
 import { useAllDrivers }      from '@/App/UaTob/useAllDrivers';
-import UaTob                  from '@/App/UaTob/UaTobApp';
 import UaTobRider             from '@/App/UaTob/UaTobRider';
+import ActiveRide             from '@/App/UaTob/ActiveRide';
 
-// In-flight statuses that hand the screen to the full-screen map HUD.
+// In-flight statuses that hand the screen to the active-ride view.
 const IN_FLIGHT = new Set([
   'searching_driver', 'driver_assigned', 'driver_arriving',
   'arrived', 'in_progress', 'timeout',
@@ -25,12 +22,9 @@ function tsToMillis(ts) {
 }
 
 export default function App({ uid }) {
-  const { account }        = useAccounts(uid);
-  const { rides }          = useRides(uid);
-  const { createTrip }     = useCreateTrip(uid);
-  const { searches }       = useSearch();
-  const { scheduledRides } = useScheduledRides();
-  const { drivers }        = useAllDrivers();
+  const { account } = useAccounts(uid);
+  const { rides }   = useRides(uid);
+  const { drivers } = useAllDrivers();
 
   // Most-recent in-flight ride, if any.
   const activeRide = useMemo(() => {
@@ -44,21 +38,10 @@ export default function App({ uid }) {
     try { signOut(getAuth(firebase_app)); } catch { /* no-op */ }
   }, []);
 
-  // While a ride is in flight, hand off to the existing full-screen map HUD
-  // (live driver tracking, route lines, ActiveRideHud). Otherwise show the
-  // new 4-tab rider shell (Request / Rides / Driver / You).
+  // While a ride is in flight, show the new-design active-ride screen (live
+  // driver tracking + status card). Otherwise show the rider shell.
   if (activeRide) {
-    return (
-      <UaTob
-        uid={uid}
-        account={account}
-        createTrip={createTrip}
-        rides={rides}
-        searches={searches}
-        scheduledRides={scheduledRides}
-        activeRide={activeRide}
-      />
-    );
+    return <ActiveRide ride={activeRide} uid={uid} />;
   }
 
   return (
