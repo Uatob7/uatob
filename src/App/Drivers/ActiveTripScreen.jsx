@@ -1809,6 +1809,23 @@ export default function ActiveTripScreen({
   // eslint-disable-next-line
   }, []);
 
+  // When the trip STARTS, pull back to the full-route overview so the driver can
+  // see the whole path AND the drop-off pin — tight turn-by-turn follow keeps a
+  // far destination off-screen (that's why the drop-off "had no icon"). The
+  // recenter button re-enters follow.
+  const tripOverviewRef = useRef(false);
+  useEffect(() => {
+    if (status !== 'in_progress' || tripOverviewRef.current) return;
+    tripOverviewRef.current = true;
+    setFollowMode(false);
+    setShowRecenter(true);
+    const id = setTimeout(() => {
+      if (routeCoordsRef.current?.length >= 2) fitWholeRoute(routeCoordsRef.current);
+    }, 500);
+    return () => clearTimeout(id);
+  // eslint-disable-next-line
+  }, [status]);
+
   // ── chat send ────────────────────────────────────────────────────────────
   const handleSendChat = useCallback(async (text) => {
     const trimmed = (text ?? chatInput).trim();
