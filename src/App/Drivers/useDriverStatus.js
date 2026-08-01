@@ -22,20 +22,29 @@ const ACTIVE_RIDE_STATUSES = [
   "in_progress",
 ];
 
+const MAPBOX_TOKEN =
+  process.env.NEXT_PUBLIC_MAPBOX_TOKEN ||
+  'pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA';
+
+// Reverse-geocode the driver's live location to a city + zip via Mapbox.
+// (Mapbox rejects `limit` with multiple `types` on reverse geocoding, so we make
+// a single untyped call and read city/zip out of each feature's `context`.)
 async function geocode(lat, lng) {
-  const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY;
-  if (!key) return { city: null, zip: null };
   try {
-    const res  = await fetch(
-      `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${key}`
+    const res = await fetch(
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json` +
+      `?access_token=${MAPBOX_TOKEN}`
     );
+    if (!res.ok) return { city: null, zip: null };
     const data = await res.json();
-    if (data.status !== "OK" || !data.results?.length) return { city: null, zip: null };
     let city = "", zip = "";
-    for (const c of data.results[0].address_components ?? []) {
-      if (!city && c.types?.includes("locality"))                        city = c.long_name;
-      if (!city && c.types?.includes("administrative_area_level_2"))    city = c.long_name;
-      if (c.types?.includes("postal_code"))                             zip  = c.long_name;
+    for (const f of data.features ?? []) {
+      const parts = [{ id: f.id, text: f.text }, ...(f.context ?? [])];
+      for (const c of parts) {
+        if (!city && (c.id || "").startsWith("place"))    city = c.text;
+        if (!zip  && (c.id || "").startsWith("postcode")) zip  = c.text;
+      }
+      if (city && zip) break;
     }
     return { city: city || null, zip: zip || null };
   } catch {
