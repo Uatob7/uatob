@@ -580,7 +580,7 @@ function PayBtn({ kind, sub, onClick }) {
   );
 }
 
-function RidesPane({ requests, loading, onPay, credit }) {
+function RidesPane({ requests, loading, error, onPay, credit }) {
   return (
     <div style={{ animation: 'urUp .38s cubic-bezier(.34,1.1,.64,1) both' }}>
       <Eyebrow>Awaiting payment</Eyebrow>
@@ -592,8 +592,14 @@ function RidesPane({ requests, loading, onPay, credit }) {
         <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 800, color: C.greenBright, border: `1px solid ${C.border}`, background: 'rgba(34,197,94,.06)', padding: '3px 9px', borderRadius: 99 }}>{requests.length} PENDING</span>
       </div>
 
+      {error && (
+        <div style={{ ...cardStyle, padding: '14px 15px', marginBottom: 11, borderColor: 'rgba(248,113,113,.4)', background: 'rgba(248,113,113,.06)' }}>
+          <div style={{ fontFamily: COND, fontSize: 13, fontWeight: 800, color: C.red, letterSpacing: '.04em' }}>Couldn’t load your requests</div>
+          <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.inkMid, marginTop: 4, lineHeight: 1.5 }}>{error}</div>
+        </div>
+      )}
       {loading && <Empty icon="⏳" title="Loading" body="Fetching your requests…" />}
-      {!loading && requests.length === 0 && <Empty icon="✅" title="All caught up" body="You have no rides waiting for payment. Post a request and it'll show up here to pay." />}
+      {!loading && !error && requests.length === 0 && <Empty icon="✅" title="All caught up" body="You have no rides waiting for payment. Post a request and it'll show up here to pay." />}
       {requests.map((req) => <RequestCard key={req.id} req={req} onPay={onPay} credit={credit} />)}
     </div>
   );
@@ -927,7 +933,7 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
   const [route, setRoute] = useState({ pickup: null, dropoff: null, polyline: null });
   const [requestOpen, setRequestOpen] = useState(false); // composer collapsed → button only
 
-  const { requests, loading: loadingRequests } = useRequests(uid);
+  const { requests, loading: loadingRequests, error: requestsError } = useRequests(uid);
   const { markPayment } = useMarkPayment(uid);
   const { capture: captureLocation } = useSaveLocation(uid);
   const [geoToast, setGeoToast] = useState('');
@@ -1076,7 +1082,7 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
           </div>
         ) : (
           <div className="ur-scroll" style={{ position: 'relative', zIndex: 20, flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '6px 16px 24px', scrollbarWidth: 'none' }}>
-            {tab === 'rides'  && <RidesPane requests={board} loading={loadingRequests} onPay={openPay} credit={credit} />}
+            {tab === 'rides'  && <RidesPane requests={board} loading={loadingRequests} error={requestsError} onPay={openPay} credit={credit} />}
             {tab === 'you'    && (uid ? <YouPane account={account} onSignOut={onSignOut} onAddCredit={openTopup} /> : <SignUpPane />)}
           </div>
         )}
