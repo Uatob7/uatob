@@ -44,7 +44,7 @@ export default async function handler(req, res) {
 
       // Not old enough yet — leave it pending.
       if (!since || ageMs < AUTO_APPROVE_AFTER_MS) {
-        results.push({ id: docSnap.id, skipped: 'too_new', waitedMin: since ? Math.round(ageMs / 60_000) : null });
+        results.push({ id: docSnap.id, skipped: 'too_new', waitedMin: since ? Math.floor(ageMs / 60_000) : null });
         continue;
       }
 
