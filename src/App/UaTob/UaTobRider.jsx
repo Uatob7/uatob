@@ -916,6 +916,23 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
   const { requests, loading: loadingRequests } = useRequests(uid);
   const { markPayment } = useMarkPayment(uid);
   const { capture: captureLocation } = useSaveLocation(uid);
+  const [geoToast, setGeoToast] = useState('');
+
+  // Fire GPS capture and show the outcome on-screen so location problems aren't silent.
+  const grabLocation = useCallback(() => {
+    setGeoToast('📍 Locating…');
+    captureLocation().then((r) => {
+      if (r?.lat != null) setGeoToast(`📍 Saved ${r.lat.toFixed(4)}, ${r.lng.toFixed(4)}`);
+      else setGeoToast(`⚠️ ${r?.error || 'Location unavailable'}`);
+    });
+  }, [captureLocation]);
+
+  // Auto-dismiss the toast.
+  useEffect(() => {
+    if (!geoToast) return;
+    const t = setTimeout(() => setGeoToast(''), 4000);
+    return () => clearTimeout(t);
+  }, [geoToast]);
   const { startCheckout, loading: addingCredit } = useCreditCheckout(uid);
 
   const credit = Number(account?.credit || 0);
@@ -988,6 +1005,16 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
         <Ribbon mode={modeLabel} credit={credit} onOpenWallet={openTopup} onOpenSupport={() => setSupport(true)} />
         <InstallBanner />
 
+        {geoToast && (
+          <div style={{
+            position: 'absolute', top: 42, left: '50%', transform: 'translateX(-50%)', zIndex: 90,
+            padding: '8px 14px', borderRadius: 99, whiteSpace: 'nowrap',
+            fontFamily: MONO, fontSize: 11, fontWeight: 700, color: C.inkBright,
+            background: 'rgba(8,16,10,.96)', border: `1px solid ${C.borderBright}`,
+            boxShadow: '0 8px 24px rgba(0,0,0,.5)', animation: 'urUp .25s ease both',
+          }}>{geoToast}</div>
+        )}
+
         {tab === 'request' ? (
           /* Map-first home — live map backdrop + composer panel */
           <div style={{ position: 'relative', zIndex: 20, flex: 1, overflow: 'hidden' }}>
@@ -1022,7 +1049,7 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
                   <div style={{ fontFamily: MONO, fontSize: 10.5, color: C.inkMid, margin: '6px 0 16px', lineHeight: 1.5 }}>
                     Set a pickup and destination, then post it to the board.
                   </div>
-                  <button className="ur-tap" onClick={() => { if (uid) { captureLocation(); setRequestOpen(true); } else { setTab('you'); } }} style={{
+                  <button className="ur-tap" onClick={() => { if (uid) { grabLocation(); setRequestOpen(true); } else { setTab('you'); } }} style={{
                     width: '100%', border: 'none', borderRadius: 16, padding: 17, cursor: 'pointer',
                     fontFamily: COND, fontSize: 17, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#04150a',
                     background: 'linear-gradient(135deg,#2FE08A,#17B673 55%,#15803D)', boxShadow: '0 10px 30px rgba(34,197,94,.3)',

@@ -36,6 +36,7 @@ export function useSaveLocation(uid) {
     const accountRef = doc(db, 'Accounts', uid);
 
     try {
+      console.log('[useSaveLocation] requesting GPS for', uid);
       const pos = await new Promise((res, rej) =>
         navigator.geolocation.getCurrentPosition(res, rej, {
           enableHighAccuracy: true,
@@ -45,6 +46,7 @@ export function useSaveLocation(uid) {
       );
 
       const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+      console.log('[useSaveLocation] got fix', { lat, lng, accuracy });
 
       await updateDoc(accountRef, {
         lat,
@@ -54,24 +56,33 @@ export function useSaveLocation(uid) {
         locationUpdatedAt: serverTimestamp(),
         updatedAt:         serverTimestamp(),
       });
+      console.log('[useSaveLocation] saved to Accounts/' + uid);
 
       return { lat, lng };
     } catch (err) {
+      console.warn('[useSaveLocation] failed:', err?.code, err?.message);
       // code 1 = PERMISSION_DENIED — record that tracking is turned OFF so the
       // UI can stop asking / fall back to the default center. Other errors
       // (timeout, position unavailable) don't change the permission flag.
+      let msg;
       if (err?.code === 1) {
         try {
           await updateDoc(accountRef, {
             locationEnabled:   false,
             locationUpdatedAt: serverTimestamp(),
           });
-        } catch { /* non-fatal */ }
-        setError('Location access was denied.');
+        } catch (wErr) { console.warn('[useSaveLocation] flag write failed:', wErr?.message); }
+        msg = 'Location access was denied.';
+      } else if (err?.code === 2) {
+        msg = 'Location unavailable (no GPS fix).';
+      } else if (err?.code === 3) {
+        msg = 'Location timed out.';
       } else {
-        setError(err?.message || 'Could not get your location.');
+        // No positioning error code → likely the Firestore write itself failed.
+        msg = err?.message || 'Could not save your location.';
       }
-      return null;
+      setError(msg);
+      return { error: msg };
     } finally {
       setLoading(false);
     }
