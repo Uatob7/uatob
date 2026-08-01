@@ -1,6 +1,9 @@
 import { useCallback, useState } from 'react';
 
-const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+// Driver → pickup routing via Mapbox Directions (moved off Google Maps).
+const MAPBOX_TOKEN =
+  process.env.NEXT_PUBLIC_MAPBOX_TOKEN ||
+  'pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA';
 
 export function useGetDriverToPickup() {
   const [loading, setLoading] = useState(false);
@@ -9,30 +12,20 @@ export function useGetDriverToPickup() {
   const call = useCallback(async ({ driverLat, driverLng, pickupLat, pickupLng }) => {
     setLoading(true); setError(null);
     try {
-      const res = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
-        method: 'POST',
-        headers: {
-          'Content-Type':     'application/json',
-          'X-Goog-Api-Key':   API_KEY,
-          'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline',
-        },
-        body: JSON.stringify({
-          origin:      { location: { latLng: { latitude: driverLat, longitude: driverLng } } },
-          destination: { location: { latLng: { latitude: pickupLat,  longitude: pickupLng  } } },
-          travelMode:               'DRIVE',
-          routingPreference:        'TRAFFIC_AWARE',
-          computeAlternativeRoutes: false,
-        }),
-      });
+      const url =
+        `https://api.mapbox.com/directions/v5/mapbox/driving/` +
+        `${driverLng},${driverLat};${pickupLng},${pickupLat}` +
+        `?access_token=${MAPBOX_TOKEN}&geometries=polyline&overview=full`;
 
+      const res  = await fetch(url);
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.error?.message || 'Routes API request failed');
+      if (!res.ok) throw new Error(json?.message || 'Directions request failed');
 
       const route = json?.routes?.[0];
       if (!route) throw new Error('No route found');
 
-      const distanceMeters  = route.distanceMeters;
-      const durationSeconds = parseInt(String(route.duration ?? '0').replace('s', ''), 10) || 0;
+      const distanceMeters  = route.distance;
+      const durationSeconds = Math.round(route.duration || 0);
 
       return {
         success:       true,
@@ -42,7 +35,7 @@ export function useGetDriverToPickup() {
         etaMin:        Math.ceil(durationSeconds / 60),
         distanceText:  `${(distanceMeters / 1609.34).toFixed(1)} mi`,
         etaText:       `${Math.ceil(durationSeconds / 60)} mins`,
-        polyline:      route.polyline?.encodedPolyline ?? null,
+        polyline:      route.geometry ?? null,
       };
     } catch (err) {
       setError(err?.message || 'getDriverToPickup failed');
