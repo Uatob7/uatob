@@ -15,6 +15,40 @@ function splitPlaceName(feature) {
   return { main, secondary: rest.join(', ') };
 }
 
+// Pull structured pieces out of a Mapbox feature so a single selection can fill
+// separate street / city / state / zip fields. The feature's own type plus its
+// `context` array carry the city (place/locality), state (region.short_code like
+// "US-FL") and zip (postcode).
+function parseAddressParts(feature) {
+  const ctx = Array.isArray(feature.context) ? feature.context : [];
+  const own = { id: feature.id, text: feature.text, short_code: feature.properties?.short_code };
+  const all = [own, ...ctx];
+  const find = (prefix) => all.find((c) => (c.id || '').startsWith(prefix));
+
+  const cityEntry   = find('place.') || find('locality.');
+  const regionEntry = find('region.');
+  const zipEntry    = find('postcode.');
+
+  let state = '';
+  if (regionEntry?.short_code) {
+    const seg = regionEntry.short_code.split('-'); // "US-FL" → ["US","FL"]
+    state = (seg[1] || seg[0] || '').toUpperCase();
+  }
+
+  // Street line: "<house #> <street>" for an address result, else the first
+  // comma-segment of the full place name.
+  const line1 = feature.address
+    ? `${feature.address} ${feature.text}`
+    : (feature.text || (feature.place_name || '').split(',')[0] || '');
+
+  return {
+    line1: line1.trim(),
+    city:  cityEntry?.text || '',
+    state,
+    zip:   zipEntry?.text || '',
+  };
+}
+
 export function useAutocomplete(debounceMs = 250) {
   const [predictions, setPredictions] = useState([]);
   const [loading,     setLoading]     = useState(false);
@@ -61,6 +95,7 @@ export function useAutocomplete(debounceMs = 250) {
               description: f.place_name || main,
               place_id:    f.id || f.place_name || main,
               center:      Array.isArray(f.center) ? f.center : null, // [lng, lat]
+              parts:       parseAddressParts(f),                      // { line1, city, state, zip }
               structured_formatting: {
                 main_text:      main,
                 secondary_text: secondary,

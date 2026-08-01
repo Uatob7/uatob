@@ -383,7 +383,7 @@ function ColorPickerField({ label, value, onChange, error }) {
   );
 }
 
-function AutocompleteAddressField({ label, value, onChange, error }) {
+function AutocompleteAddressField({ label, value, onChange, onSelect, error }) {
   const [focused,  setFocused]  = useState(false);
   const [showList, setShowList] = useState(false);
   const { predictions, fetch: acFetch, clear: acClear } = useAutocomplete();
@@ -452,7 +452,10 @@ function AutocompleteAddressField({ label, value, onChange, error }) {
               type="button"
               onMouseDown={e => {
                 e.preventDefault();
-                onChange(pred.description);
+                // Set the street field to just the street line and let the
+                // parent fan the rest (city/state/zip) into the sibling fields.
+                onChange(pred.parts?.line1 || pred.description);
+                onSelect?.(pred.parts || {});
                 acClear();
                 setShowList(false);
               }}
@@ -752,7 +755,18 @@ function StepContact({ data, setData, errors }) {
   return (
     <div>
       <InputField label="Mobile Number" placeholder="+1 (555) 000-0000" type="tel" icon={Phone} value={data.phone} onChange={v => setData(d => ({ ...d, phone: v }))} error={errors.phone} hint="We'll send a verification code to this number."/>
-      <AutocompleteAddressField label="Street Address" value={data.address} onChange={v => setData(d => ({ ...d, address: v }))} error={errors.address}/>
+      <AutocompleteAddressField
+        label="Street Address"
+        value={data.address}
+        onChange={v => setData(d => ({ ...d, address: v }))}
+        onSelect={parts => setData(d => ({
+          ...d,
+          city:  parts.city  || d.city,
+          state: parts.state || d.state,
+          zip:   parts.zip   || d.zip,
+        }))}
+        error={errors.address}
+      />
       <div style={{ display: "flex", gap: 12 }}>
         <div style={{ flex: 1.2 }}>
           <InputField label="City" placeholder="Orlando" value={data.city} onChange={v => setData(d => ({ ...d, city: v }))} error={errors.city}/>
