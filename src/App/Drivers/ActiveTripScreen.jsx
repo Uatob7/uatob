@@ -1573,25 +1573,28 @@ export default function ActiveTripScreen({
     }).catch(() => {});
   }, [liveMetrics, dLat, dLng, status]); // eslint-disable-line
 
-  // ── keep the driver→pickup route line fresh on the ride (throttled 15s) ──
-  //    so BOTH maps can draw it live: the driver map reads trip.driverEtaPolyline
-  //    (dep of the draw effect below) and the rider's TrackMap reads the same
-  //    field off the ride snapshot. Re-fetched from the driver's CURRENT position
-  //    as they move, so the line follows them toward the pickup.
+  // ── keep the live "driver → current target" route line fresh on the ride ──
+  //    (throttled 15s) so BOTH maps can draw it live. Re-fetched from the
+  //    driver's CURRENT position as they move:
+  //      • toPickup  → driverEtaPolyline        (driver → pickup)
+  //      • toDropoff → driverToDropoffPolyline  (driver → dropoff)
+  //    The driver map reads these (deps of the draw effect below); the rider's
+  //    TrackMap reads the same fields off the ride snapshot.
   const lastPolyWriteRef = useRef(0);
   useEffect(() => {
-    if (phase !== 'toPickup' || !trip?.id) return;
+    if (!trip?.id || (phase !== 'toPickup' && phase !== 'toDropoff')) return;
     if (typeof dLat !== 'number' || typeof dLng !== 'number' || !targetLat || !targetLng) return;
     if (Date.now() - lastPolyWriteRef.current < 15_000) return;
     lastPolyWriteRef.current = Date.now();
 
+    const field = phase === 'toDropoff' ? 'driverToDropoffPolyline' : 'driverEtaPolyline';
     let cancelled = false;
     callGetRoute({ driverLat: dLat, driverLng: dLng, pickupLat: targetLat, pickupLng: targetLng })
       .then((data) => {
         if (cancelled || !data?.polyline || !trip?.id) return;
         updateDoc(doc(db, 'Rides', trip.id), {
-          driverEtaPolyline: data.polyline,
-          updatedAt:         serverTimestamp(),
+          [field]:   data.polyline,
+          updatedAt: serverTimestamp(),
         }).catch(() => {});
       })
       .catch(() => {});
@@ -1604,7 +1607,9 @@ export default function ActiveTripScreen({
     if (typeof dLat !== 'number' || typeof dLng !== 'number') return;
     if (!targetLat || !targetLng) return;
 
-    const storedPoly   = phase === 'toPickup' ? (trip?.driverEtaPolyline ?? null) : (trip?.polyline ?? null);
+    const storedPoly   = phase === 'toPickup'
+      ? (trip?.driverEtaPolyline ?? null)
+      : (trip?.driverToDropoffPolyline ?? trip?.polyline ?? null);
     const storedDurSec = phase === 'toPickup' ? (trip?.driverEtaMin || 0) * 60 : (trip?.tripDurationMin || 0) * 60;
 
     if (storedPoly && storedPoly !== lastInstalledPolyRef.current) {
@@ -1638,7 +1643,7 @@ export default function ActiveTripScreen({
       installRoute([[dLng, dLat], [targetLng, targetLat]], 0);
     });
   // eslint-disable-next-line
-  }, [mapReady, phase, dLat, dLng, targetLat, targetLng, trip?.driverEtaPolyline, trip?.polyline]);
+  }, [mapReady, phase, dLat, dLng, targetLat, targetLng, trip?.driverEtaPolyline, trip?.driverToDropoffPolyline, trip?.polyline]);
 
   function installRoute(coords, durSec) {
     routeCoordsRef.current = coords;

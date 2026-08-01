@@ -118,7 +118,7 @@ export default function ActiveRide({ ride, uid, onContactDriver }) {
 
         {/* map */}
         <div style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
-          <TrackMap pickup={pickup} dropoff={dropoff} driver={driver} polyline={sc.phase === 'toPickup' ? (ride.driverEtaPolyline || ride.polyline) : ride.polyline} phase={sc.phase} />
+          <TrackMap pickup={pickup} dropoff={dropoff} driver={driver} polyline={sc.phase === 'toPickup' ? (ride.driverEtaPolyline || ride.polyline) : sc.phase === 'trip' ? (ride.driverToDropoffPolyline || ride.polyline) : ride.polyline} phase={sc.phase} />
 
           {/* status card */}
           <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '0 12px 16px', animation: 'arUp .5s cubic-bezier(.34,1.16,.64,1) both' }}>
