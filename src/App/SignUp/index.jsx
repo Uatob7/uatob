@@ -9,12 +9,9 @@ import {
 } from "lucide-react";
 import signUp from '@/firebase/auth/signup';
 import DriverLogin from "@/App/SignUp/DriverLogin";
-import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { firebase_app } from "@/firebase/config";
 import { useApplicationSubmitted } from "@/App/SignUp/useApplicationSubmitted";
 import { useCreateDriverProfile } from "@/App/SignUp/useCreateDriverProfile";
 import { useAutocomplete } from '@/App/UaTob/useAutocomplete';
-const storage = getStorage(firebase_app);
 
 /* ─── localStorage helpers ───────────────────────────────────────────── */
 const LS_KEYS = {
@@ -881,11 +878,46 @@ function StepDocuments({ data, setData, errors, uid }) {
     try {
       const allowed = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
       if (!allowed.includes(file.type)) { setSlot(slot, { uploading: false, progress: 0, localPreview: "" }); return; }
-      const ext  = file.name.split(".").pop();
-      const path = `drivers/${uid}/documents/${slot}_${Date.now()}.${ext}`;
-      const task = uploadBytesResumable(ref(storage, path), file);
-      await new Promise((res, rej) => { task.on("state_changed", snap => setSlot(slot, { progress: Math.round((snap.bytesTransferred / snap.totalBytes) * 100) }), rej, res); });
-      const url = await getDownloadURL(task.snapshot.ref);
+
+      // 1 — ask our server to sign this upload (API secret never touches the client).
+      const signRes = await fetch("/api/cloudinary/sign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folder: `drivers/${uid}/documents` }),
+      });
+      if (!signRes.ok) throw new Error(`sign ${signRes.status}`);
+      const { cloudName, apiKey, timestamp, folder, signature } = await signRes.json();
+
+      // 2 — upload straight to Cloudinary with real progress. Only the signed
+      //     params (folder, timestamp) + the unsigned file/api_key/signature go up.
+      const form = new FormData();
+      form.append("file", file);
+      form.append("api_key", apiKey);
+      form.append("timestamp", timestamp);
+      form.append("folder", folder);
+      form.append("signature", signature);
+
+      // PDFs upload via the "auto"/raw pipeline; images via "image".
+      const resourceType = file.type === "application/pdf" ? "auto" : "image";
+
+      const url = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`);
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) setSlot(slot, { progress: Math.round((e.loaded / e.total) * 100) });
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try { resolve(JSON.parse(xhr.responseText).secure_url); }
+            catch { reject(new Error("bad Cloudinary response")); }
+          } else {
+            reject(new Error(`Cloudinary ${xhr.status}: ${xhr.responseText}`));
+          }
+        };
+        xhr.onerror = () => reject(new Error("network error"));
+        xhr.send(form);
+      });
+
       setData(d => ({ ...d, [slot]: true, [`${slot}Url`]: url }));
       setSlot(slot, { uploading: false, progress: 100, localPreview: url });
     } catch (err) {
