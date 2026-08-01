@@ -1980,10 +1980,6 @@ export default function ActiveTripScreen({
           <ArrivalBanner visible={nearTarget} targetWord={targetWord} distMi={displayDist} accent={stage.statusColor}/>
         )}
 
-        {mapReady && (
-          <TripStatsStrip visible={showStatsStrip} etaMin={displayEta} distMi={displayDist} mph={liveSpeedMph} gpsLive={gpsLive}/>
-        )}
-
         {mapReady && status !== 'completed' && (
           <RerouteChip visible={offRoute} onOpenNav={() => openNav(activeNavUrl)}/>
         )}
