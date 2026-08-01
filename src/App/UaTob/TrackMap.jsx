@@ -174,20 +174,19 @@ export default function TrackMap({ pickup, dropoff, driver, polyline, phase }) {
     const pk = pickup?.lat  != null ? [pickup.lng, pickup.lat]   : null;
     const dp = dropoff?.lat != null ? [dropoff.lng, dropoff.lat] : null;
 
+    // Frame the two RELEVANT points for the phase (driver + destination). Using
+    // known-good endpoints — not every decoded route vertex — avoids a stray
+    // outlier blowing the bounds out to the whole world.
     let pts;
-    if (routeCoords.length >= 2) {
-      // Frame the whole route + the live driver so the full path is always visible.
-      pts = routeCoords.slice();
-      if (d) pts.push(d);
-    } else if (phase === 'trip')      pts = [d, dp].filter(Boolean);
-    else if (phase === 'toPickup')    pts = [d, pk].filter(Boolean);
-    else                              pts = [pk, dp].filter(Boolean);
+    if (phase === 'trip')            pts = [d, dp].filter(Boolean);
+    else if (phase === 'toPickup')   pts = [d, pk].filter(Boolean);
+    else                             pts = [pk, dp].filter(Boolean);
     if (!pts.length) pts = [pk || dp].filter(Boolean);
 
     viewRef.current = pts;
     try { mapRef.current.resize(); } catch {}
     applyView(true);
-  }, [ready, phase, routeCoords, driver?.lat, driver?.lng, pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng, applyView]);
+  }, [ready, phase, driver?.lat, driver?.lng, pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng, applyView]);
 
   useEffect(() => {
     if (!ready || !elRef.current || typeof ResizeObserver === 'undefined') return;
