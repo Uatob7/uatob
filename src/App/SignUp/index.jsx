@@ -1072,47 +1072,103 @@ function StepVerify({ accountData, contactData, vehicleData, docData }) {
 
 /* ─── Pending screen ─────────────────────────────────────────────────── */
 function PendingScreen({ firstName, email }) {
+  const steps = [
+    { label: "Application submitted",     sub: "Your details & documents are in",     state: "done"   },
+    { label: "Reviewing your application", sub: "Verifying license, vehicle & ID",     state: "active" },
+    { label: "Approved — start earning",   sub: "You'll jump straight to your dashboard", state: "todo" },
+  ];
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, fontFamily: '"Barlow", system-ui, sans-serif', color: C.text, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+    <div style={{ minHeight: "100vh", background: C.bg, fontFamily: '"Barlow", system-ui, sans-serif', color: C.text, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, position: "relative", overflow: "hidden" }}>
       <style dangerouslySetInnerHTML={{ __html: `
         @import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800;900&family=Barlow+Condensed:wght@500;600;700;800;900&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        @keyframes scaleIn { from { opacity: 0; transform: scale(.85) } to { opacity: 1; transform: scale(1) } }
-        @keyframes fadeUp  { from { opacity: 0; transform: translateY(20px) } to { opacity: 1; transform: translateY(0) } }
-        @keyframes pulse   { 0%,100% { opacity: 1 } 50% { opacity: .5 } }
-        @keyframes psGlow  { 0%,100% { box-shadow: 0 0 0 0 rgba(22,163,74,.3) } 50% { box-shadow: 0 0 0 16px rgba(22,163,74,0) } }
+        @keyframes scaleIn { from { opacity: 0; transform: scale(.9) } to { opacity: 1; transform: scale(1) } }
+        @keyframes fadeUp  { from { opacity: 0; transform: translateY(16px) } to { opacity: 1; transform: translateY(0) } }
+        @keyframes psPulse { 0%,100% { opacity: 1 } 50% { opacity: .45 } }
+        @keyframes psGlow  { 0%,100% { box-shadow: 0 0 0 0 rgba(22,163,74,.28) } 50% { box-shadow: 0 0 0 18px rgba(22,163,74,0) } }
+        @keyframes psSpin  { to { transform: rotate(360deg) } }
+        @keyframes psDots  { 0%,100% { opacity: 1 } 50% { opacity: .25 } }
       `}}/>
-      <div style={{ textAlign: "center", maxWidth: 420, width: "100%", animation: "scaleIn .6s cubic-bezier(.34,1.56,.64,1)" }}>
-        <div style={{ width: 96, height: 96, background: "linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 28px", boxShadow: "0 12px 32px rgba(22,163,74,.4)", animation: "psGlow 2.5s ease-in-out infinite", position: "relative" }}>
-          <CheckCircle size={44} color="#fff" strokeWidth={2.2}/>
-          <Sparkles size={14} color="#FCD34D" fill="#FCD34D" strokeWidth={0} style={{ position: "absolute", top: 8, right: 8, filter: "drop-shadow(0 2px 4px rgba(245,158,11,0.5))" }}/>
+
+      {/* soft brand glow backdrop */}
+      <div style={{ position: "absolute", top: "-18%", left: "50%", transform: "translateX(-50%)", width: 560, height: 560, background: "radial-gradient(circle, rgba(22,163,74,.10), transparent 62%)", pointerEvents: "none" }}/>
+
+      <div style={{ position: "relative", maxWidth: 440, width: "100%", animation: "scaleIn .55s cubic-bezier(.34,1.4,.64,1)" }}>
+        {/* hero */}
+        <div style={{ textAlign: "center", marginBottom: 26 }}>
+          <div style={{ width: 88, height: 88, background: "linear-gradient(135deg,#22C55E,#16A34A 55%,#15803D)", borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 22, boxShadow: "0 14px 34px rgba(22,163,74,.4)", animation: "psGlow 2.6s ease-in-out infinite", position: "relative" }}>
+            <CheckCircle size={42} color="#fff" strokeWidth={2.2}/>
+            <Sparkles size={14} color="#FCD34D" fill="#FCD34D" strokeWidth={0} style={{ position: "absolute", top: 6, right: 6, filter: "drop-shadow(0 2px 4px rgba(245,158,11,0.5))" }}/>
+          </div>
+          <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 40, fontWeight: 900, color: C.text, letterSpacing: "-1px", lineHeight: 1.05, marginBottom: 10 }}>
+            You're in,<br/>{firstName}!
+          </div>
+          <div style={{ fontSize: 14.5, color: C.textMid, lineHeight: 1.65, maxWidth: 340, margin: "0 auto" }}>
+            Your application is in and under review. This usually takes just a <strong style={{ color: C.accent }}>few minutes</strong> — hang tight.
+          </div>
         </div>
-        <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 38, fontWeight: 900, color: C.text, letterSpacing: "-1px", marginBottom: 10, lineHeight: 1.1 }}>
-          You're in,<br/>{firstName}!
-        </div>
-        <div style={{ fontSize: 15, color: C.textMid, lineHeight: 1.7, marginBottom: 32 }}>
-          Application submitted. Our team is reviewing now —<br/>you'll hear back within <strong style={{ color: C.accent }}>24–48 hours</strong>.
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {[
-            { icon: Mail,  label: "Confirmation sent to", val: email,                      c: C.blue   },
-            { icon: Clock, label: "Review time",          val: "24–48 hours",               c: C.accent },
-            { icon: Zap,   label: "Once approved",        val: "Start earning immediately", c: C.green  },
-          ].map((item, i) => (
-            <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "13px 16px", display: "flex", gap: 12, alignItems: "center", animation: `fadeUp .5s ease-out ${0.2 + i * 0.1}s both`, boxShadow: "0 1px 4px rgba(0,0,0,.04)" }}>
-              <div style={{ width: 36, height: 36, background: `linear-gradient(135deg, ${item.c}18, ${item.c}08)`, border: `1px solid ${item.c}25`, borderRadius: 11, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <item.icon size={16} color={item.c} strokeWidth={2.2}/>
+
+        {/* progress timeline */}
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 18, padding: "18px 18px 6px", boxShadow: "0 4px 20px rgba(0,0,0,.05)", animation: "fadeUp .5s .15s ease-out both" }}>
+          {steps.map((s, i) => {
+            const last = i === steps.length - 1;
+            const done = s.state === "done", active = s.state === "active";
+            const nodeColor = done ? C.accent : active ? C.accent : C.border;
+            return (
+              <div key={i} style={{ display: "flex", gap: 13, paddingBottom: last ? 14 : 0 }}>
+                {/* node + connector */}
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
+                  <div style={{
+                    width: 30, height: 30, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                    background: done ? "linear-gradient(135deg,#22C55E,#16A34A)" : active ? "rgba(22,163,74,.10)" : C.bg,
+                    border: `2px solid ${done ? "transparent" : active ? C.accent : C.border}`,
+                    boxShadow: active ? "0 0 0 4px rgba(22,163,74,.10)" : "none",
+                  }}>
+                    {done
+                      ? <Check size={15} color="#fff" strokeWidth={3}/>
+                      : active
+                        ? <span style={{ width: 13, height: 13, borderRadius: "50%", border: `2px solid rgba(22,163,74,.25)`, borderTopColor: C.accent, animation: "psSpin .8s linear infinite" }}/>
+                        : <span style={{ width: 7, height: 7, borderRadius: "50%", background: C.textDim }}/>}
+                  </div>
+                  {!last && <div style={{ width: 2, flex: 1, minHeight: 26, background: done ? C.accent : C.border, opacity: done ? .5 : 1, margin: "3px 0" }}/>}
+                </div>
+                {/* text */}
+                <div style={{ paddingTop: 3, paddingBottom: last ? 0 : 12, flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: s.state === "todo" ? C.textDim : C.text, fontFamily: "'Barlow Condensed', sans-serif", letterSpacing: ".01em", display: "flex", alignItems: "center", gap: 8 }}>
+                    {s.label}
+                    {active && (
+                      <span style={{ display: "inline-flex", gap: 3 }}>
+                        {[0,1,2].map(d => <span key={d} style={{ width: 4, height: 4, borderRadius: "50%", background: C.accent, animation: `psDots 1.1s ease-in-out ${d * 0.18}s infinite` }}/>)}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12, color: C.textDim, marginTop: 2, lineHeight: 1.45 }}>{s.sub}</div>
+                </div>
               </div>
-              <div style={{ textAlign: "left", flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 10, color: C.textDim, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>{item.label}</div>
-                <div style={{ fontSize: 13.5, color: C.text, fontWeight: 700, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.val}</div>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
-        <div style={{ marginTop: 28, display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(245,158,11,.08)", border: "1px solid rgba(245,158,11,.25)", borderRadius: 100, padding: "10px 20px" }}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#F59E0B", animation: "pulse 1.5s ease-in-out infinite" }}/>
-          <span style={{ fontSize: 12, fontWeight: 800, color: "#B45309", fontFamily: "'Barlow Condensed', sans-serif", letterSpacing: ".1em", textTransform: "uppercase" }}>Pending Review</span>
+
+        {/* confirmation email */}
+        <div style={{ display: "flex", alignItems: "center", gap: 11, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 15px", marginTop: 12, animation: "fadeUp .5s .28s ease-out both" }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: `linear-gradient(135deg, ${C.blue}18, ${C.blue}08)`, border: `1px solid ${C.blue}25`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Mail size={15} color={C.blue} strokeWidth={2.2}/>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 10, color: C.textDim, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif" }}>Confirmation sent to</div>
+            <div style={{ fontSize: 13.5, color: C.text, fontWeight: 700, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{email}</div>
+          </div>
+        </div>
+
+        {/* live status footer */}
+        <div style={{ textAlign: "center", marginTop: 20, animation: "fadeUp .5s .36s ease-out both" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(245,158,11,.08)", border: "1px solid rgba(245,158,11,.25)", borderRadius: 100, padding: "9px 18px" }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#F59E0B", animation: "psPulse 1.5s ease-in-out infinite" }}/>
+            <span style={{ fontSize: 12, fontWeight: 800, color: "#B45309", fontFamily: "'Barlow Condensed', sans-serif", letterSpacing: ".1em", textTransform: "uppercase" }}>Under Review</span>
+          </div>
+          <div style={{ fontSize: 11.5, color: C.textDim, marginTop: 12, lineHeight: 1.5 }}>
+            This screen updates automatically — you'll go straight to your dashboard the moment you're approved.
+          </div>
         </div>
       </div>
     </div>
