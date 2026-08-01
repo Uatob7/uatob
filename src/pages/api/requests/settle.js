@@ -10,6 +10,12 @@
 //              longer covers it, the request is bounced back to 'open' with a
 //              paymentError so it reappears on the rider's board to top up.
 //
+// When the Ride is created (immediate, non-scheduled) it is DISPATCHED: nearby
+// online drivers are found and written to Rides.candidateDriverUids. The driver
+// app (useIncomingRequest) only surfaces a ride to a driver whose uid is in that
+// array, so without this step a booked ride would sit in 'searching_driver'
+// forever with no real driver ever seeing it.
+//
 // The transaction re-reads status == 'paying' before acting, so a request is
 // never double-converted even if two cron runs overlap.
 //
@@ -22,6 +28,48 @@ const CRON_SECRET = process.env.CRON_SECRET;
 
 // Platform take-rate — identical to useClaimRequest / useCashPayment so payouts reconcile.
 const PLATFORM_RATE = 0.25;
+
+// ── driver dispatch tunables ─────────────────────────────────────────────────
+const DISPATCH_RADIUS_MI = 20;          // only offer to drivers within this range
+const MAX_CANDIDATES      = 8;           // cap how many drivers get the request
+const DRIVER_STALE_MS     = 30 * 60_000; // ignore "online" drivers not seen in 30 min
+
+function haversineMi(a, b) {
+  if (!a || !b || a.lat == null || b.lat == null) return Infinity;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng);
+  const x = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 3958.8 * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+}
+
+function tsMillis(ts) {
+  if (!ts) return 0;
+  if (typeof ts.toMillis === 'function') return ts.toMillis();
+  if (ts._seconds) return ts._seconds * 1000;
+  if (ts.seconds)  return ts.seconds * 1000;
+  return 0;
+}
+
+// Find the nearest online drivers to a pickup point. Runs OUTSIDE the ride
+// transaction (Firestore transactions can't run queries), so the result is a
+// best-effort snapshot — useAcceptRide re-validates the ride is still open.
+async function findCandidateDrivers(db, pickup) {
+  if (!pickup || pickup.lat == null || pickup.lng == null) return [];
+  const snap = await db.collection('Drivers').where('status', '==', 'online').limit(100).get();
+  const now = Date.now();
+  return snap.docs
+    .map((d) => ({ uid: d.id, ...d.data() }))
+    .filter((d) => Number.isFinite(d.lat) && Number.isFinite(d.lng))
+    .filter((d) => {
+      const seen = tsMillis(d.lastSeenAt || d.lastLocationAt || d.presenceUpdatedAt);
+      return seen === 0 || now - seen <= DRIVER_STALE_MS;   // keep if fresh or no timestamp
+    })
+    .map((d) => ({ uid: d.uid, mi: haversineMi(pickup, { lat: d.lat, lng: d.lng }) }))
+    .filter((d) => d.mi <= DISPATCH_RADIUS_MI)
+    .sort((a, b) => a.mi - b.mi)
+    .slice(0, MAX_CANDIDATES)
+    .map((d) => d.uid);
+}
 
 export default async function handler(req, res) {
   const provided = req.query.secret || req.headers['x-cron-secret'];
@@ -36,6 +84,15 @@ export default async function handler(req, res) {
     const results = [];
     for (const docSnap of snap.docs) {
       try {
+        // Dispatch: find nearby online drivers BEFORE the transaction (Firestore
+        // transactions can't run queries). Skip for scheduled rides — those get
+        // dispatched closer to their pickup time, not now.
+        const d0 = docSnap.data();
+        const willSchedule = d0.isScheduled === true && !!d0.scheduledAt;
+        const candidateDriverUids = willSchedule
+          ? []
+          : await findCandidateDrivers(db, { lat: d0.pickupLat, lng: d0.pickupLng });
+
         const outcome = await db.runTransaction(async (tx) => {
           const fresh = await tx.get(docSnap.ref);
           if (!fresh.exists) return { skipped: 'gone' };
@@ -110,6 +167,14 @@ export default async function handler(req, res) {
             discountAmount: null,
             match:          [],
 
+            // ── driver dispatch ──────────────────────────────────────────────
+            // Nearby online drivers who may claim this ride. useIncomingRequest
+            // (driver app) filters on `candidateDriverUids array-contains uid`,
+            // so this is what actually puts the ride in front of real drivers.
+            candidateDriverUids: candidateDriverUids,
+            driverUid:           null,
+            dispatchedAt:        scheduled ? null : admin.firestore.FieldValue.serverTimestamp(),
+
             paymentMethod:  method,
             paymentStatus,
             creditCharged:  method === 'credit' ? fareTotal : null,
@@ -139,7 +204,7 @@ export default async function handler(req, res) {
             });
           }
 
-          return { rideId: rideRef.id, method, fare: fareTotal };
+          return { rideId: rideRef.id, method, fare: fareTotal, dispatchedTo: candidateDriverUids.length };
         });
 
         results.push({ id: docSnap.id, ...outcome });
