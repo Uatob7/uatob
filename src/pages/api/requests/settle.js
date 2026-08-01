@@ -30,9 +30,18 @@ const CRON_SECRET = process.env.CRON_SECRET;
 const PLATFORM_RATE = 0.25;
 
 // ── driver dispatch tunables ─────────────────────────────────────────────────
-const DISPATCH_RADIUS_MI = 20;          // only offer to drivers within this range
-const MAX_CANDIDATES      = 8;           // cap how many drivers get the request
-const DRIVER_STALE_MS     = 30 * 60_000; // ignore "online" drivers not seen in 30 min
+const DISPATCH_RADIUS_MI     = 20;          // starting search radius
+const MAX_DISPATCH_RADIUS_MI = 100;         // hard ceiling as the search widens
+const WIDEN_EVERY_MIN        = 1;           // grow the radius once per minute unaccepted
+const WIDEN_STEP_MI          = 15;          // …by this much each step
+const MAX_CANDIDATES         = 8;           // cap how many drivers get the request
+const DRIVER_STALE_MS        = 30 * 60_000; // ignore "online" drivers not seen in 30 min
+
+// Radius for a ride that's been searching `elapsedMin` minutes.
+function radiusForElapsed(elapsedMin) {
+  const grown = DISPATCH_RADIUS_MI + Math.floor(Math.max(0, elapsedMin) / WIDEN_EVERY_MIN) * WIDEN_STEP_MI;
+  return Math.min(MAX_DISPATCH_RADIUS_MI, grown);
+}
 
 function haversineMi(a, b) {
   if (!a || !b || a.lat == null || b.lat == null) return Infinity;
@@ -53,7 +62,7 @@ function tsMillis(ts) {
 // Find the nearest online drivers to a pickup point. Runs OUTSIDE the ride
 // transaction (Firestore transactions can't run queries), so the result is a
 // best-effort snapshot — useAcceptRide re-validates the ride is still open.
-async function findCandidateDrivers(db, pickup) {
+async function findCandidateDrivers(db, pickup, radiusMi = DISPATCH_RADIUS_MI) {
   if (!pickup || pickup.lat == null || pickup.lng == null) return [];
   const snap = await db.collection('Drivers').where('status', '==', 'online').limit(100).get();
   const now = Date.now();
@@ -65,7 +74,7 @@ async function findCandidateDrivers(db, pickup) {
       return seen === 0 || now - seen <= DRIVER_STALE_MS;   // keep if fresh or no timestamp
     })
     .map((d) => ({ uid: d.uid, mi: haversineMi(pickup, { lat: d.lat, lng: d.lng }) }))
-    .filter((d) => d.mi <= DISPATCH_RADIUS_MI)
+    .filter((d) => d.mi <= radiusMi)
     .sort((a, b) => a.mi - b.mi)
     .slice(0, MAX_CANDIDATES)
     .map((d) => d.uid);
@@ -213,7 +222,48 @@ export default async function handler(req, res) {
       }
     }
 
-    return res.status(200).json({ checked: snap.size, results });
+    // ── PASS 2 · keep searching + widen ──────────────────────────────────────
+    // Rides still hunting for a driver get re-dispatched every run: refresh the
+    // candidate set (so drivers who just came online are included) and grow the
+    // radius the longer the ride has gone unaccepted. A transaction re-checks the
+    // ride is still unassigned so we never stomp a driver who accepted mid-run.
+    const redispatch = [];
+    const searching = await db.collection('Rides').where('status', '==', 'searching_driver').limit(50).get();
+    for (const rideSnap of searching.docs) {
+      try {
+        const ride = rideSnap.data();
+        if (ride.driverUid) continue;                       // already taken
+        if (ride.pickupLat == null || ride.pickupLng == null) continue;
+
+        const startedMs  = tsMillis(ride.dispatchedAt || ride.createdAt);
+        const elapsedMin = startedMs ? (Date.now() - startedMs) / 60_000 : 0;
+        const radius     = radiusForElapsed(elapsedMin);
+        const candidates = await findCandidateDrivers(db, { lat: ride.pickupLat, lng: ride.pickupLng }, radius);
+
+        const out = await db.runTransaction(async (tx) => {
+          const fresh = await tx.get(rideSnap.ref);
+          if (!fresh.exists) return { skipped: 'gone' };
+          const fr = fresh.data();
+          if (fr.status !== 'searching_driver' || fr.driverUid) return { skipped: fr.status };
+          tx.update(rideSnap.ref, {
+            candidateDriverUids: candidates,
+            dispatchRadiusMi:    radius,
+            dispatchAttempts:    (fr.dispatchAttempts || 0) + 1,
+            lastDispatchAt:      admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt:           admin.firestore.FieldValue.serverTimestamp(),
+          });
+          return { candidates: candidates.length, radiusMi: radius };
+        });
+        redispatch.push({ rideId: rideSnap.id, ...out });
+      } catch (e) {
+        redispatch.push({ rideId: rideSnap.id, error: e.message });
+      }
+    }
+
+    return res.status(200).json({
+      checked: snap.size, results,
+      searching: searching.size, redispatch,
+    });
   } catch (e) {
     console.error('[requests/settle]', e);
     return res.status(500).json({ error: e.message || 'settle failed' });
