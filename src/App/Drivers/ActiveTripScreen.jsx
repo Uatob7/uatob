@@ -1573,6 +1573,31 @@ export default function ActiveTripScreen({
     }).catch(() => {});
   }, [liveMetrics, dLat, dLng, status]); // eslint-disable-line
 
+  // ── keep the driver→pickup route line fresh on the ride (throttled 15s) ──
+  //    so BOTH maps can draw it live: the driver map reads trip.driverEtaPolyline
+  //    (dep of the draw effect below) and the rider's TrackMap reads the same
+  //    field off the ride snapshot. Re-fetched from the driver's CURRENT position
+  //    as they move, so the line follows them toward the pickup.
+  const lastPolyWriteRef = useRef(0);
+  useEffect(() => {
+    if (phase !== 'toPickup' || !trip?.id) return;
+    if (typeof dLat !== 'number' || typeof dLng !== 'number' || !targetLat || !targetLng) return;
+    if (Date.now() - lastPolyWriteRef.current < 15_000) return;
+    lastPolyWriteRef.current = Date.now();
+
+    let cancelled = false;
+    callGetRoute({ driverLat: dLat, driverLng: dLng, pickupLat: targetLat, pickupLng: targetLng })
+      .then((data) => {
+        if (cancelled || !data?.polyline || !trip?.id) return;
+        updateDoc(doc(db, 'Rides', trip.id), {
+          driverEtaPolyline: data.polyline,
+          updatedAt:         serverTimestamp(),
+        }).catch(() => {});
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [phase, dLat, dLng, targetLat, targetLng, trip?.id]); // eslint-disable-line
+
   // ── route fetch + draw ───────────────────────────────────────────────────
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
