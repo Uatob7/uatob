@@ -38,7 +38,18 @@ service cloud.firestore {
       allow create: if isSignedIn();
       allow update: if isSignedIn() && (
         request.auth.uid == resource.data.uid ||
-        request.auth.uid == resource.data.driverUid
+        request.auth.uid == resource.data.driverUid ||
+        // A dispatched driver claiming an unassigned ride: they must be one of
+        // the candidates, the ride must still be open for a driver, and they can
+        // only assign the ride to themselves (status → driver_assigned). Once
+        // driverUid is set, later updates fall under the driverUid clause above.
+        (
+          resource.data.status == 'searching_driver'
+          && resource.data.driverUid == null
+          && request.auth.uid in resource.data.candidateDriverUids
+          && request.resource.data.driverUid == request.auth.uid
+          && request.resource.data.status == 'driver_assigned'
+        )
       );
       allow delete: if false;
     }
