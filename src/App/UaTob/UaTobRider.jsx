@@ -20,6 +20,7 @@ import { useRoute }         from '@/App/UaTob/useRoute';
 import { useRequests }      from '@/App/UaTob/useRequests';
 import { useCreateRequest } from '@/App/UaTob/useCreateRequest';
 import { useMarkPayment }   from '@/App/UaTob/useMarkPayment';
+import { useSaveLocation }  from '@/App/UaTob/useSaveLocation';
 import { useCreditCheckout } from '@/App/UaTob/useCreditCheckout';
 import { useGeocode }       from '@/App/UaTob/useGeocode';
 import RiderMap             from '@/App/UaTob/RiderMap';
@@ -749,7 +750,7 @@ function PaymentSheet({ req, method, credit = 0, onClose, onConfirm, onAddCredit
         </div>
 
         {insufficient ? (
-          <button className="ur-tap" onClick={onAddCredit} style={{
+          <button className="ur-tap" onClick={() => onAddCredit(+(fare - credit).toFixed(2))} style={{
             width: '100%', border: 'none', borderRadius: 16, padding: 16, cursor: 'pointer',
             fontFamily: COND, fontSize: 16, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#150e02',
             background: 'linear-gradient(135deg,#FCD34D,#FBBF24 55%,#D97706)', boxShadow: '0 10px 30px rgba(251,191,36,.28)',
@@ -792,11 +793,15 @@ function BrkRow({ label, val }) {
 // ═══════════════════════════════════════════════════════════════════════════
 const TOPUP_AMOUNTS = [10, 25, 50, 100];
 
-function TopUpSheet({ balance = 0, onClose, onConfirm, busy }) {
+function TopUpSheet({ balance = 0, need = null, onClose, onConfirm, busy }) {
+  // When opened to cover a specific ride, default to EXACTLY the shortfall —
+  // never nudge the rider into a bigger preset than the ride needs. They can
+  // still bump it up via the presets/custom field if they want to.
+  const needAmt = typeof need === 'number' && isFinite(need) && need > 0 ? +need.toFixed(2) : null;
   const [amount, setAmount] = useState(25);
-  const [custom, setCustom] = useState('');
+  const [custom, setCustom] = useState(needAmt != null ? String(needAmt) : '');
   const value = custom ? Number(custom) : amount;
-  const valid = Number.isFinite(value) && value > 0;
+  const valid = Number.isFinite(value) && value > 0 && (needAmt == null || value >= needAmt);
   return (
     <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{
       position: 'absolute', inset: 0, zIndex: 72, background: 'rgba(2,5,3,.6)', backdropFilter: 'blur(4px)',
@@ -811,7 +816,12 @@ function TopUpSheet({ balance = 0, onClose, onConfirm, busy }) {
         <div style={{ width: 38, height: 4, borderRadius: 2, background: C.inkFade, margin: '0 auto 16px' }} />
         <Eyebrow style={{ letterSpacing: '.2em', fontSize: 10, color: C.amber }}>🪙 Add ride credit</Eyebrow>
         <div style={{ fontFamily: COND, fontSize: 22, fontWeight: 800, lineHeight: 1, margin: '4px 0 4px' }}>Top up your wallet</div>
-        <div style={{ fontFamily: MONO, fontSize: 10, color: C.inkMid, marginBottom: 16 }}>Balance {money(balance)} → <b style={{ color: C.amber }}>{money(balance + (valid ? value : 0))}</b></div>
+        <div style={{ fontFamily: MONO, fontSize: 10, color: C.inkMid, marginBottom: needAmt != null ? 8 : 16 }}>Balance {money(balance)} → <b style={{ color: C.amber }}>{money(balance + (valid ? value : 0))}</b></div>
+        {needAmt != null && (
+          <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.amber, marginBottom: 16 }}>
+            🪙 Just enough to book this ride — {money(needAmt)}. Add more only if you want to.
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           {TOPUP_AMOUNTS.map((a) => {
@@ -898,12 +908,14 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
   const [sheet, setSheet] = useState(null);          // { req, method }
   const [booking, setBooking] = useState(false);
   const [topup, setTopup] = useState(false);         // add-credit sheet open
+  const [topupNeed, setTopupNeed] = useState(null);  // exact shortfall to prefill, when opened to cover a booking
   const [support, setSupport] = useState(false);     // support overlay open
   const [route, setRoute] = useState({ pickup: null, dropoff: null, polyline: null });
   const [requestOpen, setRequestOpen] = useState(false); // composer collapsed → button only
 
   const { requests, loading: loadingRequests } = useRequests(uid);
   const { markPayment } = useMarkPayment(uid);
+  const { capture: captureLocation } = useSaveLocation(uid);
   const { startCheckout, loading: addingCredit } = useCreditCheckout(uid);
 
   const credit = Number(account?.credit || 0);
@@ -913,7 +925,14 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
   const board = useMemo(() => requests.filter((r) => !hiddenIds.has(r.id)), [requests, hiddenIds]);
 
   const openPay = useCallback((req, method) => setSheet({ req, method }), []);
-  const openTopup = useCallback(() => { setSheet(null); setTopup(true); }, []);
+  // `need` = the exact amount short (only when topping up to book a specific
+  // ride). Non-numeric args (e.g. a click event from the wallet pill) → no
+  // target, just a plain top-up.
+  const openTopup = useCallback((need) => {
+    setSheet(null);
+    setTopupNeed(typeof need === 'number' && isFinite(need) && need > 0 ? need : null);
+    setTopup(true);
+  }, []);
 
   const confirmPay = useCallback(async () => {
     if (!sheet || booking) return;
@@ -928,8 +947,9 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
       setSheet(null);
     } catch (err) {
       if (err?.code === 'insufficient_credit') {
-        // Not enough balance — keep the request, send them to top up.
-        openTopup();
+        // Not enough balance — keep the request, send them to top up exactly
+        // the shortfall (never more than the ride needs).
+        openTopup(err.needed);
       } else {
         setSheet(null);
         console.warn('[UaTobRider] payment failed:', err?.message || err);
@@ -1002,7 +1022,7 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
                   <div style={{ fontFamily: MONO, fontSize: 10.5, color: C.inkMid, margin: '6px 0 16px', lineHeight: 1.5 }}>
                     Set a pickup and destination, then post it to the board.
                   </div>
-                  <button className="ur-tap" onClick={() => (uid ? setRequestOpen(true) : setTab('you'))} style={{
+                  <button className="ur-tap" onClick={() => { if (uid) { captureLocation(); setRequestOpen(true); } else { setTab('you'); } }} style={{
                     width: '100%', border: 'none', borderRadius: 16, padding: 17, cursor: 'pointer',
                     fontFamily: COND, fontSize: 17, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#04150a',
                     background: 'linear-gradient(135deg,#2FE08A,#17B673 55%,#15803D)', boxShadow: '0 10px 30px rgba(34,197,94,.3)',
@@ -1038,7 +1058,8 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
         {topup && (
           <TopUpSheet
             balance={credit}
-            onClose={() => setTopup(false)}
+            need={topupNeed}
+            onClose={() => { setTopup(false); setTopupNeed(null); }}
             onConfirm={handleAddCredit}
             busy={addingCredit}
           />
