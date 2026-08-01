@@ -1,8 +1,16 @@
 // hooks/useGetRoute.js
+//
+// Driver → pickup routing via Mapbox Directions (we moved off Google Maps).
+// Returns the same shape as before so callers (TripRequestModal, etc.) are
+// unchanged. Mapbox `geometries=polyline` returns a precision-5 encoded
+// polyline — identical format to Google's encodedPolyline — so existing
+// decodePolyline consumers keep working.
 
 import { useState, useCallback } from "react";
 
-const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+const MAPBOX_TOKEN =
+  process.env.NEXT_PUBLIC_MAPBOX_TOKEN ||
+  "pk.eyJ1IjoidWF0b2IiLCJhIjoiY21vZnZ5endwMHRoazJ4b2NienNudjcxYiJ9.2Glj-y3ICejbdQwjw6eWeA";
 
 export function useGetRoute() {
   const [route, setRoute] = useState(null);
@@ -27,46 +35,16 @@ export function useGetRoute() {
       setError("");
 
       try {
-        const response = await fetch(
-          "https://routes.googleapis.com/directions/v2:computeRoutes",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Goog-Api-Key": API_KEY,
-              "X-Goog-FieldMask":
-                "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline",
-            },
-            body: JSON.stringify({
-              origin: {
-                location: {
-                  latLng: {
-                    latitude: driverLat,
-                    longitude: driverLng,
-                  },
-                },
-              },
-              destination: {
-                location: {
-                  latLng: {
-                    latitude: pickupLat,
-                    longitude: pickupLng,
-                  },
-                },
-              },
-              travelMode: "DRIVE",
-              routingPreference: "TRAFFIC_AWARE",
-              computeAlternativeRoutes: false,
-            }),
-          }
-        );
+        const url =
+          `https://api.mapbox.com/directions/v5/mapbox/driving/` +
+          `${driverLng},${driverLat};${pickupLng},${pickupLat}` +
+          `?access_token=${MAPBOX_TOKEN}&geometries=polyline&overview=full`;
 
+        const response = await fetch(url);
         const data = await response.json();
 
         if (!response.ok) {
-          throw new Error(
-            data?.error?.message || "Routes API request failed"
-          );
+          throw new Error(data?.message || "Directions request failed");
         }
 
         const route = data?.routes?.[0];
@@ -75,9 +53,8 @@ export function useGetRoute() {
           throw new Error("No route found");
         }
 
-        const distanceMeters = route.distanceMeters;
-        const durationSeconds =
-          parseInt(String(route.duration ?? "0").replace("s", ""), 10) || 0;
+        const distanceMeters  = route.distance;          // meters
+        const durationSeconds = Math.round(route.duration || 0);  // seconds
 
         const routeData = {
           success: true,
@@ -91,7 +68,7 @@ export function useGetRoute() {
           distanceText: `${(distanceMeters / 1609.34).toFixed(1)} mi`,
           etaText: `${Math.ceil(durationSeconds / 60)} mins`,
 
-          polyline: route.polyline?.encodedPolyline ?? null,
+          polyline: route.geometry ?? null,
         };
 
         setRoute(routeData);
