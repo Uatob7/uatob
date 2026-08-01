@@ -1849,21 +1849,6 @@ export default function ActiveTripScreen({
   const handleAction = useCallback(async (action, rideId) => {
     if (!action || !rideId) return;
 
-    if (action === 'complete') {
-      const tLat = trip?.dropoffLat;
-      const tLng = trip?.dropoffLng;
-      if (
-        typeof dLat === 'number' && typeof dLng === 'number' &&
-        typeof tLat === 'number' && typeof tLng === 'number'
-      ) {
-        const dist = haversineMi(dLat, dLng, tLat, tLng);
-        if (dist > COMPLETE_MAX_MILES) {
-          setError(`You're ${fmtMi(dist)} away — get within 700 ft of the drop-off to complete.`);
-          return;
-        }
-      }
-    }
-
     if (action === 'arrive') {
       const pLat = (typeof rider?.lat === 'number') ? rider.lat : trip?.pickupLat;
       const pLng = (typeof rider?.lng === 'number') ? rider.lng : trip?.pickupLng;
