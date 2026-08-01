@@ -8,6 +8,9 @@ import { C }             from '@/App/Drivers/constants.js';
 import UaTobIcon         from '@/App/Drivers/Icon.jsx';
 import TripRequestModal  from '@/App/Drivers/TripRequestModal.jsx';
 import HomeTab           from '@/App/Drivers/HomeTab.jsx';
+import TripsTab          from '@/App/Drivers/TripsTab.jsx';
+import EarningsTab       from '@/App/Drivers/EarningsTab.jsx';
+import ProfileTab        from '@/App/Drivers/ProfileTab.jsx';
 import ActiveTripScreen  from '@/App/Drivers/ActiveTripScreen.jsx';
 import DriverReviewModal from '@/App/Drivers/DriverReviewModal.jsx';
 import SupportOverlay, { SupportIcon } from '@/App/Drivers/SupportOverlay.jsx';
@@ -473,6 +476,8 @@ function DriverAppInner({ uid }) {
   // ── Local state ───────────────────────────────────────────────────
   const [mounted,           setMounted]           = useState(false);
   const [menuOpen,          setMenuOpen]          = useState(false);
+  const [tab,               setTab]               = useState('drive'); // drive | trips | earnings | you
+  const [completedPopup,    setCompletedPopup]    = useState(false);   // HomeTab trip-complete popup visible
   const [online,            setOnline]            = useState(false);
   const [activeTrip,        setActiveTrip]        = useState(null);
   const [requestTimer,      setRequestTimer]      = useState(60);
@@ -720,6 +725,10 @@ function DriverAppInner({ uid }) {
     setTripScreenTrip(null);
   }, []);
 
+  const handleSignOut = useCallback(() => {
+    try { signOut(getAuth(firebase_app)); } catch (e) {}
+  }, []);
+
   // ── Notifications ─────────────────────────────────────────────────
   const handleEnableNotifications = useCallback(async () => {
     setNotifLoading(true);
@@ -831,6 +840,7 @@ function DriverAppInner({ uid }) {
           onToggleOnline={handleToggleOnline} onAdvanceTrip={handleAdvanceTrip}
           advancePending={advancePending} scheduledRides={scheduledRides}
           onOpenSupport={() => setShowSupport(true)} supportUnread={supportUnread}
+          onCompletedPopupChange={setCompletedPopup}
         />
       )}
 
@@ -838,31 +848,22 @@ function DriverAppInner({ uid }) {
         <ActiveTripScreen driver={driver} activeTrip={tripScreenTrip} onTripComplete={handleTripComplete}/>
       )}
 
-      {/* ── ? Menu FAB ─────────────────────────────────────────────── */}
-      {!activeTrip && (
-        <button
-          onClick={() => setMenuOpen(o => !o)}
-          style={{
-            position:"fixed", bottom:20, left:"50%", transform:"translateX(-50%)",
-            zIndex:600, width:54, height:54, borderRadius:"50%",
-            background: menuOpen ? "rgba(30,30,30,.92)" : "rgba(5,10,6,.88)",
-            backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)",
-            border: menuOpen ? "1.5px solid rgba(255,255,255,.22)" : "1.5px solid rgba(34,197,94,.4)",
-            boxShadow:"0 8px 32px rgba(0,0,0,.65), 0 0 20px rgba(34,197,94,.15)",
-            display:"flex", alignItems:"center", justifyContent:"center",
-            cursor:"pointer", transition:"border-color .18s, background .18s",
-          }}
-          aria-label={menuOpen ? "Close menu" : "Open menu"}
-        >
-          {menuOpen ? (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-              stroke="rgba(255,255,255,.65)" strokeWidth="2.6" strokeLinecap="round">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          ) : (
-            <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:22, fontWeight:800, color:"#4ADE80", lineHeight:1, userSelect:"none" }}>?</span>
-          )}
-        </button>
+      {/* ── Tab content — overlays the live map for non-Drive tabs ──── */}
+      {!isRejected && !activeTrip && tab !== 'drive' && (
+        <div style={{
+          position:"fixed", inset:0, zIndex:400, background:C.bg,
+          overflowY:"auto", WebkitOverflowScrolling:"touch",
+          paddingBottom:"calc(84px + env(safe-area-inset-bottom))",
+        }}>
+          {tab === 'trips'    && <TripsTab completedRides={completedRides} online={online} />}
+          {tab === 'earnings' && <EarningsTab earnings={undefined} online={online} driver={driver} onViewHistory={() => setTab('trips')} />}
+          {tab === 'you'      && <ProfileTab driver={driver} online={online} onSignOut={handleSignOut} />}
+        </div>
+      )}
+
+      {/* ── Bottom tab bar (new UaTob) ─────────────────────────────── */}
+      {!isRejected && !activeTrip && !tripRequest && !completedPopup && (
+        <DriverTabBar tab={tab} setTab={setTab} online={online} />
       )}
 
       {/* ── Account overlay ───────────────────────────────────────── */}
@@ -1029,6 +1030,51 @@ function DriverAppInner({ uid }) {
         </>
       )}
     </div>
+  );
+}
+
+// ── Bottom tab bar (new UaTob — dark green) ─────────────────────────────
+const DRIVER_TABS = [
+  { id: 'drive',    label: 'Drive',    icon: (c) => <><circle cx="12" cy="12" r="9" stroke={c}/><circle cx="12" cy="12" r="2.3" stroke={c}/><path d="M12 3v3.2M12 17.8V21M3 12h3.2M17.8 12H21" stroke={c}/></> },
+  { id: 'trips',    label: 'Trips',    icon: (c) => <><path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h13l4 4v4a2 2 0 0 1-2 2h-2" stroke={c}/><circle cx="7.5" cy="17.5" r="2.5" stroke={c}/><circle cx="17.5" cy="17.5" r="2.5" stroke={c}/></> },
+  { id: 'earnings', label: 'Earnings', icon: (c) => <><path d="M12 1.8v20.4" stroke={c}/><path d="M16.5 5.5H9.75a3.25 3.25 0 0 0 0 6.5h4.5a3.25 3.25 0 0 1 0 6.5H7" stroke={c}/></> },
+  { id: 'you',      label: 'You',      icon: (c) => <><circle cx="12" cy="7.5" r="4" stroke={c}/><path d="M4.5 20.5c0-4.2 3.4-6.8 7.5-6.8s7.5 2.6 7.5 6.8" stroke={c}/></> },
+];
+
+function DriverTabBar({ tab, setTab, online }) {
+  const GREEN = '#4ADE80';
+  const DIM   = 'rgba(255,255,255,.42)';
+  return (
+    <nav style={{
+      position:'fixed', left:0, right:0, bottom:0, zIndex:520,
+      height:'calc(74px + env(safe-area-inset-bottom))',
+      paddingBottom:'env(safe-area-inset-bottom)',
+      display:'grid', gridTemplateColumns:'repeat(4,1fr)',
+      background:'linear-gradient(0deg,rgba(3,6,4,.98),rgba(3,6,4,.86))',
+      borderTop:'1px solid rgba(126,186,162,.16)',
+      backdropFilter:'blur(14px)', WebkitBackdropFilter:'blur(14px)',
+    }}>
+      {DRIVER_TABS.map((t) => {
+        const on  = tab === t.id;
+        const col = on ? GREEN : DIM;
+        return (
+          <button key={t.id} onClick={() => setTab(t.id)} style={{
+            display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+            gap:5, cursor:'pointer', border:'none', background:'none', position:'relative', paddingTop:8, color:col,
+          }}>
+            {on && <span style={{ position:'absolute', top:0, width:34, height:2.5, borderRadius:'0 0 3px 3px', background:GREEN, boxShadow:`0 0 10px ${GREEN}` }}/>}
+            <svg width={23} height={23} viewBox="0 0 24 24" fill="none" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" style={{ filter: on ? 'drop-shadow(0 0 8px rgba(74,222,128,.55))' : 'none' }}>
+              {t.icon(col)}
+            </svg>
+            <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:10, fontWeight:800, letterSpacing:'.1em', textTransform:'uppercase' }}>{t.label}</span>
+            {/* live dot on Drive when online */}
+            {t.id === 'drive' && online && (
+              <span style={{ position:'absolute', top:6, right:'calc(50% - 20px)', width:7, height:7, borderRadius:'50%', background:GREEN, boxShadow:`0 0 8px ${GREEN}`, border:'1.5px solid #030604' }}/>
+            )}
+          </button>
+        );
+      })}
+    </nav>
   );
 }
 
