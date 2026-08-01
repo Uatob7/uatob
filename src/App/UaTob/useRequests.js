@@ -26,14 +26,18 @@ export function useRequests(uid) {
     let isMounted = true;
     setLoading(true);
 
-    // The rider's OWN open requests, awaiting payment, newest first. Only the
-    // person who posted a request sees it on their board. Requires a composite
-    // index on (uid ASC, status ASC, createdAt DESC) — Firestore surfaces a
-    // one-click create link the first time this runs.
+    // The rider's OWN requests that are still in-flight on the board:
+    //   'open'   → awaiting the rider's payment choice
+    //   'paying' → paid/marked, waiting for the settle cron to book the Ride
+    // Both need to stay visible so the Rides tab can show a "booking…" state
+    // instead of going blank between paying and the Ride appearing. Only the
+    // poster sees their own. Requires a composite index on
+    // (uid ASC, status ASC, createdAt DESC) — Firestore surfaces a one-click
+    // create link the first time this runs.
     const q = query(
       collection(db, 'Requests'),
       where('uid', '==', uid),
-      where('status', '==', 'open'),
+      where('status', 'in', ['open', 'paying']),
       orderBy('createdAt', 'desc'),
     );
 

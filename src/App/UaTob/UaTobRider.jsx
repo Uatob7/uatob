@@ -493,15 +493,18 @@ function StepButton({ enabled, onClick, children }) {
 function RequestCard({ req, onPay, credit }) {
   const tagColor = TAG_COLOR[req.rideType] || C.greenBright;
   const scheduledMs = req.scheduledAt?.toMillis ? req.scheduledAt.toMillis() : (req.scheduledAt?.seconds ? req.scheduledAt.seconds * 1000 : null);
+  const paying = req.status === 'paying';   // marked & waiting for the settle cron to book it
   return (
     <div style={{ ...cardStyle, padding: '14px 15px 13px', marginBottom: 11, position: 'relative', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 2.5, background: 'linear-gradient(180deg,#2FE08A,transparent)' }} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 11 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-          <div style={{ width: 34, height: 34, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, background: 'rgba(251,191,36,.12)', border: '1.5px solid rgba(251,191,36,.35)' }}>⏳</div>
+          <div style={{ width: 34, height: 34, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, background: paying ? 'rgba(34,197,94,.12)' : 'rgba(251,191,36,.12)', border: `1.5px solid ${paying ? 'rgba(34,197,94,.4)' : 'rgba(251,191,36,.35)'}` }}>
+            {paying ? <span style={{ width: 15, height: 15, borderRadius: '50%', border: `2px solid ${C.inkFade}`, borderTopColor: C.greenBright, display: 'block', animation: 'urSpin .7s linear infinite' }} /> : '⏳'}
+          </div>
           <div>
-            <div style={{ fontFamily: BODY, fontSize: 13, fontWeight: 700, color: C.inkBright, lineHeight: 1.1 }}>Awaiting payment</div>
-            <div style={{ fontFamily: MONO, fontSize: 9, color: C.inkDim, marginTop: 2 }}>Posted {tsAgo(req.createdAt)}</div>
+            <div style={{ fontFamily: BODY, fontSize: 13, fontWeight: 700, color: C.inkBright, lineHeight: 1.1 }}>{paying ? 'Booking your ride…' : 'Awaiting payment'}</div>
+            <div style={{ fontFamily: MONO, fontSize: 9, color: C.inkDim, marginTop: 2 }}>{paying ? `Paying with ${req.payWith === 'credit' ? 'ride credit' : 'cash'} · confirming` : `Posted ${tsAgo(req.createdAt)}`}</div>
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
@@ -533,10 +536,21 @@ function RequestCard({ req, onPay, credit }) {
         <Stat n={req.fareEstimate != null ? money(req.fareEstimate) : '—'} label="Est. fare" hi />
       </div>
 
-      <div style={{ display: 'flex', gap: 9 }}>
-        <PayBtn kind="cash" onClick={() => onPay(req, 'cash')} sub={req.fareEstimate != null ? `${money(req.fareEstimate)} on arrival` : 'on arrival'} />
-        <PayBtn kind="credit" onClick={() => onPay(req, 'credit')} sub={`${money(credit || 0)} avail`} />
-      </div>
+      {paying ? (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 8px', borderRadius: 12,
+          border: `1.5px solid ${C.borderBright}`, background: 'rgba(34,197,94,.06)',
+          fontFamily: COND, fontSize: 12, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: C.greenBright,
+        }}>
+          <span style={{ width: 13, height: 13, borderRadius: '50%', border: `2px solid ${C.inkFade}`, borderTopColor: C.greenBright, display: 'block', animation: 'urSpin .7s linear infinite' }} />
+          Booking your ride
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 9 }}>
+          <PayBtn kind="cash" onClick={() => onPay(req, 'cash')} sub={req.fareEstimate != null ? `${money(req.fareEstimate)} on arrival` : 'on arrival'} />
+          <PayBtn kind="credit" onClick={() => onPay(req, 'credit')} sub={`${money(credit || 0)} avail`} />
+        </div>
+      )}
     </div>
   );
 }
@@ -937,9 +951,8 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
 
   const credit = Number(account?.credit || 0);
 
-  // Hide a request locally the instant it's claimed, before the snapshot catches up.
-  const [hiddenIds, setHiddenIds] = useState(() => new Set());
-  const board = useMemo(() => requests.filter((r) => !hiddenIds.has(r.id)), [requests, hiddenIds]);
+  // The rider's in-flight requests (open + paying) drive the Rides board.
+  const board = requests;
 
   const openPay = useCallback((req, method) => setSheet({ req, method }), []);
   // `need` = the exact amount short (only when topping up to book a specific
@@ -956,11 +969,11 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
     setBooking(true);
     try {
       await markPayment(sheet.req, sheet.method);
-      // Marked for settlement — the /api/requests/settle cron (every minute)
-      // writes the canonical Ride and debits credit. Once that Ride lands,
-      // index.jsx swaps to the map HUD on the next Rides snapshot. Hide the
-      // request from the board immediately.
-      setHiddenIds((prev) => new Set(prev).add(sheet.req.id));
+      // Marked for settlement — the request flips to status 'paying' and stays
+      // on the board as a "Booking your ride…" card (RequestCard reads status).
+      // The /api/requests/settle cron (every minute) then writes the canonical
+      // Ride and debits credit; once that Ride lands, index.jsx swaps to the
+      // map HUD on the next Rides snapshot.
       setSheet(null);
     } catch (err) {
       if (err?.code === 'insufficient_credit') {
