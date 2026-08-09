@@ -1,6 +1,10 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { getFirestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { firebase_app } from '@/firebase/config';
 import StatusFace        from '@/App/Drivers/StatusFace.jsx';
 import DriverInstallFace from '@/App/Drivers/DriverInstallFace.jsx';
+
+const db = getFirestore(firebase_app);
 
 const FACE_MS = 5500;
 
@@ -43,15 +47,24 @@ export default function StatusCard({
   const onlineMin   = sinceMs ? Math.max(0, Math.floor((now - sinceMs) / 60_000)) : 0;
   const onlineLabel = onlineMin < 1 ? 'just now' : onlineMin < 60 ? `${onlineMin} min` : `${Math.floor(onlineMin / 60)}h ${onlineMin % 60}m`;
 
-  // ── installed? (standalone / already downloaded) ───
+  // ── installed? (standalone / already flagged) — and persist the flag ───
   useEffect(() => {
     if (typeof window === 'undefined') return;
+
+    const persist = () => {
+      if (!driver?.uid || driver?.pwaInstalled) return;   // write once
+      setDoc(doc(db, 'Drivers', driver.uid), {
+        pwaInstalled: true, pwaInstalledAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      }, { merge: true }).catch(() => {});
+    };
+
     const standalone = window.matchMedia?.('(display-mode: standalone)')?.matches || window.navigator.standalone;
-    if (standalone || driver?.pwaInstalled || driver?.pwaDownloaded) setInstalled(true);
-    const onDone = () => setInstalled(true);
+    if (standalone || driver?.pwaInstalled || driver?.pwaDownloaded) { setInstalled(true); if (standalone) persist(); }
+
+    const onDone = () => { setInstalled(true); persist(); };
     window.addEventListener('appinstalled', onDone);
     return () => window.removeEventListener('appinstalled', onDone);
-  }, [driver?.pwaInstalled, driver?.pwaDownloaded]);
+  }, [driver?.uid, driver?.pwaInstalled, driver?.pwaDownloaded]);
 
   const faces = installed ? ['status'] : ['status', 'install'];
 
