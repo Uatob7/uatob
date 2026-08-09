@@ -26,6 +26,7 @@ import { useCreditCheckout } from '@/App/UaTob/useCreditCheckout';
 import { useGeocode }       from '@/App/UaTob/useGeocode';
 import RiderMap             from '@/App/UaTob/RiderMap';
 import InstallBanner        from '@/App/UaTob/InstallBanner';
+import RiderPushBanner      from '@/App/UaTob/RiderPushBanner';
 import SignUpPane           from '@/App/UaTob/SignUpPane';
 import SupportOverlay       from '@/App/UaTob/SupportOverlay';
 import { calcFare }         from '@/App/UaTob/fare';
@@ -1148,6 +1149,7 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
       }}>
         <Ribbon mode={modeLabel} credit={credit} onOpenWallet={openTopup} onOpenSupport={() => setSupport(true)} />
         <InstallBanner />
+        <RiderPushBanner uid={uid} account={account} />
 
         {geoToast && (
           <div style={{

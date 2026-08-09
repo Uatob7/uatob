@@ -75,9 +75,10 @@ export default function StatusCard({
   const pushOn     = perm === 'granted' || !!driver?.fcmToken;
   const pushDenied = perm === 'denied' && !driver?.fcmToken;
 
+  // Sequence, gated on going online: online → install the PWA → then enable push.
   const faces = ['status'];
-  if (!installed) faces.push('install');
-  if (!pushOn)    faces.push('push');
+  if (online && !installed)            faces.push('install');   // step 1: install
+  if (online && installed && !pushOn)  faces.push('push');      // step 2: push (after install)
 
   // keep index valid when the face set shrinks
   useEffect(() => { if (faceIdx >= faces.length) setFaceIdx(0); }, [faces.length, faceIdx]);

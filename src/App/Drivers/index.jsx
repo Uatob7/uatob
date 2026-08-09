@@ -659,12 +659,13 @@ function DriverAppInner({ uid }) {
   // ── Ensure push is enabled — if the driver has no fcmToken flag, register
   //    it (permission already granted) or prompt them to turn it on. ──────────
   useEffect(() => {
-    if (!driver || driver.fcmToken || isRejected || activeTrip) return;   // has push / not now
+    if (!driver || driver.fcmToken || isRejected) return;   // already has push
     if (typeof window === "undefined" || !("Notification" in window)) return;
-    if (window.Notification.permission === "granted")      registerFcmToken();
-    else if (window.Notification.permission === "default") setShowNotifPopup(true);
-    // 'denied' → nothing we can trigger; they must re-enable in browser settings.
-  }, [driver?.fcmToken, isRejected, activeTrip, registerFcmToken]); // eslint-disable-line
+    // If permission is already granted, quietly (re)save the token. The explicit
+    // ask happens on the status card in sequence (go online → install → push),
+    // so we don't pop a modal here.
+    if (window.Notification.permission === "granted") registerFcmToken();
+  }, [driver?.fcmToken, isRejected, registerFcmToken]); // eslint-disable-line
 
   // ── Online / offline ──────────────────────────────────────────────
   const requestLocationAndGoOnline = useCallback(async () => {
