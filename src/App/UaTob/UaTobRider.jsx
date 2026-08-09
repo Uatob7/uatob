@@ -84,8 +84,6 @@ function Ribbon({ mode, credit = 0, onOpenWallet, onOpenSupport }) {
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
         <span style={{ fontFamily: COND, fontSize: 12, fontWeight: 800, letterSpacing: '.24em', color: 'rgba(255,255,255,.55)' }}>UATOB</span>
-        <span style={{ fontFamily: MONO, fontSize: 9, color: C.inkFade }}>·</span>
-        <span style={{ fontFamily: COND, fontSize: 10, fontWeight: 800, letterSpacing: '.16em', color: C.greenBright, textShadow: `0 0 8px ${C.greenBright}88` }}>{mode}</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexShrink: 0 }}>
         {/* Ride-credit balance — tap to top up */}
@@ -1080,9 +1078,7 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
                   <div style={{ fontFamily: COND, fontSize: 24, fontWeight: 800, letterSpacing: '.01em', color: C.inkBright }}>
                     Where to{account?.name ? `, ${String(account.name).split(' ')[0]}` : ''}?
                   </div>
-                  <div style={{ fontFamily: MONO, fontSize: 10.5, color: C.inkMid, margin: '6px 0 16px', lineHeight: 1.5 }}>
-                    Set a pickup and destination, then post it to the board.
-                  </div>
+                  <div style={{ marginBottom: 16 }} />
                   <button className="ur-tap" onClick={() => { if (uid) { grabLocation(); setRequestOpen(true); } else { setTab('you'); } }} style={{
                     width: '100%', border: 'none', borderRadius: 16, padding: 17, cursor: 'pointer',
                     fontFamily: COND, fontSize: 17, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#04150a',
