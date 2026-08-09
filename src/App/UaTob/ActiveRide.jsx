@@ -89,7 +89,12 @@ export default function ActiveRide({ ride, uid, onContactDriver }) {
   };
 
   const fmtMi = (mi) => (mi == null ? '—' : mi < 0.1 ? `${Math.round(mi * 5280)} ft` : `${mi.toFixed(1)} mi`);
-  const showDriverCard = ['driver_assigned', 'driver_arriving', 'arrived', 'in_progress'].includes(ride.status) && driverInfo.name;
+  // Drivers store firstName/lastName, not a single `name` — build one so the
+  // driver card (which holds the message button) always shows once assigned.
+  const driverName = driverInfo.name || driverInfo.displayName
+    || [driverInfo.firstName, driverInfo.lastName].filter(Boolean).join(' ')
+    || 'Your driver';
+  const showDriverCard = ['driver_assigned', 'driver_arriving', 'arrived', 'in_progress'].includes(ride.status) && !!driverUid;
   const canCancel = ['searching_driver', 'timeout', 'driver_assigned', 'driver_arriving'].includes(ride.status);
 
   // ── in-ride chat with the driver (Rides/{id}/Messages, same schema the
@@ -207,7 +212,7 @@ export default function ActiveRide({ ride, uid, onContactDriver }) {
                     {driverInfo.photoURL ? <img src={driverInfo.photoURL} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '🧑‍✈️'}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: BODY, fontSize: 13.5, fontWeight: 700, color: C.inkBright }}>{driverInfo.name || driverInfo.displayName || 'Your driver'}</div>
+                    <div style={{ fontFamily: BODY, fontSize: 13.5, fontWeight: 700, color: C.inkBright }}>{driverName}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 3, flexWrap: 'wrap' }}>
                       {driverInfo.rating != null && <span style={{ fontFamily: MONO, fontSize: 10, color: C.amber }}>★ {Number(driverInfo.rating).toFixed(1)}</span>}
                       {(driverInfo.vehicle || driverInfo.carModel) && <span style={{ fontFamily: COND, fontSize: 10.5, color: C.inkMid, letterSpacing: '.03em' }}>{driverInfo.vehicle || driverInfo.carModel}</span>}
@@ -269,7 +274,7 @@ export default function ActiveRide({ ride, uid, onContactDriver }) {
         <ChatSheet
           messages={messages} value={chatInput} onChange={setChatInput}
           onSend={sendChat} sending={chatSending}
-          driverName={driverInfo.name || driverInfo.displayName || 'your driver'}
+          driverName={driverName}
           onClose={() => setShowChat(false)}
         />
       )}
