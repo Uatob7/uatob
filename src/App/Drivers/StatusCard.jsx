@@ -3,8 +3,10 @@ import { getFirestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { firebase_app } from '@/firebase/config';
 import StatusFace        from '@/App/Drivers/StatusFace.jsx';
 import DriverInstallFace from '@/App/Drivers/DriverInstallFace.jsx';
+import DriverPushFace    from '@/App/Drivers/DriverPushFace.jsx';
 
 const db = getFirestore(firebase_app);
+const FACE_TINT = { status: '#22C55E', install: '#22D3EE', push: '#FBBF24' };
 
 const FACE_MS = 5500;
 
@@ -19,6 +21,7 @@ export default function StatusCard({
   activeTrip,
   tripStage,
   onToggle,
+  onEnablePush,
   onlineSince,
   nearbyCount,
   driver,
@@ -66,7 +69,15 @@ export default function StatusCard({
     return () => window.removeEventListener('appinstalled', onDone);
   }, [driver?.uid, driver?.pwaInstalled, driver?.pwaDownloaded]);
 
-  const faces = installed ? ['status'] : ['status', 'install'];
+  // Push state (Notification.permission isn't reactive — re-reads on each render;
+  // the card re-renders when driver.fcmToken updates after enabling).
+  const perm = (typeof window !== 'undefined' && 'Notification' in window) ? window.Notification.permission : 'default';
+  const pushOn     = perm === 'granted' || !!driver?.fcmToken;
+  const pushDenied = perm === 'denied' && !driver?.fcmToken;
+
+  const faces = ['status'];
+  if (!installed) faces.push('install');
+  if (!pushOn)    faces.push('push');
 
   // keep index valid when the face set shrinks
   useEffect(() => { if (faceIdx >= faces.length) setFaceIdx(0); }, [faces.length, faceIdx]);
@@ -90,6 +101,7 @@ export default function StatusCard({
   const mode = !online ? 'offline' : activeTrip ? 'trip' : 'waiting';
   const scanColor = face === 'install'
     ? 'rgba(34,211,238,.52)'
+    : face === 'push' ? 'rgba(251,191,36,.52)'
     : mode === 'offline' ? 'rgba(100,116,139,.4)' : 'rgba(34,197,94,.55)';
 
   return (
@@ -138,8 +150,10 @@ export default function StatusCard({
                 driver={driver}
                 searches={searches}
               />
-            ) : (
+            ) : face === 'install' ? (
               <DriverInstallFace onInstalled={() => setInstalled(true)} />
+            ) : (
+              <DriverPushFace onEnable={onEnablePush} denied={pushDenied} />
             )}
           </div>
 
@@ -149,8 +163,8 @@ export default function StatusCard({
               {faces.map((f, i) => (
                 <button key={f} onClick={() => { setFaceIdx(i); setPaused(true); clearTimeout(pauseRef.current); pauseRef.current = setTimeout(() => setPaused(false), 7000); }}
                   style={{ width: i === faceIdx ? 20 : 6, height: 6, borderRadius: 3, border: 'none', padding: 0, cursor: 'pointer',
-                    background: i === faceIdx ? (f === 'install' ? '#22D3EE' : '#22C55E') : 'rgba(255,255,255,.18)',
-                    boxShadow: i === faceIdx ? `0 0 8px ${(f === 'install' ? '#22D3EE' : '#22C55E')}80` : 'none', transition: 'all .28s ease', flexShrink: 0 }} />
+                    background: i === faceIdx ? (FACE_TINT[f] || '#22C55E') : 'rgba(255,255,255,.18)',
+                    boxShadow: i === faceIdx ? `0 0 8px ${(FACE_TINT[f] || '#22C55E')}80` : 'none', transition: 'all .28s ease', flexShrink: 0 }} />
               ))}
             </div>
           )}

@@ -1819,6 +1819,7 @@ export default function HomeTab({
   tripBtnLabel,
   earnings,
   onToggleOnline,
+  onEnablePush,
   onAdvanceTrip,
   advancePending,
   onUnreadChange,
@@ -2704,6 +2705,7 @@ export default function HomeTab({
               activeTrip={activeTrip}
               tripStage={tripStage}
               onToggle={onToggleOnline}
+              onEnablePush={onEnablePush}
               scheduledRides={scheduledRides}
               driver={liveDriver || driver}
             />

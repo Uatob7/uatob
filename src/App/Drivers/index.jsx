@@ -869,6 +869,7 @@ function DriverAppInner({ uid }) {
           activeTrip={activeTrip} tripStage={tripStage} tripStageColor={tripStageColor}
           tripBtnLabel={tripBtnLabel}
           onToggleOnline={handleToggleOnline} onAdvanceTrip={handleAdvanceTrip}
+          onEnablePush={handleEnableNotifications}
           advancePending={advancePending} scheduledRides={scheduledRides}
           onOpenSupport={() => setShowSupport(true)} supportUnread={supportUnread}
           onCompletedPopupChange={setCompletedPopup}
