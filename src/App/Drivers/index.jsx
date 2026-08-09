@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Star, LocateFixed, Loader2, X, AlertCircle, Bell } from "lucide-react";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, doc, onSnapshot } from "firebase/firestore";
 
 import CSS               from '@/App/Drivers/styles.js';
 import { C }             from '@/App/Drivers/constants.js';
@@ -556,6 +556,24 @@ function DriverAppInner({ uid }) {
   useEffect(() => { if (activeTrip?.id) setAcceptedRequestId(null); }, [activeTrip?.id]);
 
   useEffect(() => { if (activeTrip) setTripScreenTrip(activeTrip); }, [activeTrip]);
+
+  // If the rider cancels, the ride leaves the active-status query (so activeTrip
+  // just goes null and the trip screen would otherwise linger). Watch the trip
+  // doc directly and close the screen + notify when it's canceled.
+  useEffect(() => {
+    const id = tripScreenTrip?.id;
+    if (!id) return;
+    const unsub = onSnapshot(doc(db, "Rides", id), (snap) => {
+      const s = snap.data()?.status;
+      if (s === "canceled" || s === "cancelled") {
+        setTripScreenTrip(null);
+        setActiveTrip(null);
+        setAcceptedRequestId(null);
+        showNotif("Ride canceled", "The rider canceled this trip");
+      }
+    }, () => {});
+    return () => unsub();
+  }, [tripScreenTrip?.id]); // eslint-disable-line
 
   useEffect(() => { setTripBtnLabel(TRIP_BUTTON_LABELS[activeTrip?.status] ?? ""); }, [activeTrip?.status]);
 
