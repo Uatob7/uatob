@@ -1,17 +1,19 @@
 // TrackMap.jsx
 // Live driver-tracking map for the active-ride screen (Uber-style).
-// Draws the active route with a glow + casing + flowing marching-dash overlay,
-// a glowing driver puck, pickup/dropoff pins, and frames the FULL decoded route
-// (not just the endpoints) above the status card.
+// Matches the driver map's route treatment: the route is split into a bright
+// REMAINING leg (glow + casing + flowing marching-dash) and a faint TRAVELED
+// leg, split at the driver's projected position so the line "consumes" behind
+// the car as it moves. Glowing driver puck + pickup/dropoff pins, framed on the
+// two relevant points for the phase.
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { MAPBOX_TOKEN, MAP_STYLE, ORL, loadMapbox, decodePolyline } from '@/App/UaTob/mapUtils';
 
-const SRC = 'tm-route';
-const GREEN  = '#2FE08A';
-const CYAN   = '#3FD0EE';
+const SRC_REMAIN = 'tm-remain';
+const SRC_TRAVEL = 'tm-travel';
+const GREEN = '#2FE08A';
+const CYAN  = '#3FD0EE';
 
-// flowing marching-dash frames (gives the route a "live navigation" feel)
 const DASH_FRAMES = [
   [0, 4, 3], [0.5, 4, 2.5], [1, 4, 2], [1.5, 4, 1.5],
   [2, 4, 1], [2.5, 4, 0.5], [3, 4, 0], [0, 0.5, 3, 3.5],
@@ -19,6 +21,24 @@ const DASH_FRAMES = [
   [0, 3, 3, 1], [0, 3.5, 3, 0.5],
 ];
 const DASH_MS = 60;
+
+// Project point p onto the polyline; return the segment index + the projected
+// point so we can split the route exactly at the car.
+function projectOnRoute(coords, p) {
+  let best = { d2: Infinity, idx: 0, point: coords[0] };
+  for (let i = 0; i < coords.length - 1; i++) {
+    const a = coords[i], b = coords[i + 1];
+    const abx = b[0] - a[0], aby = b[1] - a[1];
+    const len2 = abx * abx + aby * aby || 1e-12;
+    let t = ((p[0] - a[0]) * abx + (p[1] - a[1]) * aby) / len2;
+    t = Math.max(0, Math.min(1, t));
+    const proj = [a[0] + abx * t, a[1] + aby * t];
+    const dx = p[0] - proj[0], dy = p[1] - proj[1];
+    const d2 = dx * dx + dy * dy;
+    if (d2 < best.d2) best = { d2, idx: i, point: proj };
+  }
+  return best;
+}
 
 function makePin(color, glyph) {
   const el = document.createElement('div');
@@ -30,17 +50,16 @@ function makePin(color, glyph) {
   return el;
 }
 
-// Glowing driver puck with a pulsing ring + a heading-aware car.
 function makeCar(heading) {
   const wrap = document.createElement('div');
   wrap.style.cssText = 'position:relative;width:0;height:0';
   const glow = document.createElement('div');
-  glow.style.cssText = 'position:absolute;left:0;top:0;width:52px;height:52px;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(circle,rgba(47,224,138,.45),transparent 68%)';
+  glow.style.cssText = 'position:absolute;left:0;top:0;width:54px;height:54px;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(circle,rgba(47,224,138,.45),transparent 68%)';
   const pulse = document.createElement('div');
-  pulse.style.cssText = 'position:absolute;left:0;top:0;width:40px;height:40px;border-radius:50%;border:2px solid rgba(47,224,138,.5);transform:translate(-50%,-50%) scale(.5);opacity:0;animation:tmPulse 1.8s ease-out infinite';
+  pulse.style.cssText = 'position:absolute;left:0;top:0;width:42px;height:42px;border-radius:50%;border:2px solid rgba(47,224,138,.5);transform:translate(-50%,-50%) scale(.5);opacity:0;animation:tmPulse 1.8s ease-out infinite';
   const car = document.createElement('div');
-  car.style.cssText = 'position:absolute;left:0;top:0;transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;background:linear-gradient(145deg,#4ADE80,#16A34A);border:3px solid #fff;box-shadow:0 4px 16px rgba(34,197,94,.75),0 2px 6px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center';
-  car.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 5 21l7-4 7 4z"/></svg>';
+  car.style.cssText = 'position:absolute;left:0;top:0;transform:translate(-50%,-50%);width:36px;height:36px;border-radius:50%;background:linear-gradient(145deg,#4ADE80,#16A34A);border:3px solid #fff;box-shadow:0 4px 18px rgba(34,197,94,.75),0 2px 6px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center';
+  car.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 5 21l7-4 7 4z"/></svg>';
   const inner = car.firstChild;
   wrap.appendChild(glow); wrap.appendChild(pulse); wrap.appendChild(car);
   wrap._setHeading = (h) => { if (h != null && inner) inner.style.transform = `rotate(${h}deg)`; };
@@ -63,7 +82,6 @@ export default function TrackMap({ pickup, dropoff, driver, polyline, phase }) {
 
   const start = pickup?.lat != null ? pickup : (dropoff?.lat != null ? dropoff : ORL);
 
-  // Decode once; used for both the line and the camera framing. [lng,lat] pairs.
   const routeCoords = useMemo(() => {
     const dec = decodePolyline(polyline);
     return dec.length >= 2 ? dec.map((p) => [p[1], p[0]]) : [];
@@ -76,31 +94,30 @@ export default function TrackMap({ pickup, dropoff, driver, polyline, phase }) {
       mapboxgl.accessToken = MAPBOX_TOKEN;
       const map = new mapboxgl.Map({
         container: elRef.current, style: MAP_STYLE,
-        center: [start.lng, start.lat], zoom: 13, pitch: 46, bearing: -14,
+        center: [start.lng, start.lat], zoom: 13.5, pitch: 55, bearing: -14,
         interactive: false, attributionControl: false, antialias: true,
       });
       map.on('load', () => {
         if (cancelled) return;
-        map.addSource(SRC, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-        // wide soft glow under everything
-        map.addLayer({ id: `${SRC}-glow`, type: 'line', source: SRC, layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': GREEN, 'line-width': 18, 'line-opacity': 0.14, 'line-blur': 8 } });
-        // dark casing so the route reads on any basemap
-        map.addLayer({ id: `${SRC}-case`, type: 'line', source: SRC, layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#04140b', 'line-width': 8.5, 'line-opacity': 0.9 } });
-        // main line
-        map.addLayer({ id: `${SRC}-line`, type: 'line', source: SRC, layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': GREEN, 'line-width': 4.5, 'line-opacity': 0.95 } });
-        // flowing dash overlay
-        map.addLayer({ id: `${SRC}-dash`, type: 'line', source: SRC, layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#EAFFF2', 'line-width': 2, 'line-opacity': 0.55, 'line-dasharray': [0, 4, 3] } });
+        map.addSource(SRC_TRAVEL, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+        map.addSource(SRC_REMAIN, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+        // traveled (behind the car) — faint
+        map.addLayer({ id: `${SRC_TRAVEL}-line`, type: 'line', source: SRC_TRAVEL, layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': 'rgba(255,255,255,.85)', 'line-width': 5, 'line-opacity': 0.14 } });
+        // remaining — glow + casing + main + flowing dash
+        map.addLayer({ id: `${SRC_REMAIN}-glow`, type: 'line', source: SRC_REMAIN, layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': GREEN, 'line-width': 18, 'line-opacity': 0.14, 'line-blur': 8 } });
+        map.addLayer({ id: `${SRC_REMAIN}-case`, type: 'line', source: SRC_REMAIN, layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#04140b', 'line-width': 8.5, 'line-opacity': 0.9 } });
+        map.addLayer({ id: `${SRC_REMAIN}-line`, type: 'line', source: SRC_REMAIN, layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': GREEN, 'line-width': 4.5, 'line-opacity': 0.95 } });
+        map.addLayer({ id: `${SRC_REMAIN}-dash`, type: 'line', source: SRC_REMAIN, layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#EAFFF2', 'line-width': 2, 'line-opacity': 0.55, 'line-dasharray': [0, 4, 3] } });
         mapRef.current = map;
         setReady(true);
 
-        // dash flow loop
         const loop = (now) => {
           dashRafRef.current = requestAnimationFrame(loop);
-          if (!mapRef.current || !mapRef.current.getLayer(`${SRC}-dash`)) return;
+          if (!mapRef.current || !mapRef.current.getLayer(`${SRC_REMAIN}-dash`)) return;
           if (now - lastDashRef.current < DASH_MS) return;
           lastDashRef.current = now;
           dashStepRef.current = (dashStepRef.current + 1) % DASH_FRAMES.length;
-          try { mapRef.current.setPaintProperty(`${SRC}-dash`, 'line-dasharray', DASH_FRAMES[dashStepRef.current]); } catch {}
+          try { mapRef.current.setPaintProperty(`${SRC_REMAIN}-dash`, 'line-dasharray', DASH_FRAMES[dashStepRef.current]); } catch {}
         };
         dashRafRef.current = requestAnimationFrame(loop);
       });
@@ -113,17 +130,25 @@ export default function TrackMap({ pickup, dropoff, driver, polyline, phase }) {
     };
   }, []); // eslint-disable-line
 
-  // route line + endpoint pins
+  // route split (traveled vs remaining) + endpoint pins
   useEffect(() => {
     if (!ready || !mapRef.current || !window.mapboxgl) return;
     const map = mapRef.current;
+
+    let traveled = [], remaining = routeCoords;
+    if (routeCoords.length >= 2 && driver?.lat != null) {
+      const proj = projectOnRoute(routeCoords, [driver.lng, driver.lat]);
+      traveled  = routeCoords.slice(0, proj.idx + 1).concat([proj.point]);
+      remaining = [proj.point].concat(routeCoords.slice(proj.idx + 1));
+    }
+    const feat = (coords) => (coords.length >= 2
+      ? { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } }
+      : { type: 'FeatureCollection', features: [] });
     try {
-      map.getSource(SRC)?.setData(
-        routeCoords.length >= 2
-          ? { type: 'Feature', geometry: { type: 'LineString', coordinates: routeCoords } }
-          : { type: 'FeatureCollection', features: [] }
-      );
+      map.getSource(SRC_TRAVEL)?.setData(feat(traveled));
+      map.getSource(SRC_REMAIN)?.setData(feat(remaining));
     } catch {}
+
     if (pickup?.lat != null) {
       if (!pickupRef.current) pickupRef.current = new window.mapboxgl.Marker({ element: makePin(CYAN, '📍'), anchor: 'center' }).setLngLat([pickup.lng, pickup.lat]).addTo(map);
       else pickupRef.current.setLngLat([pickup.lng, pickup.lat]);
@@ -132,7 +157,7 @@ export default function TrackMap({ pickup, dropoff, driver, polyline, phase }) {
       if (!dropoffRef.current) dropoffRef.current = new window.mapboxgl.Marker({ element: makePin(GREEN, '🏁'), anchor: 'center' }).setLngLat([dropoff.lng, dropoff.lat]).addTo(map);
       else dropoffRef.current.setLngLat([dropoff.lng, dropoff.lat]);
     }
-  }, [ready, routeCoords, pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng]);
+  }, [ready, routeCoords, driver?.lat, driver?.lng, pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng]);
 
   // live driver car
   useEffect(() => {
@@ -150,7 +175,7 @@ export default function TrackMap({ pickup, dropoff, driver, polyline, phase }) {
     } else if (carRef.current) { try { carRef.current.remove(); } catch {} carRef.current = null; }
   }, [ready, driver?.lat, driver?.lng, driver?.heading]);
 
-  // camera — frame the FULL route when we have one, else the relevant endpoints
+  // camera — frame the two RELEVANT points for the phase (known-good endpoints)
   const applyView = useCallback((animated) => {
     const map = mapRef.current; const pts = viewRef.current;
     if (!map || !pts || pts.length < 1) return;
@@ -174,9 +199,6 @@ export default function TrackMap({ pickup, dropoff, driver, polyline, phase }) {
     const pk = pickup?.lat  != null ? [pickup.lng, pickup.lat]   : null;
     const dp = dropoff?.lat != null ? [dropoff.lng, dropoff.lat] : null;
 
-    // Frame the two RELEVANT points for the phase (driver + destination). Using
-    // known-good endpoints — not every decoded route vertex — avoids a stray
-    // outlier blowing the bounds out to the whole world.
     let pts;
     if (phase === 'trip')            pts = [d, dp].filter(Boolean);
     else if (phase === 'toPickup')   pts = [d, pk].filter(Boolean);
