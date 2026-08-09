@@ -1,5 +1,8 @@
 import Head from 'next/head';
 import dynamic from 'next/dynamic';
+import { useEffect } from 'react';
+import { useRouter } from 'next/router';
+import { useUserRole } from '@/App/useUserRole';
 
 const UaTobApp = dynamic(() => import('@/App/UaTob'), { ssr: false });
 
@@ -166,6 +169,13 @@ const JSON_LD = {
 };
 
 export default function Home({ uid }) {
+  const role = useUserRole(uid);
+  const router = useRouter();
+
+  // Same PWA — if a driver lands on the rider entry, send them to their app.
+  useEffect(() => {
+    if (role === 'driver') router.replace('/driver');
+  }, [role, router]);
 
   return (
     <>
@@ -233,7 +243,7 @@ export default function Home({ uid }) {
         />
       </Head>
 
-      <UaTobApp uid={uid} />
+      {role !== 'driver' && <UaTobApp uid={uid} />}
     </>
   );
 }
