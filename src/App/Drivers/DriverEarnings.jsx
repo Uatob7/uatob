@@ -4,12 +4,7 @@
 // "pace" ring — are you ahead of where you should be right now?
 
 import { useMemo, useState } from 'react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { firebase_app } from '@/firebase/config';
-
-const functions           = getFunctions(firebase_app, 'us-east1');
-const callSetupDeposit    = httpsCallable(functions, 'setupDeposit');
-const callProcessWithdraw = httpsCallable(functions, 'processWithdrawal');
+import { useSettleDriverCash } from '@/App/Drivers/useSettleDriverCash';
 
 const C = {
   bg:        '#050A06',
@@ -103,14 +98,20 @@ export default function DriverEarnings({ completedRides = [], driver, online }) 
   // ── payout actions ────────────────────────────────────────────────────────
   const [busy, setBusy] = useState('');   // 'deposit' | 'cashout' | ''
   const [feedback, setFeedback] = useState(null);
+  const { settle } = useSettleDriverCash();
 
   const setupDeposit = async () => {
     if (busy) return;
     setBusy('deposit'); setFeedback(null);
     try {
-      const { data } = await callSetupDeposit({ email: driver?.email, uid: driver?.uid });
-      if (data?.success && data?.accountLink) { window.location.href = data.accountLink; return; }
-      setFeedback({ type: 'error', msg: 'Could not start Stripe setup. Try again.' });
+      const res = await fetch('/api/drivers/connect', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid: driver?.uid }),
+      });
+      const data = await res.json();
+      if (data?.accountLink) { window.location.href = data.accountLink; return; }
+      if (data?.enabled) { setFeedback({ type: 'ok', msg: 'Bank already linked.' }); return; }
+      setFeedback({ type: 'error', msg: data?.error || 'Could not start Stripe setup.' });
     } catch (e) {
       setFeedback({ type: 'error', msg: e?.message || 'Stripe setup failed.' });
     } finally { setBusy(''); }
@@ -120,10 +121,8 @@ export default function DriverEarnings({ completedRides = [], driver, online }) 
     if (busy || net <= 0) return;
     setBusy('cashout'); setFeedback(null);
     try {
-      const { data } = await callProcessWithdraw({ uid: driver?.uid });
-      setFeedback(data?.success
-        ? { type: 'ok', msg: `${money(data.amount ?? net)} on the way to your bank.` }
-        : { type: 'error', msg: data?.message || 'Cash-out failed.' });
+      const out = await settle(driver?.uid);
+      setFeedback({ type: 'ok', msg: `${money(out?.netPayout ?? net)} on the way to your bank.` });
     } catch (e) {
       setFeedback({ type: 'error', msg: e?.message || 'Cash-out failed.' });
     } finally { setBusy(''); }

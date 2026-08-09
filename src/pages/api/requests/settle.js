@@ -189,6 +189,10 @@ export default async function handler(req, res) {
             creditCharged:  method === 'credit' ? fareTotal : null,
             paymentIntentId: null,
 
+            // Ledger flag — the /api/drivers/settle-balances cron accrues this
+            // ride into the driver's balance once it's completed, then flips it.
+            balanceSettled: false,
+
             status:    rideStatus,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),

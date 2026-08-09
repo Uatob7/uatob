@@ -2,11 +2,6 @@
 // Identity, payout (Stripe deposit) setup, vehicle, documents, and settings.
 
 import { useState } from 'react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { firebase_app } from '@/firebase/config';
-
-const functions        = getFunctions(firebase_app, 'us-east1');
-const callSetupDeposit = httpsCallable(functions, 'setupDeposit');
 
 const C = {
   bg: '#050A06', card: 'rgba(255,255,255,.035)', border: 'rgba(126,186,162,.16)', borderHi: 'rgba(47,224,138,.32)',
@@ -44,9 +39,14 @@ export default function DriverProfile({ driver, online, onSignOut, onOpenSupport
     if (busy) return;
     setBusy(true); setErr('');
     try {
-      const { data } = await callSetupDeposit({ email: driver?.email, uid: driver?.uid });
-      if (data?.success && data?.accountLink) { window.location.href = data.accountLink; return; }
-      setErr('Could not start Stripe setup. Try again.');
+      const res = await fetch('/api/drivers/connect', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid: driver?.uid }),
+      });
+      const data = await res.json();
+      if (data?.accountLink) { window.location.href = data.accountLink; return; }
+      if (data?.enabled) { setErr(''); return; }
+      setErr(data?.error || 'Could not start Stripe setup.');
     } catch (e) { setErr(e?.message || 'Stripe setup failed.'); }
     finally { setBusy(false); }
   };
