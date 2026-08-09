@@ -34,7 +34,13 @@ const GOALS = [100, 150, 200, 250, 300, 400];
 const money = (n) => `$${(Number(n) || 0).toFixed(2)}`;
 const money0 = (n) => `$${Math.round(Number(n) || 0)}`;
 const dayKey = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x.getTime(); };
-const payoutOf = (r) => Number(r.driverPayout ?? (r.fareTotal != null ? r.fareTotal * 0.75 : 0)) || 0;
+const isCredit = (r) => r.paymentMethod === 'credit';
+// What the driver actually took: cash → keeps 100% of the fare; credit → 75% payout.
+const takeOf = (r) => isCredit(r)
+  ? (Number(r.driverPayout ?? (r.fareTotal != null ? r.fareTotal * 0.75 : 0)) || 0)
+  : (Number(r.fareTotal ?? 0) || 0);
+// 25% UaTob fee the driver owes on a cash ride (netted from their credit balance).
+const feeOf = (r) => isCredit(r) ? 0 : (Number(r.platformFee ?? (r.fareTotal != null ? r.fareTotal * 0.25 : 0)) || 0);
 
 export default function DriverEarnings({ completedRides = [], driver, online }) {
   const [goal, setGoal] = useState(() => {
@@ -51,14 +57,16 @@ export default function DriverEarnings({ completedRides = [], driver, online }) 
     const todayK = dayKey(new Date());
     const weekStart = todayK - 6 * 86400000;
     let today = 0, todayN = 0, week = 0, weekN = 0, all = 0;
+    let cashKept = 0, creditPaid = 0, feeOwed = 0, cashN = 0, creditN = 0;
     const bars = Array.from({ length: 7 }, (_, i) => ({ k: weekStart + i * 86400000, amt: 0 }));
 
     for (const r of completedRides) {
       const d = r.updatedAt || r.createdAt;
       if (!d) continue;
       const k = dayKey(d);
-      const p = payoutOf(r);
+      const p = takeOf(r);
       all += p;
+      if (isCredit(r)) { creditPaid += p; creditN++; } else { cashKept += p; feeOwed += feeOf(r); cashN++; }
       if (k === todayK) { today += p; todayN++; }
       if (k >= weekStart) {
         week += p; weekN++;
@@ -66,7 +74,7 @@ export default function DriverEarnings({ completedRides = [], driver, online }) 
         if (b) b.amt += p;
       }
     }
-    return { today, todayN, week, weekN, all, allN: completedRides.length, bars };
+    return { today, todayN, week, weekN, all, allN: completedRides.length, bars, cashKept, creditPaid, feeOwed, cashN, creditN };
   }, [completedRides]);
 
   // Live pace: how much of the goal you'd expect by now (6am → midnight window).
@@ -168,6 +176,16 @@ export default function DriverEarnings({ completedRides = [], driver, online }) 
         <Tile label="All time"  value={money0(stats.all)} sub={`${stats.allN} trips`} accent={C.greenBt} delay={.2} />
       </div>
 
+      {/* ── Cash vs Credit ─────────────────────────────────────────── */}
+      <div style={{ ...cardStyle(), padding: '16px', marginBottom: 12, animation: 'deUp .5s .08s ease both' }}>
+        <div style={{ fontFamily: COND, fontSize: 11, fontWeight: 800, letterSpacing: '.14em', textTransform: 'uppercase', color: C.inkDim, marginBottom: 12 }}>Cash vs credit</div>
+        <Split icon="💵" title="Cash kept" note={`${stats.cashN} rides · you keep 100%`} value={money(stats.cashKept)} color={C.greenBt} />
+        <div style={{ height: 1, background: C.border, margin: '11px 0' }} />
+        <Split icon="🪙" title="Credit payout" note={`${stats.creditN} rides · 75% to your bank`} value={money(stats.creditPaid)} color={C.greenBt} />
+        <div style={{ height: 1, background: C.border, margin: '11px 0' }} />
+        <Split icon="⚖️" title="Owed to UaTob" note="25% fee on cash — netted from credit" value={`−${money(stats.feeOwed)}`} color={C.amber} />
+      </div>
+
       {/* ── Week bars ──────────────────────────────────────────────── */}
       <div style={{ ...cardStyle(), padding: '16px 16px 12px', animation: 'deUp .5s .1s ease both' }}>
         <div style={{ fontFamily: COND, fontSize: 11, fontWeight: 800, letterSpacing: '.14em', textTransform: 'uppercase', color: C.inkDim, marginBottom: 14 }}>Last 7 days</div>
@@ -247,7 +265,7 @@ export default function DriverEarnings({ completedRides = [], driver, online }) 
                   {(r.updatedAt || r.createdAt) ? new Date(r.updatedAt || r.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''} · {r.paymentMethod === 'credit' ? 'Credit' : 'Cash'}
                 </div>
               </div>
-              <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 800, color: C.greenBt }}>+{money(payoutOf(r))}</div>
+              <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 800, color: C.greenBt }}>+{money(takeOf(r))}</div>
             </div>
           ))}
         </div>
@@ -266,6 +284,19 @@ export default function DriverEarnings({ completedRides = [], driver, online }) 
 
 function cardStyle() {
   return { background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, boxShadow: '0 4px 20px rgba(0,0,0,.35)' };
+}
+
+function Split({ icon, title, note, value, color }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, background: 'rgba(255,255,255,.04)', border: `1px solid ${C.border}` }}>{icon}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: BODY, fontSize: 13.5, fontWeight: 700, color: C.ink }}>{title}</div>
+        <div style={{ fontFamily: MONO, fontSize: 9, color: C.inkDim, marginTop: 2 }}>{note}</div>
+      </div>
+      <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 800, color }}>{value}</div>
+    </div>
+  );
 }
 
 function Tile({ label, value, sub, accent, delay }) {

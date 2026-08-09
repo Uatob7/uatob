@@ -28,11 +28,13 @@ export function useCompletedRides(uid) {
     let unsubscribe = () => {};
 
     try {
+      // A completed ride is always paid — cash → paymentStatus 'succeeded',
+      // credit → 'paid'. Don't filter on paymentStatus (that dropped every
+      // credit ride); status == 'completed' already means paid.
       const q = query(
         collection(db, "Rides"),
         where("driverUid", "==", uid),
         where("status", "==", "completed"),
-        where("paymentStatus", "==", "succeeded"), // ✅ only paid rides
         orderBy("updatedAt", "desc") // latest first
       );
 

@@ -11,7 +11,10 @@ const COND = "'Barlow Condensed',sans-serif";
 const MONO = "'JetBrains Mono',monospace";
 const BODY = "'Barlow',system-ui,sans-serif";
 const money = (n) => `$${(Number(n) || 0).toFixed(2)}`;
-const payoutOf = (r) => Number(r.driverPayout ?? (r.fareTotal != null ? r.fareTotal * 0.75 : 0)) || 0;
+// Cash → driver keeps 100% of the fare; credit → 75% payout.
+const takeOf = (r) => r.paymentMethod === 'credit'
+  ? (Number(r.driverPayout ?? (r.fareTotal != null ? r.fareTotal * 0.75 : 0)) || 0)
+  : (Number(r.fareTotal ?? 0) || 0);
 const cityOf = (full, city) => city || String(full || '').split(',')[0] || '—';
 
 const FILTERS = [
@@ -34,7 +37,7 @@ export default function DriverTrips({ completedRides = [], online }) {
     });
   }, [completedRides, filter]);
 
-  const total = rides.reduce((s, r) => s + payoutOf(r), 0);
+  const total = rides.reduce((s, r) => s + takeOf(r), 0);
 
   return (
     <div style={{ minHeight: '100%', background: C.bg, color: C.ink, fontFamily: BODY, padding: '10px 16px 24px' }}>
@@ -87,7 +90,7 @@ export default function DriverTrips({ completedRides = [], online }) {
                 <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.inkDim }}>
                   {(r.updatedAt || r.createdAt) ? new Date(r.updatedAt || r.createdAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}
                 </div>
-                <div style={{ fontFamily: MONO, fontSize: 16, fontWeight: 800, color: C.greenBt }}>+{money(payoutOf(r))}</div>
+                <div style={{ fontFamily: MONO, fontSize: 16, fontWeight: 800, color: C.greenBt }}>+{money(takeOf(r))}</div>
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 4 }}>
