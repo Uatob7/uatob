@@ -21,7 +21,7 @@ const STATUS_META = {
   suspended:{ label: 'Suspended',    color: C.red },
 };
 
-export default function DriverProfile({ driver, online, onSignOut, onOpenSupport }) {
+export default function DriverProfile({ driver, online, onSignOut, onOpenSupport, onEnablePush }) {
   const first = driver?.firstName || '';
   const last  = driver?.lastName || '';
   const name  = [first, last].filter(Boolean).join(' ') || 'Driver';
@@ -34,6 +34,17 @@ export default function DriverProfile({ driver, online, onSignOut, onOpenSupport
 
   const [busy, setBusy] = useState(false);
   const [err, setErr]   = useState('');
+
+  // push state (Notification.permission isn't reactive; re-reads on render)
+  const perm = (typeof window !== 'undefined' && 'Notification' in window) ? window.Notification.permission : 'unsupported';
+  const pushOn     = perm === 'granted' || !!driver?.fcmToken;
+  const pushDenied = perm === 'denied' && !driver?.fcmToken;
+  const [pushBusy, setPushBusy] = useState(false);
+  const enablePush = async () => {
+    if (pushBusy || pushOn || pushDenied) return;
+    setPushBusy(true);
+    try { await onEnablePush?.(); } finally { setPushBusy(false); }
+  };
 
   const setupDeposit = async () => {
     if (busy) return;
@@ -125,7 +136,14 @@ export default function DriverProfile({ driver, online, onSignOut, onOpenSupport
       <Section label="Settings" />
       <div style={{ ...card(), overflow: 'hidden', animation: 'dpUp .45s .18s ease both' }}>
         <Row icon="💬" title="Support" onClick={onOpenSupport} />
-        <Row icon="🔔" title="Notifications" border />
+        <Row icon="🔔" title="Notifications" border
+          onClick={pushOn || pushDenied ? undefined : enablePush}
+          right={
+            <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 800, color: pushOn ? C.greenBt : pushDenied ? C.red : C.amber }}>
+              {pushOn ? '✓ On' : pushDenied ? 'Blocked' : pushBusy ? 'Turning on…' : 'Turn on'}
+            </span>
+          }
+        />
         <Row icon="🛡️" title="Safety toolkit" border />
       </div>
 
@@ -154,12 +172,12 @@ function KV({ k, v, mono, border }) {
     </div>
   );
 }
-function Row({ icon, title, onClick, border }) {
+function Row({ icon, title, onClick, border, right }) {
   return (
     <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '15px 16px', cursor: onClick ? 'pointer' : 'default', borderTop: border ? `1px solid ${C.border}` : 'none' }}>
       <div style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, background: 'rgba(34,197,94,.08)', border: `1px solid ${C.border}` }}>{icon}</div>
       <div style={{ flex: 1, fontFamily: BODY, fontSize: 14, fontWeight: 600, color: C.ink }}>{title}</div>
-      <span style={{ color: C.inkDim, fontSize: 16 }}>›</span>
+      {right != null ? right : <span style={{ color: C.inkDim, fontSize: 16 }}>›</span>}
     </div>
   );
 }

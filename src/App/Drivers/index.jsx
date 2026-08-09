@@ -890,7 +890,7 @@ function DriverAppInner({ uid }) {
         }}>
           {tab === 'trips'    && <DriverTrips completedRides={completedRides} online={online} />}
           {tab === 'earnings' && <DriverEarnings completedRides={completedRides} driver={driver} online={online} />}
-          {tab === 'you'      && <DriverProfile driver={driver} online={online} onSignOut={handleSignOut} onOpenSupport={() => setShowSupport(true)} />}
+          {tab === 'you'      && <DriverProfile driver={driver} online={online} onSignOut={handleSignOut} onOpenSupport={() => setShowSupport(true)} onEnablePush={handleEnableNotifications} />}
         </div>
       )}
 
