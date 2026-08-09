@@ -94,6 +94,13 @@ export default function ActiveRide({ ride, uid, onContactDriver }) {
   const driverName = driverInfo.name || driverInfo.displayName
     || [driverInfo.firstName, driverInfo.lastName].filter(Boolean).join(' ')
     || 'Your driver';
+  // `vehicle` on a Driver doc is a map {year,make,model,color,plate,…} — format it
+  // to a string (rendering the raw object crashes React).
+  const _v = driverInfo.vehicle;
+  const vehicleText = _v && typeof _v === 'object'
+    ? [_v.color, _v.year, _v.make, _v.model].filter(Boolean).join(' ')
+    : (typeof _v === 'string' ? _v : (driverInfo.carModel || ''));
+  const plateText = driverInfo.licensePlate || (_v && typeof _v === 'object' ? _v.plate : null) || null;
   const showDriverCard = ['driver_assigned', 'driver_arriving', 'arrived', 'in_progress'].includes(ride.status) && !!driverUid;
   const canCancel = ['searching_driver', 'timeout', 'driver_assigned', 'driver_arriving'].includes(ride.status);
 
@@ -215,8 +222,8 @@ export default function ActiveRide({ ride, uid, onContactDriver }) {
                     <div style={{ fontFamily: BODY, fontSize: 13.5, fontWeight: 700, color: C.inkBright }}>{driverName}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 3, flexWrap: 'wrap' }}>
                       {driverInfo.rating != null && <span style={{ fontFamily: MONO, fontSize: 10, color: C.amber }}>★ {Number(driverInfo.rating).toFixed(1)}</span>}
-                      {(driverInfo.vehicle || driverInfo.carModel) && <span style={{ fontFamily: COND, fontSize: 10.5, color: C.inkMid, letterSpacing: '.03em' }}>{driverInfo.vehicle || driverInfo.carModel}</span>}
-                      {driverInfo.licensePlate && <span style={{ fontFamily: MONO, fontSize: 9, color: C.inkMid, padding: '1px 5px', borderRadius: 4, background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.1)' }}>{driverInfo.licensePlate}</span>}
+                      {vehicleText && <span style={{ fontFamily: COND, fontSize: 10.5, color: C.inkMid, letterSpacing: '.03em' }}>{vehicleText}</span>}
+                      {plateText && <span style={{ fontFamily: MONO, fontSize: 9, color: C.inkMid, padding: '1px 5px', borderRadius: 4, background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.1)' }}>{plateText}</span>}
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
