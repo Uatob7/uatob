@@ -27,6 +27,7 @@ import { useGeocode }       from '@/App/UaTob/useGeocode';
 import RiderMap             from '@/App/UaTob/RiderMap';
 import InstallBanner        from '@/App/UaTob/InstallBanner';
 import RiderPushBanner      from '@/App/UaTob/RiderPushBanner';
+import { useSaveRiderFcmToken } from '@/App/UaTob/useSaveRiderFcmToken';
 import SignUpPane           from '@/App/UaTob/SignUpPane';
 import SupportOverlay       from '@/App/UaTob/SupportOverlay';
 import { calcFare }         from '@/App/UaTob/fare';
@@ -662,6 +663,13 @@ function YouPane({ uid, account, onSignOut, onAddCredit }) {
   const initial = name.trim().charAt(0).toUpperCase();
   const credit = Number(account?.credit || 0);
   const { upload, uploading, error: photoError } = useAvatarUpload(uid);
+
+  // push notifications
+  const { requestAndSave, loading: pushLoading, permission } = useSaveRiderFcmToken();
+  const pushOn     = permission === 'granted' || !!account?.fcmToken;
+  const pushDenied = permission === 'denied' && !account?.fcmToken;
+  const enablePush = async () => { if (pushLoading || pushOn || pushDenied) return; await requestAndSave(uid); };
+
   return (
     <div style={{ animation: 'urUp .38s cubic-bezier(.34,1.1,.64,1) both' }}>
       <Eyebrow>Account</Eyebrow>
@@ -725,14 +733,22 @@ function YouPane({ uid, account, onSignOut, onAddCredit }) {
       </div>
       <div style={{ height: 12 }} />
       <div style={{ ...cardStyle, overflow: 'hidden' }}>
-        <Row icon="🔔" title="Notifications" />
+        <Row icon="🔔" title="Notifications"
+          sub={pushOn ? 'Ride updates on' : pushDenied ? 'Blocked in browser settings' : permission === 'unsupported' ? 'Open the installed app to enable' : 'Know when a driver claims your ride'}
+          onClick={(pushOn || pushDenied || permission === 'unsupported') ? undefined : enablePush}
+          right={
+            <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 800, color: pushOn ? C.greenBright : pushDenied ? C.red : permission === 'unsupported' ? C.inkDim : C.amber }}>
+              {pushOn ? '✓ On' : pushDenied ? 'Blocked' : permission === 'unsupported' ? '—' : pushLoading ? 'Turning on…' : 'Turn on'}
+            </span>
+          }
+        />
         <Row icon="💬" title="Support" border />
         <Row icon="🚪" title="Sign out" danger border onClick={onSignOut} />
       </div>
     </div>
   );
 }
-function Row({ icon, title, sub, border, danger, onClick }) {
+function Row({ icon, title, sub, border, danger, onClick, right }) {
   return (
     <div className="ur-tap" onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '15px 16px', cursor: 'pointer', borderTop: border ? `1px solid ${C.inkFade}` : 'none' }}>
       <div style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, background: 'rgba(34,197,94,.08)', border: `1px solid ${C.border}` }}>{icon}</div>
@@ -740,7 +756,7 @@ function Row({ icon, title, sub, border, danger, onClick }) {
         <div style={{ fontFamily: BODY, fontSize: 14, fontWeight: 600, color: danger ? C.red : C.inkBright }}>{title}</div>
         {sub && <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.inkDim, marginTop: 2 }}>{sub}</div>}
       </div>
-      {!danger && <span style={{ color: C.inkDim, fontSize: 16 }}>›</span>}
+      {right != null ? right : (!danger && <span style={{ color: C.inkDim, fontSize: 16 }}>›</span>)}
     </div>
   );
 }
