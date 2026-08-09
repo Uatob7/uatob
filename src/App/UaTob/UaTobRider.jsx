@@ -63,6 +63,35 @@ function tsAgo(ts) {
   return `${Math.floor(m / 60)}h ago`;
 }
 
+// ── Home-cockpit helpers ──────────────────────────────────────────────────────
+function greetingFor(d = new Date()) {
+  const h = d.getHours();
+  if (h < 5)  return 'Late night';
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  if (h < 21) return 'Good evening';
+  return 'Good night';
+}
+
+// Orlando-smart one-tap destinations — real local anchors riders actually go to.
+const CURATED_DESTS = [
+  { icon: '✈️', label: 'MCO Airport',    addr: 'Orlando International Airport (MCO), Orlando, FL' },
+  { icon: '🏰', label: 'Disney Springs', addr: 'Disney Springs, Lake Buena Vista, FL' },
+  { icon: '🎢', label: 'Universal',      addr: 'Universal CityWalk, Orlando, FL' },
+  { icon: '🌆', label: 'Downtown',       addr: 'Downtown Orlando, Orlando, FL' },
+];
+
+const RECENTS_KEY = 'uatob_recent_dests';
+function loadRecents() { try { return JSON.parse(localStorage.getItem(RECENTS_KEY) || '[]'); } catch { return []; } }
+function pushRecent(addr) {
+  if (!addr) return;
+  try {
+    const next = [addr, ...loadRecents().filter((a) => a !== addr)].slice(0, 4);
+    localStorage.setItem(RECENTS_KEY, JSON.stringify(next));
+  } catch {}
+}
+function shortLabel(addr) { return String(addr || '').split(',')[0].trim() || addr; }
+
 // ── Small primitives ─────────────────────────────────────────────────────────
 function Ribbon({ mode, credit = 0, onOpenWallet, onOpenSupport }) {
   const [clock, setClock] = useState('');
@@ -218,11 +247,11 @@ function StepDots({ step, total }) {
   );
 }
 
-function RequestPane({ uid, account, onPosted, onRoute }) {
+function RequestPane({ uid, account, initialDropoff = '', onPosted, onRoute }) {
   const geo = useGeo();
   const [step, setStep] = useState(0);              // 0 route · 1 when · 2 price
   const [pickup,  setPickup]  = useState(account?.pickup || account?.address || '');
-  const [dropoff, setDropoff] = useState('');
+  const [dropoff, setDropoff] = useState(initialDropoff || '');
   const [rideType, setRideType] = useState('standard');
   const [leaveNow, setLeaveNow] = useState(true);
   const [schedDay, setSchedDay] = useState(null);   // Date @ local midnight
@@ -293,6 +322,7 @@ function RequestPane({ uid, account, onPosted, onRoute }) {
     });
     setPosting(false);
     if (id) {
+      pushRecent(dropoff);   // remember for the home cockpit's quick destinations
       setDropoff(''); setStep(0); setLeaveNow(true); setSchedDay(null); setSchedTime('');
       onPosted?.();
     }
@@ -934,6 +964,75 @@ function TabBar({ tab, setTab, rideCount }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// HOME COCKPIT
+// ═══════════════════════════════════════════════════════════════════════════
+// The collapsed landing on the Request tab — a personal, board-aware command
+// screen: time-aware greeting, a live "drivers nearby" pulse (real driver data),
+// and one-tap smart destinations (your recents + Orlando anchors) that prefill
+// the composer's drop-off.
+function HomeCockpit({ firstName, uid, driversCount, onRequest, onQuick }) {
+  const [recents, setRecents] = useState([]);
+  useEffect(() => { setRecents(loadRecents()); }, []);
+
+  const quicks = useMemo(() => {
+    const rec = recents.map((a) => ({ icon: '🕓', label: shortLabel(a), addr: a }));
+    const all = [...rec, ...CURATED_DESTS];
+    return all.filter((q, i, arr) => arr.findIndex((x) => x.addr === q.addr) === i).slice(0, 6);
+  }, [recents]);
+
+  const online = driversCount > 0;
+
+  return (
+    <div style={{ animation: 'urUp .3s cubic-bezier(.34,1.1,.64,1) both', paddingBottom: 6 }}>
+      {/* greeting + live board pulse */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 15 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', color: C.inkDim }}>
+            {greetingFor()}{firstName ? `, ${firstName}` : ''}
+          </div>
+          <div style={{ fontFamily: COND, fontSize: 27, fontWeight: 800, letterSpacing: '.01em', color: C.inkBright, lineHeight: 1.04, marginTop: 3 }}>Where to?</div>
+        </div>
+        <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '6px 11px', borderRadius: 99, border: `1px solid ${online ? C.borderBright : C.border}`, background: online ? 'rgba(34,197,94,.07)' : 'rgba(255,255,255,.03)' }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: online ? C.greenBright : C.inkDim, boxShadow: online ? `0 0 8px ${C.greenBright}` : 'none', animation: online ? 'urBlink 1.6s ease-in-out infinite' : 'none' }} />
+          <span style={{ fontFamily: MONO, fontSize: 9.5, fontWeight: 800, color: online ? C.greenBright : C.inkDim, whiteSpace: 'nowrap' }}>{online ? `${driversCount} nearby` : 'Finding drivers'}</span>
+        </div>
+      </div>
+
+      {/* one-tap smart destinations */}
+      {uid && (
+        <div className="ur-scroll" style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, marginBottom: 14, scrollbarWidth: 'none' }}>
+          {quicks.map((q) => (
+            <button key={q.addr} className="ur-tap" onClick={() => onQuick(q.addr)} style={{
+              flexShrink: 0, display: 'flex', alignItems: 'center', gap: 7, padding: '9px 13px', borderRadius: 13,
+              border: `1px solid ${C.border}`, background: 'rgba(255,255,255,.03)', cursor: 'pointer', color: C.inkBright,
+            }}>
+              <span style={{ fontSize: 15, lineHeight: 1 }}>{q.icon}</span>
+              <span style={{ fontFamily: BODY, fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap' }}>{q.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* primary CTA */}
+      <button className="ur-tap" onClick={() => onRequest()} style={{
+        width: '100%', border: 'none', borderRadius: 16, padding: 17, cursor: 'pointer',
+        fontFamily: COND, fontSize: 17, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#04150a',
+        background: 'linear-gradient(135deg,#2FE08A,#17B673 55%,#15803D)', boxShadow: '0 10px 30px rgba(34,197,94,.3)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+      }}>
+        <span style={{ fontSize: 18 }}>{uid ? '🔍' : '👤'}</span> {uid ? 'Set your ride' : 'Sign up to ride'}
+      </button>
+
+      {uid && (
+        <div style={{ fontFamily: MONO, fontSize: 9, color: C.inkDim, textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
+          Post it to the board — a nearby driver claims it.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // MAIN SHELL
 // ═══════════════════════════════════════════════════════════════════════════
 export default function UaTobRider({ uid, account, drivers = [], onSignOut = () => {} }) {
@@ -945,6 +1044,7 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
   const [support, setSupport] = useState(false);     // support overlay open
   const [route, setRoute] = useState({ pickup: null, dropoff: null, polyline: null });
   const [requestOpen, setRequestOpen] = useState(false); // composer collapsed → button only
+  const [pendingDest, setPendingDest] = useState('');    // destination prefilled from a home quick-chip
 
   const { requests, loading: loadingRequests, error: requestsError } = useRequests(uid);
   const { markPayment } = useMarkPayment(uid);
@@ -1016,13 +1116,23 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
 
   const collapseRequest = useCallback(() => {
     setRequestOpen(false);
+    setPendingDest('');
     setRoute({ pickup: null, dropoff: null, polyline: null });
   }, []);
   const onPosted = useCallback(() => {
     setTab('rides');
     setRequestOpen(false);
+    setPendingDest('');
     setRoute({ pickup: null, dropoff: null, polyline: null });
   }, []);
+
+  // Open the composer, optionally seeding a destination from a home quick-chip.
+  const openComposer = useCallback((dest = '') => {
+    if (!uid) { setTab('you'); return; }
+    setPendingDest(dest || '');
+    grabLocation();
+    setRequestOpen(true);
+  }, [uid, grabLocation]);
 
   const modeLabel = tab.toUpperCase();
 
@@ -1072,22 +1182,15 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
               </button>
 
               {requestOpen ? (
-                <RequestPane uid={uid} account={account} onPosted={onPosted} onRoute={setRoute} />
+                <RequestPane uid={uid} account={account} initialDropoff={pendingDest} onPosted={onPosted} onRoute={setRoute} />
               ) : (
-                <div style={{ animation: 'urUp .3s cubic-bezier(.34,1.1,.64,1) both', paddingBottom: 6 }}>
-                  <div style={{ fontFamily: COND, fontSize: 24, fontWeight: 800, letterSpacing: '.01em', color: C.inkBright }}>
-                    Where to{account?.name ? `, ${String(account.name).split(' ')[0]}` : ''}?
-                  </div>
-                  <div style={{ marginBottom: 16 }} />
-                  <button className="ur-tap" onClick={() => { if (uid) { grabLocation(); setRequestOpen(true); } else { setTab('you'); } }} style={{
-                    width: '100%', border: 'none', borderRadius: 16, padding: 17, cursor: 'pointer',
-                    fontFamily: COND, fontSize: 17, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#04150a',
-                    background: 'linear-gradient(135deg,#2FE08A,#17B673 55%,#15803D)', boxShadow: '0 10px 30px rgba(34,197,94,.3)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-                  }}>
-                    <span style={{ fontSize: 18 }}>{uid ? '🔍' : '👤'}</span> {uid ? 'Request' : 'Sign up to ride'}
-                  </button>
-                </div>
+                <HomeCockpit
+                  firstName={account?.name ? String(account.name).split(' ')[0] : ''}
+                  uid={uid}
+                  driversCount={drivers.length}
+                  onRequest={() => openComposer('')}
+                  onQuick={(addr) => openComposer(addr)}
+                />
               )}
             </div>
           </div>
