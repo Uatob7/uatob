@@ -12,6 +12,19 @@ import signIn from '@/firebase/auth/signin';
 import { useCreateAccount } from '@/App/UaTob/useCreateAccount';
 import { C, MONO, COND, BODY } from '@/App/UaTob/theme';
 
+// Florida service areas — where the rider mostly rides. Doubles as a city signal
+// for local SEO / landing pages down the line.
+const FL_CITIES = [
+  'Orlando', 'Kissimmee', 'Sanford', 'Winter Park', 'Lake Nona', 'Apopka', 'Ocoee', 'Winter Garden',
+  'Altamonte Springs', 'Oviedo', 'Clermont', 'Pine Hills', 'Windermere', 'St. Cloud', 'Lake Buena Vista',
+  'Miami', 'Miami Beach', 'Fort Lauderdale', 'Hollywood', 'Hialeah', 'Coral Gables', 'Doral',
+  'Tampa', 'St. Petersburg', 'Clearwater', 'Brandon', 'Lakeland',
+  'Jacksonville', 'St. Augustine',
+  'Tallahassee', 'Gainesville', 'Ocala', 'Daytona Beach', 'Melbourne', 'Palm Bay', 'Cocoa',
+  'West Palm Beach', 'Boca Raton', 'Fort Myers', 'Cape Coral', 'Naples', 'Sarasota', 'Port St. Lucie',
+  'Pensacola', 'Panama City', 'Key West',
+];
+
 function Field({ label, ...props }) {
   return (
     <label style={{ display: 'block', flex: 1, minWidth: 0 }}>
@@ -35,6 +48,7 @@ export default function SignUpPane() {
   const [first, setFirst] = useState('');
   const [last, setLast] = useState('');
   const [phone, setPhone] = useState('');
+  const [city, setCity] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [agree, setAgree] = useState(false);
@@ -75,6 +89,7 @@ export default function SignUpPane() {
           email: email.trim(),
           name: `${first.trim()} ${last.trim()}`,
           firstName: first.trim(), lastName: last.trim(), phone: phone.trim(),
+          serviceArea: city || null,
         });
       } else {
         const { error: err } = await signIn(email.trim(), password);
@@ -115,6 +130,27 @@ export default function SignUpPane() {
         )}
         {isSignup && (
           <Field label="Phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(407) 555-0142" autoComplete="tel" inputMode="tel" />
+        )}
+        {isSignup && (
+          <label style={{ display: 'block' }}>
+            <div style={{ fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.16em', color: C.inkDim, textTransform: 'uppercase', marginBottom: 5 }}>Service area</div>
+            <select
+              value={city} onChange={(e) => setCity(e.target.value)}
+              style={{
+                width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,.03)',
+                border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 13px', outline: 'none',
+                fontFamily: BODY, fontSize: 14, fontWeight: 600, color: city ? C.inkBright : C.inkDim,
+                caretColor: C.greenBright, colorScheme: 'dark', appearance: 'none', WebkitAppearance: 'none',
+                backgroundImage: 'linear-gradient(45deg,transparent 50%,rgba(92,235,160,.7) 50%),linear-gradient(135deg,rgba(92,235,160,.7) 50%,transparent 50%)',
+                backgroundPosition: 'calc(100% - 18px) 19px, calc(100% - 13px) 19px', backgroundSize: '5px 5px, 5px 5px', backgroundRepeat: 'no-repeat',
+              }}
+              onFocus={(e) => { e.target.style.borderColor = C.borderBright; e.target.style.background = 'rgba(34,197,94,.06)'; }}
+              onBlur={(e) => { e.target.style.borderColor = C.border; e.target.style.background = 'rgba(255,255,255,.03)'; }}
+            >
+              <option value="" disabled>Choose your city…</option>
+              {FL_CITIES.map((c) => <option key={c} value={c} style={{ color: '#0b120d' }}>{c}, FL</option>)}
+            </select>
+          </label>
         )}
         <Field label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" autoComplete="email" inputMode="email" />
         <Field label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={isSignup ? 'At least 6 characters' : '••••••••'} autoComplete={isSignup ? 'new-password' : 'current-password'} />
