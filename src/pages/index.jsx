@@ -222,8 +222,7 @@ export default function Home({ uid }) {
         <meta name="twitter:image"       content={META.image} />
         <meta name="twitter:image:alt"   content="UaTob — Orlando Rideshare. Pay cash, card or Cash App." />
 
-        {/* ── PWA ── */}
-        <link rel="manifest" href="/manifest.json"/>
+        {/* ── PWA ── manifest is linked globally in _document.js ── */}
 
         {/* ── Icons ── */}
         <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
