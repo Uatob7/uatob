@@ -3,8 +3,8 @@
 // HUD once a ride is in flight. Live driver tracking map + a clean status card
 // (finding driver → en route → arrived → on the trip) with driver details.
 
-import { useEffect, useMemo, useState, useCallback } from 'react';
-import { getFirestore, doc, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { getFirestore, doc, collection, addDoc, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { firebase_app } from '@/firebase/config';
 import TrackMap from '@/App/UaTob/TrackMap';
 import { C, MONO, COND, BODY } from '@/App/UaTob/theme';
@@ -92,6 +92,65 @@ export default function ActiveRide({ ride, uid, onContactDriver }) {
   const showDriverCard = ['driver_assigned', 'driver_arriving', 'arrived', 'in_progress'].includes(ride.status) && driverInfo.name;
   const canCancel = ['searching_driver', 'timeout', 'driver_assigned', 'driver_arriving'].includes(ride.status);
 
+  // ── in-ride chat with the driver (Rides/{id}/Messages, same schema the
+  //    driver's ActiveTripScreen reads/writes) ──────────────────────────────
+  const [showChat,    setShowChat]    = useState(false);
+  const [messages,    setMessages]    = useState([]);
+  const [chatInput,   setChatInput]   = useState('');
+  const [chatSending, setChatSending] = useState(false);
+
+  useEffect(() => {
+    if (!ride?.id) return;
+    const unsub = onSnapshot(collection(db, 'Rides', ride.id, 'Messages'), (snap) => {
+      setMessages(
+        snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0)),
+      );
+    }, () => {});
+    return () => unsub();
+  }, [ride?.id]);
+
+  const unreadFromDriver = messages.filter((m) => m.senderRole === 'driver' && !m.readByRider).length;
+
+  useEffect(() => {
+    if (!showChat || !ride?.id) return;
+    messages.filter((m) => m.senderRole === 'driver' && !m.readByRider)
+      .forEach((m) => updateDoc(doc(db, 'Rides', ride.id, 'Messages', m.id), { readByRider: true }).catch(() => {}));
+  }, [showChat, messages, ride?.id]);
+
+  const sendChat = useCallback(async () => {
+    const text = chatInput.trim();
+    if (!text || !ride?.id || chatSending) return;
+    setChatSending(true);
+    try {
+      await addDoc(collection(db, 'Rides', ride.id, 'Messages'), {
+        text, senderUid: uid, senderRole: 'rider',
+        createdAt: serverTimestamp(), readByRider: true, readByDriver: false,
+      });
+      setChatInput('');
+    } catch (e) { console.warn('[ActiveRide] send failed', e?.message || e); }
+    finally { setChatSending(false); }
+  }, [chatInput, ride?.id, uid, chatSending]);
+
+  // ── report this ride (filed to Support) ───────────────────────────────────
+  const [showReport,    setShowReport]    = useState(false);
+  const [reportSending, setReportSending] = useState(false);
+  const [reportDone,    setReportDone]    = useState(false);
+
+  const submitReport = useCallback(async (reason) => {
+    if (!ride?.id || reportSending) return;
+    setReportSending(true);
+    try {
+      await addDoc(collection(db, 'Support'), {
+        uid, type: 'ride_report', rideId: ride.id, driverUid: driverUid || null,
+        reason, pickup: ride.pickup ?? null, dropoff: ride.dropoff ?? null,
+        status: 'open', createdAt: serverTimestamp(),
+      });
+      setReportDone(true);
+    } catch (e) { console.warn('[ActiveRide] report failed', e?.message || e); }
+    finally { setReportSending(false); }
+  }, [ride, uid, driverUid, reportSending]);
+
   return (
     <>
       <style>{`
@@ -155,9 +214,17 @@ export default function ActiveRide({ ride, uid, onContactDriver }) {
                       {driverInfo.licensePlate && <span style={{ fontFamily: MONO, fontSize: 9, color: C.inkMid, padding: '1px 5px', borderRadius: 4, background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.1)' }}>{driverInfo.licensePlate}</span>}
                     </div>
                   </div>
-                  {driverInfo.phone && (
-                    <button onClick={contact} aria-label="Call driver" style={{ width: 38, height: 38, borderRadius: 11, flexShrink: 0, cursor: 'pointer', background: 'rgba(34,197,94,.12)', border: `1.5px solid ${C.border}`, color: C.greenBright, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>📞</button>
-                  )}
+                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                    <button onClick={() => setShowChat(true)} aria-label="Message driver" style={{ position: 'relative', width: 38, height: 38, borderRadius: 11, cursor: 'pointer', background: 'rgba(34,197,94,.12)', border: `1.5px solid ${C.border}`, color: C.greenBright, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
+                      💬
+                      {unreadFromDriver > 0 && (
+                        <span style={{ position: 'absolute', top: -5, right: -5, minWidth: 16, height: 16, padding: '0 4px', borderRadius: 8, background: C.red, color: '#150404', fontFamily: MONO, fontSize: 9, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #050A06' }}>{unreadFromDriver}</span>
+                      )}
+                    </button>
+                    {driverInfo.phone && (
+                      <button onClick={contact} aria-label="Call driver" style={{ width: 38, height: 38, borderRadius: 11, cursor: 'pointer', background: 'rgba(34,197,94,.12)', border: `1.5px solid ${C.border}`, color: C.greenBright, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>📞</button>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -188,10 +255,133 @@ export default function ActiveRide({ ride, uid, onContactDriver }) {
                   color: C.red, background: 'rgba(248,113,113,.08)', border: '1.5px solid rgba(248,113,113,.35)', opacity: canceling ? .6 : 1,
                 }}>{canceling ? 'Canceling…' : 'Cancel ride'}</button>
               )}
+
+              <button onClick={() => { setShowReport(true); setReportDone(false); }} style={{
+                width: '100%', marginTop: canCancel ? 10 : 0, background: 'none', border: 'none', cursor: 'pointer',
+                fontFamily: MONO, fontSize: 10, color: C.inkDim, textDecoration: 'underline', textAlign: 'center', padding: 4,
+              }}>Report a problem with this ride</button>
             </div>
           </div>
         </div>
       </div>
+
+      {showChat && (
+        <ChatSheet
+          messages={messages} value={chatInput} onChange={setChatInput}
+          onSend={sendChat} sending={chatSending}
+          driverName={driverInfo.name || driverInfo.displayName || 'your driver'}
+          onClose={() => setShowChat(false)}
+        />
+      )}
+
+      {showReport && (
+        <ReportSheet
+          done={reportDone} sending={reportSending}
+          onSubmit={submitReport} onClose={() => setShowReport(false)}
+        />
+      )}
     </>
+  );
+}
+
+// ── Chat sheet ────────────────────────────────────────────────────────────────
+function ChatSheet({ messages, value, onChange, onSend, sending, driverName, onClose }) {
+  const endRef = useRef(null);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages.length]);
+  return (
+    <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{
+      position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(2,5,3,.6)', backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'flex-end',
+    }}>
+      <div style={{
+        width: '100%', maxHeight: '78%', display: 'flex', flexDirection: 'column',
+        background: 'linear-gradient(180deg,rgba(8,16,10,.99),rgba(4,8,5,1))',
+        borderTop: `1.5px solid ${C.borderBright}`, borderRadius: '24px 24px 0 0',
+        boxShadow: '0 -20px 60px rgba(0,0,0,.7)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px 10px', borderBottom: `1px solid ${C.inkFade}` }}>
+          <div style={{ fontFamily: COND, fontSize: 17, fontWeight: 800, color: C.inkBright }}>Message {driverName}</div>
+          <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', color: C.inkMid, fontSize: 20, cursor: 'pointer', lineHeight: 1 }}>×</button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {messages.length === 0 && (
+            <div style={{ fontFamily: MONO, fontSize: 11, color: C.inkDim, textAlign: 'center', margin: 'auto', lineHeight: 1.6 }}>
+              No messages yet.<br/>Say hi or share pickup details.
+            </div>
+          )}
+          {messages.map((m) => {
+            const mine = m.senderRole === 'rider';
+            return (
+              <div key={m.id} style={{ display: 'flex', justifyContent: mine ? 'flex-end' : 'flex-start' }}>
+                <div style={{
+                  maxWidth: '76%', padding: '9px 12px', borderRadius: mine ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+                  fontFamily: BODY, fontSize: 13, lineHeight: 1.4,
+                  color: mine ? '#04150a' : C.inkBright,
+                  background: mine ? 'linear-gradient(135deg,#2FE08A,#17B673)' : 'rgba(255,255,255,.05)',
+                  border: mine ? 'none' : `1px solid ${C.inkFade}`,
+                }}>{m.text}</div>
+              </div>
+            );
+          })}
+          <div ref={endRef} />
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, padding: '10px 14px calc(14px + env(safe-area-inset-bottom))', borderTop: `1px solid ${C.inkFade}` }}>
+          <input
+            value={value} onChange={(e) => onChange(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') onSend(); }}
+            placeholder="Message…" autoFocus
+            style={{ flex: 1, background: 'rgba(255,255,255,.04)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '11px 14px', color: C.inkBright, fontFamily: BODY, fontSize: 14, outline: 'none' }}
+          />
+          <button onClick={onSend} disabled={sending || !value.trim()} aria-label="Send" style={{
+            width: 46, borderRadius: 12, border: 'none', cursor: value.trim() ? 'pointer' : 'not-allowed',
+            background: value.trim() ? 'linear-gradient(135deg,#2FE08A,#17B673)' : 'rgba(255,255,255,.06)',
+            color: value.trim() ? '#04150a' : C.inkDim, fontSize: 17, fontWeight: 800, opacity: sending ? .6 : 1,
+          }}>➤</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Report sheet ──────────────────────────────────────────────────────────────
+const REPORT_REASONS = ['Driver never arrived', 'Unsafe driving', 'Wrong route', 'Rude behavior', 'Vehicle issue', 'Other'];
+function ReportSheet({ done, sending, onSubmit, onClose }) {
+  return (
+    <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{
+      position: 'fixed', inset: 0, zIndex: 82, background: 'rgba(2,5,3,.6)', backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'flex-end',
+    }}>
+      <div style={{
+        width: '100%', background: 'linear-gradient(180deg,rgba(16,8,8,.99),rgba(8,4,4,1))',
+        borderTop: '1.5px solid rgba(248,113,113,.4)', borderRadius: '24px 24px 0 0',
+        padding: '14px 18px calc(24px + env(safe-area-inset-bottom))', boxShadow: '0 -20px 60px rgba(0,0,0,.7)',
+      }}>
+        <div style={{ width: 38, height: 4, borderRadius: 2, background: C.inkFade, margin: '0 auto 14px' }} />
+        {done ? (
+          <div style={{ textAlign: 'center', padding: '10px 0 6px' }}>
+            <div style={{ fontSize: 30, marginBottom: 8 }}>✅</div>
+            <div style={{ fontFamily: COND, fontSize: 18, fontWeight: 800, color: C.inkBright, marginBottom: 6 }}>Report sent</div>
+            <div style={{ fontFamily: MONO, fontSize: 11, color: C.inkMid, lineHeight: 1.5 }}>Our team will review it. You can also cancel the ride if you feel unsafe.</div>
+            <button onClick={onClose} style={{ marginTop: 16, width: '100%', borderRadius: 13, padding: 13, border: `1px solid ${C.border}`, background: 'rgba(255,255,255,.04)', color: C.inkBright, fontFamily: COND, fontSize: 14, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', cursor: 'pointer' }}>Done</button>
+          </div>
+        ) : (
+          <>
+            <div style={{ fontFamily: COND, fontSize: 20, fontWeight: 800, color: C.inkBright, marginBottom: 4 }}>Report this ride</div>
+            <div style={{ fontFamily: MONO, fontSize: 10.5, color: C.inkMid, marginBottom: 16 }}>Pick what happened — it goes straight to support.</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {REPORT_REASONS.map((r) => (
+                <button key={r} onClick={() => onSubmit(r)} disabled={sending} style={{
+                  width: '100%', textAlign: 'left', padding: '13px 15px', borderRadius: 12, cursor: sending ? 'wait' : 'pointer',
+                  border: `1px solid ${C.border}`, background: 'rgba(255,255,255,.03)', color: C.inkBright,
+                  fontFamily: BODY, fontSize: 13.5, fontWeight: 600, opacity: sending ? .6 : 1,
+                }}>{r}</button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
