@@ -660,7 +660,7 @@ function YouPane({ uid, account, onSignOut, onAddCredit }) {
   const email = account?.email || '';
   const initial = name.trim().charAt(0).toUpperCase();
   const credit = Number(account?.credit || 0);
-  const { upload, uploading } = useAvatarUpload(uid);
+  const { upload, uploading, error: photoError } = useAvatarUpload(uid);
   return (
     <div style={{ animation: 'urUp .38s cubic-bezier(.34,1.1,.64,1) both' }}>
       <Eyebrow>Account</Eyebrow>
@@ -680,13 +680,15 @@ function YouPane({ uid, account, onSignOut, onAddCredit }) {
               <span style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${C.inkFade}`, borderTopColor: C.greenBright, display: 'block', animation: 'urSpin .7s linear infinite' }} />
             </span>
           )}
-          <input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading}
+          <input type="file" accept="image/*" disabled={uploading}
             onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ''; }}
             style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
         </label>
         <div>
           <div style={{ fontFamily: BODY, fontSize: 19, fontWeight: 800, color: C.inkBright, lineHeight: 1.1 }}>{name}</div>
           {email && <div style={{ fontFamily: MONO, fontSize: 10.5, color: C.inkMid, marginTop: 4 }}>{email}</div>}
+          {photoError ? <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.red, marginTop: 4 }}>{photoError}</div>
+            : uploading ? <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.greenBright, marginTop: 4 }}>Uploading photo…</div> : null}
           {account?.tier && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, fontFamily: COND, fontSize: 9.5, fontWeight: 800, letterSpacing: '.1em', textTransform: 'uppercase', color: C.greenBright, border: `1px solid ${C.border}`, background: 'rgba(34,197,94,.07)', padding: '3px 9px', borderRadius: 99 }}>◆ {account.tier} rider</span>}
         </div>
       </div>

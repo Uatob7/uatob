@@ -10,7 +10,7 @@ import { getFirestore, doc, updateDoc, serverTimestamp } from 'firebase/firestor
 import { firebase_app } from '@/firebase/config';
 
 const db = getFirestore(firebase_app);
-const ALLOWED = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_BYTES = 10 * 1024 * 1024; // Cloudinary free image cap
 
 export function useAvatarUpload(uid) {
   const [uploading, setUploading] = useState(false);
@@ -18,7 +18,10 @@ export function useAvatarUpload(uid) {
 
   const upload = useCallback(async (file) => {
     if (!uid || !file) return;
-    if (!ALLOWED.includes(file.type)) { setError('Use a JPG, PNG or WebP image.'); return; }
+    // Be lenient on type — iOS often reports image/heic or an empty type; let
+    // Cloudinary convert. Only block clearly non-image files.
+    if (file.type && !file.type.startsWith('image/')) { setError('Choose an image file.'); return; }
+    if (file.size > MAX_BYTES) { setError('Image is too large (max 10 MB).'); return; }
     setUploading(true);
     setError('');
     try {
@@ -43,13 +46,17 @@ export function useAvatarUpload(uid) {
       const data = await res.json();
       if (!res.ok || !data.secure_url) throw new Error(data?.error?.message || 'upload failed');
 
+      // Deliver via f_auto,q_auto so an iPhone HEIC source is served as JPEG/WebP
+      // (a raw .heic URL won't render in most browsers) and stays optimized.
+      const webUrl = data.secure_url.replace('/image/upload/', '/image/upload/f_auto,q_auto/');
+
       // 3 — persist on the account
       await updateDoc(doc(db, 'Accounts', uid), {
-        photoURL:  data.secure_url,
+        photoURL:  webUrl,
         updatedAt: serverTimestamp(),
       });
 
-      return data.secure_url;
+      return webUrl;
     } catch (e) {
       console.warn('[useAvatarUpload]', e?.message || e);
       setError('Upload failed. Try again.');
