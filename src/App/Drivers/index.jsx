@@ -656,6 +656,16 @@ function DriverAppInner({ uid }) {
     } catch (err) { console.error("[UaTob] Push registration failed:", err?.message || err); return false; }
   }, [uid, callSaveFcmToken]);
 
+  // ── Ensure push is enabled — if the driver has no fcmToken flag, register
+  //    it (permission already granted) or prompt them to turn it on. ──────────
+  useEffect(() => {
+    if (!driver || driver.fcmToken || isRejected || activeTrip) return;   // has push / not now
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (window.Notification.permission === "granted")      registerFcmToken();
+    else if (window.Notification.permission === "default") setShowNotifPopup(true);
+    // 'denied' → nothing we can trigger; they must re-enable in browser settings.
+  }, [driver?.fcmToken, isRejected, activeTrip, registerFcmToken]); // eslint-disable-line
+
   // ── Online / offline ──────────────────────────────────────────────
   const requestLocationAndGoOnline = useCallback(async () => {
     setLocationError(""); setLocationLoading(true);
