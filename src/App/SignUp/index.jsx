@@ -12,6 +12,12 @@ import DriverLogin from "@/App/SignUp/DriverLogin";
 import { useApplicationSubmitted } from "@/App/SignUp/useApplicationSubmitted";
 import { useCreateDriverProfile } from "@/App/SignUp/useCreateDriverProfile";
 import { useAutocomplete } from '@/App/UaTob/useAutocomplete';
+import { getMessaging, getToken } from 'firebase/messaging';
+import { getFirestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { firebase_app } from '@/firebase/config';
+
+const PUSH_VAPID_KEY = 'BJ_sRHZonSGCKk2mB2i9ofTRS8ouFVMV-I15FX4sqdUXHyVb1lo6H-N4GMPrlcIIshRlykQicaxkxxFxcYcI4JQ';
+const pushDb = getFirestore(firebase_app);
 
 /* ─── localStorage helpers ───────────────────────────────────────────── */
 const LS_KEYS = {
@@ -1071,7 +1077,22 @@ function StepVerify({ accountData, contactData, vehicleData, docData }) {
 }
 
 /* ─── Pending screen ─────────────────────────────────────────────────── */
-function PendingScreen({ firstName, email }) {
+function PendingScreen({ firstName, email, uid }) {
+  const [push, setPush] = useState('idle'); // idle | busy | on | denied | unsupported
+  const enablePush = async () => {
+    if (push === 'busy' || push === 'on') return;
+    setPush('busy');
+    try {
+      if (typeof window === 'undefined' || !('Notification' in window)) { setPush('unsupported'); return; }
+      const perm = window.Notification.permission === 'granted' ? 'granted' : await window.Notification.requestPermission();
+      if (perm !== 'granted') { setPush('denied'); return; }
+      const token = await getToken(getMessaging(firebase_app), { vapidKey: PUSH_VAPID_KEY });
+      if (token && uid) {
+        await setDoc(doc(pushDb, 'Drivers', uid), { fcmToken: token, fcmTokenUpdatedAt: serverTimestamp() }, { merge: true });
+        setPush('on');
+      } else setPush('idle');
+    } catch { setPush('idle'); }
+  };
   const steps = [
     { label: "Application submitted",     sub: "Your details & documents are in",     state: "done"   },
     { label: "Reviewing your application", sub: "Verifying license, vehicle & ID",     state: "active" },
@@ -1104,7 +1125,7 @@ function PendingScreen({ firstName, email }) {
             You're in,<br/>{firstName}!
           </div>
           <div style={{ fontSize: 14.5, color: C.textMid, lineHeight: 1.65, maxWidth: 340, margin: "0 auto" }}>
-            Your application is in and under review. This usually takes just a <strong style={{ color: C.accent }}>few minutes</strong> — hang tight.
+            Your application is in and under review. Approval takes about <strong style={{ color: C.accent }}>5 minutes</strong> — turn on notifications below so we can ping you the moment you're in.
           </div>
         </div>
 
@@ -1159,6 +1180,35 @@ function PendingScreen({ firstName, email }) {
             <div style={{ fontSize: 13.5, color: C.text, fontWeight: 700, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{email}</div>
           </div>
         </div>
+
+        {/* turn on notifications — so they hear about approval */}
+        <button
+          onClick={enablePush}
+          disabled={push === 'busy' || push === 'on'}
+          style={{
+            width: "100%", marginTop: 12, borderRadius: 14, padding: "13px 15px", cursor: push === 'on' ? "default" : "pointer",
+            display: "flex", alignItems: "center", gap: 11, textAlign: "left",
+            border: `1px solid ${push === 'on' ? "rgba(22,163,74,.35)" : push === 'denied' ? "rgba(220,38,38,.3)" : "rgba(22,163,74,.28)"}`,
+            background: push === 'on' ? "rgba(22,163,74,.08)" : "rgba(22,163,74,.05)",
+            animation: "fadeUp .5s .32s ease-out both",
+          }}
+        >
+          <div style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, background: "rgba(22,163,74,.12)", border: "1px solid rgba(22,163,74,.25)" }}>🔔</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 800, color: C.text, fontFamily: "'Barlow', sans-serif" }}>
+              {push === 'on' ? "You're all set" : "Notify me when I'm approved"}
+            </div>
+            <div style={{ fontSize: 11, color: C.textMid, marginTop: 2 }}>
+              {push === 'on' ? "We'll ping you the moment it clears."
+                : push === 'denied' ? "Blocked — enable notifications in your browser."
+                : push === 'unsupported' ? "Not supported on this browser."
+                : "Get a push the second your account is live."}
+            </div>
+          </div>
+          <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 12, fontWeight: 800, letterSpacing: ".06em", textTransform: "uppercase", color: push === 'on' ? "#16A34A" : "#16A34A", flexShrink: 0 }}>
+            {push === 'busy' ? "…" : push === 'on' ? "✓ On" : "Turn on"}
+          </span>
+        </button>
 
         {/* live status footer */}
         <div style={{ textAlign: "center", marginTop: 20, animation: "fadeUp .5s .36s ease-out both" }}>
@@ -1375,6 +1425,7 @@ export default function UaTobDriverSignup({ uid, driverSignUp }) {
       <PendingScreen
         firstName={driverSignUp?.firstName ?? accountData.firstName}
         email={driverSignUp?.email         ?? accountData.email}
+        uid={driverSignUp?.uid ?? createdUid ?? uid}
       />
     );
   }

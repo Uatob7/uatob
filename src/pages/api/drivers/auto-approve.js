@@ -9,11 +9,12 @@
 // Auth: pass the shared secret as ?secret=... or header x-cron-secret.
 // (Same CRON_SECRET as the other cron endpoints.)
 
-import { adminDb, admin } from '@/firebase/admin';
+import { adminDb, admin, getAdminApp } from '@/firebase/admin';
+import { getMessaging } from 'firebase-admin/messaging';
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
-const AUTO_APPROVE_AFTER_MIN = 7;
+const AUTO_APPROVE_AFTER_MIN = 5;
 const AUTO_APPROVE_AFTER_MS  = AUTO_APPROVE_AFTER_MIN * 60_000;
 
 function tsMillis(ts) {
@@ -63,6 +64,22 @@ export default async function handler(req, res) {
           });
           return { approved: true };
         });
+
+        // Tell them the good news — push if they turned on notifications.
+        if (outcome.approved && d.fcmToken) {
+          try {
+            await getMessaging(getAdminApp()).send({
+              token: d.fcmToken,
+              data: {
+                title: "You're approved! 🎉",
+                body: 'Your UaTob driver account is live — go online and start earning.',
+                url: '/driver', type: 'driver_approved',
+              },
+              webpush: { headers: { Urgency: 'high' }, fcmOptions: { link: '/driver' } },
+            });
+          } catch (e) { /* stale token / non-fatal */ }
+        }
+
         results.push({ id: docSnap.id, ...outcome });
       } catch (e) {
         results.push({ id: docSnap.id, error: e.message });
