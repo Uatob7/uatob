@@ -4,6 +4,12 @@
 // "pace" ring — are you ahead of where you should be right now?
 
 import { useMemo, useState } from 'react';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { firebase_app } from '@/firebase/config';
+
+const functions           = getFunctions(firebase_app, 'us-east1');
+const callSetupDeposit    = httpsCallable(functions, 'setupDeposit');
+const callProcessWithdraw = httpsCallable(functions, 'processWithdrawal');
 
 const C = {
   bg:        '#050A06',
@@ -82,8 +88,38 @@ export default function DriverEarnings({ completedRides = [], driver, online }) 
   const platformOwes = Number(cb.platformOwes ?? 0);
   const cashOwed = Number(cb.cashOwed ?? 0);
   const net = platformOwes - cashOwed;
+  const connected = driver?.transferCapability === 'enabled';
 
   const recent = completedRides.slice(0, 6);
+
+  // ── payout actions ────────────────────────────────────────────────────────
+  const [busy, setBusy] = useState('');   // 'deposit' | 'cashout' | ''
+  const [feedback, setFeedback] = useState(null);
+
+  const setupDeposit = async () => {
+    if (busy) return;
+    setBusy('deposit'); setFeedback(null);
+    try {
+      const { data } = await callSetupDeposit({ email: driver?.email, uid: driver?.uid });
+      if (data?.success && data?.accountLink) { window.location.href = data.accountLink; return; }
+      setFeedback({ type: 'error', msg: 'Could not start Stripe setup. Try again.' });
+    } catch (e) {
+      setFeedback({ type: 'error', msg: e?.message || 'Stripe setup failed.' });
+    } finally { setBusy(''); }
+  };
+
+  const cashOut = async () => {
+    if (busy || net <= 0) return;
+    setBusy('cashout'); setFeedback(null);
+    try {
+      const { data } = await callProcessWithdraw({ uid: driver?.uid });
+      setFeedback(data?.success
+        ? { type: 'ok', msg: `${money(data.amount ?? net)} on the way to your bank.` }
+        : { type: 'error', msg: data?.message || 'Cash-out failed.' });
+    } catch (e) {
+      setFeedback({ type: 'error', msg: e?.message || 'Cash-out failed.' });
+    } finally { setBusy(''); }
+  };
 
   return (
     <div style={{ minHeight: '100%', background: C.bg, color: C.ink, fontFamily: BODY, padding: '10px 16px 24px' }}>
@@ -152,20 +188,49 @@ export default function DriverEarnings({ completedRides = [], driver, online }) 
         </div>
       </div>
 
-      {/* ── Balance ────────────────────────────────────────────────── */}
-      <div style={{ ...cardStyle(), padding: '15px 16px', margin: '12px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', animation: 'deUp .5s .16s ease both' }}>
-        <div>
-          <div style={{ fontFamily: COND, fontSize: 10, fontWeight: 800, letterSpacing: '.14em', textTransform: 'uppercase', color: C.inkDim }}>Balance</div>
-          <div style={{ fontFamily: MONO, fontSize: 22, fontWeight: 800, color: net >= 0 ? C.greenBt : C.red, marginTop: 3 }}>
-            {net >= 0 ? '+' : '−'}{money(Math.abs(net))}
+      {/* ── Balance + payout ──────────────────────────────────────────── */}
+      <div style={{ ...cardStyle(), padding: '16px', margin: '12px 0', animation: 'deUp .5s .16s ease both' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontFamily: COND, fontSize: 10, fontWeight: 800, letterSpacing: '.14em', textTransform: 'uppercase', color: C.inkDim }}>Available balance</div>
+            <div style={{ fontFamily: MONO, fontSize: 26, fontWeight: 800, color: net >= 0 ? C.greenBt : C.red, marginTop: 4, lineHeight: 1 }}>
+              {net >= 0 ? '' : '−'}{money(Math.abs(net))}
+            </div>
+            <div style={{ fontFamily: MONO, fontSize: 9, color: C.inkDim, marginTop: 4 }}>
+              {platformOwes > 0 ? `${money(platformOwes)} owed to you` : cashOwed > 0 ? `${money(cashOwed)} cash to settle` : 'All settled'}
+            </div>
           </div>
-          <div style={{ fontFamily: MONO, fontSize: 9, color: C.inkDim, marginTop: 2 }}>
-            {platformOwes > 0 ? `${money(platformOwes)} owed to you` : cashOwed > 0 ? `${money(cashOwed)} cash to settle` : 'All settled'}
+          <span style={{ fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.1em', textTransform: 'uppercase', padding: '4px 9px', borderRadius: 99, color: connected ? C.greenBt : C.amber, background: connected ? 'rgba(34,197,94,.1)' : 'rgba(251,191,36,.1)', border: `1px solid ${connected ? 'rgba(34,197,94,.3)' : 'rgba(251,191,36,.3)'}` }}>
+            {connected ? '✓ Bank linked' : 'No bank'}
+          </span>
+        </div>
+
+        {/* CTA */}
+        {connected ? (
+          <button onClick={cashOut} disabled={busy === 'cashout' || net <= 0} style={{
+            marginTop: 14, width: '100%', borderRadius: 13, padding: 14, border: 'none',
+            cursor: net > 0 && !busy ? 'pointer' : 'not-allowed',
+            fontFamily: COND, fontSize: 15, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase',
+            color: net > 0 ? '#04150a' : C.inkDim,
+            background: net > 0 ? 'linear-gradient(135deg,#2FE08A,#17B673 55%,#15803D)' : 'rgba(255,255,255,.05)',
+            boxShadow: net > 0 ? '0 8px 24px rgba(34,197,94,.3)' : 'none', opacity: busy === 'cashout' ? .7 : 1,
+          }}>{busy === 'cashout' ? 'Cashing out…' : net > 0 ? `Cash out ${money(net)}` : 'Nothing to cash out'}</button>
+        ) : (
+          <button onClick={setupDeposit} disabled={busy === 'deposit'} style={{
+            marginTop: 14, width: '100%', borderRadius: 13, padding: 14, border: 'none', cursor: busy ? 'wait' : 'pointer',
+            fontFamily: COND, fontSize: 15, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#04150a',
+            background: 'linear-gradient(135deg,#2FE08A,#17B673 55%,#15803D)', boxShadow: '0 8px 24px rgba(34,197,94,.3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: busy === 'deposit' ? .7 : 1,
+          }}>{busy === 'deposit' ? 'Opening Stripe…' : '🏦 Set up direct deposit'}</button>
+        )}
+        {!connected && (
+          <div style={{ fontFamily: MONO, fontSize: 9, color: C.inkDim, textAlign: 'center', marginTop: 9, lineHeight: 1.5 }}>
+            Link your bank via Stripe to get paid within 24h of completing rides.
           </div>
-        </div>
-        <div style={{ fontFamily: COND, fontSize: 11, fontWeight: 800, letterSpacing: '.1em', textTransform: 'uppercase', color: C.inkDim, textAlign: 'right' }}>
-          {driver?.transferCapability === 'enabled' ? 'Cash-out ready' : 'Manage in Profile'}
-        </div>
+        )}
+        {feedback && (
+          <div style={{ fontFamily: MONO, fontSize: 10, color: feedback.type === 'ok' ? C.greenBt : C.red, textAlign: 'center', marginTop: 10 }}>{feedback.msg}</div>
+        )}
       </div>
 
       {/* ── Recent payouts ─────────────────────────────────────────── */}

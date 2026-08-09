@@ -8,9 +8,9 @@ import { C }             from '@/App/Drivers/constants.js';
 import UaTobIcon         from '@/App/Drivers/Icon.jsx';
 import TripRequestModal  from '@/App/Drivers/TripRequestModal.jsx';
 import HomeTab           from '@/App/Drivers/HomeTab.jsx';
-import TripsTab          from '@/App/Drivers/TripsTab.jsx';
+import DriverTrips       from '@/App/Drivers/DriverTrips.jsx';
 import DriverEarnings    from '@/App/Drivers/DriverEarnings.jsx';
-import ProfileTab        from '@/App/Drivers/ProfileTab.jsx';
+import DriverProfile     from '@/App/Drivers/DriverProfile.jsx';
 import ActiveTripScreen  from '@/App/Drivers/ActiveTripScreen.jsx';
 import DriverReviewModal from '@/App/Drivers/DriverReviewModal.jsx';
 import SupportOverlay, { SupportIcon } from '@/App/Drivers/SupportOverlay.jsx';
@@ -869,13 +869,13 @@ function DriverAppInner({ uid }) {
       {/* ── Tab content — overlays the live map for non-Drive tabs ──── */}
       {!isRejected && !activeTrip && tab !== 'drive' && (
         <div style={{
-          position:"fixed", inset:0, zIndex:400, background:C.bg,
+          position:"fixed", inset:0, zIndex:400, background:"#050A06",
           overflowY:"auto", WebkitOverflowScrolling:"touch",
           paddingBottom:"calc(84px + env(safe-area-inset-bottom))",
         }}>
-          {tab === 'trips'    && <TripsTab completedRides={completedRides} online={online} />}
+          {tab === 'trips'    && <DriverTrips completedRides={completedRides} online={online} />}
           {tab === 'earnings' && <DriverEarnings completedRides={completedRides} driver={driver} online={online} />}
-          {tab === 'you'      && <ProfileTab driver={driver} online={online} onSignOut={handleSignOut} />}
+          {tab === 'you'      && <DriverProfile driver={driver} online={online} onSignOut={handleSignOut} onOpenSupport={() => setShowSupport(true)} />}
         </div>
       )}
 
