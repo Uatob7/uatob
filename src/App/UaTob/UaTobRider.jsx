@@ -13,6 +13,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import { getMessaging, onMessage } from 'firebase/messaging';
+import { firebase_app } from '@/firebase/config';
 
 import { useAutocomplete }  from '@/App/UaTob/useAutocomplete';
 import { useGeo }           from '@/App/UaTob/useGeo';
@@ -1085,6 +1087,21 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
     const t = setTimeout(() => setGeoToast(''), 4000);
     return () => clearTimeout(t);
   }, [geoToast]);
+
+  // Foreground push — show an in-app toast when a notification lands while the
+  // rider has the app open (FCM doesn't raise a system notification then).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let unsub = () => {};
+    try {
+      unsub = onMessage(getMessaging(firebase_app), (payload) => {
+        const d = payload.data || {};
+        const title = d.title || payload.notification?.title;
+        if (title) setGeoToast(`🔔 ${title}`);
+      });
+    } catch { /* messaging unsupported */ }
+    return () => { try { unsub(); } catch {} };
+  }, []);
   const { startCheckout, loading: addingCredit } = useCreditCheckout(uid);
 
   const credit = Number(account?.credit || 0);

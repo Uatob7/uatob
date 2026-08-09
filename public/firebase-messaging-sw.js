@@ -33,9 +33,9 @@ messaging.onBackgroundMessage((payload) => {
 
   self.registration.showNotification(title, {
     body,
-    icon:  "/icon.png",
-    badge: "/icon.png",
-    tag:   data.type ?? "uatob",
+    icon:  "/icon-192.png",
+    badge: "/icon-192.png",
+    tag:   data.rideId ?? data.type ?? "uatob",
     renotify: true,
     data: { url: data.url ?? "/", ...data },
   });
