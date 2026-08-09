@@ -10,6 +10,7 @@ const MONO = "'JetBrains Mono',monospace";
 
 export default function DriverInstallFace({ onInstalled }) {
   const [prompt, setPrompt] = useState(null);
+  const [alreadyInstalled, setAlreadyInstalled] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -18,6 +19,15 @@ export default function DriverInstallFace({ onInstalled }) {
     const onDone = () => { window.__pwaInstallPrompt = null; onInstalled?.(); };
     window.addEventListener('beforeinstallprompt', onBip);
     window.addEventListener('appinstalled', onDone);
+
+    // Detect a UaTob PWA that's already installed on this device (e.g. installed
+    // from the rider side — it's one PWA) so we don't show a dead install button.
+    if (navigator.getInstalledRelatedApps) {
+      navigator.getInstalledRelatedApps().then((apps) => {
+        if (apps && apps.length) { setAlreadyInstalled(true); onInstalled?.(); }
+      }).catch(() => {});
+    }
+
     return () => {
       window.removeEventListener('beforeinstallprompt', onBip);
       window.removeEventListener('appinstalled', onDone);
@@ -46,11 +56,13 @@ export default function DriverInstallFace({ onInstalled }) {
         Install UaTob Driver
       </div>
       <div style={{ fontFamily: MONO, fontSize: 10, color: 'rgba(255,255,255,.5)', lineHeight: 1.5, maxWidth: 260, marginTop: 2 }}>
-        {canPrompt
-          ? 'Add it to your home screen — faster launches, full-screen, instant ride alerts.'
-          : isIOS
-            ? 'Tap the Share button, then “Add to Home Screen.”'
-            : 'Open this in Chrome or Safari to install to your home screen.'}
+        {alreadyInstalled
+          ? 'UaTob is already installed on this device — just open it from your home screen.'
+          : canPrompt
+            ? 'Add it to your home screen — faster launches, full-screen, instant ride alerts.'
+            : isIOS
+              ? 'Tap the Share button, then “Add to Home Screen.”'
+              : 'If you already installed UaTob, open it from your home screen. Otherwise open in Chrome or Safari to install.'}
       </div>
 
       {canPrompt && (

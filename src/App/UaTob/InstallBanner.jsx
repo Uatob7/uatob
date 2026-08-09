@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import { MONO, COND } from '@/App/UaTob/theme';
 
-export default function InstallBanner() {
+export default function InstallBanner({ installed: installedHint = false }) {
   const [prompt, setPrompt] = useState(null);
   const [installed, setInstalled] = useState(false);
   const [dismissed, setDismissed] = useState(false);
@@ -30,7 +30,7 @@ export default function InstallBanner() {
   const isIOS = typeof navigator !== 'undefined' && /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
   const canPrompt = !!prompt;
 
-  if (installed || dismissed) return null;
+  if (installed || installedHint || dismissed) return null;   // already installed → let the push banner take over
   if (!canPrompt && !isIOS) return null;   // nothing we can do (e.g. desktop w/o prompt)
 
   const install = async () => {

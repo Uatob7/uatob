@@ -1164,7 +1164,7 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
         backgroundImage: 'radial-gradient(900px 500px at 50% -10%, rgba(34,197,94,.08), transparent 60%)',
       }}>
         <Ribbon mode={modeLabel} credit={credit} onOpenWallet={openTopup} onOpenSupport={() => setSupport(true)} />
-        <InstallBanner />
+        <InstallBanner installed={!!account?.pwaInstalled} />
         <RiderPushBanner uid={uid} account={account} />
 
         {geoToast && (
