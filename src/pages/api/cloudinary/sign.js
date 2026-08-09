@@ -18,11 +18,11 @@ const CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME || process.env.NEXT_PUBLIC_
 const API_KEY    = process.env.CLOUDINARY_API_KEY;
 const API_SECRET = process.env.CLOUDINARY_API_SECRET;
 
-// Keep uploads inside the drivers tree no matter what the client asks for.
+// Keep uploads inside a known UaTob tree no matter what the client asks for.
 function safeFolder(input) {
   const raw = String(input || '').replace(/^\/+|\/+$/g, '');
   const clean = raw.replace(/[^a-zA-Z0-9/_-]/g, '');       // strip anything odd
-  if (!clean || !clean.startsWith('drivers/')) return 'drivers/documents';
+  if (!clean || !/^(drivers|riders)\//.test(clean)) return 'uploads/misc';
   return clean;
 }
 

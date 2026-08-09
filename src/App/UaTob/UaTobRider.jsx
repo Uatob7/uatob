@@ -21,6 +21,7 @@ import { useRequests }      from '@/App/UaTob/useRequests';
 import { useCreateRequest } from '@/App/UaTob/useCreateRequest';
 import { useMarkPayment }   from '@/App/UaTob/useMarkPayment';
 import { useSaveLocation }  from '@/App/UaTob/useSaveLocation';
+import { useAvatarUpload }  from '@/App/UaTob/useAvatarUpload';
 import { useCreditCheckout } from '@/App/UaTob/useCreditCheckout';
 import { useGeocode }       from '@/App/UaTob/useGeocode';
 import RiderMap             from '@/App/UaTob/RiderMap';
@@ -626,11 +627,12 @@ function FleetStat({ n, label, color, glow }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // YOU TAB
 // ═══════════════════════════════════════════════════════════════════════════
-function YouPane({ account, onSignOut, onAddCredit }) {
+function YouPane({ uid, account, onSignOut, onAddCredit }) {
   const name = account?.name || account?.displayName || 'Rider';
   const email = account?.email || '';
   const initial = name.trim().charAt(0).toUpperCase();
   const credit = Number(account?.credit || 0);
+  const { upload, uploading } = useAvatarUpload(uid);
   return (
     <div style={{ animation: 'urUp .38s cubic-bezier(.34,1.1,.64,1) both' }}>
       <Eyebrow>Account</Eyebrow>
@@ -638,9 +640,22 @@ function YouPane({ account, onSignOut, onAddCredit }) {
       <Sub>Profile, payment and your ride history.</Sub>
 
       <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 14, padding: '18px 16px', marginBottom: 14 }}>
-        <div style={{ width: 60, height: 60, borderRadius: 20, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: COND, fontSize: 26, fontWeight: 800, color: C.greenBright, background: 'linear-gradient(135deg,rgba(34,197,94,.2),rgba(34,211,238,.12))', border: `1.5px solid ${C.borderBright}`, overflow: 'hidden' }}>
-          {account?.photoURL ? <img src={account.photoURL} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initial}
-        </div>
+        <label style={{ position: 'relative', width: 60, height: 60, flexShrink: 0, cursor: uploading ? 'wait' : 'pointer', display: 'block' }}>
+          <div style={{ width: 60, height: 60, borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: COND, fontSize: 26, fontWeight: 800, color: C.greenBright, background: 'linear-gradient(135deg,rgba(34,197,94,.2),rgba(34,211,238,.12))', border: `1.5px solid ${C.borderBright}`, overflow: 'hidden' }}>
+            {account?.photoURL ? <img src={account.photoURL} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initial}
+          </div>
+          {/* camera badge */}
+          <span style={{ position: 'absolute', right: -3, bottom: -3, width: 22, height: 22, borderRadius: '50%', background: C.greenBright, border: '2px solid #050A06', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>📷</span>
+          {/* uploading overlay */}
+          {uploading && (
+            <span style={{ position: 'absolute', inset: 0, borderRadius: 20, background: 'rgba(2,5,3,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${C.inkFade}`, borderTopColor: C.greenBright, display: 'block', animation: 'urSpin .7s linear infinite' }} />
+            </span>
+          )}
+          <input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading}
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ''; }}
+            style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
+        </label>
         <div>
           <div style={{ fontFamily: BODY, fontSize: 19, fontWeight: 800, color: C.inkBright, lineHeight: 1.1 }}>{name}</div>
           {email && <div style={{ fontFamily: MONO, fontSize: 10.5, color: C.inkMid, marginTop: 4 }}>{email}</div>}
@@ -1083,7 +1098,7 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
         ) : (
           <div className="ur-scroll" style={{ position: 'relative', zIndex: 20, flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '6px 16px 24px', scrollbarWidth: 'none' }}>
             {tab === 'rides'  && <RidesPane requests={board} loading={loadingRequests} error={requestsError} onPay={openPay} credit={credit} />}
-            {tab === 'you'    && (uid ? <YouPane account={account} onSignOut={onSignOut} onAddCredit={openTopup} /> : <SignUpPane />)}
+            {tab === 'you'    && (uid ? <YouPane uid={uid} account={account} onSignOut={onSignOut} onAddCredit={openTopup} /> : <SignUpPane />)}
           </div>
         )}
 
