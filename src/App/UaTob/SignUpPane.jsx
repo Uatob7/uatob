@@ -5,6 +5,8 @@
 // users can flip to a compact log-in. New-design (dark) styling.
 
 import { useState } from 'react';
+import { getAuth, sendPasswordResetEmail } from 'firebase/auth';
+import { firebase_app } from '@/firebase/config';
 import signUp from '@/firebase/auth/signup';
 import signIn from '@/firebase/auth/signin';
 import { useCreateAccount } from '@/App/UaTob/useCreateAccount';
@@ -38,9 +40,22 @@ export default function SignUpPane() {
   const [agree, setAgree] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
   const { createAccount } = useCreateAccount();
   const isSignup = mode === 'signup';
+
+  const handleForgot = async () => {
+    setError(''); setNotice('');
+    if (!/\S+@\S+\.\S+/.test(email)) { setError('Enter your email above, then tap “Forgot password.”'); return; }
+    setBusy(true);
+    try {
+      await sendPasswordResetEmail(getAuth(firebase_app), email.trim());
+      setNotice(`Password reset link sent to ${email.trim()}. Check your inbox.`);
+    } catch (err) {
+      setError(friendly(err));
+    } finally { setBusy(false); }
+  };
 
   const valid = isSignup
     ? (first.trim() && last.trim() && phone.trim() && /\S+@\S+\.\S+/.test(email) && password.length >= 6 && agree)
@@ -84,6 +99,12 @@ export default function SignUpPane() {
           <span style={{ fontFamily: MONO, fontSize: 11, color: C.red, lineHeight: 1.5 }}>{error}</span>
         </div>
       )}
+      {notice && (
+        <div style={{ display: 'flex', gap: 8, padding: '11px 13px', marginBottom: 14, borderRadius: 12, background: 'rgba(34,197,94,.08)', border: '1px solid rgba(34,197,94,.3)' }}>
+          <span style={{ fontSize: 13 }}>✅</span>
+          <span style={{ fontFamily: MONO, fontSize: 11, color: C.greenBright, lineHeight: 1.5 }}>{notice}</span>
+        </div>
+      )}
 
       <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {isSignup && (
@@ -97,6 +118,14 @@ export default function SignUpPane() {
         )}
         <Field label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" autoComplete="email" inputMode="email" />
         <Field label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={isSignup ? 'At least 6 characters' : '••••••••'} autoComplete={isSignup ? 'new-password' : 'current-password'} />
+
+        {!isSignup && (
+          <div style={{ textAlign: 'right', marginTop: -4 }}>
+            <button type="button" onClick={handleForgot} disabled={busy} style={{ background: 'none', border: 'none', cursor: busy ? 'wait' : 'pointer', fontFamily: MONO, fontSize: 10.5, fontWeight: 700, color: C.greenSoft, textDecoration: 'underline' }}>
+              Forgot password?
+            </button>
+          </div>
+        )}
 
         {isSignup && (
           <button type="button" onClick={() => setAgree((v) => !v)} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', background: 'none', border: 'none', padding: '2px 0', textAlign: 'left' }}>
@@ -127,7 +156,7 @@ export default function SignUpPane() {
 
       <div style={{ textAlign: 'center', marginTop: 16 }}>
         <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.inkMid }}>{isSignup ? 'Already have an account? ' : "Don't have an account? "}</span>
-        <button onClick={() => { setMode(isSignup ? 'login' : 'signup'); setError(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: COND, fontSize: 12.5, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: C.greenBright }}>
+        <button onClick={() => { setMode(isSignup ? 'login' : 'signup'); setError(''); setNotice(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: COND, fontSize: 12.5, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: C.greenBright }}>
           {isSignup ? 'Log in' : 'Sign up'}
         </button>
       </div>
