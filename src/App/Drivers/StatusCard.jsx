@@ -47,11 +47,11 @@ export default function StatusCard({
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const standalone = window.matchMedia?.('(display-mode: standalone)')?.matches || window.navigator.standalone;
-    if (standalone || driver?.pwaDownloaded) setInstalled(true);
+    if (standalone || driver?.pwaInstalled || driver?.pwaDownloaded) setInstalled(true);
     const onDone = () => setInstalled(true);
     window.addEventListener('appinstalled', onDone);
     return () => window.removeEventListener('appinstalled', onDone);
-  }, [driver?.pwaDownloaded]);
+  }, [driver?.pwaInstalled, driver?.pwaDownloaded]);
 
   const faces = installed ? ['status'] : ['status', 'install'];
 

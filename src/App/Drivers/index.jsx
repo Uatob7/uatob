@@ -35,6 +35,7 @@ import { getAuth, signOut } from 'firebase/auth';
 import { firebase_app } from "@/firebase/config";
 import DriverLoginModal from "@/App/Drivers/DriverLoginModal";
 import { useAuthContext } from '@/context/AuthContext';
+import { useTrackPwaInstall } from '@/App/useTrackPwaInstall';
 
 // ── Firestore ─────────────────────────────────────────────────────────
 const db = getFirestore(firebase_app);
@@ -448,6 +449,8 @@ export default function UaTobDriverApp({ uid }) {
 
 // ── DriverAppInner ────────────────────────────────────────────────────
 function DriverAppInner({ uid }) {
+  useTrackPwaInstall(uid, 'Drivers');   // flag + timestamp when a driver installs/opens the PWA
+
   // ── Data hooks ────────────────────────────────────────────────────
   const { driver, loading: driverLoading } = useDriverAccount(uid);
   const { accounts }                      = useAccounts();

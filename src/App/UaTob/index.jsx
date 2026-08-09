@@ -5,6 +5,7 @@ import { firebase_app } from '@/firebase/config';
 import { useRides }           from '@/App/UaTob/useRides';
 import { useAccounts }        from '@/App/UaTob/useAccounts';
 import { useAllDrivers }      from '@/App/UaTob/useAllDrivers';
+import { useTrackPwaInstall } from '@/App/useTrackPwaInstall';
 import UaTobRider             from '@/App/UaTob/UaTobRider';
 import ActiveRide             from '@/App/UaTob/ActiveRide';
 
@@ -25,6 +26,8 @@ export default function App({ uid }) {
   const { account } = useAccounts(uid);
   const { rides }   = useRides(uid);
   const { drivers } = useAllDrivers();
+
+  useTrackPwaInstall(uid, 'Accounts');   // flag + timestamp when a rider installs/opens the PWA
 
   // Most-recent in-flight ride, if any.
   const activeRide = useMemo(() => {
