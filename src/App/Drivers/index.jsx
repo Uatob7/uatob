@@ -9,7 +9,7 @@ import UaTobIcon         from '@/App/Drivers/Icon.jsx';
 import TripRequestModal  from '@/App/Drivers/TripRequestModal.jsx';
 import HomeTab           from '@/App/Drivers/HomeTab.jsx';
 import TripsTab          from '@/App/Drivers/TripsTab.jsx';
-import EarningsTab       from '@/App/Drivers/EarningsTab.jsx';
+import DriverEarnings    from '@/App/Drivers/DriverEarnings.jsx';
 import ProfileTab        from '@/App/Drivers/ProfileTab.jsx';
 import ActiveTripScreen  from '@/App/Drivers/ActiveTripScreen.jsx';
 import DriverReviewModal from '@/App/Drivers/DriverReviewModal.jsx';
@@ -874,7 +874,7 @@ function DriverAppInner({ uid }) {
           paddingBottom:"calc(84px + env(safe-area-inset-bottom))",
         }}>
           {tab === 'trips'    && <TripsTab completedRides={completedRides} online={online} />}
-          {tab === 'earnings' && <EarningsTab earnings={undefined} online={online} driver={driver} onViewHistory={() => setTab('trips')} />}
+          {tab === 'earnings' && <DriverEarnings completedRides={completedRides} driver={driver} online={online} />}
           {tab === 'you'      && <ProfileTab driver={driver} online={online} onSignOut={handleSignOut} />}
         </div>
       )}
