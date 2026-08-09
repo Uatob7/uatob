@@ -14,7 +14,10 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { getMessaging, onMessage } from 'firebase/messaging';
+import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
 import { firebase_app } from '@/firebase/config';
+
+const ytdb = getFirestore(firebase_app);
 
 import { useAutocomplete }  from '@/App/UaTob/useAutocomplete';
 import { useGeo }           from '@/App/UaTob/useGeo';
@@ -659,7 +662,8 @@ function FleetStat({ n, label, color, glow }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // YOU TAB
 // ═══════════════════════════════════════════════════════════════════════════
-function YouPane({ uid, account, onSignOut, onAddCredit }) {
+function YouPane({ uid, account, onSignOut, onAddCredit, onOpenSupport }) {
+  const [sheet, setSheet] = useState(null); // 'payment' | 'history' | 'safety'
   const name = account?.name || account?.displayName || 'Rider';
   const email = account?.email || '';
   const initial = name.trim().charAt(0).toUpperCase();
@@ -728,10 +732,11 @@ function YouPane({ uid, account, onSignOut, onAddCredit }) {
       </div>
 
       <div style={{ ...cardStyle, overflow: 'hidden' }}>
-        <Row icon="💳" title="Payment methods" sub={account?.defaultCard ? `•••• ${account.defaultCard} · default` : 'Add a card or use cash'} />
-        <Row icon="🕓" title="Ride history" sub={`${account?.ridesCount ?? account?.totalRides ?? 0} completed trips`} border />
+        <Row icon="💳" title="Payment methods" sub="Cash or prepaid ride credit" onClick={() => setSheet('payment')}
+          right={<span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 800, color: C.greenSoft }}>CASH · CREDIT</span>} />
+        <Row icon="🕓" title="Ride history" sub={`${account?.ridesCount ?? account?.totalRides ?? 0} completed trips`} border onClick={() => setSheet('history')} />
         <Row icon="🪙" title="Add ride credit" sub={`${money(credit)} balance`} border onClick={onAddCredit} />
-        <Row icon="🛡️" title="Safety & sharing" sub="Trusted contacts, live share" border />
+        <Row icon="🛡️" title="Safety & sharing" sub="Share your trip, emergency call" border onClick={() => setSheet('safety')} />
       </div>
       <div style={{ height: 12 }} />
       <div style={{ ...cardStyle, overflow: 'hidden' }}>
@@ -744,12 +749,160 @@ function YouPane({ uid, account, onSignOut, onAddCredit }) {
             </span>
           }
         />
-        <Row icon="💬" title="Support" border />
+        <Row icon="💬" title="Support" border onClick={onOpenSupport} />
         <Row icon="🚪" title="Sign out" danger border onClick={onSignOut} />
+      </div>
+
+      {sheet === 'payment' && <PaymentMethodsSheet credit={credit} onAddCredit={onAddCredit} onClose={() => setSheet(null)} />}
+      {sheet === 'history' && <RideHistorySheet uid={uid} onClose={() => setSheet(null)} />}
+      {sheet === 'safety'  && <SafetySheet account={account} onClose={() => setSheet(null)} />}
+    </div>
+  );
+}
+
+// ── Account bottom-sheet wrapper ─────────────────────────────────────────────
+function AccountSheet({ title, sub, accent = C.greenBright, onClose, children }) {
+  return (
+    <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{
+      position: 'fixed', inset: 0, zIndex: 78, background: 'rgba(2,5,3,.6)', backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'flex-end', animation: 'urFade .2s ease',
+    }}>
+      <div style={{
+        width: '100%', maxHeight: '82%', overflowY: 'auto', scrollbarWidth: 'none',
+        background: 'linear-gradient(180deg,rgba(8,16,10,.99),rgba(4,8,5,1))',
+        borderTop: `1.5px solid ${accent}66`, borderRadius: '26px 26px 0 0',
+        padding: '10px 18px calc(24px + env(safe-area-inset-bottom))', boxShadow: '0 -20px 60px rgba(0,0,0,.7)',
+        animation: 'urSheet .34s cubic-bezier(.34,1.16,.64,1) both',
+      }}>
+        <div style={{ width: 38, height: 4, borderRadius: 2, background: C.inkFade, margin: '0 auto 14px' }} />
+        <div style={{ fontFamily: COND, fontSize: 22, fontWeight: 800, color: C.inkBright, lineHeight: 1 }}>{title}</div>
+        {sub && <div style={{ fontFamily: MONO, fontSize: 10, color: C.inkMid, marginTop: 5, marginBottom: 4 }}>{sub}</div>}
+        <div style={{ marginTop: 16 }}>{children}</div>
       </div>
     </div>
   );
 }
+
+function PaymentMethodsSheet({ credit, onAddCredit, onClose }) {
+  return (
+    <AccountSheet title="How you pay" sub="UaTob is cash & prepaid credit — no card on file." accent={C.greenBright} onClose={onClose}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '14px 15px', borderRadius: 14, border: `1px solid ${C.border}`, background: 'rgba(34,197,94,.05)' }}>
+          <span style={{ fontSize: 22 }}>💵</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: BODY, fontSize: 14, fontWeight: 700, color: C.inkBright }}>Cash to driver</div>
+            <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.inkMid, marginTop: 2 }}>Pay the fare in cash when your driver arrives.</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '14px 15px', borderRadius: 14, border: '1px solid rgba(251,191,36,.28)', background: 'rgba(251,191,36,.05)' }}>
+          <span style={{ fontSize: 22 }}>🪙</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: BODY, fontSize: 14, fontWeight: 700, color: C.inkBright }}>Ride credit · {money(credit)}</div>
+            <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.inkMid, marginTop: 2 }}>Prepaid balance — pay instantly from the board.</div>
+          </div>
+        </div>
+        <button className="ur-tap" onClick={() => { onClose(); onAddCredit(); }} style={{
+          width: '100%', border: 'none', borderRadius: 14, padding: 15, marginTop: 4, cursor: 'pointer',
+          fontFamily: COND, fontSize: 15, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#150e02',
+          background: 'linear-gradient(135deg,#FCD34D,#FBBF24 55%,#D97706)', boxShadow: '0 8px 22px rgba(251,191,36,.28)',
+        }}>Add ride credit</button>
+      </div>
+    </AccountSheet>
+  );
+}
+
+function SafetySheet({ account, onClose }) {
+  const shareTrip = async () => {
+    const text = `I'm taking a UaTob ride — track me here.`;
+    try {
+      if (navigator.share) await navigator.share({ title: 'My UaTob ride', text });
+      else { await navigator.clipboard?.writeText(text); }
+    } catch { /* dismissed */ }
+  };
+  return (
+    <AccountSheet title="Safety & sharing" sub="Tools for peace of mind on every ride." accent={C.cyan} onClose={onClose}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <button className="ur-tap" onClick={shareTrip} style={rowBtn}>
+          <span style={{ fontSize: 20 }}>📍</span>
+          <div style={{ flex: 1, textAlign: 'left' }}>
+            <div style={{ fontFamily: BODY, fontSize: 14, fontWeight: 700, color: C.inkBright }}>Share your trip</div>
+            <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.inkMid, marginTop: 2 }}>Send your live ride to a friend.</div>
+          </div>
+          <span style={{ color: C.inkDim, fontSize: 16 }}>›</span>
+        </button>
+        <a href="tel:911" className="ur-tap" style={{ ...rowBtn, textDecoration: 'none', borderColor: 'rgba(248,113,113,.35)', background: 'rgba(248,113,113,.06)' }}>
+          <span style={{ fontSize: 20 }}>🚨</span>
+          <div style={{ flex: 1, textAlign: 'left' }}>
+            <div style={{ fontFamily: BODY, fontSize: 14, fontWeight: 700, color: C.red }}>Emergency — call 911</div>
+            <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.inkMid, marginTop: 2 }}>Reach emergency services now.</div>
+          </div>
+          <span style={{ color: C.red, fontSize: 16 }}>›</span>
+        </a>
+        <div style={{ fontFamily: MONO, fontSize: 9, color: C.inkDim, textAlign: 'center', marginTop: 4, lineHeight: 1.6 }}>
+          Every ride is tracked live and your driver is ID-verified.
+        </div>
+      </div>
+    </AccountSheet>
+  );
+}
+
+function RideHistorySheet({ uid, onClose }) {
+  const [rides, setRides] = useState(null); // null = loading
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const snap = await getDocs(query(collection(ytdb, 'Rides'), where('uid', '==', uid)));
+        if (!alive) return;
+        const done = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+          .filter((r) => ['completed', 'canceled', 'cancelled'].includes(r.status))
+          .sort((a, b) => (b.updatedAt?.seconds ?? 0) - (a.updatedAt?.seconds ?? 0));
+        setRides(done);
+      } catch { if (alive) setRides([]); }
+    })();
+    return () => { alive = false; };
+  }, [uid]);
+
+  return (
+    <AccountSheet title="Ride history" sub="Your past UaTob trips." accent={C.greenBright} onClose={onClose}>
+      {rides === null ? (
+        <div style={{ fontFamily: MONO, fontSize: 11, color: C.inkDim, textAlign: 'center', padding: '20px 0' }}>Loading…</div>
+      ) : rides.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '24px 10px' }}>
+          <div style={{ fontSize: 28, marginBottom: 8 }}>🗺️</div>
+          <div style={{ fontFamily: COND, fontSize: 16, fontWeight: 800, color: C.inkBright, marginBottom: 5 }}>No trips yet</div>
+          <div style={{ fontFamily: MONO, fontSize: 10, color: C.inkMid, lineHeight: 1.6 }}>Your completed rides will show up here.</div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+          {rides.map((r) => {
+            const canceled = r.status === 'canceled' || r.status === 'cancelled';
+            return (
+              <div key={r.id} style={{ padding: '12px 14px', borderRadius: 13, border: `1px solid ${C.border}`, background: 'rgba(255,255,255,.02)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <div style={{ fontFamily: MONO, fontSize: 9, color: C.inkDim }}>
+                    {(r.updatedAt || r.createdAt)?.seconds ? new Date((r.updatedAt || r.createdAt).seconds * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}
+                  </div>
+                  <div style={{ fontFamily: MONO, fontSize: 13, fontWeight: 800, color: canceled ? C.inkDim : C.greenBright }}>
+                    {canceled ? 'Canceled' : (r.fareTotal != null ? money(r.fareTotal) : '')}
+                  </div>
+                </div>
+                {[r.pickup, r.dropoff].map((a, i) => (
+                  <div key={i} style={{ fontFamily: BODY, fontSize: 12, fontWeight: 600, color: canceled ? C.inkDim : C.inkMid, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a || '—'}</div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </AccountSheet>
+  );
+}
+
+const rowBtn = {
+  width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '13px 15px', borderRadius: 14, cursor: 'pointer',
+  border: `1px solid ${C.border}`, background: 'rgba(255,255,255,.03)',
+};
 function Row({ icon, title, sub, border, danger, onClick, right }) {
   return (
     <div className="ur-tap" onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '15px 16px', cursor: 'pointer', borderTop: border ? `1px solid ${C.inkFade}` : 'none' }}>
@@ -1234,7 +1387,7 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
         ) : (
           <div className="ur-scroll" style={{ position: 'relative', zIndex: 20, flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '6px 16px 24px', scrollbarWidth: 'none' }}>
             {tab === 'rides'  && <RidesPane requests={board} loading={loadingRequests} error={requestsError} onPay={openPay} credit={credit} />}
-            {tab === 'you'    && (uid ? <YouPane uid={uid} account={account} onSignOut={onSignOut} onAddCredit={openTopup} /> : <SignUpPane />)}
+            {tab === 'you'    && (uid ? <YouPane uid={uid} account={account} onSignOut={onSignOut} onAddCredit={openTopup} onOpenSupport={() => setSupport(true)} /> : <SignUpPane />)}
           </div>
         )}
 
