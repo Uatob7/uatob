@@ -163,7 +163,7 @@ export default function ActiveRide({ ride, uid, onContactDriver }) {
         @keyframes arUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
         @keyframes arDots{0%,100%{opacity:1}50%{opacity:.3}}
       `}</style>
-      <div style={{ position: 'fixed', inset: 0, background: C.bg, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ position: 'fixed', inset: 0, background: C.bg, overflow: 'hidden', color: C.inkBright, display: 'flex', flexDirection: 'column' }}>
         {/* top bar */}
         <div style={{ position: 'relative', zIndex: 40, height: 34, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 14px', background: 'linear-gradient(180deg,rgba(3,6,4,.9),rgba(3,6,4,0))' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

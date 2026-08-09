@@ -1017,7 +1017,7 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
     <>
       <style>{CSS}</style>
       <div style={{
-        position: 'fixed', inset: 0, background: C.bg, overflow: 'hidden',
+        position: 'fixed', inset: 0, background: C.bg, overflow: 'hidden', color: C.inkBright,
         display: 'flex', flexDirection: 'column',
         backgroundImage: 'radial-gradient(900px 500px at 50% -10%, rgba(34,197,94,.08), transparent 60%)',
       }}>
