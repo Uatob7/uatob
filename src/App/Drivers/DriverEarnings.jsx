@@ -4,7 +4,11 @@
 // "pace" ring — are you ahead of where you should be right now?
 
 import { useMemo, useState } from 'react';
+import { getFirestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { firebase_app } from '@/firebase/config';
 import { useSettleDriverCash } from '@/App/Drivers/useSettleDriverCash';
+
+const gdb = getFirestore(firebase_app);
 
 const C = {
   bg:        '#050A06',
@@ -24,8 +28,6 @@ const COND = "'Barlow Condensed',sans-serif";
 const MONO = "'JetBrains Mono',monospace";
 const BODY = "'Barlow',system-ui,sans-serif";
 
-const GOAL_KEY = 'uatob_driver_goal';
-const GOALS = [100, 150, 200, 250, 300, 400];
 const money = (n) => `$${(Number(n) || 0).toFixed(2)}`;
 const money0 = (n) => `$${Math.round(Number(n) || 0)}`;
 const dayKey = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x.getTime(); };
@@ -38,14 +40,22 @@ const takeOf = (r) => isCredit(r)
 const feeOf = (r) => isCredit(r) ? 0 : (Number(r.platformFee ?? (r.fareTotal != null ? r.fareTotal * 0.25 : 0)) || 0);
 
 export default function DriverEarnings({ completedRides = [], driver, online }) {
-  const [goal, setGoal] = useState(() => {
-    const v = Number(typeof localStorage !== 'undefined' && localStorage.getItem(GOAL_KEY));
-    return GOALS.includes(v) ? v : 150;
-  });
-  const cycleGoal = () => {
-    const next = GOALS[(GOALS.indexOf(goal) + 1) % GOALS.length];
-    setGoal(next);
-    try { localStorage.setItem(GOAL_KEY, String(next)); } catch {}
+  // Daily goal lives on the driver doc (live snapshot). Edit it in a small sheet.
+  const goal = Number(driver?.dailyGoal) > 0 ? Number(driver.dailyGoal) : 150;
+  const [editing, setEditing] = useState(false);
+  const [goalInput, setGoalInput] = useState('');
+  const [goalSaving, setGoalSaving] = useState(false);
+
+  const openGoal = () => { setGoalInput(String(goal)); setEditing(true); };
+  const saveGoal = async () => {
+    const v = Math.max(20, Math.min(2000, Math.round(Number(goalInput) || 0)));
+    if (!driver?.uid || !v) { setEditing(false); return; }
+    setGoalSaving(true);
+    try {
+      await setDoc(doc(gdb, 'Drivers', driver.uid), { dailyGoal: v, updatedAt: serverTimestamp() }, { merge: true });
+      setEditing(false);
+    } catch (e) { /* non-fatal */ }
+    finally { setGoalSaving(false); }
   };
 
   const stats = useMemo(() => {
@@ -148,8 +158,8 @@ export default function DriverEarnings({ completedRides = [], driver, online }) 
           </svg>
           <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ fontFamily: MONO, fontSize: 30, fontWeight: 800, lineHeight: 1, color: C.ink }}>{money0(stats.today)}</div>
-            <button onClick={cycleGoal} style={{ marginTop: 5, background: 'none', border: 'none', cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 700, color: C.inkDim }}>
-              of {money0(goal)} goal ▾
+            <button onClick={openGoal} style={{ marginTop: 5, background: 'none', border: 'none', cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 700, color: C.inkDim, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              of {money0(goal)} goal <span style={{ color: C.greenBt }}>✎</span>
             </button>
             <div style={{ fontFamily: COND, fontSize: 9, fontWeight: 800, letterSpacing: '.14em', textTransform: 'uppercase', color: C.inkDim, marginTop: 4 }}>{stats.todayN} trips today</div>
           </div>
@@ -275,6 +285,43 @@ export default function DriverEarnings({ completedRides = [], driver, online }) 
           <div style={{ fontSize: 30, marginBottom: 8 }}>💸</div>
           <div style={{ fontFamily: COND, fontSize: 16, fontWeight: 800, color: C.ink, marginBottom: 5 }}>No trips yet</div>
           <div style={{ fontFamily: MONO, fontSize: 10.5, color: C.inkMid, lineHeight: 1.6 }}>Go online and complete a ride — your earnings and pace show up here.</div>
+        </div>
+      )}
+
+      {/* ── Goal editor ─────────────────────────────────────────────── */}
+      {editing && (
+        <div onClick={(e) => { if (e.target === e.currentTarget) setEditing(false); }} style={{
+          position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(2,5,3,.62)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+        }}>
+          <div style={{ width: '100%', maxWidth: 460, background: 'linear-gradient(180deg,rgba(10,18,12,.99),rgba(5,10,7,1))', borderTop: `1.5px solid ${C.borderHi}`, borderRadius: '24px 24px 0 0', padding: '16px 18px calc(22px + env(safe-area-inset-bottom))', boxShadow: '0 -20px 60px rgba(0,0,0,.7)' }}>
+            <div style={{ width: 38, height: 4, borderRadius: 2, background: 'rgba(255,255,255,.14)', margin: '0 auto 14px' }} />
+            <div style={{ fontFamily: COND, fontSize: 20, fontWeight: 900, color: C.ink, letterSpacing: '-.01em' }}>Set your daily goal</div>
+            <div style={{ fontFamily: MONO, fontSize: 10.5, color: C.inkDim, marginTop: 3, marginBottom: 16 }}>How much do you want to make in a day? Drives your pace ring.</div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderRadius: 14, border: `1px solid ${C.borderHi}`, background: 'rgba(255,255,255,.03)' }}>
+              <span style={{ fontFamily: MONO, fontSize: 24, fontWeight: 800, color: C.greenBt }}>$</span>
+              <input
+                type="number" min="20" max="2000" inputMode="numeric" autoFocus
+                value={goalInput} onChange={(e) => setGoalInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') saveGoal(); }}
+                style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontFamily: MONO, fontSize: 26, fontWeight: 800, color: C.ink, colorScheme: 'dark', width: '100%' }}
+              />
+              <span style={{ fontFamily: COND, fontSize: 11, fontWeight: 800, letterSpacing: '.1em', textTransform: 'uppercase', color: C.inkDim }}>/ day</span>
+            </div>
+
+            <div style={{ display: 'flex', gap: 7, marginTop: 12, flexWrap: 'wrap' }}>
+              {[100, 150, 200, 250, 300].map((q) => (
+                <button key={q} onClick={() => setGoalInput(String(q))} style={{ flex: 1, minWidth: 56, padding: '8px 0', borderRadius: 10, cursor: 'pointer', border: `1px solid ${String(q) === goalInput ? C.borderHi : C.border}`, background: String(q) === goalInput ? 'rgba(34,197,94,.1)' : 'rgba(255,255,255,.03)', color: String(q) === goalInput ? C.greenBt : C.inkMid, fontFamily: MONO, fontSize: 12, fontWeight: 800 }}>${q}</button>
+              ))}
+            </div>
+
+            <button onClick={saveGoal} disabled={goalSaving} style={{
+              marginTop: 16, width: '100%', borderRadius: 14, padding: 15, border: 'none', cursor: goalSaving ? 'wait' : 'pointer',
+              fontFamily: COND, fontSize: 15, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#04150a',
+              background: 'linear-gradient(135deg,#2FE08A,#17B673 55%,#15803D)', boxShadow: '0 8px 24px rgba(34,197,94,.3)', opacity: goalSaving ? .7 : 1,
+            }}>{goalSaving ? 'Saving…' : 'Save goal'}</button>
+          </div>
         </div>
       )}
     </div>
