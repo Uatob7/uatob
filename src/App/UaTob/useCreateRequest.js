@@ -50,6 +50,7 @@ export function useCreateRequest(uid) {
           dropoffZip:  payload.dropoffZip  ?? null,
           dropoffLat:  payload.dropoffLat  ?? null,
           dropoffLng:  payload.dropoffLng  ?? null,
+          stops:       Array.isArray(payload.stops) ? payload.stops : [],
           polyline:    payload.polyline    ?? null,
 
           rideType:  payload.rideType  ?? 'standard',

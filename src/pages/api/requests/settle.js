@@ -157,6 +157,7 @@ export default async function handler(req, res) {
             dropoffZip:  r.dropoffZip  ?? null,
             dropoffLat:  r.dropoffLat  ?? null,
             dropoffLng:  r.dropoffLng  ?? null,
+            stops:       Array.isArray(r.stops) ? r.stops : [],
             polyline:    r.polyline    ?? null,
 
             rideType:  r.rideType  ?? 'standard',

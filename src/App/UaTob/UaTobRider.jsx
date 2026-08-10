@@ -259,13 +259,19 @@ function RequestPane({ uid, account, initialDropoff = '', onPosted, onRoute }) {
   const [step, setStep] = useState(0);              // 0 route · 1 when · 2 price
   const [pickup,  setPickup]  = useState(account?.pickup || account?.address || '');
   const [dropoff, setDropoff] = useState(initialDropoff || '');
+  const [stops,   setStops]   = useState([]);        // ordered intermediate stop addresses
   const [rideType, setRideType] = useState('standard');
   const [leaveNow, setLeaveNow] = useState(true);
   const [schedDay, setSchedDay] = useState(null);   // Date @ local midnight
   const [schedTime, setSchedTime] = useState('');   // 'HH:MM'
   const [posting, setPosting] = useState(false);
 
-  const { tripData, loading: routing } = useRoute(pickup, dropoff);
+  const MAX_STOPS = 3;
+  const addStop    = useCallback(() => setStops((s) => (s.length >= MAX_STOPS ? s : [...s, ''])), []);
+  const removeStop = useCallback((i) => setStops((s) => s.filter((_, idx) => idx !== i)), []);
+  const updateStop = useCallback((i, v) => setStops((s) => s.map((x, idx) => (idx === i ? v : x))), []);
+
+  const { tripData, loading: routing } = useRoute(pickup, dropoff, stops);
   const { createRequest } = useCreateRequest(uid);
 
   // Geocode the pickup on its own so the map can center on it before a
@@ -319,6 +325,7 @@ function RequestPane({ uid, account, initialDropoff = '', onPosted, onRoute }) {
       pickupLat: tripData.pickupLat, pickupLng: tripData.pickupLng,
       dropoffCity: tripData.dropoffCity, dropoffZip: tripData.dropoffZip,
       dropoffLat: tripData.dropoffLat, dropoffLng: tripData.dropoffLng,
+      stops: tripData.stops || [],
       polyline: tripData.polyline,
       rideType, rideLabel: label,
       fareEstimate: fares[rideType],
@@ -330,7 +337,7 @@ function RequestPane({ uid, account, initialDropoff = '', onPosted, onRoute }) {
     setPosting(false);
     if (id) {
       pushRecent(dropoff);   // remember for the home cockpit's quick destinations
-      setDropoff(''); setStep(0); setLeaveNow(true); setSchedDay(null); setSchedTime('');
+      setDropoff(''); setStops([]); setStep(0); setLeaveNow(true); setSchedDay(null); setSchedTime('');
       onPosted?.();
     }
   }, [routeReady, posting, rideType, fares, createRequest, account, pickup, dropoff, tripData, leaveNow, scheduledAt, onPosted]);
@@ -350,14 +357,43 @@ function RequestPane({ uid, account, initialDropoff = '', onPosted, onRoute }) {
       {/* ── STEP 0 · ROUTE ── */}
       {step === 0 && (
         <>
-          {/* connected pickup → destination card */}
+          {/* connected pickup → stops → destination card */}
           <div style={{ ...cardStyle, position: 'relative' }}>
             <AddressField compact node={C.cyan} value={pickup} onChange={setPickup} placeholder="Pickup location" onLocate={handleLocate} locating={geo.loading} />
+
+            {/* intermediate stops */}
+            {stops.map((s, i) => (
+              <div key={i}>
+                <div style={{ height: 1, background: C.inkFade, marginLeft: 34 }} />
+                <div style={{ position: 'relative' }}>
+                  <AddressField compact node={C.amber} value={s} onChange={(v) => updateStop(i, v)} placeholder={`Stop ${i + 1}`} />
+                  <button
+                    className="ur-tap"
+                    onClick={() => removeStop(i)}
+                    aria-label={`Remove stop ${i + 1}`}
+                    style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', zIndex: 2, background: 'none', border: 'none', cursor: 'pointer', color: C.inkMid, fontSize: 15, lineHeight: 1, padding: 6 }}
+                  >✕</button>
+                </div>
+              </div>
+            ))}
+
             <div style={{ height: 1, background: C.inkFade, marginLeft: 34 }} />
             <AddressField compact node={C.greenBright} value={dropoff} onChange={setDropoff} placeholder="Where to?" />
-            {/* rail connecting the two dots */}
+            {/* rail connecting the dots top-to-bottom */}
             <div style={{ position: 'absolute', left: 18.5, top: 30, bottom: 30, width: 1.5, background: 'linear-gradient(180deg,#3FD0EE,#2FE08A)', opacity: .35 }} />
           </div>
+
+          {/* add a stop */}
+          {stops.length < MAX_STOPS && (
+            <button
+              className="ur-tap"
+              onClick={addStop}
+              style={{ marginTop: 8, background: 'none', border: `1px dashed ${C.border}`, borderRadius: 12, cursor: 'pointer', color: C.inkMid, fontFamily: COND, fontSize: 12, fontWeight: 800, letterSpacing: '.1em', textTransform: 'uppercase', padding: '9px 14px', display: 'inline-flex', alignItems: 'center', gap: 7 }}
+            >
+              <span style={{ fontSize: 15, color: C.amber, lineHeight: 1 }}>＋</span> Add stop
+            </button>
+          )}
+
           {geo.error && <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.red, marginTop: 8 }}>{geo.error}</div>}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 22, margin: '12px 2px' }}>
@@ -560,7 +596,7 @@ function RequestCard({ req, onPay, credit }) {
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.greenBright, boxShadow: `0 0 7px ${C.greenBright}` }} />
         </div>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 9 }}>
-          {[req.pickup, req.dropoff].map((a, i) => (
+          {[req.pickup, ...(Array.isArray(req.stops) ? req.stops.map((s) => s?.address) : []), req.dropoff].map((a, i) => (
             <div key={i} style={{ fontFamily: BODY, fontSize: 12.5, fontWeight: 600, color: C.inkBright, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a || '—'}</div>
           ))}
         </div>
@@ -887,7 +923,7 @@ function RideHistorySheet({ uid, onClose }) {
                     {canceled ? 'Canceled' : (r.fareTotal != null ? money(r.fareTotal) : '')}
                   </div>
                 </div>
-                {[r.pickup, r.dropoff].map((a, i) => (
+                {[r.pickup, ...(Array.isArray(r.stops) ? r.stops.map((s) => s?.address) : []), r.dropoff].map((a, i) => (
                   <div key={i} style={{ fontFamily: BODY, fontSize: 12, fontWeight: 600, color: canceled ? C.inkDim : C.inkMid, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a || '—'}</div>
                 ))}
               </div>
@@ -951,7 +987,7 @@ function PaymentSheet({ req, method, credit = 0, onClose, onConfirm, onAddCredit
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.greenBright }} />
           </div>
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {[req.pickup, req.dropoff].map((a, i) => (
+            {[req.pickup, ...(Array.isArray(req.stops) ? req.stops.map((s) => s?.address) : []), req.dropoff].map((a, i) => (
               <div key={i} style={{ fontFamily: BODY, fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a || '—'}</div>
             ))}
           </div>

@@ -223,7 +223,7 @@ export default function TrackMap({ pickup, dropoff, driver, polyline, phase }) {
 
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
-      <style>{`@keyframes tmPulse{0%{transform:translate(-50%,-50%) scale(.5);opacity:.8}100%{transform:translate(-50%,-50%) scale(2.6);opacity:0}}`}</style>
+      <style>{`@keyframes tmPulse{0%{transform:translate(-50%,-50%) scale(.5);opacity:.8}100%{transform:translate(-50%,-50%) scale(2.6);opacity:0}} .mapboxgl-ctrl-logo,.mapboxgl-ctrl-bottom-left,.mapboxgl-ctrl-bottom-right,.mapboxgl-ctrl-attrib{display:none!important}`}</style>
       <div ref={elRef} style={{ position: 'absolute', inset: 0, opacity: ready ? 1 : 0, transition: 'opacity .8s ease' }} />
       <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(180deg, rgba(5,10,6,.55) 0%, transparent 20%, transparent 42%, rgba(5,10,6,.62) 80%, #050A06 100%)' }} />
     </div>

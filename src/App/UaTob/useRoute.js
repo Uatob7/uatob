@@ -39,22 +39,33 @@ async function geocodeAddress(address, signal) {
   return { city, zip, lat, lng };
 }
 
-async function computeRoute(origin, destination, signal) {
-  // Mapbox Directions needs coordinates, so geocode both endpoints first.
-  const [pickupGeo, dropoffGeo] = await Promise.all([
+async function computeRoute(origin, destination, stops, signal) {
+  // Ordered intermediate stops (already trimmed & de-blanked by the caller).
+  const midStops = Array.isArray(stops) ? stops : [];
+
+  // Mapbox Directions needs coordinates, so geocode every waypoint first.
+  const [pickupGeo, dropoffGeo, ...stopGeos] = await Promise.all([
     geocodeAddress(origin, signal),
     geocodeAddress(destination, signal),
+    ...midStops.map((s) => geocodeAddress(s, signal)),
   ]);
 
   if (pickupGeo.lat == null || dropoffGeo.lat == null) {
     throw new Error('Could not locate one of the addresses.');
   }
+  if (stopGeos.some((g) => g.lat == null)) {
+    throw new Error('Could not locate one of your stops.');
+  }
+
+  // Full waypoint chain: pickup → stop1 → … → dropoff.
+  const chain = [pickupGeo, ...stopGeos, dropoffGeo];
+  const coords = chain.map((g) => `${g.lng},${g.lat}`).join(';');
 
   // `geometries=polyline` returns a precision-5 encoded polyline, which is
   // compatible with the existing Google-style decoder used on the maps.
   const routeRes = await fetch(
     `https://api.mapbox.com/directions/v5/mapbox/driving` +
-    `/${pickupGeo.lng},${pickupGeo.lat};${dropoffGeo.lng},${dropoffGeo.lat}` +
+    `/${coords}` +
     `?geometries=polyline&overview=full&access_token=${MAPBOX_TOKEN}`,
     { signal }
   );
@@ -86,10 +97,18 @@ async function computeRoute(origin, destination, signal) {
     dropoffZip:   dropoffGeo.zip,
     dropoffLat:   dropoffGeo.lat,
     dropoffLng:   dropoffGeo.lng,
+    // Geocoded stops in order, ready to persist on the request/ride.
+    stops:        midStops.map((addr, i) => ({
+      address: addr,
+      city:    stopGeos[i].city,
+      zip:     stopGeos[i].zip,
+      lat:     stopGeos[i].lat,
+      lng:     stopGeos[i].lng,
+    })),
   };
 }
 
-export function useRoute(pickup, dropoff) {
+export function useRoute(pickup, dropoff, stops = []) {
   const [tripData, setTripData] = useState(null);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState(null);
@@ -97,6 +116,13 @@ export function useRoute(pickup, dropoff) {
   const abortRef  = useRef(null);
   const timerRef  = useRef(null);
   const resetFlag = useRef(false);
+
+  // Stable key for the (variable-length) stops array so the effect only re-runs
+  // when the actual filled-in stops change, not on every keystroke elsewhere.
+  const cleanStops = (Array.isArray(stops) ? stops : [])
+    .map((s) => (s || '').trim())
+    .filter(Boolean);
+  const stopsKey = JSON.stringify(cleanStops);
 
   function reset() {
     resetFlag.current = true;
@@ -110,8 +136,9 @@ export function useRoute(pickup, dropoff) {
   useEffect(() => {
     const p = pickup?.trim();
     const d = dropoff?.trim();
+    const mid = JSON.parse(stopsKey);
 
-    // Clear results if either field is empty
+    // Clear results if either endpoint is empty
     if (!p || !d) {
       clearTimeout(timerRef.current);
       abortRef.current?.abort();
@@ -134,7 +161,7 @@ export function useRoute(pickup, dropoff) {
       setTripData(null);
 
       try {
-        const result = await computeRoute(p, d, abortRef.current.signal);
+        const result = await computeRoute(p, d, mid, abortRef.current.signal);
         if (!resetFlag.current) {
           setTripData(result);
           setError(null);
@@ -154,7 +181,7 @@ export function useRoute(pickup, dropoff) {
       clearTimeout(timerRef.current);
       abortRef.current?.abort();
     };
-  }, [pickup, dropoff]);
+  }, [pickup, dropoff, stopsKey]);
 
   return { tripData, loading, error, reset };
 }
