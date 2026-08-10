@@ -69,8 +69,8 @@ function injectPanelStyles() {
   _panelInjected = true;
 }
 
-// ── Initials avatar ────────────────────────────────────────────────
-function DriverAvatar({ firstName, lastName, size = 52, color }) {
+// ── Driver avatar (photo when the driver has one, else initials) ────
+function DriverAvatar({ firstName, lastName, photo, size = 52, color }) {
   const initials = [firstName?.[0], lastName?.[0]]
     .filter(Boolean)
     .join('')
@@ -82,12 +82,15 @@ function DriverAvatar({ firstName, lastName, size = 52, color }) {
       background: color,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       flexShrink: 0,
+      overflow: 'hidden',
       fontFamily: '"JetBrains Mono", monospace',
       fontSize: size * 0.32, fontWeight: 700, color: '#fff',
       letterSpacing: '1px',
       boxShadow: `0 4px 14px ${color}30`,
     }}>
-      {initials}
+      {photo
+        ? <img src={photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        : initials}
     </div>
   );
 }
@@ -446,6 +449,7 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
 
   const driverFirstName  = driverDoc?.firstName ?? '';
   const driverLastName   = driverDoc?.lastName  ?? '';
+  const driverPhoto      = driverDoc?.profilePhotoUrl || driverDoc?.photoURL || '';
   const driverName = driverFirstName || driverLastName
     ? `${driverFirstName} ${driverLastName}`.trim()
     : null;
@@ -657,6 +661,7 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
             <DriverAvatar
               firstName={driverFirstName}
               lastName={driverLastName}
+              photo={driverPhoto}
               size={52}
               color={driverColor}
             />

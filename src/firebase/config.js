@@ -35,8 +35,8 @@ if (typeof window !== "undefined") {
 }
 
 
-// Initialize Authentication
-const app = initializeApp(firebaseConfig);
+// Initialize Authentication (reuse the single app instance above — calling
+// initializeApp again would create a duplicate default app)
 const auth = getAuth(firebase_app);
 
 // Initialize Functions

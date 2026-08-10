@@ -452,7 +452,7 @@ function DriverAppInner({ uid }) {
   useTrackPwaInstall(uid, 'Drivers');   // flag + timestamp when a driver installs/opens the PWA
 
   // ── Data hooks ────────────────────────────────────────────────────
-  const { driver, loading: driverLoading } = useDriverAccount(uid);
+  const { driver, loading: driverLoading, notFound: driverNotFound } = useDriverAccount(uid);
   const { accounts }                      = useAccounts();
   const { rides, loading: ridesLoading }  = useDriverRides(uid);
   const { requests, loading: reqLoading } = useIncomingRequest(uid);
@@ -821,7 +821,11 @@ function DriverAppInner({ uid }) {
   };
 
   // ── Not-a-driver guard ────────────────────────────────────────────
-  if (!driverLoading && !driver) {
+  // Only sign out when Firestore *confirms* there is no Drivers doc for this
+  // uid (driverNotFound). A transient read error leaves driver null WITHOUT
+  // setting notFound, so we no longer kick real drivers to the login screen on
+  // a network blip / offline PWA / rules re-eval.
+  if (driverNotFound && !driver) {
     signOut(getAuth(firebase_app)).catch(() => {});
     return <DriverLoginModal systemError="This account is not registered as a UaTob driver." />;
   }

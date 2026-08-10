@@ -216,7 +216,7 @@ export default function ActiveRide({ ride, uid, onContactDriver }) {
               {showDriverCard && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '11px 12px', borderRadius: 14, background: 'rgba(34,197,94,.06)', border: `1px solid ${C.border}`, marginBottom: 11 }}>
                   <div style={{ width: 44, height: 44, borderRadius: '50%', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 21, background: 'rgba(34,197,94,.12)', border: `2px solid ${C.green}` }}>
-                    {driverInfo.photoURL ? <img src={driverInfo.photoURL} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '🧑‍✈️'}
+                    {(driverInfo.profilePhotoUrl || driverInfo.photoURL) ? <img src={driverInfo.profilePhotoUrl || driverInfo.photoURL} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '🧑‍✈️'}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: BODY, fontSize: 13.5, fontWeight: 700, color: C.inkBright }}>{driverName}</div>
