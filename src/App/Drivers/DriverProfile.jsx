@@ -2,6 +2,7 @@
 // Identity, payout (Stripe deposit) setup, vehicle, documents, and settings.
 
 import { useState } from 'react';
+import { useAvatarUpload } from '@/App/UaTob/useAvatarUpload';
 
 const C = {
   bg: '#050A06', card: 'rgba(255,255,255,.035)', border: 'rgba(126,186,162,.16)', borderHi: 'rgba(47,224,138,.32)',
@@ -35,6 +36,10 @@ export default function DriverProfile({ driver, online, onSignOut, onOpenSupport
   const [busy, setBusy] = useState(false);
   const [err, setErr]   = useState('');
 
+  // profile photo upload (→ Drivers/{uid}.profilePhotoUrl)
+  const { upload: uploadPhoto, uploading: photoUploading, error: photoError } =
+    useAvatarUpload(driver?.uid, { collection: 'Drivers', folderPrefix: 'drivers', field: 'profilePhotoUrl' });
+
   // push state (Notification.permission isn't reactive; re-reads on render)
   const perm = (typeof window !== 'undefined' && 'Notification' in window) ? window.Notification.permission : 'unsupported';
   const pushOn     = perm === 'granted' || !!driver?.fcmToken;
@@ -64,19 +69,32 @@ export default function DriverProfile({ driver, online, onSignOut, onOpenSupport
 
   return (
     <div style={{ minHeight: '100%', background: C.bg, color: C.ink, fontFamily: BODY, padding: '10px 16px 24px' }}>
-      <style>{`@keyframes dpUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      <style>{`@keyframes dpUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}} @keyframes dpSpin{to{transform:rotate(360deg)}}`}</style>
 
       <div style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, letterSpacing: '.16em', textTransform: 'uppercase', color: C.inkDim }}>Account</div>
       <div style={{ fontFamily: COND, fontSize: 32, fontWeight: 900, letterSpacing: '-.5px', lineHeight: 1, margin: '4px 0 16px' }}>You</div>
 
       {/* identity */}
       <div style={{ ...card(), display: 'flex', alignItems: 'center', gap: 14, padding: '18px 16px', animation: 'dpUp .4s ease both' }}>
-        <div style={{ width: 62, height: 62, borderRadius: 20, flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: COND, fontSize: 26, fontWeight: 900, color: C.greenBt, background: 'linear-gradient(135deg,rgba(34,197,94,.2),rgba(34,211,238,.12))', border: `1.5px solid ${C.borderHi}` }}>
-          {photo ? <img src={photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
-        </div>
+        <label style={{ position: 'relative', width: 62, height: 62, flexShrink: 0, cursor: photoUploading ? 'wait' : 'pointer', display: 'block' }}>
+          <div style={{ width: 62, height: 62, borderRadius: 20, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: COND, fontSize: 26, fontWeight: 900, color: C.greenBt, background: 'linear-gradient(135deg,rgba(34,197,94,.2),rgba(34,211,238,.12))', border: `1.5px solid ${C.borderHi}` }}>
+            {photo ? <img src={photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
+          </div>
+          <span style={{ position: 'absolute', right: -3, bottom: -3, width: 22, height: 22, borderRadius: '50%', background: C.greenBt, border: '2px solid #050A06', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>📷</span>
+          {photoUploading && (
+            <span style={{ position: 'absolute', inset: 0, borderRadius: 20, background: 'rgba(2,5,3,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid rgba(255,255,255,.15)', borderTopColor: C.greenBt, display: 'block', animation: 'dpSpin .7s linear infinite' }} />
+            </span>
+          )}
+          <input type="file" accept="image/*" disabled={photoUploading}
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPhoto(f); e.target.value = ''; }}
+            style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
+        </label>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontFamily: BODY, fontSize: 19, fontWeight: 800, lineHeight: 1.1 }}>{name}</div>
-          {driver?.email && <div style={{ fontFamily: MONO, fontSize: 10, color: C.inkMid, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{driver.email}</div>}
+          {photoError ? <div style={{ fontFamily: MONO, fontSize: 9, color: C.red, marginTop: 4 }}>{photoError}</div>
+            : photoUploading ? <div style={{ fontFamily: MONO, fontSize: 9, color: C.greenBt, marginTop: 4 }}>Uploading photo…</div>
+            : driver?.email && <div style={{ fontFamily: MONO, fontSize: 10, color: C.inkMid, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{driver.email}</div>}
           <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
             <Pill color={sm.color}>{online && '● '}{sm.label}</Pill>
             {rating != null && <Pill color={C.amber}>★ {Number(rating).toFixed(2)}</Pill>}

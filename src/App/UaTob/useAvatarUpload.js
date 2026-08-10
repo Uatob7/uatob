@@ -12,7 +12,9 @@ import { firebase_app } from '@/firebase/config';
 const db = getFirestore(firebase_app);
 const MAX_BYTES = 10 * 1024 * 1024; // Cloudinary free image cap
 
-export function useAvatarUpload(uid) {
+// opts lets the driver app reuse this: { collection:'Drivers', folderPrefix:'drivers', field:'profilePhotoUrl' }
+export function useAvatarUpload(uid, opts = {}) {
+  const { collection = 'Accounts', folderPrefix = 'riders', field = 'photoURL' } = opts;
   const [uploading, setUploading] = useState(false);
   const [error,     setError]     = useState('');
 
@@ -29,7 +31,7 @@ export function useAvatarUpload(uid) {
       const signRes = await fetch('/api/cloudinary/sign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folder: `riders/${uid}/profile` }),
+        body: JSON.stringify({ folder: `${folderPrefix}/${uid}/profile` }),
       });
       if (!signRes.ok) throw new Error(`sign ${signRes.status}`);
       const { cloudName, apiKey, timestamp, folder, signature } = await signRes.json();
@@ -50,9 +52,9 @@ export function useAvatarUpload(uid) {
       // (a raw .heic URL won't render in most browsers) and stays optimized.
       const webUrl = data.secure_url.replace('/image/upload/', '/image/upload/f_auto,q_auto/');
 
-      // 3 — persist on the account (merge so a missing doc can't throw)
-      await setDoc(doc(db, 'Accounts', uid), {
-        photoURL:  webUrl,
+      // 3 — persist on the doc (merge so a missing doc can't throw)
+      await setDoc(doc(db, collection, uid), {
+        [field]:   webUrl,
         updatedAt: serverTimestamp(),
       }, { merge: true });
 
@@ -64,7 +66,7 @@ export function useAvatarUpload(uid) {
     } finally {
       setUploading(false);
     }
-  }, [uid]);
+  }, [uid, collection, folderPrefix, field]);
 
   return { upload, uploading, error };
 }
