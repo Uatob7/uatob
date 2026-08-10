@@ -1004,12 +1004,11 @@ function PaymentSheet({ req, method, credit = 0, onClose, onConfirm, onAddCredit
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, opacity: busy ? .7 : 1,
           }}>
             {busy ? 'Booking…' : `Confirm & ${cash ? 'book' : 'pay'}`}
-            <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 800, opacity: .65, textTransform: 'none' }}>→ Ride DB</span>
           </button>
         )}
         <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.inkDim, textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
           {cash
-            ? <>Locks this Request atomically, then writes a <b style={{ color: C.greenSoft }}>Ride</b>. If another rider beat you, it just closes.</>
+            ? <>We'll start finding your driver right away. You'll <b style={{ color: C.greenSoft }}>pay in cash</b> when they arrive.</>
             : <>Ride credit is <b style={{ color: C.amber }}>prepaid</b> — {money(fare)} comes off your balance the moment it's booked.</>}
         </div>
       </div>
