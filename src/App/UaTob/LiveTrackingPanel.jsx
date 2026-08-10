@@ -434,6 +434,7 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
   const liveStatus  = currentRide?.status ?? '';
   const pickup      = currentRide?.pickup  ?? 'Pickup location';
   const dropoff     = currentRide?.dropoff ?? 'Drop-off location';
+  const rideStops   = Array.isArray(currentRide?.stops) ? currentRide.stops : [];
   const driverColor = getDriverColor(currentRide?.rideType);
   const progress    = buildProgress(liveStatus);
 
@@ -835,6 +836,22 @@ export default function LiveTrackingPanel({ active, onRideDone }) {
               {pickup}
             </div>
           </div>
+          {rideStops.map((s, i) => (
+            <div key={i}>
+              <div style={{
+                fontSize: 10, fontWeight: 700, color: T.textMuted,
+                letterSpacing: '0.4px', textTransform: 'uppercase', marginBottom: 2,
+              }}>
+                Stop {i + 1}
+              </div>
+              <div style={{
+                fontSize: 14, fontWeight: 600, color: T.text,
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              }}>
+                {s?.address || '—'}
+              </div>
+            </div>
+          ))}
           <div>
             <div style={{
               fontSize: 10, fontWeight: 700, color: T.textMuted,

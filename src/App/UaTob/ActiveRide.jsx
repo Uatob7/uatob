@@ -249,7 +249,7 @@ export default function ActiveRide({ ride, uid, onContactDriver }) {
                     <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.greenBright }} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 7 }}>
-                    {[ride.pickup, ride.dropoff].map((a, i) => <div key={i} style={{ fontFamily: BODY, fontSize: 12, fontWeight: 600, color: C.inkMid, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a || '—'}</div>)}
+                    {[ride.pickup, ...(Array.isArray(ride.stops) ? ride.stops.map((s) => s?.address) : []), ride.dropoff].map((a, i) => <div key={i} style={{ fontFamily: BODY, fontSize: 12, fontWeight: 600, color: C.inkMid, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a || '—'}</div>)}
                   </div>
                   {ride.fareTotal != null && (
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>

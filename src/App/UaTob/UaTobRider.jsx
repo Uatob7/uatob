@@ -486,7 +486,7 @@ function RequestPane({ uid, account, initialDropoff = '', onPosted, onRoute }) {
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.greenBright, boxShadow: `0 0 7px ${C.greenBright}` }} />
               </div>
               <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 11 }}>
-                {[pickup, dropoff].map((a, i) => {
+                {[pickup, ...stops.filter((s) => s && s.trim()), dropoff].map((a, i) => {
                   const { main, sub } = splitAddr(a);
                   return (
                     <div key={i} style={{ minWidth: 0 }}>
