@@ -6,7 +6,7 @@
 // itself the moment this writes.
 
 import { useState, useCallback } from 'react';
-import { getFirestore, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { firebase_app } from '@/firebase/config';
 
 const db = getFirestore(firebase_app);
@@ -50,11 +50,11 @@ export function useAvatarUpload(uid) {
       // (a raw .heic URL won't render in most browsers) and stays optimized.
       const webUrl = data.secure_url.replace('/image/upload/', '/image/upload/f_auto,q_auto/');
 
-      // 3 — persist on the account
-      await updateDoc(doc(db, 'Accounts', uid), {
+      // 3 — persist on the account (merge so a missing doc can't throw)
+      await setDoc(doc(db, 'Accounts', uid), {
         photoURL:  webUrl,
         updatedAt: serverTimestamp(),
-      });
+      }, { merge: true });
 
       return webUrl;
     } catch (e) {
