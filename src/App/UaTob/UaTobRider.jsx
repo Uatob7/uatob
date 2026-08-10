@@ -281,7 +281,10 @@ function RequestPane({ uid, account, initialDropoff = '', onPosted, onRoute }) {
     if (!onRoute) return;
     const pk = tripData?.pickupLat != null ? { lat: tripData.pickupLat, lng: tripData.pickupLng } : pickupPoint;
     const dp = tripData?.dropoffLat != null ? { lat: tripData.dropoffLat, lng: tripData.dropoffLng } : null;
-    onRoute({ pickup: pk || null, dropoff: dp, polyline: tripData?.polyline || null });
+    const st = (tripData?.stops || [])
+      .filter((s) => s?.lat != null && s?.lng != null)
+      .map((s) => ({ lat: s.lat, lng: s.lng }));
+    onRoute({ pickup: pk || null, dropoff: dp, stops: st, polyline: tripData?.polyline || null });
   }, [pickupPoint, tripData, onRoute]);
 
   const fares = useMemo(() => {
@@ -1390,6 +1393,7 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
               drivers={drivers}
               pickup={route.pickup}
               dropoff={route.dropoff}
+              stops={route.stops}
               polyline={route.polyline}
             />
             <div className="ur-scroll" style={{

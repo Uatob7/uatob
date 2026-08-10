@@ -48,12 +48,13 @@ function makePin(color, glyph) {
   return el;
 }
 
-export default function RiderMap({ center, drivers = [], pickup, dropoff, polyline }) {
+export default function RiderMap({ center, drivers = [], pickup, dropoff, stops = [], polyline }) {
   const elRef = useRef(null);
   const mapRef = useRef(null);
   const driverMarkersRef = useRef([]);
   const pickupMarkerRef = useRef(null);
   const dropoffMarkerRef = useRef(null);
+  const stopMarkersRef = useRef([]);
   const ambientRef = useRef([]);   // [{ car, marker }]
   const rafRef = useRef(null);
   const centerRef = useRef(null);
@@ -62,6 +63,11 @@ export default function RiderMap({ center, drivers = [], pickup, dropoff, polyli
 
   const base = pickup || (center?.lat != null ? center : ORL);
   centerRef.current = base;
+
+  // Stable list + key for the (variable-length) stops so effects re-run only
+  // when the actual stop coordinates change.
+  const stopPts = (Array.isArray(stops) ? stops : []).filter((s) => s?.lat != null && s?.lng != null);
+  const stopsKey = JSON.stringify(stopPts.map((s) => [s.lng, s.lat]));
 
   // ── init once ──
   useEffect(() => {
@@ -97,6 +103,8 @@ export default function RiderMap({ center, drivers = [], pickup, dropoff, polyli
       cancelled = true;
       driverMarkersRef.current.forEach((m) => { try { m.remove(); } catch {} });
       driverMarkersRef.current = [];
+      stopMarkersRef.current.forEach((m) => { try { m.remove(); } catch {} });
+      stopMarkersRef.current = [];
       [pickupMarkerRef, dropoffMarkerRef].forEach((r) => { if (r.current) { try { r.current.remove(); } catch {} r.current = null; } });
       if (mapRef.current) { try { mapRef.current.remove(); } catch {} mapRef.current = null; }
     };
@@ -179,7 +187,15 @@ export default function RiderMap({ center, drivers = [], pickup, dropoff, polyli
       if (!dropoffMarkerRef.current) dropoffMarkerRef.current = new window.mapboxgl.Marker({ element: makePin('#2FE08A', '🏁'), anchor: 'center' }).setLngLat([dropoff.lng, dropoff.lat]).addTo(map);
       else dropoffMarkerRef.current.setLngLat([dropoff.lng, dropoff.lat]);
     } else if (dropoffMarkerRef.current) { try { dropoffMarkerRef.current.remove(); } catch {} dropoffMarkerRef.current = null; }
-  }, [ready, pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng]);
+    // intermediate stops — numbered pins
+    stopMarkersRef.current.forEach((m) => { try { m.remove(); } catch {} });
+    stopMarkersRef.current = [];
+    stopPts.forEach((s, i) => {
+      stopMarkersRef.current.push(
+        new window.mapboxgl.Marker({ element: makePin('#FBBF24', String(i + 1)), anchor: 'center' }).setLngLat([s.lng, s.lat]).addTo(map)
+      );
+    });
+  }, [ready, pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng, stopsKey]); // eslint-disable-line
 
   // Single source of truth for the camera. Reads viewRef (latest target) and
   // always resizes first so it centers correctly even mid-layout.
@@ -191,8 +207,11 @@ export default function RiderMap({ center, drivers = [], pickup, dropoff, polyli
     const duration = animated ? 1000 : 0;
     try {
       if (v.type === 'bounds') {
+        // The composer panel covers the lower ~two-thirds of the screen, so
+        // reserve that much at the bottom — otherwise the lower stops of a
+        // multi-stop route get framed behind the panel and look cut off.
         map.fitBounds([[v.minLng, v.minLat], [v.maxLng, v.maxLat]], {
-          padding: { top: 70, bottom: Math.round(h * 0.46), left: 55, right: 55 }, duration, maxZoom: 15,
+          padding: { top: 64, bottom: Math.min(Math.round(h * 0.64), h - 140), left: 48, right: 48 }, duration, maxZoom: 15,
         });
       } else if (v.type === 'pickup') {
         map.easeTo({ center: [v.lng, v.lat], zoom: 14, padding: { top: 0, bottom: Math.round(h * 0.5), left: 0, right: 0 }, duration });
@@ -216,9 +235,11 @@ export default function RiderMap({ center, drivers = [], pickup, dropoff, polyli
     } catch {}
 
     if (pickup?.lat != null && dropoff?.lat != null) {
-      // Fit the FULL route (every bend), not just the two endpoints.
+      // Fit the FULL route (every bend) AND every stop, not just the two
+      // endpoints — so a multi-stop trip is always framed in one view.
       const pts = coords.length >= 2 ? coords.slice() : [];
       pts.push([pickup.lng, pickup.lat], [dropoff.lng, dropoff.lat]);
+      stopPts.forEach((s) => pts.push([s.lng, s.lat]));
       const lngs = pts.map((p) => p[0]);
       const lats = pts.map((p) => p[1]);
       viewRef.current = { type: 'bounds', minLng: Math.min(...lngs), minLat: Math.min(...lats), maxLng: Math.max(...lngs), maxLat: Math.max(...lats) };
@@ -230,7 +251,7 @@ export default function RiderMap({ center, drivers = [], pickup, dropoff, polyli
 
     try { map.resize(); } catch {}
     applyView(true);
-  }, [ready, pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng, polyline, center?.lat, center?.lng, applyView]); // eslint-disable-line
+  }, [ready, pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng, stopsKey, polyline, center?.lat, center?.lng, applyView]); // eslint-disable-line
 
   // ── keep the view centered across ANY container-size change ──
   useEffect(() => {
