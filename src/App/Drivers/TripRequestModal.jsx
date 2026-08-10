@@ -1550,6 +1550,9 @@ export default function TripRequestModal({
             <RouteRail/>
             <div style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', gap:9 }}>
               <AddressRow label="Pickup"   raw={tripRequest.pickup}  accepted={accepted} dimmed={false}/>
+              {(Array.isArray(tripRequest.stops) ? tripRequest.stops : []).map((s, i) => (
+                <AddressRow key={i} label={`Stop ${i + 1}`} raw={s?.address} accepted={accepted} dimmed={true}/>
+              ))}
               <AddressRow label="Drop-off" raw={tripRequest.dropoff} accepted={accepted} dimmed={true}/>
             </div>
           </div>

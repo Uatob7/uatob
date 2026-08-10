@@ -30,14 +30,24 @@ export function useGetRoute() {
       driverLng,
       pickupLat,
       pickupLng,
+      waypoints = [],   // optional ordered [{lat,lng}] to route through before the target
     }) => {
       setLoading(true);
       setError("");
 
       try {
+        // driver → (each waypoint, in order) → target
+        const chain = [
+          `${driverLng},${driverLat}`,
+          ...(Array.isArray(waypoints) ? waypoints : [])
+            .filter((w) => typeof w?.lat === "number" && typeof w?.lng === "number")
+            .map((w) => `${w.lng},${w.lat}`),
+          `${pickupLng},${pickupLat}`,
+        ].join(";");
+
         const url =
           `https://api.mapbox.com/directions/v5/mapbox/driving/` +
-          `${driverLng},${driverLat};${pickupLng},${pickupLat}` +
+          `${chain}` +
           `?access_token=${MAPBOX_TOKEN}&geometries=polyline&overview=full`;
 
         const response = await fetch(url);

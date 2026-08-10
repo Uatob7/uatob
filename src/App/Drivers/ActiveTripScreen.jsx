@@ -250,6 +250,19 @@ function navUrl(lat, lng, fallbackText) {
   return null;
 }
 
+// Google Maps nav URL to `dest` that passes through ordered `stops` as
+// waypoints — one navigation session pickup → stop1 → … → drop-off.
+function navUrlThrough(lat, lng, fallbackText, stops) {
+  const base = navUrl(lat, lng, fallbackText);
+  if (!base) return base;
+  const wp = (Array.isArray(stops) ? stops : [])
+    .map((s) => (typeof s?.lat === 'number' && typeof s?.lng === 'number' && isFinite(s.lat) && isFinite(s.lng)
+      ? `${s.lat},${s.lng}`
+      : (s?.address ? encodeURIComponent(s.address) : null)))
+    .filter(Boolean);
+  return wp.length ? `${base}&waypoints=${wp.join('|')}` : base;
+}
+
 function openNav(url) {
   if (!url) return;
   try {
@@ -806,8 +819,10 @@ function ActionSheet({ trip, stage, distToTarget, onAction, pending, error }) {
   const dropoff = trip?.dropoff || trip?.dropoffLabel || trip?.dropoffAddress || '—';
   const distStr = distToTarget !== null ? fmtMi(distToTarget) : null;
 
+  const stops      = Array.isArray(trip?.stops) ? trip.stops : [];
   const pickupUrl  = navUrl(trip?.pickupLat,  trip?.pickupLng,  pickup);
-  const dropoffUrl = navUrl(trip?.dropoffLat, trip?.dropoffLng, dropoff);
+  // Drop-off nav routes through every stop in order so the driver hits them all.
+  const dropoffUrl = navUrlThrough(trip?.dropoffLat, trip?.dropoffLng, dropoff, stops);
   const targetWord = phase === 'toDropoff' ? 'DROP-OFF' : 'PICKUP';
   const targetUrl  = phase === 'toDropoff' ? dropoffUrl : pickupUrl;
 
@@ -832,6 +847,9 @@ function ActionSheet({ trip, stage, distToTarget, onAction, pending, error }) {
           <RouteRail status={stage}/>
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 9 }}>
             <AddrRow label="Pickup"   text={pickup}  dimmed={phase === 'toDropoff'} active={phase === 'toPickup'}  mapUrl={pickupUrl}/>
+            {stops.map((s, i) => (
+              <AddrRow key={i} label={`Stop ${i + 1}`} text={s?.address || '—'} dimmed={phase !== 'toDropoff'} active={false} mapUrl={navUrl(s?.lat, s?.lng, s?.address)}/>
+            ))}
             <AddrRow label="Drop-off" text={dropoff} dimmed={phase !== 'toDropoff'} active={phase === 'toDropoff'} mapUrl={dropoffUrl}/>
           </div>
         </div>
@@ -1266,6 +1284,7 @@ export default function ActiveTripScreen({
   const driverMkrRef   = useRef(null);
   const pickupMkrRef   = useRef(null);
   const dropoffMkrRef  = useRef(null);
+  const stopMkrsRef    = useRef([]);   // one marker per intermediate stop
 
   // ── refs: animation ──────────────────────────────────────────────────────
   const renderedRef            = useRef(null);
@@ -1331,6 +1350,13 @@ export default function ActiveTripScreen({
 
   const targetLat = phase === 'toDropoff' ? trip?.dropoffLat : trip?.pickupLat;
   const targetLng = phase === 'toDropoff' ? trip?.dropoffLng : trip?.pickupLng;
+
+  // On the drop-off leg the in-app route line passes through every stop in
+  // order; the pickup leg has none. Serialized so it's a stable effect dep.
+  const legWaypoints = (phase === 'toDropoff' && Array.isArray(trip?.stops))
+    ? trip.stops.filter((s) => typeof s?.lat === 'number' && typeof s?.lng === 'number').map((s) => ({ lat: s.lat, lng: s.lng }))
+    : [];
+  const legWaypointsKey = JSON.stringify(legWaypoints);
 
   const crowDistMi = (dLat && dLng && targetLat && targetLng)
     ? haversineMi(dLat, dLng, targetLat, targetLng) : null;
@@ -1481,6 +1507,7 @@ export default function ActiveTripScreen({
       if (mapRef.current) { try { mapRef.current.remove(); } catch (e) {} mapRef.current = null; }
       driverMkrRef.current = null; pickupMkrRef.current = null;
       dropoffMkrRef.current = null; puckRef.current = null;
+      stopMkrsRef.current = [];
       routeReadyRef.current = false; setMapReady(false);
     };
   // eslint-disable-next-line
@@ -1589,7 +1616,7 @@ export default function ActiveTripScreen({
 
     const field = phase === 'toDropoff' ? 'driverToDropoffPolyline' : 'driverEtaPolyline';
     let cancelled = false;
-    callGetRoute({ driverLat: dLat, driverLng: dLng, pickupLat: targetLat, pickupLng: targetLng })
+    callGetRoute({ driverLat: dLat, driverLng: dLng, pickupLat: targetLat, pickupLng: targetLng, waypoints: JSON.parse(legWaypointsKey) })
       .then((data) => {
         if (cancelled || !data?.polyline || !trip?.id) return;
         updateDoc(doc(db, 'Rides', trip.id), {
@@ -1599,7 +1626,7 @@ export default function ActiveTripScreen({
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [phase, dLat, dLng, targetLat, targetLng, trip?.id]); // eslint-disable-line
+  }, [phase, dLat, dLng, targetLat, targetLng, trip?.id, legWaypointsKey]); // eslint-disable-line
 
   // ── route fetch + draw ───────────────────────────────────────────────────
   useEffect(() => {
@@ -1630,6 +1657,7 @@ export default function ActiveTripScreen({
     callGetRoute({
       driverLat: dLat, driverLng: dLng,
       pickupLat: targetLat, pickupLng: targetLng,
+      waypoints: JSON.parse(legWaypointsKey),
     }).then((data) => {
       if (!mapRef.current || phaseAtCall !== fetchedPhaseRef.current) return;
       const decoded = decodePolyline(data?.polyline);
@@ -1643,7 +1671,7 @@ export default function ActiveTripScreen({
       installRoute([[dLng, dLat], [targetLng, targetLat]], 0);
     });
   // eslint-disable-next-line
-  }, [mapReady, phase, dLat, dLng, targetLat, targetLng, trip?.driverEtaPolyline, trip?.driverToDropoffPolyline, trip?.polyline]);
+  }, [mapReady, phase, dLat, dLng, targetLat, targetLng, trip?.driverEtaPolyline, trip?.driverToDropoffPolyline, trip?.polyline, legWaypointsKey]);
 
   function installRoute(coords, durSec) {
     routeCoordsRef.current = coords;
@@ -1686,11 +1714,20 @@ export default function ActiveTripScreen({
     [pickupMkrRef, dropoffMkrRef].forEach(r => {
       if (r.current) { try { r.current.remove(); } catch (e) {} r.current = null; }
     });
+    stopMkrsRef.current.forEach(m => { try { m.remove(); } catch (e) {} });
+    stopMkrsRef.current = [];
 
     if (trip?.pickupLat && trip?.pickupLng) {
       pickupMkrRef.current = new window.mapboxgl.Marker({ element: makePinEl(C.greenBright, '● PICKUP'), anchor: 'bottom' })
         .setLngLat([trip.pickupLng, trip.pickupLat]).addTo(map);
     }
+    // Intermediate stops, numbered in order.
+    (Array.isArray(trip?.stops) ? trip.stops : []).forEach((s, i) => {
+      if (typeof s?.lat !== 'number' || typeof s?.lng !== 'number') return;
+      const mk = new window.mapboxgl.Marker({ element: makePinEl(C.cyan, `${i + 1} STOP`), anchor: 'bottom' })
+        .setLngLat([s.lng, s.lat]).addTo(map);
+      stopMkrsRef.current.push(mk);
+    });
     if (trip?.dropoffLat && trip?.dropoffLng) {
       dropoffMkrRef.current = new window.mapboxgl.Marker({ element: makePinEl(C.amberBright, '◆ DROP-OFF'), anchor: 'bottom' })
         .setLngLat([trip.dropoffLng, trip.dropoffLat]).addTo(map);
@@ -1888,6 +1925,8 @@ export default function ActiveTripScreen({
     [pickupMkrRef, dropoffMkrRef, driverMkrRef].forEach(r => {
       if (r.current) { try { r.current.remove(); } catch (e) {} }
     });
+    stopMkrsRef.current.forEach(m => { try { m.remove(); } catch (e) {} });
+    stopMkrsRef.current = [];
     cancelAnimationFrame(rafRef.current);
   }, []);
 
