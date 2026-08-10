@@ -13,7 +13,20 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { MAPBOX_TOKEN, MAP_STYLE, ORL, loadMapbox, decodePolyline } from '@/App/UaTob/mapUtils';
 
-const ROUTE_SRC = 'rm-route';
+const ROUTE_SRC   = 'rm-route';
+const LYR_GLOW    = 'rm-route-glow';
+const LYR_CASING  = 'rm-route-casing';
+const LYR_CORE    = 'rm-route-core';
+const LYR_FLOW    = 'rm-route-flow';
+
+// Marching-dash frames for the flowing overlay (direction cue), same technique
+// as the driver map so the two feel like one product.
+const DASH_FRAMES = [
+  [0, 4, 3], [0.5, 4, 2.5], [1, 4, 2], [1.5, 4, 1.5],
+  [2, 4, 1], [2.5, 4, 0.5], [3, 4, 0], [0, 0.5, 3, 3.5],
+  [0, 1, 3, 3], [0, 1.5, 3, 2.5], [0, 2, 3, 2], [0, 2.5, 3, 1.5],
+  [0, 3, 3, 1], [0, 3.5, 3, 0.5],
+];
 
 // A small glowing dot representing a moving driver.
 function makeDot() {
@@ -48,6 +61,17 @@ function makePin(color, glyph) {
   return el;
 }
 
+// Floating trip chip (distance · time) that sits on the middle of the route.
+function makeTripLabel(text) {
+  const el = document.createElement('div');
+  el.style.cssText = 'transform:translateY(-2px);padding:5px 11px;border-radius:999px;white-space:nowrap;background:rgba(4,10,6,.92);border:1px solid rgba(74,222,128,.45);box-shadow:0 6px 20px rgba(0,0,0,.55),0 0 18px rgba(47,224,138,.28);color:#EAFFF2;font-family:"JetBrains Mono","SFMono-Regular",monospace;font-size:11px;font-weight:800;letter-spacing:.02em;backdrop-filter:blur(6px);pointer-events:none';
+  const span = document.createElement('span');
+  span.setAttribute('data-txt', '');
+  span.textContent = text;
+  el.appendChild(span);
+  return el;
+}
+
 // Pickup pin with a pulsing glow ring so the rider's start point stands out.
 function makeGlowPin(color, glyph) {
   const el = document.createElement('div');
@@ -62,13 +86,17 @@ function makeGlowPin(color, glyph) {
   return el;
 }
 
-export default function RiderMap({ center, drivers = [], pickup, dropoff, stops = [], polyline, bottomInset = 0 }) {
+export default function RiderMap({ center, drivers = [], pickup, dropoff, stops = [], polyline, distanceMi, durationMin, bottomInset = 0 }) {
   const elRef = useRef(null);
   const mapRef = useRef(null);
   const driverMarkersRef = useRef([]);
   const pickupMarkerRef = useRef(null);
   const dropoffMarkerRef = useRef(null);
   const stopMarkersRef = useRef([]);
+  const labelMarkerRef = useRef(null);   // floating trip chip at the route midpoint
+  const dashRafRef = useRef(null);
+  const dashFrameRef = useRef(0);
+  const hasRouteRef = useRef(false);
   const ambientRef = useRef([]);   // [{ car, marker }]
   const rafRef = useRef(null);
   const centerRef = useRef(null);
@@ -100,16 +128,38 @@ export default function RiderMap({ center, drivers = [], pickup, dropoff, stops 
       });
       map.on('load', () => {
         if (cancelled) return;
-        map.addSource(ROUTE_SRC, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+        // lineMetrics lets the core layer carry a cyan→green gradient along the
+        // route (line-progress). Four stacked layers give the signature look:
+        //   glow (wide, blurred bed) · casing (dark base) · gradient core ·
+        //   flowing white dash (animated direction cue).
+        map.addSource(ROUTE_SRC, { type: 'geojson', lineMetrics: true, data: { type: 'FeatureCollection', features: [] } });
         map.addLayer({
-          id: `${ROUTE_SRC}-glow`, type: 'line', source: ROUTE_SRC,
+          id: LYR_GLOW, type: 'line', source: ROUTE_SRC,
           layout: { 'line-join': 'round', 'line-cap': 'round' },
-          paint: { 'line-color': '#2FE08A', 'line-width': 9, 'line-opacity': 0.18, 'line-blur': 3 },
+          paint: { 'line-color': '#2FE08A', 'line-width': 18, 'line-opacity': 0.16, 'line-blur': 10 },
         });
         map.addLayer({
-          id: `${ROUTE_SRC}-line`, type: 'line', source: ROUTE_SRC,
+          id: LYR_CASING, type: 'line', source: ROUTE_SRC,
           layout: { 'line-join': 'round', 'line-cap': 'round' },
-          paint: { 'line-color': '#2FE08A', 'line-width': 3.5, 'line-opacity': 0.95 },
+          paint: { 'line-color': '#031810', 'line-width': 9, 'line-opacity': 0.75 },
+        });
+        map.addLayer({
+          id: LYR_CORE, type: 'line', source: ROUTE_SRC,
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-width': 5,
+            'line-gradient': [
+              'interpolate', ['linear'], ['line-progress'],
+              0,    '#3FD0EE',   // pickup — cyan
+              0.5,  '#48E0B0',   // mid — teal
+              1,    '#2FE08A',   // destination — green
+            ],
+          },
+        });
+        map.addLayer({
+          id: LYR_FLOW, type: 'line', source: ROUTE_SRC,
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: { 'line-color': '#EAFFF2', 'line-width': 2, 'line-opacity': 0.55, 'line-dasharray': [0, 4, 3] },
         });
         mapRef.current = map;
         setReady(true);
@@ -117,11 +167,12 @@ export default function RiderMap({ center, drivers = [], pickup, dropoff, stops 
     }).catch(() => {});
     return () => {
       cancelled = true;
+      cancelAnimationFrame(dashRafRef.current);
       driverMarkersRef.current.forEach((m) => { try { m.remove(); } catch {} });
       driverMarkersRef.current = [];
       stopMarkersRef.current.forEach((m) => { try { m.remove(); } catch {} });
       stopMarkersRef.current = [];
-      [pickupMarkerRef, dropoffMarkerRef].forEach((r) => { if (r.current) { try { r.current.remove(); } catch {} r.current = null; } });
+      [pickupMarkerRef, dropoffMarkerRef, labelMarkerRef].forEach((r) => { if (r.current) { try { r.current.remove(); } catch {} r.current = null; } });
       if (mapRef.current) { try { mapRef.current.remove(); } catch {} mapRef.current = null; }
     };
   }, []); // eslint-disable-line
@@ -200,7 +251,7 @@ export default function RiderMap({ center, drivers = [], pickup, dropoff, stops 
     } else if (pickupMarkerRef.current) { try { pickupMarkerRef.current.remove(); } catch {} pickupMarkerRef.current = null; }
     // dropoff
     if (dropoff?.lat != null) {
-      if (!dropoffMarkerRef.current) dropoffMarkerRef.current = new window.mapboxgl.Marker({ element: makePin('#2FE08A', '🏁'), anchor: 'center' }).setLngLat([dropoff.lng, dropoff.lat]).addTo(map);
+      if (!dropoffMarkerRef.current) dropoffMarkerRef.current = new window.mapboxgl.Marker({ element: makeGlowPin('#2FE08A', '🏁'), anchor: 'center' }).setLngLat([dropoff.lng, dropoff.lat]).addTo(map);
       else dropoffMarkerRef.current.setLngLat([dropoff.lng, dropoff.lat]);
     } else if (dropoffMarkerRef.current) { try { dropoffMarkerRef.current.remove(); } catch {} dropoffMarkerRef.current = null; }
     // intermediate stops — numbered pins
@@ -248,12 +299,30 @@ export default function RiderMap({ center, drivers = [], pickup, dropoff, stops 
     const map = mapRef.current;
     const coords = decodePolyline(polyline);
 
+    const hasRoute = coords.length >= 2;
+    hasRouteRef.current = hasRoute;
     try {
       map.getSource(ROUTE_SRC)?.setData({
         type: 'FeatureCollection',
-        features: coords.length >= 2 ? [{ type: 'Feature', geometry: { type: 'LineString', coordinates: coords } }] : [],
+        features: hasRoute ? [{ type: 'Feature', geometry: { type: 'LineString', coordinates: coords } }] : [],
       });
     } catch {}
+
+    // Floating trip chip pinned to the middle of the route.
+    if (hasRoute && (distanceMi != null || durationMin != null)) {
+      const mid = coords[Math.floor(coords.length / 2)];
+      const text = [distanceMi != null ? `${Number(distanceMi).toFixed(distanceMi < 10 ? 1 : 0)} mi` : null,
+                    durationMin != null ? `${durationMin} min` : null].filter(Boolean).join('  ·  ');
+      if (!labelMarkerRef.current) {
+        labelMarkerRef.current = new window.mapboxgl.Marker({ element: makeTripLabel(text), anchor: 'center' }).setLngLat(mid).addTo(map);
+      } else {
+        const el = labelMarkerRef.current.getElement();
+        const t = el.querySelector('[data-txt]'); if (t) t.textContent = text;
+        labelMarkerRef.current.setLngLat(mid);
+      }
+    } else if (labelMarkerRef.current) {
+      try { labelMarkerRef.current.remove(); } catch {} labelMarkerRef.current = null;
+    }
 
     if (pickup?.lat != null && dropoff?.lat != null) {
       // Fit the FULL route (every bend) AND every stop, not just the two
@@ -272,7 +341,24 @@ export default function RiderMap({ center, drivers = [], pickup, dropoff, stops 
 
     try { map.resize(); } catch {}
     applyView(true);
-  }, [ready, pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng, stopsKey, polyline, center?.lat, center?.lng, applyView]); // eslint-disable-line
+  }, [ready, pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng, stopsKey, polyline, distanceMi, durationMin, center?.lat, center?.lng, applyView]); // eslint-disable-line
+
+  // ── flowing dash animation — only runs while a route is on the map ──
+  useEffect(() => {
+    if (!ready || !mapRef.current) return;
+    let last = 0;
+    const step = (now) => {
+      dashRafRef.current = requestAnimationFrame(step);
+      if (now - last < 60) return;            // ~16fps is plenty for a dash
+      last = now;
+      const map = mapRef.current;
+      if (!map || !hasRouteRef.current) return;
+      dashFrameRef.current = (dashFrameRef.current + 1) % DASH_FRAMES.length;
+      try { map.setPaintProperty(LYR_FLOW, 'line-dasharray', DASH_FRAMES[dashFrameRef.current]); } catch {}
+    };
+    dashRafRef.current = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(dashRafRef.current);
+  }, [ready]);
 
   // Re-frame when the composer sheet grows/shrinks (step changes) so the route
   // always fills the newly-available map area.
