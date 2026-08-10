@@ -294,7 +294,10 @@ export default function DriverEarnings({ completedRides = [], driver, online }) 
           position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(2,5,3,.62)', backdropFilter: 'blur(4px)',
           display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
         }}>
-          <div style={{ width: '100%', maxWidth: 460, background: 'linear-gradient(180deg,rgba(10,18,12,.99),rgba(5,10,7,1))', borderTop: `1.5px solid ${C.borderHi}`, borderRadius: '24px 24px 0 0', padding: '16px 18px calc(22px + env(safe-area-inset-bottom))', boxShadow: '0 -20px 60px rgba(0,0,0,.7)' }}>
+          {/* Extra bottom padding clears the fixed 74px driver tab bar, which
+              sits in a higher stacking context and would otherwise cover the
+              Save button. */}
+          <div style={{ width: '100%', maxWidth: 460, background: 'linear-gradient(180deg,rgba(10,18,12,.99),rgba(5,10,7,1))', borderTop: `1.5px solid ${C.borderHi}`, borderRadius: '24px 24px 0 0', padding: '16px 18px calc(90px + env(safe-area-inset-bottom))', boxShadow: '0 -20px 60px rgba(0,0,0,.7)' }}>
             <div style={{ width: 38, height: 4, borderRadius: 2, background: 'rgba(255,255,255,.14)', margin: '0 auto 14px' }} />
             <div style={{ fontFamily: COND, fontSize: 20, fontWeight: 900, color: C.ink, letterSpacing: '-.01em' }}>Set your daily goal</div>
             <div style={{ fontFamily: MONO, fontSize: 10.5, color: C.inkDim, marginTop: 3, marginBottom: 16 }}>How much do you want to make in a day? Drives your pace ring.</div>
