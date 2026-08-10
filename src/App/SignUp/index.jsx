@@ -646,7 +646,7 @@ function PasswordStrengthMeter({ password }) {
   );
 }
 
-function UploadBox({ label, hint, icon: Icon = Upload, uploaded, previewUrl, uploading, progress = 0, error, onFileSelect, onRemove }) {
+function UploadBox({ label, hint, icon: Icon = Upload, uploaded, previewUrl, uploading, progress = 0, error, onFileSelect, onRemove, accept = "image/*" }) {
   const inputRef = useRef(null);
   const isPdf = previewUrl && previewUrl.startsWith("data:application/pdf");
 
@@ -660,7 +660,7 @@ function UploadBox({ label, hint, icon: Icon = Upload, uploaded, previewUrl, upl
         display: "flex", flexDirection: "column", alignItems: "center", gap: 10,
         transition: "all .25s", textAlign: "center", position: "relative", overflow: "hidden",
       }}>
-        <input ref={inputRef} type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" capture={false} style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) onFileSelect(f); e.target.value = ""; }}/>
+        <input ref={inputRef} type="file" accept={accept} style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) onFileSelect(f); e.target.value = ""; }}/>
 
         {previewUrl && !isPdf && (
           <div style={{ width: "100%", position: "relative" }}>
@@ -970,8 +970,8 @@ function StepDocuments({ data, setData, errors, uid }) {
       <InputField label="License Number" placeholder="D1234567" icon={FileText} value={data.licenseNumber} onChange={v => setData(d => ({ ...d, licenseNumber: v }))} hint="As shown on your license" error={errors?.licenseNumber} autoCapitalize/>
       <Divider/>
       <SectionLabel icon={Car}>Vehicle Registration &amp; Insurance</SectionLabel>
-      <UploadBox label="Vehicle Registration" hint="Photo or PDF accepted" icon={FileText} uploaded={data.registration} previewUrl={preview("registration")} uploading={uploadState.registration.uploading} progress={uploadState.registration.progress} error={errors?.registration} onFileSelect={f => uploadFile("registration", f)} onRemove={() => removeSlot("registration")}/>
-      <UploadBox label="Proof of Insurance" hint="Must be current &amp; valid" icon={Shield} uploaded={data.insurance} previewUrl={preview("insurance")} uploading={uploadState.insurance.uploading} progress={uploadState.insurance.progress} error={errors?.insurance} onFileSelect={f => uploadFile("insurance", f)} onRemove={() => removeSlot("insurance")}/>
+      <UploadBox label="Vehicle Registration" hint="Photo or PDF accepted" icon={FileText} accept="image/*,application/pdf" uploaded={data.registration} previewUrl={preview("registration")} uploading={uploadState.registration.uploading} progress={uploadState.registration.progress} error={errors?.registration} onFileSelect={f => uploadFile("registration", f)} onRemove={() => removeSlot("registration")}/>
+      <UploadBox label="Proof of Insurance" hint="Must be current &amp; valid" icon={Shield} accept="image/*,application/pdf" uploaded={data.insurance} previewUrl={preview("insurance")} uploading={uploadState.insurance.uploading} progress={uploadState.insurance.progress} error={errors?.insurance} onFileSelect={f => uploadFile("insurance", f)} onRemove={() => removeSlot("insurance")}/>
       <Divider/>
       <SectionLabel icon={User}>Profile Photo</SectionLabel>
       <UploadBox label="Your Photo" hint="Clear, recent headshot · No sunglasses" icon={Camera} uploaded={data.profilePhoto} previewUrl={preview("profilePhoto")} uploading={uploadState.profilePhoto.uploading} progress={uploadState.profilePhoto.progress} error={errors?.profilePhoto} onFileSelect={f => uploadFile("profilePhoto", f)} onRemove={() => removeSlot("profilePhoto")}/>
