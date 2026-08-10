@@ -380,7 +380,9 @@ function RequestPane({ uid, account, initialDropoff = '', onPosted, onRoute }) {
       {step === 0 && (
         <>
           {/* connected pickup → stops → destination card (clearly labeled rows) */}
-          <div style={{ ...cardStyle, position: 'relative', overflow: 'hidden' }}>
+          {/* NB: no overflow:hidden here — it would clip the address autocomplete
+              dropdowns that extend below each field. */}
+          <div style={{ ...cardStyle, position: 'relative' }}>
             <AddressField node={C.cyan} label="Pickup" value={pickup} onChange={setPickup} placeholder="Current location" onLocate={handleLocate} locating={geo.loading} />
 
             {/* intermediate stops */}
