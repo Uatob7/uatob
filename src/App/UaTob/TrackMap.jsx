@@ -50,6 +50,33 @@ function makePin(color, glyph) {
   return el;
 }
 
+function makeStopPin(n) {
+  const color = '#FBBF24';
+  const el = document.createElement('div');
+  el.style.cssText = 'position:relative;width:0;height:0';
+  const dot = document.createElement('div');
+  dot.style.cssText = `position:absolute;left:0;top:0;transform:translate(-50%,-50%);width:24px;height:24px;border-radius:50%;background:rgba(5,10,6,.94);border:2.5px solid ${color};box-shadow:0 0 14px ${color}bb;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:800;color:${color}`;
+  dot.textContent = String(n);
+  el.appendChild(dot);
+  return el;
+}
+
+// Radar shown at the pickup while we hunt for a driver — expanding rings + a
+// rotating sweep so "broadcasting to drivers nearby" reads on the map itself.
+function makeRadar() {
+  const el = document.createElement('div');
+  el.style.cssText = 'position:relative;width:0;height:0;pointer-events:none';
+  const sweep = document.createElement('div');
+  sweep.style.cssText = 'position:absolute;left:0;top:0;width:150px;height:150px;transform:translate(-50%,-50%);border-radius:50%;background:conic-gradient(from 0deg, rgba(63,208,238,.30), rgba(63,208,238,0) 60%);-webkit-mask:radial-gradient(circle, transparent 7px, #000 8px);mask:radial-gradient(circle, transparent 7px, #000 8px);animation:tmSweep 2.6s linear infinite';
+  el.appendChild(sweep);
+  for (let i = 0; i < 3; i++) {
+    const ring = document.createElement('div');
+    ring.style.cssText = `position:absolute;left:0;top:0;width:64px;height:64px;border-radius:50%;border:1.5px solid rgba(63,208,238,.55);transform:translate(-50%,-50%) scale(.3);opacity:0;animation:tmRadar 3s ease-out ${i}s infinite`;
+    el.appendChild(ring);
+  }
+  return el;
+}
+
 function makeCar(heading) {
   const wrap = document.createElement('div');
   wrap.style.cssText = 'position:relative;width:0;height:0';
@@ -68,15 +95,20 @@ function makeCar(heading) {
 }
 
 // phase: 'search' (no driver yet) | 'toPickup' | 'trip'
-export default function TrackMap({ pickup, dropoff, driver, polyline, phase }) {
+export default function TrackMap({ pickup, dropoff, driver, polyline, phase, stops = [] }) {
   const elRef = useRef(null);
   const mapRef = useRef(null);
   const pickupRef = useRef(null);
   const dropoffRef = useRef(null);
   const carRef = useRef(null);
+  const stopRefsRef = useRef([]);   // numbered pins for intermediate stops
+  const radarRef = useRef(null);    // pulsing radar shown at pickup while searching
   const viewRef = useRef(null);
   const dashRafRef = useRef(0);
   const dashStepRef = useRef(0);
+
+  const stopPts = (Array.isArray(stops) ? stops : []).filter((s) => s?.lat != null && s?.lng != null);
+  const stopsKey = JSON.stringify(stopPts.map((s) => [s.lng, s.lat]));
   const lastDashRef = useRef(0);
   const [ready, setReady] = useState(false);
 
@@ -125,7 +157,9 @@ export default function TrackMap({ pickup, dropoff, driver, polyline, phase }) {
     return () => {
       cancelled = true;
       cancelAnimationFrame(dashRafRef.current);
-      [pickupRef, dropoffRef, carRef].forEach((r) => { if (r.current) { try { r.current.remove(); } catch {} r.current = null; } });
+      stopRefsRef.current.forEach((m) => { try { m.remove(); } catch {} });
+      stopRefsRef.current = [];
+      [pickupRef, dropoffRef, carRef, radarRef].forEach((r) => { if (r.current) { try { r.current.remove(); } catch {} r.current = null; } });
       if (mapRef.current) { try { mapRef.current.remove(); } catch {} mapRef.current = null; }
     };
   }, []); // eslint-disable-line
@@ -157,7 +191,23 @@ export default function TrackMap({ pickup, dropoff, driver, polyline, phase }) {
       if (!dropoffRef.current) dropoffRef.current = new window.mapboxgl.Marker({ element: makePin(GREEN, '🏁'), anchor: 'center' }).setLngLat([dropoff.lng, dropoff.lat]).addTo(map);
       else dropoffRef.current.setLngLat([dropoff.lng, dropoff.lat]);
     }
-  }, [ready, routeCoords, driver?.lat, driver?.lng, pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng]);
+    // numbered stop pins
+    stopRefsRef.current.forEach((m) => { try { m.remove(); } catch {} });
+    stopRefsRef.current = [];
+    stopPts.forEach((s, i) => {
+      stopRefsRef.current.push(new window.mapboxgl.Marker({ element: makeStopPin(i + 1), anchor: 'center' }).setLngLat([s.lng, s.lat]).addTo(map));
+    });
+  }, [ready, routeCoords, driver?.lat, driver?.lng, pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng, stopsKey]); // eslint-disable-line
+
+  // radar at the pickup while searching
+  useEffect(() => {
+    if (!ready || !mapRef.current || !window.mapboxgl) return;
+    const map = mapRef.current;
+    if (phase === 'search' && pickup?.lat != null) {
+      if (!radarRef.current) radarRef.current = new window.mapboxgl.Marker({ element: makeRadar(), anchor: 'center' }).setLngLat([pickup.lng, pickup.lat]).addTo(map);
+      else radarRef.current.setLngLat([pickup.lng, pickup.lat]);
+    } else if (radarRef.current) { try { radarRef.current.remove(); } catch {} radarRef.current = null; }
+  }, [ready, phase, pickup?.lat, pickup?.lng]);
 
   // live driver car
   useEffect(() => {
@@ -199,16 +249,18 @@ export default function TrackMap({ pickup, dropoff, driver, polyline, phase }) {
     const pk = pickup?.lat  != null ? [pickup.lng, pickup.lat]   : null;
     const dp = dropoff?.lat != null ? [dropoff.lng, dropoff.lat] : null;
 
+    const sp = stopPts.map((s) => [s.lng, s.lat]);
+
     let pts;
-    if (phase === 'trip')            pts = [d, dp].filter(Boolean);
-    else if (phase === 'toPickup')   pts = [d, pk].filter(Boolean);
-    else                             pts = [pk, dp].filter(Boolean);
+    if (phase === 'trip')            pts = [d, ...sp, dp].filter(Boolean);   // remaining trip incl. stops
+    else if (phase === 'toPickup')   pts = [d, pk].filter(Boolean);          // just driver → pickup
+    else                             pts = [pk, ...sp, dp].filter(Boolean);  // search: whole trip
     if (!pts.length) pts = [pk || dp].filter(Boolean);
 
     viewRef.current = pts;
     try { mapRef.current.resize(); } catch {}
     applyView(true);
-  }, [ready, phase, driver?.lat, driver?.lng, pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng, applyView]);
+  }, [ready, phase, driver?.lat, driver?.lng, pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng, stopsKey, applyView]); // eslint-disable-line
 
   useEffect(() => {
     if (!ready || !elRef.current || typeof ResizeObserver === 'undefined') return;
@@ -223,7 +275,7 @@ export default function TrackMap({ pickup, dropoff, driver, polyline, phase }) {
 
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
-      <style>{`@keyframes tmPulse{0%{transform:translate(-50%,-50%) scale(.5);opacity:.8}100%{transform:translate(-50%,-50%) scale(2.6);opacity:0}} .mapboxgl-ctrl-logo,.mapboxgl-ctrl-bottom-left,.mapboxgl-ctrl-bottom-right,.mapboxgl-ctrl-attrib{display:none!important}`}</style>
+      <style>{`@keyframes tmPulse{0%{transform:translate(-50%,-50%) scale(.5);opacity:.8}100%{transform:translate(-50%,-50%) scale(2.6);opacity:0}} @keyframes tmRadar{0%{transform:translate(-50%,-50%) scale(.3);opacity:.7}100%{transform:translate(-50%,-50%) scale(3.6);opacity:0}} @keyframes tmSweep{to{transform:translate(-50%,-50%) rotate(360deg)}} .mapboxgl-ctrl-logo,.mapboxgl-ctrl-bottom-left,.mapboxgl-ctrl-bottom-right,.mapboxgl-ctrl-attrib{display:none!important}`}</style>
       <div ref={elRef} style={{ position: 'absolute', inset: 0, opacity: ready ? 1 : 0, transition: 'opacity .8s ease' }} />
       <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(180deg, rgba(5,10,6,.55) 0%, transparent 20%, transparent 42%, rgba(5,10,6,.62) 80%, #050A06 100%)' }} />
     </div>

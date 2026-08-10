@@ -169,6 +169,9 @@ export default function ActiveRide({ ride, uid, onContactDriver }) {
         @keyframes arBlink{0%,100%{opacity:1}50%{opacity:.25}}
         @keyframes arUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
         @keyframes arDots{0%,100%{opacity:1}50%{opacity:.3}}
+        @keyframes scRing{0%{transform:scale(.32);opacity:.7}100%{transform:scale(1);opacity:0}}
+        @keyframes scSweep{to{transform:rotate(360deg)}}
+        @keyframes scBar{0%,100%{transform:scaleX(0);opacity:.5}50%{transform:scaleX(1);opacity:1}}
       `}</style>
       <div style={{ position: 'fixed', inset: 0, background: C.bg, overflow: 'hidden', color: C.inkBright, display: 'flex', flexDirection: 'column' }}>
         {/* top bar */}
@@ -189,10 +192,13 @@ export default function ActiveRide({ ride, uid, onContactDriver }) {
 
         {/* map */}
         <div style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
-          <TrackMap pickup={pickup} dropoff={dropoff} driver={driver} polyline={sc.phase === 'toPickup' ? (ride.driverEtaPolyline || ride.polyline) : sc.phase === 'trip' ? (ride.driverToDropoffPolyline || ride.polyline) : ride.polyline} phase={sc.phase} />
+          <TrackMap pickup={pickup} dropoff={dropoff} driver={driver} stops={ride.stops} polyline={sc.phase === 'toPickup' ? (ride.driverEtaPolyline || ride.polyline) : sc.phase === 'trip' ? (ride.driverToDropoffPolyline || ride.polyline) : ride.polyline} phase={sc.phase} />
 
           {/* status card */}
           <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '0 12px 16px', animation: 'arUp .5s cubic-bezier(.34,1.16,.64,1) both' }}>
+            {sc.phase === 'search' ? (
+              <SearchingCard ride={ride} canCancel={canCancel} onCancel={cancel} canceling={canceling} onReport={() => { setShowReport(true); setReportDone(false); }} />
+            ) : (
             <div style={{ background: 'rgba(6,12,7,.94)', backdropFilter: 'blur(18px)', border: `1.5px solid ${C.borderBright}`, borderRadius: 22, padding: '15px 16px', boxShadow: '0 -6px 40px rgba(0,0,0,.6), 0 0 30px rgba(34,197,94,.08)' }}>
               {/* status row */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginBottom: showDriverCard ? 13 : 4 }}>
@@ -273,6 +279,7 @@ export default function ActiveRide({ ride, uid, onContactDriver }) {
                 fontFamily: MONO, fontSize: 10, color: C.inkDim, textDecoration: 'underline', textAlign: 'center', padding: 4,
               }}>Report a problem with this ride</button>
             </div>
+            )}
           </div>
         </div>
       </div>
@@ -293,6 +300,117 @@ export default function ActiveRide({ ride, uid, onContactDriver }) {
         />
       )}
     </>
+  );
+}
+
+// ── Searching-for-a-driver card ───────────────────────────────────────────────
+// A dedicated, premium "Finding your driver" state: a live radar showing how
+// many nearby drivers the request is being broadcast to, an elapsed timer, the
+// search radius (which the settle cron widens over time), and the full trip
+// route with every stop.
+function tsMs(ts) {
+  if (!ts) return 0;
+  if (typeof ts.toMillis === 'function') return ts.toMillis();
+  if (ts.seconds) return ts.seconds * 1000;
+  if (ts._seconds) return ts._seconds * 1000;
+  return 0;
+}
+
+function SearchingCard({ ride, canCancel, onCancel, canceling, onReport }) {
+  const started = tsMs(ride.dispatchedAt) || tsMs(ride.createdAt) || Date.now();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, []);
+  const elapsed = Math.max(0, Math.floor((now - started) / 1000));
+  const mm = Math.floor(elapsed / 60), ss = elapsed % 60;
+  const elapsedStr = `${mm}:${String(ss).padStart(2, '0')}`;
+
+  const pinged = Array.isArray(ride.candidateDriverUids) ? ride.candidateDriverUids.length : 0;
+  const radius = ride.dispatchRadiusMi || 20;
+  const slow   = elapsed >= 45;
+
+  const stops = Array.isArray(ride.stops) ? ride.stops : [];
+  const nodes = [
+    { addr: ride.pickup, label: 'Pickup', c: C.cyan, sq: false },
+    ...stops.map((s, i) => ({ addr: s?.address, label: `Stop ${i + 1}`, c: C.amber, sq: false })),
+    { addr: ride.dropoff, label: 'Destination', c: C.greenBright, sq: true },
+  ];
+
+  const Stat = ({ label, value, hi }) => (
+    <div style={{ flex: 1, textAlign: 'center', padding: '9px 6px', borderRadius: 12, background: 'rgba(255,255,255,.03)', border: `1px solid ${C.border}` }}>
+      <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 800, color: hi ? C.cyan : C.inkBright, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
+      <div style={{ fontFamily: COND, fontSize: 8.5, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: C.inkDim, marginTop: 3 }}>{label}</div>
+    </div>
+  );
+
+  return (
+    <div style={{ background: 'rgba(6,12,7,.95)', backdropFilter: 'blur(18px)', border: `1.5px solid ${C.borderBright}`, borderRadius: 24, padding: '18px 16px 15px', boxShadow: '0 -6px 40px rgba(0,0,0,.6), 0 0 40px rgba(63,208,238,.08)' }}>
+      {/* radar hero */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div style={{ position: 'relative', width: 118, height: 118, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {[0, 1, 2].map((i) => (
+            <span key={i} style={{ position: 'absolute', width: 118, height: 118, borderRadius: '50%', border: `1.5px solid ${C.cyan}55`, animation: `scRing 2.6s ease-out ${i * 0.85}s infinite` }} />
+          ))}
+          <span style={{ position: 'absolute', width: 118, height: 118, borderRadius: '50%', background: `conic-gradient(from 0deg, ${C.cyan}44, transparent 62%)`, WebkitMask: 'radial-gradient(circle, transparent 24px, #000 25px)', mask: 'radial-gradient(circle, transparent 24px, #000 25px)', animation: 'scSweep 2.4s linear infinite' }} />
+          <div style={{ position: 'relative', width: 64, height: 64, borderRadius: '50%', background: 'rgba(4,10,8,.92)', border: `1.5px solid ${C.cyan}66`, boxShadow: `0 0 24px ${C.cyan}44`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ fontFamily: COND, fontSize: 26, fontWeight: 900, color: C.cyan, lineHeight: 1 }}>{pinged}</div>
+            <div style={{ fontFamily: MONO, fontSize: 7, fontWeight: 800, letterSpacing: '.1em', color: C.inkMid, textTransform: 'uppercase', marginTop: 1 }}>nearby</div>
+          </div>
+        </div>
+
+        <div style={{ fontFamily: COND, fontSize: 23, fontWeight: 900, color: C.inkBright, letterSpacing: '-.01em', marginTop: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+          {slow ? 'Still searching' : 'Finding your driver'}
+          <span style={{ display: 'inline-flex', gap: 3 }}>{[0, 1, 2].map((i) => <span key={i} style={{ width: 4, height: 4, borderRadius: '50%', background: C.cyan, animation: `arDots 1.2s ease-in-out ${i * 0.2}s infinite` }} />)}</span>
+        </div>
+        <div style={{ fontFamily: MONO, fontSize: 10, color: C.inkMid, marginTop: 4 }}>
+          {pinged > 0 ? `Broadcasting to ${pinged} driver${pinged > 1 ? 's' : ''} nearby` : (slow ? 'Widening the search…' : 'Broadcasting to drivers nearby')}
+        </div>
+      </div>
+
+      {/* stats */}
+      <div style={{ display: 'flex', gap: 8, margin: '14px 0 12px' }}>
+        <Stat label="Searching" value={elapsedStr} hi />
+        <Stat label="Drivers" value={String(pinged)} />
+        <Stat label="Radius" value={`${radius} mi`} />
+      </div>
+
+      {/* route with every stop */}
+      <div style={{ display: 'flex', gap: 12, padding: '12px 13px', borderRadius: 14, background: 'rgba(255,255,255,.02)', border: `1px solid ${C.inkFade}`, marginBottom: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 3 }}>
+          {nodes.map((n, i) => (
+            <div key={i} style={{ display: 'contents' }}>
+              <span style={{ width: 8, height: 8, borderRadius: n.sq ? 2 : '50%', background: n.c, boxShadow: `0 0 7px ${n.c}` }} />
+              {i < nodes.length - 1 && <span style={{ width: 1.5, flex: 1, minHeight: 16, background: n.c, opacity: .35, margin: '2px 0' }} />}
+            </div>
+          ))}
+        </div>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 11 }}>
+          {nodes.map((n, i) => (
+            <div key={i} style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.16em', textTransform: 'uppercase', color: n.c }}>{n.label}</div>
+              <div style={{ fontFamily: BODY, fontSize: 12.5, fontWeight: 600, color: C.inkBright, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.addr || '—'}</div>
+            </div>
+          ))}
+        </div>
+        {ride.fareTotal != null && (
+          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+            <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 800, color: C.greenBright }}>${Number(ride.fareTotal).toFixed(2)}</div>
+            <div style={{ fontFamily: COND, fontSize: 8.5, fontWeight: 800, letterSpacing: '.1em', color: C.inkDim, textTransform: 'uppercase' }}>{ride.paymentMethod === 'credit' ? 'Credit' : 'Cash'}</div>
+          </div>
+        )}
+      </div>
+
+      {canCancel && (
+        <button onClick={onCancel} disabled={canceling} style={{
+          width: '100%', cursor: canceling ? 'wait' : 'pointer', borderRadius: 13, padding: 13,
+          fontFamily: COND, fontSize: 14, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase',
+          color: C.red, background: 'rgba(248,113,113,.08)', border: '1.5px solid rgba(248,113,113,.35)', opacity: canceling ? .6 : 1,
+        }}>{canceling ? 'Canceling…' : 'Cancel ride'}</button>
+      )}
+      <button onClick={onReport} style={{
+        width: '100%', marginTop: canCancel ? 10 : 0, background: 'none', border: 'none', cursor: 'pointer',
+        fontFamily: MONO, fontSize: 10, color: C.inkDim, textDecoration: 'underline', textAlign: 'center', padding: 4,
+      }}>Report a problem with this ride</button>
+    </div>
   );
 }
 
