@@ -1376,11 +1376,20 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
     setBooking(true);
     try {
       await markPayment(sheet.req, sheet.method);
-      // Marked for settlement — the request flips to status 'paying' and stays
-      // on the board as a "Booking your ride…" card (RequestCard reads status).
-      // The /api/requests/settle cron (every minute) then writes the canonical
-      // Ride and debits credit; once that Ride lands, index.jsx swaps to the
-      // map HUD on the next Rides snapshot.
+      // Marked for settlement — the request flips to status 'paying'. Instead of
+      // waiting up to a minute for the /api/requests/settle cron, poke the
+      // instant settle endpoint so the canonical Ride is minted and dispatched
+      // right now. Fire-and-forget: the cron is still the safety net if this
+      // call fails (offline, cold function, missing env). Once the Ride lands,
+      // index.jsx swaps to the map HUD on the next Rides snapshot.
+      const reqId = sheet.req?.id;
+      if (reqId) {
+        fetch('/api/requests/settle-one', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ requestId: reqId }),
+        }).catch(() => {});
+      }
       setSheet(null);
     } catch (err) {
       if (err?.code === 'insufficient_credit') {

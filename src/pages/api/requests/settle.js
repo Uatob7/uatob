@@ -80,29 +80,21 @@ async function findCandidateDrivers(db, pickup, radiusMi = DISPATCH_RADIUS_MI) {
     .map((d) => d.uid);
 }
 
-export default async function handler(req, res) {
-  const provided = req.query.secret || req.headers['x-cron-secret'];
-  if (!CRON_SECRET || provided !== CRON_SECRET) return res.status(401).json({ error: 'unauthorized' });
+// Convert a single PAYING request into a canonical Ride and dispatch it.
+// Exported so the cron (below) AND the instant /api/requests/settle-one route
+// can share the exact same logic — the transaction re-checks status == 'paying'
+// so calling it twice (instant + cron) can never double-convert.
+export async function settleOneRequest(db, docSnap) {
+  // Dispatch: find nearby online drivers BEFORE the transaction (Firestore
+  // transactions can't run queries). Skip for scheduled rides — those get
+  // dispatched closer to their pickup time, not now.
+  const d0 = docSnap.data();
+  const willSchedule = d0.isScheduled === true && !!d0.scheduledAt;
+  const candidateDriverUids = willSchedule
+    ? []
+    : await findCandidateDrivers(db, { lat: d0.pickupLat, lng: d0.pickupLng });
 
-  const db = adminDb();
-
-  try {
-    // Single-field query → no composite index required.
-    const snap = await db.collection('Requests').where('status', '==', 'paying').limit(50).get();
-
-    const results = [];
-    for (const docSnap of snap.docs) {
-      try {
-        // Dispatch: find nearby online drivers BEFORE the transaction (Firestore
-        // transactions can't run queries). Skip for scheduled rides — those get
-        // dispatched closer to their pickup time, not now.
-        const d0 = docSnap.data();
-        const willSchedule = d0.isScheduled === true && !!d0.scheduledAt;
-        const candidateDriverUids = willSchedule
-          ? []
-          : await findCandidateDrivers(db, { lat: d0.pickupLat, lng: d0.pickupLng });
-
-        const outcome = await db.runTransaction(async (tx) => {
+  return db.runTransaction(async (tx) => {
           const fresh = await tx.get(docSnap.ref);
           if (!fresh.exists) return { skipped: 'gone' };
           const r = fresh.data();
@@ -218,9 +210,24 @@ export default async function handler(req, res) {
             });
           }
 
-          return { rideId: rideRef.id, method, fare: fareTotal, dispatchedTo: candidateDriverUids.length };
-        });
+    return { rideId: rideRef.id, method, fare: fareTotal, dispatchedTo: candidateDriverUids.length };
+  });
+}
 
+export default async function handler(req, res) {
+  const provided = req.query.secret || req.headers['x-cron-secret'];
+  if (!CRON_SECRET || provided !== CRON_SECRET) return res.status(401).json({ error: 'unauthorized' });
+
+  const db = adminDb();
+
+  try {
+    // Single-field query → no composite index required.
+    const snap = await db.collection('Requests').where('status', '==', 'paying').limit(50).get();
+
+    const results = [];
+    for (const docSnap of snap.docs) {
+      try {
+        const outcome = await settleOneRequest(db, docSnap);
         results.push({ id: docSnap.id, ...outcome });
       } catch (e) {
         results.push({ id: docSnap.id, error: e.message });
