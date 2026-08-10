@@ -1125,7 +1125,7 @@ function PendingScreen({ firstName, email, uid }) {
             You're in,<br/>{firstName}!
           </div>
           <div style={{ fontSize: 14.5, color: C.textMid, lineHeight: 1.65, maxWidth: 340, margin: "0 auto" }}>
-            Your application is in and under review. Approval takes about <strong style={{ color: C.accent }}>5 minutes</strong> — turn on notifications below so we can ping you the moment you're in.
+            Your application is in and under review. Approval takes about <strong style={{ color: C.accent }}>2 minutes</strong> — turn on notifications below so we can ping you the moment you're in.
           </div>
         </div>
 

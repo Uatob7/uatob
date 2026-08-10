@@ -14,7 +14,7 @@ import { getMessaging } from 'firebase-admin/messaging';
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
-const AUTO_APPROVE_AFTER_MIN = 5;
+const AUTO_APPROVE_AFTER_MIN = 2;
 const AUTO_APPROVE_AFTER_MS  = AUTO_APPROVE_AFTER_MIN * 60_000;
 
 function tsMillis(ts) {
