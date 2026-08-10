@@ -92,19 +92,34 @@ export default function DriverTrips({ completedRides = [], online }) {
                 </div>
                 <div style={{ fontFamily: MONO, fontSize: 16, fontWeight: 800, color: C.greenBt }}>+{money(takeOf(r))}</div>
               </div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 4 }}>
-                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.cyan }} />
-                  <span style={{ width: 1.5, flex: 1, minHeight: 14, background: 'linear-gradient(180deg,#3FD0EE,#2FE08A)', opacity: .4, margin: '2px 0' }} />
-                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.greenBt }} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ fontFamily: BODY, fontSize: 12.5, fontWeight: 600, color: C.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cityOf(r.pickup, r.pickupCity)}</div>
-                  <div style={{ fontFamily: BODY, fontSize: 12.5, fontWeight: 600, color: C.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cityOf(r.dropoff, r.dropoffCity)}</div>
-                </div>
-              </div>
+              {(() => {
+                const stops = Array.isArray(r.stops) ? r.stops : [];
+                const nodes = [
+                  { text: cityOf(r.pickup, r.pickupCity), c: C.cyan, sq: false },
+                  ...stops.map((s) => ({ text: cityOf(s?.address, s?.city), c: C.amber, sq: false })),
+                  { text: cityOf(r.dropoff, r.dropoffCity), c: C.greenBt, sq: true },
+                ];
+                return (
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 4 }}>
+                      {nodes.map((n, idx) => (
+                        <div key={idx} style={{ display: 'contents' }}>
+                          <span style={{ width: 7, height: 7, borderRadius: n.sq ? 2 : '50%', background: n.c }} />
+                          {idx < nodes.length - 1 && <span style={{ width: 1.5, flex: 1, minHeight: 12, background: n.c, opacity: .4, margin: '2px 0' }} />}
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {nodes.map((n, idx) => (
+                        <div key={idx} style={{ fontFamily: BODY, fontSize: 12.5, fontWeight: 600, color: C.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.text}</div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
               <div style={{ display: 'flex', gap: 7, marginTop: 11, flexWrap: 'wrap' }}>
                 <Chip>{r.rideLabel || r.rideType || 'Standard'}</Chip>
+                {Array.isArray(r.stops) && r.stops.length > 0 && <Chip color={C.amber}>{r.stops.length} stop{r.stops.length > 1 ? 's' : ''}</Chip>}
                 {r.tripDistanceMiles != null && <Chip>{Number(r.tripDistanceMiles).toFixed(1)} mi</Chip>}
                 <Chip color={r.paymentMethod === 'credit' ? C.amber : C.greenBt}>{r.paymentMethod === 'credit' ? 'Credit' : 'Cash'}</Chip>
               </div>

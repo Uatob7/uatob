@@ -91,7 +91,8 @@ export default function DriverReviewModal({ review, onClose }) {
 
   if (!review) return null;
 
-  const { rating, comment, pickup, dropoff, fareTotal, rideLabel, tripDistanceMiles } = review;
+  const { rating, comment, pickup, dropoff, fareTotal, rideLabel, tripDistanceMiles, stops } = review;
+  const stopCount = Array.isArray(stops) ? stops.length : 0;
   const color = STAR_COLORS[rating] ?? '#16A34A';
   const label = LABELS[rating] ?? '';
 
@@ -208,6 +209,7 @@ export default function DriverReviewModal({ review, onClose }) {
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
               }}>
                 {shortAddr(pickup)}
+                {stopCount > 0 && <span style={{ color: '#D97706', fontWeight: 600, fontSize: 11, margin: '0 5px' }}>→ {stopCount} stop{stopCount > 1 ? 's' : ''}</span>}
                 <span style={{ color: '#9CA3AF', fontWeight: 500, margin: '0 6px' }}>→</span>
                 {shortAddr(dropoff)}
               </div>

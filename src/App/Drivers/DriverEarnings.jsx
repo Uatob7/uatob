@@ -271,7 +271,7 @@ export default function DriverEarnings({ completedRides = [], driver, online }) 
                   {(r.dropoffCity || String(r.dropoff || '').split(',')[0] || 'Trip')}
                 </div>
                 <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.inkDim, marginTop: 2 }}>
-                  {(r.updatedAt || r.createdAt) ? new Date(r.updatedAt || r.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''} · {r.paymentMethod === 'credit' ? 'Credit' : 'Cash'}
+                  {(r.updatedAt || r.createdAt) ? new Date(r.updatedAt || r.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''} · {r.paymentMethod === 'credit' ? 'Credit' : 'Cash'}{Array.isArray(r.stops) && r.stops.length > 0 ? ` · ${r.stops.length} stop${r.stops.length > 1 ? 's' : ''}` : ''}
                 </div>
               </div>
               <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 800, color: C.greenBt }}>+{money(takeOf(r))}</div>

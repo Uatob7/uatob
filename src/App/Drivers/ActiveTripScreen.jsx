@@ -940,9 +940,10 @@ function CompletedSheet({ trip }) {
           </div>
         )}
         <div style={{ fontFamily: COND, fontSize: 11, color: C.inkDim, letterSpacing: '.1em', marginBottom: 14 }}>PAYOUT CREDITED</div>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
           {typeof miles === 'number' && miles > 0 && <StatChip label="DISTANCE" value={`${miles.toFixed(1)} mi`}/>}
           {typeof mins  === 'number' && mins > 0  && <StatChip label="DURATION" value={`${mins} min`}/>}
+          {Array.isArray(trip?.stops) && trip.stops.length > 0 && <StatChip label="STOPS" value={String(trip.stops.length)}/>}
           {avgMph != null                           && <StatChip label="AVG SPEED" value={`${Math.round(avgMph)} mph`}/>}
         </div>
         {recap && (

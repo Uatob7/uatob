@@ -1194,6 +1194,12 @@ function ActiveTripHud({ activeTrip, driver, now }) {
 
   const pickup  = activeTrip.pickup  || activeTrip.pickupLabel  || '—';
   const dropoff = activeTrip.dropoff || activeTrip.dropoffLabel || '—';
+  const tripStops = Array.isArray(activeTrip.stops) ? activeTrip.stops : [];
+  const routeRows = [
+    { label: 'Pickup', text: pickup, c: C.greenBright, sq: false, strong: true },
+    ...tripStops.map((s, i) => ({ label: `Stop ${i + 1}`, text: s?.address || '—', c: C.amberBright, sq: false, strong: false })),
+    { label: 'Drop-off', text: dropoff, c: 'rgba(255,255,255,.65)', sq: true, strong: false },
+  ];
 
   return (
     <div style={{
@@ -1244,52 +1250,38 @@ function ActiveTripHud({ activeTrip, driver, now }) {
               display: 'flex', flexDirection: 'column', alignItems: 'center',
               paddingTop: 3, flexShrink: 0,
             }}>
-              <div style={{
-                width: 8, height: 8, borderRadius: '50%', background: C.greenBright,
-                boxShadow: `0 0 7px ${C.greenBright}88`,
-              }}/>
-              <div style={{
-                width: 1.5, flex: 1, minHeight: 18,
-                background: `linear-gradient(to bottom, ${C.greenBright}55, rgba(255,255,255,.1))`,
-                margin: '3px 0', borderRadius: 2,
-              }}/>
-              <div style={{
-                width: 8, height: 8,
-                background: 'rgba(255,255,255,.65)',
-                transform: 'rotate(45deg)', flexShrink: 0,
-                boxShadow: '0 0 5px rgba(255,255,255,.3)',
-              }}/>
+              {routeRows.map((n, idx) => (
+                <div key={idx} style={{ display: 'contents' }}>
+                  <div style={{
+                    width: 8, height: 8, borderRadius: n.sq ? 0 : '50%', background: n.c,
+                    transform: n.sq ? 'rotate(45deg)' : 'none',
+                    boxShadow: `0 0 6px ${n.c}`, flexShrink: 0,
+                  }}/>
+                  {idx < routeRows.length - 1 && (
+                    <div style={{ width: 1.5, flex: 1, minHeight: 14, background: `linear-gradient(to bottom, ${n.c}66, rgba(255,255,255,.1))`, margin: '3px 0', borderRadius: 2 }}/>
+                  )}
+                </div>
+              ))}
             </div>
 
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ marginBottom: 10 }}>
-                <div style={{
-                  fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.14em',
-                  color: C.inkTextDim, textTransform: 'uppercase', marginBottom: 2,
-                }}>
-                  Pickup
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {routeRows.map((n, idx) => (
+                <div key={idx}>
+                  <div style={{
+                    fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.14em',
+                    color: C.inkTextDim, textTransform: 'uppercase', marginBottom: 2,
+                  }}>
+                    {n.label}
+                  </div>
+                  <div style={{
+                    fontFamily: MONO, fontSize: 11, fontWeight: n.strong ? 700 : 600,
+                    color: n.strong ? 'rgba(255,255,255,.88)' : 'rgba(255,255,255,.55)',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>
+                    {n.text}
+                  </div>
                 </div>
-                <div style={{
-                  fontFamily: MONO, fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,.88)',
-                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                }}>
-                  {pickup}
-                </div>
-              </div>
-              <div>
-                <div style={{
-                  fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.14em',
-                  color: C.inkTextDim, textTransform: 'uppercase', marginBottom: 2,
-                }}>
-                  Drop-off
-                </div>
-                <div style={{
-                  fontFamily: MONO, fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,.5)',
-                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                }}>
-                  {dropoff}
-                </div>
-              </div>
+              ))}
             </div>
 
             {typeof activeTrip.driverPayout === 'number' && (
@@ -1733,6 +1725,16 @@ function CompletedTripPopup({ trip, onDismiss }) {
           {pickup && dropoff && (
             <div style={{ height: 1, background: 'rgba(34,197,94,.1)', margin: '2px 0 10px' }}/>
           )}
+          {Array.isArray(trip?.stops) && trip.stops.map((s, i) => (
+            <div key={i} style={{ marginBottom: 10 }}>
+              <div style={{ fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.14em', color: C.inkTextDim, marginBottom: 3 }}>
+                STOP {i + 1}
+              </div>
+              <div style={{ fontFamily: MONO, fontSize: 11, fontWeight: 600, color: 'rgba(251,191,36,.85)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {s?.address || '—'}
+              </div>
+            </div>
+          ))}
           {dropoff && (
             <div>
               <div style={{ fontFamily: COND, fontSize: 8, fontWeight: 800, letterSpacing: '.14em', color: C.inkTextDim, marginBottom: 3 }}>
