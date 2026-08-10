@@ -299,6 +299,28 @@ function makePickupLabelEl() {
   return el;
 }
 
+function makeStopPinEl(n) {
+  const el = document.createElement('div');
+  el.style.cssText = 'display:flex;flex-direction:column;align-items:center;pointer-events:none;';
+  el.innerHTML = `
+    <div style="padding:4px 9px;border-radius:7px;white-space:nowrap;background:rgba(3,6,4,.9);border:1.5px solid rgba(251,191,36,.55);box-shadow:0 4px 14px rgba(0,0,0,.55),0 0 12px rgba(251,191,36,.28);color:#FBBF24;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:800;letter-spacing:.04em;">◆ STOP ${n}</div>
+    <div style="width:2px;height:10px;background:rgba(251,191,36,.5);margin-top:-1px;"></div>
+    <div style="width:7px;height:7px;border-radius:50%;background:#FBBF24;box-shadow:0 0 9px #FBBF24;"></div>
+  `;
+  return el;
+}
+
+function makeDropoffPinEl() {
+  const el = document.createElement('div');
+  el.style.cssText = 'display:flex;flex-direction:column;align-items:center;pointer-events:none;';
+  el.innerHTML = `
+    <div style="padding:4px 9px;border-radius:7px;white-space:nowrap;background:rgba(3,6,4,.9);border:1.5px solid rgba(63,208,238,.55);box-shadow:0 4px 14px rgba(0,0,0,.55),0 0 12px rgba(63,208,238,.28);color:#3FD0EE;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:800;letter-spacing:.04em;">■ DROP-OFF</div>
+    <div style="width:2px;height:10px;background:rgba(63,208,238,.5);margin-top:-1px;"></div>
+    <div style="width:7px;height:7px;border-radius:50%;background:#3FD0EE;box-shadow:0 0 9px #3FD0EE;"></div>
+  `;
+  return el;
+}
+
 function makePickupPingEl() {
   const wrap = document.createElement('div');
   wrap.style.cssText = 'position:relative;width:0;height:0;pointer-events:none;';
@@ -319,7 +341,9 @@ function makePickupPingEl() {
 // FULL-SCREEN MAPBOX BACKGROUND
 // Mounts once, stays alive; route draws in + flows; pickup pings.
 // ═══════════════════════════════════════════════════════════════════════════════
-function FullscreenMap({ driverLat, driverLng, pickupLat, pickupLng, polyline, onReady }) {
+function FullscreenMap({ driverLat, driverLng, pickupLat, pickupLng, dropoffLat, dropoffLng, stops = [], polyline, onReady }) {
+  const stopPts = (Array.isArray(stops) ? stops : []).filter((s) => typeof s?.lat === 'number' && typeof s?.lng === 'number');
+  const stopsKey = JSON.stringify(stopPts.map((s) => [s.lng, s.lat]));
   const containerRef  = useRef(null);
   const mapRef        = useRef(null);
   const markersRef    = useRef([]);
@@ -439,10 +463,12 @@ function FullscreenMap({ driverLat, driverLng, pickupLat, pickupLng, polyline, o
         startDashFlow();
       }
 
-      // fit the full route + endpoints into view
+      // fit the full journey — driver, pickup, every stop, and drop-off
       const pts = [...routeCoords];
-      if (driverLat && driverLng) pts.push([driverLng, driverLat]);
-      if (pickupLat && pickupLng) pts.push([pickupLng, pickupLat]);
+      if (driverLat && driverLng)   pts.push([driverLng, driverLat]);
+      if (pickupLat && pickupLng)   pts.push([pickupLng, pickupLat]);
+      stopPts.forEach((s) => pts.push([s.lng, s.lat]));
+      if (dropoffLat && dropoffLng) pts.push([dropoffLng, dropoffLat]);
       if (pts.length >= 2) {
         const lngs = pts.map(p => p[0]);
         const lats = pts.map(p => p[1]);
@@ -502,9 +528,25 @@ function FullscreenMap({ driverLat, driverLng, pickupLat, pickupLng, polyline, o
             .setLngLat([pickupLng, pickupLat]).addTo(map),
         );
       }
+
+      // intermediate stops — numbered so the driver sees the whole journey
+      stopPts.forEach((s, i) => {
+        markersRef.current.push(
+          new window.mapboxgl.Marker({ element: makeStopPinEl(i + 1), anchor: 'bottom' })
+            .setLngLat([s.lng, s.lat]).addTo(map),
+        );
+      });
+
+      // drop-off
+      if (dropoffLat && dropoffLng) {
+        markersRef.current.push(
+          new window.mapboxgl.Marker({ element: makeDropoffPinEl(), anchor: 'bottom' })
+            .setLngLat([dropoffLng, dropoffLat]).addTo(map),
+        );
+      }
     });
   // eslint-disable-next-line
-  }, [driverLat, driverLng, pickupLat, pickupLng]);
+  }, [driverLat, driverLng, pickupLat, pickupLng, dropoffLat, dropoffLng, stopsKey]);
 
   return <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />;
 }
@@ -1369,6 +1411,9 @@ export default function TripRequestModal({
           driverLng={driver?.lng}
           pickupLat={tripRequest.pickupLat}
           pickupLng={tripRequest.pickupLng}
+          dropoffLat={tripRequest.dropoffLat}
+          dropoffLng={tripRequest.dropoffLng}
+          stops={tripRequest.stops}
           polyline={polyline}
           onReady={() => setMapReady(true)}
         />
