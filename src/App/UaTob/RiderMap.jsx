@@ -48,7 +48,7 @@ function makePin(color, glyph) {
   return el;
 }
 
-export default function RiderMap({ center, drivers = [], pickup, dropoff, stops = [], polyline }) {
+export default function RiderMap({ center, drivers = [], pickup, dropoff, stops = [], polyline, bottomInset = 0 }) {
   const elRef = useRef(null);
   const mapRef = useRef(null);
   const driverMarkersRef = useRef([]);
@@ -59,6 +59,8 @@ export default function RiderMap({ center, drivers = [], pickup, dropoff, stops 
   const rafRef = useRef(null);
   const centerRef = useRef(null);
   const viewRef = useRef(null);    // current camera target
+  const insetRef = useRef(0);      // px covered by the composer sheet at the bottom
+  insetRef.current = bottomInset;
   const [ready, setReady] = useState(false);
 
   const base = pickup || (center?.lat != null ? center : ORL);
@@ -206,15 +208,17 @@ export default function RiderMap({ center, drivers = [], pickup, dropoff, stops 
     const h = elRef.current?.clientHeight || 600;
     const duration = animated ? 1000 : 0;
     try {
+      // How much of the map the composer sheet actually covers at the bottom.
+      // Measured (insetRef) beats guessing — the route then always frames in the
+      // strip of map left visible above the sheet, fully zoomed out like the
+      // driver app. +20 keeps it off the sheet's rounded lip.
+      const inset = insetRef.current > 0 ? Math.min(insetRef.current + 20, h - 120) : Math.round(h * 0.5);
       if (v.type === 'bounds') {
-        // The composer panel covers the lower ~two-thirds of the screen, so
-        // reserve that much at the bottom — otherwise the lower stops of a
-        // multi-stop route get framed behind the panel and look cut off.
         map.fitBounds([[v.minLng, v.minLat], [v.maxLng, v.maxLat]], {
-          padding: { top: 64, bottom: Math.min(Math.round(h * 0.64), h - 140), left: 48, right: 48 }, duration, maxZoom: 15,
+          padding: { top: 60, bottom: inset, left: 46, right: 46 }, duration, maxZoom: 15,
         });
       } else if (v.type === 'pickup') {
-        map.easeTo({ center: [v.lng, v.lat], zoom: 14, padding: { top: 0, bottom: Math.round(h * 0.5), left: 0, right: 0 }, duration });
+        map.easeTo({ center: [v.lng, v.lat], zoom: 14, padding: { top: 0, bottom: inset, left: 0, right: 0 }, duration });
       } else {
         map.easeTo({ center: [v.lng, v.lat], zoom: 12.6, padding: { top: 0, bottom: 0, left: 0, right: 0 }, duration });
       }
@@ -252,6 +256,14 @@ export default function RiderMap({ center, drivers = [], pickup, dropoff, stops 
     try { map.resize(); } catch {}
     applyView(true);
   }, [ready, pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng, stopsKey, polyline, center?.lat, center?.lng, applyView]); // eslint-disable-line
+
+  // Re-frame when the composer sheet grows/shrinks (step changes) so the route
+  // always fills the newly-available map area.
+  useEffect(() => {
+    if (!ready || !mapRef.current) return;
+    try { mapRef.current.resize(); } catch {}
+    applyView(true);
+  }, [ready, bottomInset, applyView]);
 
   // ── keep the view centered across ANY container-size change ──
   useEffect(() => {

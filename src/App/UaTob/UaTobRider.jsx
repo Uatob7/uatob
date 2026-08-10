@@ -12,7 +12,7 @@
 // This component owns everything BEFORE a ride is active.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { getMessaging, onMessage } from 'firebase/messaging';
 import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
 import { firebase_app } from '@/firebase/config';
@@ -345,45 +345,59 @@ function RequestPane({ uid, account, initialDropoff = '', onPosted, onRoute }) {
     }
   }, [routeReady, posting, rideType, fares, createRequest, account, pickup, dropoff, tripData, leaveNow, scheduledAt, onPosted]);
 
-  const titles = ['Request a ride', 'When do you leave?', 'Confirm & price'];
+  const titles = ['Where to?', 'When do you leave?', 'Review your trip', 'Pick your ride'];
+  const subs   = [
+    'Set your pickup, any stops, and destination.',
+    'Ride now, or schedule it for later.',
+    'Check the route before you choose a ride.',
+    'Pick a ride — then post it to the board.',
+  ];
+
+  // pickup → stops → dropoff, as labeled nodes (used by Review).
+  const routeNodes = [
+    { addr: pickup, label: 'Pickup', color: C.cyan },
+    ...stops.filter((s) => s && s.trim()).map((s, i) => ({ addr: s, label: `Stop ${i + 1}`, color: C.amber })),
+    { addr: dropoff, label: 'Destination', color: C.greenBright },
+  ];
 
   return (
     <div style={{ animation: 'urUp .38s cubic-bezier(.34,1.1,.64,1) both' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 18 }}>
         {step > 0
           ? <button className="ur-tap" onClick={() => setStep((s) => s - 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.inkMid, fontFamily: COND, fontSize: 11, fontWeight: 800, letterSpacing: '.16em', textTransform: 'uppercase', padding: 0, display: 'flex', alignItems: 'center', gap: 5 }}>‹ Back</button>
-          : <Eyebrow>Post a trip</Eyebrow>}
-        <StepDots step={step} total={3} />
+          : <Eyebrow>Step {step + 1} of 4</Eyebrow>}
+        <StepDots step={step} total={4} />
       </div>
-      <div style={{ fontFamily: COND, fontSize: 19, fontWeight: 800, letterSpacing: '.01em', color: C.inkBright, margin: '5px 0 12px' }}>{titles[step]}</div>
+      <div style={{ fontFamily: COND, fontSize: 21, fontWeight: 800, letterSpacing: '.01em', color: C.inkBright, margin: '6px 0 1px' }}>{titles[step]}</div>
+      <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.inkDim, marginBottom: 13, lineHeight: 1.5 }}>{subs[step]}</div>
 
       {/* ── STEP 0 · ROUTE ── */}
       {step === 0 && (
         <>
-          {/* connected pickup → stops → destination card */}
-          <div style={{ ...cardStyle, position: 'relative' }}>
-            <AddressField compact node={C.cyan} value={pickup} onChange={setPickup} placeholder="Pickup location" onLocate={handleLocate} locating={geo.loading} />
+          {/* connected pickup → stops → destination card (clearly labeled rows) */}
+          <div style={{ ...cardStyle, position: 'relative', overflow: 'hidden' }}>
+            <AddressField node={C.cyan} label="Pickup" value={pickup} onChange={setPickup} placeholder="Current location" onLocate={handleLocate} locating={geo.loading} />
 
             {/* intermediate stops */}
             {stops.map((s, i) => (
               <div key={i}>
-                <div style={{ height: 1, background: C.inkFade, marginLeft: 34 }} />
+                <div style={{ height: 1, background: C.inkFade, marginLeft: 40 }} />
                 <div style={{ position: 'relative' }}>
-                  <AddressField compact node={C.amber} value={s} onChange={(v) => updateStop(i, v)} placeholder={`Stop ${i + 1}`} />
+                  <AddressField node={C.amber} label={`Stop ${i + 1}`} value={s} onChange={(v) => updateStop(i, v)} placeholder="Add a stop" />
                   <button
                     className="ur-tap"
                     onClick={() => removeStop(i)}
                     aria-label={`Remove stop ${i + 1}`}
-                    style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', zIndex: 2, background: 'none', border: 'none', cursor: 'pointer', color: C.inkMid, fontSize: 15, lineHeight: 1, padding: 6 }}
+                    style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', zIndex: 2, background: 'rgba(255,255,255,.05)', border: `1px solid ${C.border}`, borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', color: C.inkMid, fontSize: 13, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   >✕</button>
                 </div>
               </div>
             ))}
 
-            <div style={{ height: 1, background: C.inkFade, marginLeft: 34 }} />
-            <AddressField compact node={C.greenBright} value={dropoff} onChange={setDropoff} placeholder="Where to?" />
-            {/* rail connecting the dots top-to-bottom */}
-            <div style={{ position: 'absolute', left: 18.5, top: 30, bottom: 30, width: 1.5, background: 'linear-gradient(180deg,#3FD0EE,#2FE08A)', opacity: .35 }} />
+            <div style={{ height: 1, background: C.inkFade, marginLeft: 40 }} />
+            <AddressField node={C.greenBright} label="Destination" value={dropoff} onChange={setDropoff} placeholder="Where to?" />
+            {/* rail connecting the node dots top-to-bottom */}
+            <div style={{ position: 'absolute', left: 19.5, top: 34, bottom: 34, width: 1.5, background: 'linear-gradient(180deg,#3FD0EE,#2FE08A)', opacity: .4 }} />
           </div>
 
           {/* add a stop */}
@@ -391,23 +405,24 @@ function RequestPane({ uid, account, initialDropoff = '', onPosted, onRoute }) {
             <button
               className="ur-tap"
               onClick={addStop}
-              style={{ marginTop: 8, background: 'none', border: `1px dashed ${C.border}`, borderRadius: 12, cursor: 'pointer', color: C.inkMid, fontFamily: COND, fontSize: 12, fontWeight: 800, letterSpacing: '.1em', textTransform: 'uppercase', padding: '9px 14px', display: 'inline-flex', alignItems: 'center', gap: 7 }}
+              style={{ marginTop: 10, width: '100%', background: 'rgba(251,191,36,.05)', border: `1px dashed ${C.amber}66`, borderRadius: 14, cursor: 'pointer', color: C.amber, fontFamily: COND, fontSize: 13, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
             >
-              <span style={{ fontSize: 15, color: C.amber, lineHeight: 1 }}>＋</span> Add stop
+              <span style={{ fontSize: 16, lineHeight: 1 }}>＋</span> Add a stop {stops.length > 0 && <span style={{ opacity: .6 }}>({MAX_STOPS - stops.length} left)</span>}
             </button>
           )}
 
           {geo.error && <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.red, marginTop: 8 }}>{geo.error}</div>}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 22, margin: '12px 2px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 22, margin: '13px 2px' }}>
             {tripData ? (
               <>
                 <Chip icon="📍">{tripData.miles} mi</Chip>
                 <Chip icon="⏱">{tripData.durationMin} min</Chip>
+                {stops.filter((s) => s && s.trim()).length > 0 && <Chip icon="⚑">{stops.filter((s) => s && s.trim()).length} stop{stops.filter((s) => s && s.trim()).length > 1 ? 's' : ''}</Chip>}
               </>
             ) : (
               <span style={{ fontFamily: MONO, fontSize: 9.5, color: C.inkDim }}>
-                {routing ? 'Finding route…' : 'Enter both to see distance & time'}
+                {routing ? 'Finding route…' : 'Enter pickup & destination to see distance & time'}
               </span>
             )}
           </div>
@@ -477,34 +492,60 @@ function RequestPane({ uid, account, initialDropoff = '', onPosted, onRoute }) {
         </>
       )}
 
-      {/* ── STEP 2 · PRICE ── */}
+      {/* ── STEP 2 · CONFIRM (review the trip, no price yet) ── */}
       {step === 2 && (
         <>
-          {/* Trip summary */}
-          <div style={{ ...cardStyle, padding: '13px 15px', marginBottom: 14 }}>
-            <div style={{ display: 'flex', gap: 11 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 5 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.cyan, boxShadow: `0 0 7px ${C.cyan}` }} />
-                <span style={{ width: 1.5, flex: 1, minHeight: 18, background: 'linear-gradient(180deg,#3FD0EE,#2FE08A)', opacity: .4, margin: '3px 0' }} />
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.greenBright, boxShadow: `0 0 7px ${C.greenBright}` }} />
+          <div style={{ ...cardStyle, padding: '14px 15px', marginBottom: 12 }}>
+            <div style={{ display: 'flex', gap: 12 }}>
+              {/* node rail */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 4 }}>
+                {routeNodes.map((n, i) => (
+                  <div key={i} style={{ display: 'contents' }}>
+                    <span style={{ width: 9, height: 9, borderRadius: n.label === 'Destination' ? 2 : '50%', background: n.color, boxShadow: `0 0 7px ${n.color}` }} />
+                    {i < routeNodes.length - 1 && <span style={{ width: 1.5, flex: 1, minHeight: 20, background: `${n.color}`, opacity: .35, margin: '3px 0' }} />}
+                  </div>
+                ))}
               </div>
-              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 11 }}>
-                {[pickup, ...stops.filter((s) => s && s.trim()), dropoff].map((a, i) => {
-                  const { main, sub } = splitAddr(a);
+              {/* labeled addresses */}
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 13 }}>
+                {routeNodes.map((n, i) => {
+                  const { main, sub } = splitAddr(n.addr);
                   return (
                     <div key={i} style={{ minWidth: 0 }}>
-                      <div style={{ fontFamily: BODY, fontSize: 13, fontWeight: 700, color: C.inkBright, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{main}</div>
+                      <div style={{ fontFamily: COND, fontSize: 8.5, fontWeight: 800, letterSpacing: '.16em', textTransform: 'uppercase', color: n.color, marginBottom: 2 }}>{n.label}</div>
+                      <div style={{ fontFamily: BODY, fontSize: 13.5, fontWeight: 700, color: C.inkBright, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{main}</div>
                       {sub && <div style={{ fontFamily: MONO, fontSize: 9, color: C.inkDim, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</div>}
                     </div>
                   );
                 })}
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, paddingTop: 11, borderTop: `1px solid ${C.inkFade}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 13, paddingTop: 12, borderTop: `1px solid ${C.inkFade}` }}>
               <span style={{ fontSize: 13 }}>{leaveNow ? '⚡' : '🗓'}</span>
               <span style={{ fontFamily: MONO, fontSize: 10.5, color: leaveNow ? C.greenSoft : C.cyan }}>{fmtWhen(scheduledAt)}</span>
               <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10, color: C.inkMid }}>{tripData?.miles} mi · {tripData?.durationMin} min</span>
             </div>
+          </div>
+
+          {/* quick edits back to earlier steps */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+            <button className="ur-tap" onClick={() => setStep(0)} style={{ flex: 1, background: 'rgba(255,255,255,.03)', border: `1px solid ${C.border}`, borderRadius: 12, cursor: 'pointer', color: C.inkMid, fontFamily: COND, fontSize: 11, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', padding: '10px' }}>Edit route</button>
+            <button className="ur-tap" onClick={() => setStep(1)} style={{ flex: 1, background: 'rgba(255,255,255,.03)', border: `1px solid ${C.border}`, borderRadius: 12, cursor: 'pointer', color: C.inkMid, fontFamily: COND, fontSize: 11, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', padding: '10px' }}>Edit time</button>
+          </div>
+
+          <StepButton enabled={routeReady} onClick={() => setStep(3)}>Confirm trip</StepButton>
+        </>
+      )}
+
+      {/* ── STEP 3 · PRICE (choose ride, then post) ── */}
+      {step === 3 && (
+        <>
+          {/* compact one-line trip recap */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, ...cardStyle, padding: '10px 13px', marginBottom: 12 }}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.cyan, flexShrink: 0 }} />
+            <span style={{ fontFamily: BODY, fontSize: 12, fontWeight: 700, color: C.inkBright, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0 }}>{splitAddr(dropoff).main}</span>
+            {stops.filter((s) => s && s.trim()).length > 0 && <span style={{ fontFamily: MONO, fontSize: 9, color: C.amber, flexShrink: 0 }}>+{stops.filter((s) => s && s.trim()).length} stop{stops.filter((s) => s && s.trim()).length > 1 ? 's' : ''}</span>}
+            <span style={{ fontFamily: MONO, fontSize: 9.5, color: C.inkMid, flexShrink: 0 }}>{tripData?.miles} mi</span>
           </div>
 
           {/* Ride selector — vertical list */}
@@ -1257,6 +1298,19 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
   const [route, setRoute] = useState({ pickup: null, dropoff: null, polyline: null });
   const [requestOpen, setRequestOpen] = useState(false); // composer collapsed → button only
   const [pendingDest, setPendingDest] = useState('');    // destination prefilled from a home quick-chip
+  const [sheetH, setSheetH] = useState(0);               // measured composer-sheet height → map bottom inset
+  const sheetRef = useRef(null);
+
+  // Feed the map the sheet's real height so it frames the route in the visible
+  // strip above the sheet instead of guessing.
+  useEffect(() => {
+    const el = sheetRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => setSheetH(el.clientHeight || 0));
+    ro.observe(el);
+    setSheetH(el.clientHeight || 0);
+    return () => ro.disconnect();
+  }, [tab, requestOpen]);
 
   const { requests, loading: loadingRequests, error: requestsError } = useRequests(uid);
   const { markPayment } = useMarkPayment(uid);
@@ -1395,9 +1449,10 @@ export default function UaTobRider({ uid, account, drivers = [], onSignOut = () 
               dropoff={route.dropoff}
               stops={route.stops}
               polyline={route.polyline}
+              bottomInset={sheetH}
             />
-            <div className="ur-scroll" style={{
-              position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '74%', overflowY: 'auto',
+            <div ref={sheetRef} className="ur-scroll" style={{
+              position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: requestOpen ? '66%' : '58%', overflowY: 'auto',
               background: 'linear-gradient(180deg, rgba(6,12,7,.82), rgba(4,8,5,.98))', backdropFilter: 'blur(16px)',
               borderTop: `1px solid ${C.border}`, borderRadius: '26px 26px 0 0',
               boxShadow: '0 -20px 50px rgba(0,0,0,.55)', padding: '10px 16px 20px', scrollbarWidth: 'none',
