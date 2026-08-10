@@ -48,6 +48,20 @@ function makePin(color, glyph) {
   return el;
 }
 
+// Pickup pin with a pulsing glow ring so the rider's start point stands out.
+function makeGlowPin(color, glyph) {
+  const el = document.createElement('div');
+  el.style.cssText = `position:relative;width:0;height:0`;
+  const pulse = document.createElement('div');
+  pulse.style.cssText = `position:absolute;left:0;top:0;transform:translate(-50%,-50%);width:26px;height:26px;border-radius:50%;background:${color};animation:rmPulse 1.9s ease-out infinite`;
+  const dot = document.createElement('div');
+  dot.style.cssText = `position:absolute;left:0;top:0;transform:translate(-50%,-50%);width:28px;height:28px;border-radius:50%;background:rgba(5,10,6,.92);border:2.5px solid ${color};box-shadow:0 0 18px ${color}dd,0 0 34px ${color}88;display:flex;align-items:center;justify-content:center;font-size:14px`;
+  dot.textContent = glyph;
+  el.appendChild(pulse);
+  el.appendChild(dot);
+  return el;
+}
+
 export default function RiderMap({ center, drivers = [], pickup, dropoff, stops = [], polyline, bottomInset = 0 }) {
   const elRef = useRef(null);
   const mapRef = useRef(null);
@@ -181,7 +195,7 @@ export default function RiderMap({ center, drivers = [], pickup, dropoff, stops 
     const map = mapRef.current;
     // pickup
     if (pickup?.lat != null) {
-      if (!pickupMarkerRef.current) pickupMarkerRef.current = new window.mapboxgl.Marker({ element: makePin('#3FD0EE', '📍'), anchor: 'center' }).setLngLat([pickup.lng, pickup.lat]).addTo(map);
+      if (!pickupMarkerRef.current) pickupMarkerRef.current = new window.mapboxgl.Marker({ element: makeGlowPin('#3FD0EE', '📍'), anchor: 'center' }).setLngLat([pickup.lng, pickup.lat]).addTo(map);
       else pickupMarkerRef.current.setLngLat([pickup.lng, pickup.lat]);
     } else if (pickupMarkerRef.current) { try { pickupMarkerRef.current.remove(); } catch {} pickupMarkerRef.current = null; }
     // dropoff
@@ -214,8 +228,11 @@ export default function RiderMap({ center, drivers = [], pickup, dropoff, stops 
       // driver app. +20 keeps it off the sheet's rounded lip.
       const inset = insetRef.current > 0 ? Math.min(insetRef.current + 20, h - 120) : Math.round(h * 0.5);
       if (v.type === 'bounds') {
+        // Flatten to top-down (pitch 0) while framing a route — a tilted camera
+        // pushes the far endpoint off-screen, so you couldn't see the whole
+        // A→B line. This mirrors the driver app's route overview.
         map.fitBounds([[v.minLng, v.minLat], [v.maxLng, v.maxLat]], {
-          padding: { top: 60, bottom: inset, left: 46, right: 46 }, duration, maxZoom: 15,
+          padding: { top: 56, bottom: inset, left: 42, right: 42 }, duration, maxZoom: 15, pitch: 0, bearing: 0,
         });
       } else if (v.type === 'pickup') {
         map.easeTo({ center: [v.lng, v.lat], zoom: 14, padding: { top: 0, bottom: inset, left: 0, right: 0 }, duration });
@@ -283,6 +300,7 @@ export default function RiderMap({ center, drivers = [], pickup, dropoff, stops 
 
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
+      <style>{`@keyframes rmPulse{0%{transform:translate(-50%,-50%) scale(.55);opacity:.55}100%{transform:translate(-50%,-50%) scale(2.7);opacity:0}}`}</style>
       <div ref={elRef} style={{ position: 'absolute', inset: 0, opacity: ready ? 1 : 0, transition: 'opacity .8s ease' }} />
 
       {/* scrims so chrome + panel blend into the map */}
